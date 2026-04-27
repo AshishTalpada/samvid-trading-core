@@ -60,7 +60,7 @@ class APIServer:
 
         self.app = FastAPI(title="TradingSystem Elite API", lifespan=lifespan)
 
-        # ── SECURITY GUARD: RESTRICTED CORS (Samvid v1.0-beta-beta-beta) ──
+        # ── SECURITY GUARD: RESTRICTED CORS (Samvid v1.0-beta) ──
         # In production, specify your frontend URL instead of "*"
         self.app.add_middleware(
             CORSMiddleware,
@@ -91,13 +91,13 @@ class APIServer:
                 "status": status,
                 "timestamp": datetime.now().isoformat(),
                 "components": components,
-                "version": "Sovereign-v1.0-beta-beta"
+                "version": "Sovereign-v1.0-beta"
             }
 
     def _subscribe_to_bus(self) -> None:
         """Bind to the SharedIntelligenceBus for instant 100Hz pushing."""
         if hasattr(self.system, "bus") and self.system.bus is not None:
-            # ── CONSOLIDATED BROADCASTERS (Samvid v1.0-beta-beta-beta) ──
+            # ── CONSOLIDATED BROADCASTERS (Samvid v1.0-beta) ──
             # HFT topics use the Queue model to prevent memory leaks
             self._tick_queue = self.system.bus.subscribe("tick.hft", maxsize=50)
             asyncio.create_task(self._run_tick_broadcaster())
@@ -191,7 +191,7 @@ class APIServer:
                 pass
 
     async def _run_tick_broadcaster(self) -> None:
-        """Background worker to broadcast ticks at a sane frequency (Samvid v1.0-beta-beta-beta)."""
+        """Background worker to broadcast ticks at a sane frequency (Samvid v1.0-beta)."""
         logger.info("API Server: Tick Broadcaster worker started.")
         while True:
             try:
@@ -208,7 +208,7 @@ class APIServer:
         if not self.active_connections:
             return
 
-        # --- PERFORMANCE GUARD (Samvid v1.0-beta-beta-beta) ---
+        # --- PERFORMANCE GUARD (Samvid v1.0-beta) ---
         symbol = payload.get("symbol", "ALL")
         now = time.time()
         if now - self._last_tick_broadcast.get(symbol, 0) < 0.01: # 100Hz Limit
@@ -329,7 +329,7 @@ class APIServer:
 
         @self.app.websocket("/ws")
         async def websocket_endpoint(websocket: WebSocket, token: str = Query(None)) -> None:
-            # ── SOVEREIGN WS HANDSHAKE (Samvid v1.0-beta-beta-beta GAP-37 FIX) ──
+            # ── SOVEREIGN WS HANDSHAKE (Samvid v1.0-beta GAP-37 FIX) ──
             from time_sync import TimeSync
             secret = Vault.get("API_SERVER_KEY")
             if secret:
@@ -398,7 +398,7 @@ class APIServer:
         """Send JSON with connection state check."""
         try:
             if websocket.client_state.name == "CONNECTED":
-                # Samvid v1.0-beta-beta-beta: 5s timeout on sends to prevent zombie client bloat
+                # Samvid v1.0-beta: 5s timeout on sends to prevent zombie client bloat
                 await asyncio.wait_for(websocket.send_json(data), timeout=5.0)
         except Exception as _ws_err:
             logger.debug(f"WS send failed (socket closing or timeout): {_ws_err}")
@@ -509,7 +509,7 @@ class APIServer:
 
                 pg_reserve = "20% Reserve"
                 if hasattr(brain, "portfolio_guard") and brain.portfolio_guard:
-                    # In v1.0-beta-beta, we track via cash reserve check
+                    # In v1.0-beta, we track via cash reserve check
                     pg_reserve = "20% Reserve (Active)"
 
                 # Extract Agent D (Learning Mind) stats
@@ -723,37 +723,52 @@ class APIServer:
             port=self.port,
             log_level="error",
         )
-        server = uvicorn.Server(config)
+        self.server = uvicorn.Server(config)
         # Disable uvicorn's signal handlers — the main TradingSystem handles
-        # Ctrl+C / SIGINT. Without this, uvicorn's capture_signals() context
-        # manager re-raises KeyboardInterrupt (a BaseException, not Exception)
-        # after serve() returns, which asyncio logs as "Task exception was never retrieved".
-        server.install_signal_handlers = lambda: None  # type: ignore[assignment]
+        # Ctrl+C / SIGINT.
+        self.server.install_signal_handlers = lambda: None  # type: ignore[assignment]
 
         async def _serve() -> None:
             try:
-                await server.serve()
+                await self.server.serve()
             except OSError as e:
                 logger.warning(f"API server failed to bind {self.host}:{self.port}: {e}")
             except asyncio.CancelledError:
-                # Normal path when the event loop shuts down
-                server.should_exit = True
+                self.server.should_exit = True
             except (KeyboardInterrupt, SystemExit):
-                # Ctrl+C bubbles up through uvicorn's capture_signals() as a
-                # BaseException — acknowledge it and request a clean shutdown.
-                server.should_exit = True
+                self.server.should_exit = True
             except Exception as e:
                 logger.error(f"API server crashed: {e}")
 
-        # API Server tasks are now managed within the WebSocket endpoint or via Bus callbacks
-        logger.info("API Server background tasks initialized.")
-
-        task = asyncio.create_task(_serve())
-        # Attach a no-op done callback so asyncio never logs
-        # "Task exception was never retrieved" even if something slips through.
+        self._broadcaster_task = asyncio.create_task(self._run_tick_broadcaster())
+        self._server_task = asyncio.create_task(_serve())
+        
         def _log_task_exception(t: asyncio.Task) -> None:
             if not t.cancelled() and t.exception() is not None:
                 logger.error(f"API Server task raised unhandled exception: {t.exception()}")
-        task.add_done_callback(_log_task_exception)
+        
+        self._server_task.add_done_callback(_log_task_exception)
         logger.info(f"✓ API Server started on http://{self.host}:{self.port}")
         return True
+
+    async def stop(self) -> None:
+        """Graceful shutdown of the API server (Samvid v1.0-beta)."""
+        logger.info("Stopping API Server...")
+        
+        if hasattr(self, "server"):
+            self.server.should_exit = True
+            
+        # Cancel tasks
+        for attr in ["_broadcaster_task", "_server_task"]:
+            task = getattr(self, attr, None)
+            if task and not task.done():
+                task.cancel()
+                try:
+                    await asyncio.wait_for(task, timeout=2.0)
+                except (asyncio.CancelledError, asyncio.TimeoutError):
+                    pass
+                except Exception as e:
+                    logger.error(f"Error stopping API Server task {attr}: {e}")
+        
+        logger.info("API Server stopped.")
+

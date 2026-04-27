@@ -8,7 +8,7 @@ logger = logging.getLogger(__name__)
 
 class SharedEmbeddingEngine:
     """
-    Samvid v1.0-beta-beta-beta: Singleton Embedding Engine.
+    Samvid v1.0-beta: Singleton Embedding Engine.
     Hardened for concurrent VRAM access and batch processing (GAP-73/75/76).
     """
     _instance: Optional['SharedEmbeddingEngine'] = None

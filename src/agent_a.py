@@ -31,7 +31,7 @@ from config import (
 )
 
 # =============================================================================
-# SOVEREIGN FAULT-TOLERANCE (Samvid v1.0-beta-beta-beta - CLAUDE ERROR PORT)
+# SOVEREIGN FAULT-TOLERANCE (Samvid v1.0-beta - CLAUDE ERROR PORT)
 # =============================================================================
 
 class SovereignErrorLevel(Enum):
@@ -230,7 +230,7 @@ class ContinuousBudgetMonitor:
                 logger.warning(f"BUDGET VETO: IBKR max trades {IBKR_MAX_TRADES_PER_DAY} reached.")
                 return False
 
-        # Consecutive loss escalation (v1.0-beta-beta-beta) - Relaxed for HFT
+        # Consecutive loss escalation (v1.0-beta) - Relaxed for HFT
         if self.consecutive_losses >= 20:
             logger.warning(f"BUDGET VETO: {self.consecutive_losses} consecutive losses. Emergency cooling active.")
             return False
@@ -311,7 +311,7 @@ class PatternDetector:
         """
         Pattern: HFT Spoof Pivot (Adversarial Counter-Strike).
         Detects where HFTs are 'Volume Flickering' fake orders to induce retail traps.
-        The system pivots AGAINST the induced sentiment. (Samvid v1.0-beta-beta-beta Hyper-Sovereign)
+        The system pivots AGAINST the induced sentiment. (Samvid v1.0-beta Hyper-Sovereign)
         """
         if len(df) < 10: return None
 
@@ -362,7 +362,7 @@ class PatternDetector:
         current_vol = last_5["volume"].mean()
         current_range = (last_5["high"].max() - last_5["low"].min())
 
-        # WALL CRITERIA: High Volume + Tight Range = Absorption (Samvid v1.0-beta-beta-beta)
+        # WALL CRITERIA: High Volume + Tight Range = Absorption (Samvid v1.0-beta)
         # We mirror the institution. If vol is 1.8x and range is <60% of avg, it's a Wall.
         if current_vol > (avg_vol * 1.8) and current_range < (avg_range * 0.6):
             is_accumulation = df["close"][-1] < df["close"][-20]
@@ -570,7 +570,7 @@ class PatternDetector:
             return None
 
         # Calculate neckline (support connecting troughs) — pandas-compatible rolling min
-        # Samvid v1.0-beta-beta-beta Fix: Polars compatibility for H&S detection
+        # Samvid v1.0-beta Fix: Polars compatibility for H&S detection
         neckline = float(df["low"][-30:].rolling_min(5).tail(10).mean())
 
         current_price = df["close"][-1]
@@ -1135,7 +1135,7 @@ class PatternDetector:
         }
 
     # =========================================================================
-    # HARDCORE MICRO-STRUCTURAL DEEP ANALYSIS (v1.0-beta-beta-beta)
+    # HARDCORE MICRO-STRUCTURAL DEEP ANALYSIS (v1.0-beta)
     # =========================================================================
 
     def detect_order_flow_imbalance(self, df: "pl.DataFrame") -> float:
@@ -1433,7 +1433,7 @@ class PatternDetector:
 
     def detect_all(self, df: "pl.DataFrame") -> list[PatternResult | None]:
         """
-        Unified Pattern Scanner (Samvid v1.0-beta-beta-beta).
+        Unified Pattern Scanner (Samvid v1.0-beta).
         Runs ALL single-argument detectors and returns a flat list of results.
         Each detector is fault-isolated — a crash in one never blocks the others.
         """
@@ -1512,7 +1512,7 @@ class SignalEntropyCalculator:
 
 
 # =============================================================================
-# SOVEREIGN v1.0-beta-beta — NEURAL ALPHA ENGINE (Differential Evolution Logic)
+# SOVEREIGN v1.0-beta — NEURAL ALPHA ENGINE (Differential Evolution Logic)
 # =============================================================================
 
 class FactorWeightCalibration:
@@ -1697,7 +1697,7 @@ class MultiTimeframeAligner:
 
 class InMemorySovereignAtlas:
     """
-    Sub-1ms Sovereign Intelligence Atlas v1.0-beta-beta.
+    Sub-1ms Sovereign Intelligence Atlas v1.0-beta.
     Queries the 101M-record dataset directly without RAM pillage.
     Enforces 'Hardcore Centennial Calibration' across all multi-sector regimes.
     """
@@ -1738,7 +1738,7 @@ class InMemorySovereignAtlas:
         elif low in self._BEARISH_PATTERNS:
             direction = "Bearish"
 
-        # 2. Refined Keyword Logic (Samvid v1.0-beta-beta-beta Precision)
+        # 2. Refined Keyword Logic (Samvid v1.0-beta Precision)
         elif "down" in low or "bear" in low or "short" in low or "top" in low:
             direction = "Bearish"
         elif "up" in low or "bull" in low or "long" in low or "bottom" in low:
@@ -1763,7 +1763,7 @@ class InMemorySovereignAtlas:
 
     def query_quantum(self, pattern_name: str, intensity: float, symbol: str = "") -> dict:
         """
-        Samvid v1.0-beta-beta-beta: On-Demand Quantum Wisdom.
+        Samvid v1.0-beta: On-Demand Quantum Wisdom.
         Queries the 101M-record dataset directly without RAM pillage.
         """
         import os
@@ -1836,7 +1836,7 @@ class InMemorySovereignAtlas:
         }
 
 # =============================================================================
-# AGENT A: THE ABSOLUTE VALIDATION PIPELINE (v1.0-beta-beta-beta)
+# AGENT A: THE ABSOLUTE VALIDATION PIPELINE (v1.0-beta)
 # =============================================================================
 
 def agent_a_validate_trade(
@@ -1852,7 +1852,7 @@ def agent_a_validate_trade(
     **kwargs
 ) -> Dict[str, Any]:
     """
-    Sovereign Validation Pipeline (Samvid v1.0-beta-beta-beta).
+    Sovereign Validation Pipeline (Samvid v1.0-beta).
     Aggregates multi-agent signals and performs the final risk hurdle.
     """
     import time
@@ -1890,7 +1890,7 @@ def agent_a_validate_trade(
         if task: task.transition(TaskStatus.FAILED)
         return {"agent": "Agent_A", "vote": "NO", "reason": "Conviction Floor Veto."}
 
-    # --- PHASE -1: HARD BUDGET VETO (Samvid v1.0-beta-beta-beta) ---
+    # --- PHASE -1: HARD BUDGET VETO (Samvid v1.0-beta) ---
     symbol = kwargs.get("symbol", "SPY")
     account_type = "prop" if "FTMO" in os.environ.get("TRADING_ACCOUNT_ID", "") else "ibkr"
 
@@ -2011,9 +2011,9 @@ def agent_a_validate_trade(
         "vote": "YES",
         "confidence": pattern.confidence / 100.0,
         "signal_strength": float(final_lambda) / 100.0,
-        "lambda": float(final_lambda) / 100.0, # Samvid v1.0-beta-beta-beta: Ensure decimal for Kelly math
+        "lambda": float(final_lambda) / 100.0, # Samvid v1.0-beta: Ensure decimal for Kelly math
         "risk_flag": False,
-        "reason": f"Sovereign v1.0-beta-beta Consensus Reached. Lambda: {final_lambda:.1f}",
+        "reason": f"Sovereign v1.0-beta Consensus Reached. Lambda: {final_lambda:.1f}",
         "final_lambda": final_lambda,
         "regime": regime,
         "metadata": {

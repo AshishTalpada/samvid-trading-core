@@ -10,7 +10,7 @@ logger = logging.getLogger(__name__)
 
 class WorkloadManager:
     """
-    Persistent Mission Mission Board (Samvid v1.0-beta-beta-beta).
+    Persistent Mission Mission Board (Samvid v1.0-beta).
     Inspired by Claude-Code's 'workloadContext.tss' and 'teammateMailbox.ts'.
     Ensures 'Absolute Step-by-Step Task Completion' across restarts.
     """
@@ -32,7 +32,7 @@ class WorkloadManager:
 
     @property
     def current_mission(self) -> str:
-        """Expose current mission name (Samvid v1.0-beta-beta-beta)."""
+        """Expose current mission name (Samvid v1.0-beta)."""
         with self._lock:
             return self.mission_board.get("current_mission", "UNKNOWN")
 

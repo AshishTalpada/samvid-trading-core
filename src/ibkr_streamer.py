@@ -45,13 +45,13 @@ class IBKRStreamer:
         self.qdb_adapter = qdb_adapter
         self.is_running = False
         self._loop_count = 0
-        self.dropped_ticks = 0 # Samvid v1.0-beta-beta-beta GAP-35 Tracker
+        self.dropped_ticks = 0 # Samvid v1.0-beta GAP-35 Tracker
 
         # Persistent Async Stream for QuestDB ILP
         self._qdb_writer: asyncio.StreamWriter | None = None
         self._qdb_lock = asyncio.Lock()
 
-        # ── TASK CONSOLIDATION (Samvid v1.0-beta-beta-beta) ──
+        # ── TASK CONSOLIDATION (Samvid v1.0-beta) ──
         # GAP-45 FIX: Increased queue size to 5000 to handle peak volatility bursts.
         self._bus_queue: asyncio.Queue = asyncio.Queue(maxsize=5000)
         self._publisher_task: asyncio.Task | None = None
@@ -80,7 +80,7 @@ class IBKRStreamer:
              logger.info("IBKRStreamer: QuestDB ingestion DISABLED in config.")
 
 
-        # 2. Connect to IBKR (Samvid v1.0-beta-beta-beta: Hardened Retry Logic)
+        # 2. Connect to IBKR (Samvid v1.0-beta: Hardened Retry Logic)
         max_attempts = 5
         for attempt in range(max_attempts):
             for host in ["localhost", "127.0.0.1", "::1"]:
@@ -105,7 +105,7 @@ class IBKRStreamer:
         logger.error("IBKRStreamer: All connection attempts failed. Ticks will be missing for this session.")
 
     async def _qdb_drain_worker(self) -> None:
-        """Background worker to periodically drain the QuestDB buffer (Samvid v1.0-beta-beta-beta)."""
+        """Background worker to periodically drain the QuestDB buffer (Samvid v1.0-beta)."""
         while self.is_running:
             try:
                 if self._qdb_writer and not self._qdb_writer.is_closing():
@@ -120,7 +120,7 @@ class IBKRStreamer:
 
     async def _bus_publisher(self) -> None:
         """
-        Sovereign Publisher (Samvid v1.0-beta-beta-beta): Single worker task to process tikcs.
+        Sovereign Publisher (Samvid v1.0-beta): Single worker task to process tikcs.
         Ensures the system memory footprint stays CONSTANT despite 100Hz tick volume.
         """
         logger.info("IBKRStreamer: Sovereign Publisher worker started.")
@@ -188,7 +188,7 @@ class IBKRStreamer:
             # Tags must be escaped: spaces, commas, and equals signs.
             safe_symbol = str(symbol).replace(",", "\\,").replace(" ", "\\ ").replace("=", "\\=")
 
-            # ── SOVEREIGN FAST-PATH (v1.0-beta-beta-beta) ──
+            # ── SOVEREIGN FAST-PATH (v1.0-beta) ──
             if self.qdb_adapter and self.qdb_adapter.enabled:
                  self.qdb_adapter.log_tick(symbol, target_price, last_size or 0)
             elif self._qdb_writer and not self._qdb_writer.is_closing():
@@ -200,7 +200,7 @@ class IBKRStreamer:
                 except Exception:
                     pass
 
-            # ── CONSOLIDATED BUS PUBLICATION (Samvid v1.0-beta-beta-beta) ──
+            # ── CONSOLIDATED BUS PUBLICATION (Samvid v1.0-beta) ──
             if self.bus is not None:
                 try:
                     self._bus_queue.put_nowait({
@@ -310,17 +310,27 @@ class IBKRStreamer:
                 if not self.ib.isConnected():
                     logger.warning("IBKRStreamer: Connection lost — entering recovery.")
 
+            except asyncio.CancelledError:
+                logger.info("IBKRStreamer: Cancellation received.")
+                raise
             except Exception as e:
                 logger.error(f"IBKRStreamer: Runtime error in main loop: {e}")
                 await asyncio.sleep(5)
-
-        # Final cleanup on exit
-        if self._publisher_task: self._publisher_task.cancel()
-        if self._drain_task: self._drain_task.cancel()
-        try:
-            self.ib.pendingTickersEvent.disconnect(self.on_tick)
-        except Exception:
-            pass
+            finally:
+                # Final cleanup on exit or cancellation (Samvid v1.0-beta)
+                if hasattr(self, "_publisher_task") and self._publisher_task: self._publisher_task.cancel()
+                if hasattr(self, "_drain_task") and self._drain_task: self._drain_task.cancel()
+                try:
+                    self.ib.pendingTickersEvent.disconnect(self.on_tick)
+                except Exception:
+                    pass
+                if self.ib.isConnected():
+                    logger.info("IBKRStreamer: Cleaning up IBKR connection...")
+                    try:
+                        # Samvid v1.0-beta: Non-blocking disconnect
+                        await asyncio.to_thread(self.ib.disconnect)
+                    except Exception:
+                        pass
 
     async def stop(self) -> None:
         """Stop the streamer."""
@@ -331,5 +341,5 @@ class IBKRStreamer:
                 await self._publisher_task
             except asyncio.CancelledError:
                 pass
-        self.ib.disconnect()
+        await asyncio.to_thread(self.ib.disconnect)
         logger.info("IBKRStreamer: Disconnected and stopped.")
