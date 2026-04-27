@@ -1,0 +1,26 @@
+Total trades in DB: 11
+
+# 1 | 2026-04-01T02:23:51 |   DIA |  LONG | Micro Volatility Break | E:463.09 X:463.09 Q:17 | PnL:    $+0.00 | R: +0.00R | Hold:  0.1h | EXIT_P1 | paper
+# 2 | 2026-04-01T02:26:19 |   DIA |  LONG | Micro Volatility Break | E:463.09 X:463.09 Q:17 | PnL:    $+0.00 | R: +0.00R | Hold:  0.1h | EXIT_P1 | paper
+# 3 | 2026-04-01T02:27:39 |   DIA |  LONG | Micro Volatility Break | E:463.09 X:OPEN Q:17 | PnL:      None | R:   None | Hold:     - | ORPHANED | paper
+# 4 | 2026-04-01T02:29:13 |   DIA |  LONG | Micro Volatility Break | E:463.09 X:OPEN Q:17 | PnL:      None | R:   None | Hold:     - | ORPHANED | paper
+# 5 | 2026-04-01T02:30:53 |   DIA |  LONG | Micro Volatility Break | E:463.09 X:465.53 Q:17 | PnL:   $+41.48 | R: +8.81R | Hold: 19.9h | TARGET | paper
+# 6 | 2026-04-01T10:02:38 |   SPY |  LONG | Micro Volatility Break | E:654.76 X:654.72 Q:12 | PnL:    $-0.48 | R: -1.52R | Hold:  0.1h | EXIT_P1 | paper
+# 7 | 2026-04-01T10:06:21 |   QQQ |  LONG | Micro Volatility Break | E:583.09 X:582.47 Q:13 | PnL:    $-8.00 | R: -5.27R | Hold:  0.0h | EXIT_P1 | paper
+# 8 | 2026-04-01T10:13:31 |  NFLX |  LONG | Micro Volatility Break | E:95.01 X:94.92 Q:84 | PnL:    $-7.57 | R: -3.27R | Hold:  0.0h | EXIT_P1 | paper
+# 9 | 2026-04-01T10:14:48 |  META |  LONG | Micro Volatility Break | E:577.16 X:577.31 Q:13 | PnL:    $+1.89 | R: +0.90R | Hold:  0.0h | EXIT_P1 | paper
+#10 | 2026-04-01T22:04:02 |  MSTR |  LONG |          Falling Wedge | E:123.37 X:OPEN Q:64 | PnL:      None | R:   None | Hold:     - | ORPHANED | paper
+#11 | 2026-04-01T22:11:54 |  MSTR |  LONG |          Falling Wedge | E:123.37 X:OPEN Q:64 | PnL:      None | R:   None | Hold:     - | OPEN | paper
+
+========================================
+SUMMARY
+========================================
+Total trades:    11
+Closed trades:   7
+Open/Orphaned:   4
+Wins:            2
+Losses:          3
+Breakeven:       2
+Win Rate:        28.6%
+Total PnL:       $+27.32
+Avg PnL/trade:   $3.90

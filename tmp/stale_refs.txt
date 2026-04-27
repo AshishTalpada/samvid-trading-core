@@ -1,0 +1,20 @@
+476: "stale": 0,
+760: "scanned": 0, "no_data": 0, "stale": 0, "too_short": 0,
+769: fetch_result = await asyncio.wait_for(self._fetch_ohlcv(symbol), timeout=2.0)
+775: if isinstance(fetch_result, str) and fetch_result == "STALE":
+776: stats["stale"] += 1
+1413: async def _fetch_ohlcv(self, symbol: str) -> Optional[pd.DataFrame]:
+1419: - "STALE"        → rows exist but are too old for the current session
+1480: # ── Staleness gate ──────────────────────────────────────────────────
+1487: # Unified timezone-agnostic comparison for staleness
+1495: staleness = (now_ts - latest_bar_ts).total_seconds()
+1499: staleness_limit = 600 if market_open else 86400
+1501: if staleness > staleness_limit:
+1502: staleness_min = staleness / 60
+1506: f"STALE DATA: {symbol} newest bar is {staleness_min:.1f}min old "
+1511: f"STALE (MARKET CLOSED): {symbol} newest bar is "
+1512: f"{staleness_min:.0f}min old (>24h) — skipping"
+1514: return cast(pd.DataFrame, "STALE")  # Sentinel — caller counts separately
+1516: logger.debug(f"Staleness check skipped for {symbol}: {e}")
+1537: df = await self._fetch_ohlcv(symbol) # type: ignore
+1538: # _fetch_ohlcv may return None, "STALE" sentinel, or a DataFrame

@@ -1,63 +1,65 @@
-# Python
+# Python Core
 __pycache__/
 *.py[cod]
 *$py.class
 *.so
 .Python
 env/
-build/
-develop-eggs/
-dist/
-downloads/
-eggs/
-.flakes/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
-*.egg-info/
-.installed.cfg
-*.egg
-MANIFEST
-
-# Virtual Environment
 venv/
 ENV/
 
-# Data and Logs
+# Data and Persistence
 data/
 logs/
-*.log
+questdb_data/
+questdb/
+outputs/
+scratch/
 *.db
 *.sqlite
-questdb_data/
+*.sqlite3
+*.log
 
-# Frontend (Node)
+# Root-level Clutter (Keep src/ clean)
+# Ignore all .py scripts in root as they are temporary utilities
+/*.py
+!/setup.py
+
+# Ignore all temporary docs/notes in root (except README)
+/*.md
+/*.txt
+/*.bak
+/*.bin
+/*.json
+/*.temp
+/*.tmp
+!/README.md
+!/package.json
+!/package-lock.json
+
+# Version artifacts / Junk files
+=
+[0-9]*.[0-9]*
+
+# Frontend
 frontend/node_modules/
 frontend/dist/
 frontend/.next/
 frontend/out/
 frontend/build/
-
-# Environment Variables
-.env
-.env.local
-.env.development.local
-.env.test.local
-.env.production.local
 frontend/.env
 frontend/.env.local
 
-# Vault and Credentials
+# Credentials
+.env
+.env.local
 vault.json
 credentials.json
 *.key
 *.pem
 *.p12
 
-# OS Files
+# OS
 .DS_Store
 Thumbs.db
 
@@ -66,10 +68,3 @@ Thumbs.db
 .idea/
 *.swp
 *.swo
-
-# Temp/Scratch
-tmp/
-temp/
-*.txt
-*.tmp
-
