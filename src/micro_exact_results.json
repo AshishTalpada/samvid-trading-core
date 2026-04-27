@@ -1,0 +1,12 @@
+{
+    "verdict": "UNBREAKABLE_GHOST_CALIBRATION",
+    "fidelity": "Microsecond-Exact (Synthetic)",
+    "days_trained": 0,
+    "events_analyzed": 0,
+    "stats": {
+        "walls_absorbed": 0,
+        "manipulations_negated": 0,
+        "micro_alpha_capture": 0.0
+    },
+    "generated_at": "2026-04-17T03:39:05"
+}

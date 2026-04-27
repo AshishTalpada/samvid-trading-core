@@ -1,0 +1,70 @@
+{
+  "created": "2026-03-22 01:48:57.211485",
+  "tasks": {
+    "T01": {
+      "file": "src/config.py",
+      "done": true,
+      "agent": "direct"
+    },
+    "T02": {
+      "file": "src/agent_a.py",
+      "done": false,
+      "agent": "claude-sonnet-4-5"
+    },
+    "T03": {
+      "file": "src/agent_b.py",
+      "done": false,
+      "agent": "claude-opus-4-5"
+    },
+    "T04": {
+      "file": "src/agent_c_ibkr.py",
+      "done": false,
+      "agent": "gpt-4o"
+    },
+    "T05": {
+      "file": "src/agent_c_mt5.py",
+      "done": false,
+      "agent": "gpt-4o"
+    },
+    "T06": {
+      "file": "src/agent_d.py",
+      "done": false,
+      "agent": "gemini-2.0-flash"
+    },
+    "T07": {
+      "file": "src/brain.py",
+      "done": false,
+      "agent": "claude-sonnet-4-5"
+    },
+    "T08": {
+      "file": "src/exit_intelligence.py",
+      "done": false,
+      "agent": "claude-sonnet-4-5"
+    },
+    "T09": {
+      "file": "src/dms.py",
+      "done": false,
+      "agent": "claude-sonnet-4-5"
+    },
+    "T10": {
+      "file": "src/data_pipeline.py",
+      "done": false,
+      "agent": "claude-sonnet-4-5"
+    },
+    "T11": {
+      "file": "data/schema.sql",
+      "done": true,
+      "agent": "direct"
+    },
+    "T12": {
+      "file": "src/main.py",
+      "done": false,
+      "agent": "claude-sonnet-4-5"
+    },
+    "T13": {
+      "file": "tests/test_integration.py",
+      "done": false,
+      "agent": "claude-sonnet-4-5"
+    }
+  }
+}

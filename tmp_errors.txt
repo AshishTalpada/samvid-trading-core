@@ -1,0 +1,50 @@
+Traceback (most recent call last):
+asyncio.exceptions.CancelledError
+The above exception was the direct cause of the following exception:
+websockets.exceptions.ConnectionClosedError: sent 1011 (internal error) keepalive ping timeout; no close frame received
+2026-03-31 13:54:36,252 - src.data_pipeline - INFO - Finnhub fetched 5 news items for SPY
+2026-03-31 13:54:37,122 - src.data_pipeline - INFO - YFinance fetched 5 news items for SPY
+2026-03-31 13:54:37,193 - src.data_pipeline - INFO - NEWS [SPY] from Finnhub (Yahoo): Fed Chair Powell Warns: Another Supply Shock Is Coming
+2026-03-31 13:54:37,281 - src.data_pipeline - INFO - NEWS [SPY] from Finnhub (Yahoo): What Correction? 4 Nasdaq Stocks on a Roll That Still Have More Upside
+2026-03-31 13:54:37,369 - src.data_pipeline - INFO - NEWS [SPY] from Finnhub (Yahoo): Stock Market Today: Dow Surges Over Trump's Olive Branch; Oil Prices Higher (Live Coverage)
+2026-03-31 13:54:37,679 - src.data_pipeline - INFO - Finnhub fetched 5 news items for QQQ
+2026-03-31 13:54:38,220 - src.data_pipeline - INFO - YFinance fetched 5 news items for QQQ
+2026-03-31 13:54:38,245 - src.data_pipeline - INFO - NEWS [QQQ] from Finnhub (SeekingAlpha): No, The Fed Isn't Going To Raise Rates
+2026-03-31 13:54:38,262 - src.data_pipeline - INFO - NEWS [QQQ] from Finnhub (SeekingAlpha): Pricing The Shock: Oil, Volatility And Portfolio Resilience
+2026-03-31 13:54:38,286 - src.data_pipeline - INFO - NEWS [QQQ] from Finnhub (SeekingAlpha): How To Prepare Your Portfolio For The Proposed 'Six-Figure' Social Security Limit
+2026-03-31 13:54:38,441 - src.data_pipeline - INFO - Finnhub fetched 5 news items for IWM
+2026-03-31 13:54:39,066 - src.data_pipeline - INFO - YFinance fetched 5 news items for IWM
+2026-03-31 13:54:39,125 - src.data_pipeline - INFO - NEWS [IWM] from Finnhub (SeekingAlpha): No, The Fed Isn't Going To Raise Rates
+2026-03-31 13:54:39,127 - src.data_pipeline - INFO - NEWS [IWM] from Finnhub (SeekingAlpha): Pricing The Shock: Oil, Volatility And Portfolio Resilience
+2026-03-31 13:54:39,156 - src.data_pipeline - INFO - NEWS [IWM] from Finnhub (SeekingAlpha): How To Prepare Your Portfolio For The Proposed 'Six-Figure' Social Security Limit
+2026-03-31 13:55:19,400 - src.data_pipeline - INFO - Finnhub fetched 5 news items for SPY
+2026-03-31 13:55:19,917 - src.data_pipeline - INFO - YFinance fetched 5 news items for SPY
+2026-03-31 13:55:19,921 - src.data_pipeline - INFO - NEWS [SPY] from Finnhub (Yahoo): Fed Chair Powell Warns: Another Supply Shock Is Coming
+2026-03-31 13:55:19,921 - src.data_pipeline - INFO - NEWS [SPY] from Finnhub (Yahoo): What Correction? 4 Nasdaq Stocks on a Roll That Still Have More Upside
+2026-03-31 13:55:19,922 - src.data_pipeline - INFO - NEWS [SPY] from Finnhub (Yahoo): Stock Market Today: Dow Surges Over Trump's Olive Branch; Oil Prices Higher (Live Coverage)
+2026-03-31 13:55:20,854 - src.data_pipeline - INFO - Finnhub fetched 5 news items for QQQ
+2026-03-31 13:55:21,301 - src.data_pipeline - INFO - YFinance fetched 5 news items for QQQ
+2026-03-31 13:55:21,305 - src.data_pipeline - INFO - NEWS [QQQ] from Finnhub (SeekingAlpha): No, The Fed Isn't Going To Raise Rates
+2026-03-31 13:55:21,305 - src.data_pipeline - INFO - NEWS [QQQ] from Finnhub (SeekingAlpha): Pricing The Shock: Oil, Volatility And Portfolio Resilience
+2026-03-31 13:55:21,310 - src.data_pipeline - INFO - NEWS [QQQ] from Finnhub (SeekingAlpha): How To Prepare Your Portfolio For The Proposed 'Six-Figure' Social Security Limit
+2026-03-31 13:55:22,958 - src.data_pipeline - INFO - Finnhub fetched 5 news items for IWM
+2026-03-31 13:55:23,829 - src.data_pipeline - INFO - YFinance fetched 5 news items for IWM
+2026-03-31 13:55:23,880 - src.data_pipeline - INFO - NEWS [IWM] from Finnhub (SeekingAlpha): No, The Fed Isn't Going To Raise Rates
+2026-03-31 13:55:23,881 - src.data_pipeline - INFO - NEWS [IWM] from Finnhub (SeekingAlpha): Pricing The Shock: Oil, Volatility And Portfolio Resilience
+2026-03-31 13:55:23,881 - src.data_pipeline - INFO - NEWS [IWM] from Finnhub (SeekingAlpha): How To Prepare Your Portfolio For The Proposed 'Six-Figure' Social Security Limit
+2026-03-31 13:55:38,886 - src.api_server - INFO - Frontend connected to WS (Active: 40)
+2026-03-31 13:55:43,824 - src.data_pipeline - INFO - Finnhub fetched 5 news items for SPY
+2026-03-31 13:55:44,239 - src.data_pipeline - INFO - YFinance fetched 5 news items for SPY
+2026-03-31 13:55:44,289 - src.data_pipeline - INFO - NEWS [SPY] from Finnhub (Yahoo): Fed Chair Powell Warns: Another Supply Shock Is Coming
+2026-03-31 13:55:44,290 - src.data_pipeline - INFO - NEWS [SPY] from Finnhub (Yahoo): What Correction? 4 Nasdaq Stocks on a Roll That Still Have More Upside
+2026-03-31 13:55:44,290 - src.data_pipeline - INFO - NEWS [SPY] from Finnhub (Yahoo): Stock Market Today: Dow Surges Over Trump's Olive Branch; Oil Prices Higher (Live Coverage)
+2026-03-31 13:55:44,443 - src.data_pipeline - INFO - Finnhub fetched 5 news items for QQQ
+2026-03-31 13:55:44,863 - src.data_pipeline - INFO - YFinance fetched 5 news items for QQQ
+2026-03-31 13:55:44,877 - src.data_pipeline - INFO - NEWS [QQQ] from Finnhub (SeekingAlpha): No, The Fed Isn't Going To Raise Rates
+2026-03-31 13:55:44,888 - src.data_pipeline - INFO - NEWS [QQQ] from Finnhub (SeekingAlpha): Pricing The Shock: Oil, Volatility And Portfolio Resilience
+2026-03-31 13:55:44,889 - src.data_pipeline - INFO - NEWS [QQQ] from Finnhub (SeekingAlpha): How To Prepare Your Portfolio For The Proposed 'Six-Figure' Social Security Limit
+2026-03-31 13:55:45,090 - src.data_pipeline - INFO - Finnhub fetched 5 news items for IWM
+2026-03-31 13:55:45,515 - src.data_pipeline - INFO - YFinance fetched 5 news items for IWM
+2026-03-31 13:55:45,531 - src.data_pipeline - INFO - NEWS [IWM] from Finnhub (SeekingAlpha): No, The Fed Isn't Going To Raise Rates
+2026-03-31 13:55:45,560 - src.data_pipeline - INFO - NEWS [IWM] from Finnhub (SeekingAlpha): Pricing The Shock: Oil, Volatility And Portfolio Resilience
+2026-03-31 13:55:45,561 - src.data_pipeline - INFO - NEWS [IWM] from Finnhub (SeekingAlpha): How To Prepare Your Portfolio For The Proposed 'Six-Figure' Social Security Limit
