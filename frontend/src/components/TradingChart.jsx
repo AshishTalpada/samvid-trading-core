@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { createChart, ColorType } from 'lightweight-charts';
 
-/** 📊 Trading Chart v1.0-beta (Institutional Grade)
+/** 📊 Trading Chart v1.0-beta-beta (Institutional Grade)
  *  High-performance candlestick visualization with robust ISO-to-Unix normalization.
  */
 

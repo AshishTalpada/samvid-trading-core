@@ -3,7 +3,7 @@ import { motion } from 'framer-motion';
 import { Sparkline, fmt } from './SharedUI';
 import { GlassPanel, StatusBadge, DataRow } from './ui/SovereignUI';
 
-/** 🏛️ STAT CARDS v1.0-beta | COGNITIVE HUD
+/** 🏛️ STAT CARDS v1.0-beta-beta | COGNITIVE HUD
  *  Top-row metrics: Dhatu Oracle · Execution State · Session P&L · SPY · QQQ · IWM
  */
 

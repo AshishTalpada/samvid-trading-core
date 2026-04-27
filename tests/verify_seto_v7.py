@@ -15,7 +15,7 @@ logger = logging.getLogger("VERIFY_SETO")
 
 
 async def main() -> None:
-    logger.info("--- Samvid v1.0-beta-beta Integration Verification ---")
+    logger.info("--- Samvid v1.0-beta-beta-beta Integration Verification ---")
 
     # Mock dependencies
     class MockDB:
@@ -70,7 +70,7 @@ async def main() -> None:
         await brain.mind_ghost.update_heartbeat("IBKR")
         logger.info("SUCCESS: Ghost Monitor heartbeat verified.")
 
-        logger.info("--- ALL Samvid v1.0-beta-beta INTEGRATIONS VERIFIED ---")
+        logger.info("--- ALL Samvid v1.0-beta-beta-beta INTEGRATIONS VERIFIED ---")
 
     except Exception as e:
         logger.error(f"VERIFICATION FAILED: {e}")

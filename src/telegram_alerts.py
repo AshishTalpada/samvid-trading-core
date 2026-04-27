@@ -1,5 +1,5 @@
-import logging
 import asyncio  # pyre-ignore[21]
+import logging
 
 import aiohttp  # pyre-ignore[21]
 
@@ -11,7 +11,7 @@ logger = logging.getLogger("telegram")
 _alert_cache: dict[str, float] = {} # {msg_hash: last_sent_timestamp}
 _alert_lock = asyncio.Lock()
 # GAP-174: Global Rate Limit (max 20 msgs / min)
-_last_sent_times: list[float] = [] 
+_last_sent_times: list[float] = []
 _rate_limit_max = 20
 _rate_limit_window = 60.0
 _shared_session: aiohttp.ClientSession | None = None
@@ -19,21 +19,21 @@ _shared_session: aiohttp.ClientSession | None = None
 
 async def send_telegram_alert(message: str) -> None:
     """
-    Sends a Telegram alert with Elite Signal Sterilization (Samvid v1.0-beta-beta).
+    Sends a Telegram alert with Elite Signal Sterilization (Samvid v1.0-beta-beta-beta).
     Blocks routine pattern noise and 'Phantom' calls.
     """
-    # ── ELITE SIGNAL GATE (Sovereign Sterilization v1.0-beta) ──
+    # ── ELITE SIGNAL GATE (Sovereign Sterilization v1.0-beta-beta) ──
     # GAP-50 FIX: Allow critical system state transitions and errors
     allowed_prefixes = [
         "[EXECUTION]", "🚨", "⚠️", "🚀", "🛑", "🔴", "🟢", "🟢", "⚪", "📢", "☣️",
         "SYSTEM CRITICAL", "TRADE FULLY CLOSED", "REJECTED", "🏛️",
         "SOVEREIGN", "MAIN", "BRAIN", "STATUS"
     ]
-    
+
     msg_upper = message.upper()
     is_elite = any(prefix.upper() in msg_upper for prefix in allowed_prefixes)
     is_error = any(term in msg_upper for term in ["ERROR", "FAILED", "EXCEPTION", "CRITICAL", "FATAL"])
-    
+
     if not (is_elite or is_error):
         logger.debug(f"Sterilization: Suppressing non-essential signal: {message[:50]}...")
         return
@@ -43,8 +43,8 @@ async def send_telegram_alert(message: str) -> None:
     msg_hash = hashlib.md5(message.encode()).hexdigest()  # nosec B324
     async with _alert_lock:
         now = asyncio.get_event_loop().time()
-        
-        # --- GAP-174: Global Rate Limiting (Samvid v1.0-beta-beta) ---
+
+        # --- GAP-174: Global Rate Limiting (Samvid v1.0-beta-beta-beta) ---
         global _last_sent_times
         # Prune times outside the window
         _last_sent_times = [t for t in _last_sent_times if now - t < _rate_limit_window]
@@ -58,7 +58,7 @@ async def send_telegram_alert(message: str) -> None:
             return
         _alert_cache[msg_hash] = now
         _last_sent_times.append(now)
-        
+
         # Cleanup old cache entries (older than 1 hour)
         to_del = [k for k, t in _alert_cache.items() if now - t > 3600]
         for k in to_del: del _alert_cache[k]
@@ -93,7 +93,7 @@ async def send_telegram_alert(message: str) -> None:
     proxy = Vault.get("TELEGRAM_PROXY")
 
     # GAP-51 FIX: Exponential Retry for critical delivery
-    # Samvid v1.0-beta-beta: Use ONE session for all retries to prevent TCP/memory leak
+    # Samvid v1.0-beta-beta-beta: Use ONE session for all retries to prevent TCP/memory leak
     max_retries = 3
     base_delay = 2
 
@@ -101,7 +101,7 @@ async def send_telegram_alert(message: str) -> None:
         global _shared_session
         if _shared_session is None or _shared_session.closed:
             _shared_session = aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=10.0))
-        
+
         session = _shared_session
         for attempt in range(max_retries):
             try:

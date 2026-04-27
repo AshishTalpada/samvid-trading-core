@@ -1,21 +1,23 @@
 # pyre-ignore-all-errors[21]
-import os # pyre-ignore[21]
-import sys # pyre-ignore[21]
-import keyring # pyre-ignore[21]
-from pathlib import Path # pyre-ignore[21]
-from dotenv import load_dotenv, main # pyre-ignore[21]
+import os  # pyre-ignore[21]
+import sys  # pyre-ignore[21]
+from pathlib import Path  # pyre-ignore[21]
+
+from dotenv import load_dotenv  # pyre-ignore[21]
 
 # Add project root and src to path for both runtime and linter compatibility
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
-from vault import Vault # pyre-ignore[21]
-from cryptography.fernet import Fernet # pyre-ignore[21]
+from cryptography.fernet import Fernet  # pyre-ignore[21]
+
+from vault import Vault  # pyre-ignore[21]
+
 
 def advanced_setup():
     print("=== TradingSystem Advanced Security Setup ===")
     print("This script will migrate your secrets into the Windows Vault.")
-    
+
     env_path = Path(".env")
     if not env_path.exists():
         print("Error: .env file not found.")
@@ -76,7 +78,7 @@ def advanced_setup():
 
     # 3. Cleanup & Verification (GAP-76/87 FIX)
     print("\n[Step 3/3] FINAL HARDENING: Purging Plaintext Credentials...")
-    
+
     # Verify a couple of critical keys before we burn the boats
     all_verified = True
     for test_key in ["MT5_PASSWORD", "ANTHROPIC_API_KEY"]:
@@ -84,7 +86,7 @@ def advanced_setup():
             print(f"  ✖ Critical Verification FAILED: {test_key} not found in Vault.")
             all_verified = False
             break
-    
+
     if all_verified:
         try:
             # Create a safe .env with ONLY non-sensitive layout
@@ -97,12 +99,12 @@ def advanced_setup():
             ]
             with open(env_path, 'w') as f:
                 f.writelines(safe_lines)
-            
+
             # GAP-76 FIX: Delete the backup file immediately after verification
             if os.path.exists(".env.bak"):
                 os.remove(".env.bak")
                 print("  ✓ Plaintext backup .env.bak PERMANENTLY PURGED.")
-            
+
             print("  ✓ .env file purged of all sensitive data.")
         except Exception as e:
             print(f"  ✖ Error during final hardening: {e}")

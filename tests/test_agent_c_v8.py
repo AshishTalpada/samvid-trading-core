@@ -1,6 +1,6 @@
 import pytest
 
-# Samvid v1.0-beta-beta AGENT C AUDIT (Agent S)
+# Samvid v1.0-beta-beta-beta AGENT C AUDIT (Agent S)
 # This test verifies that the refactored Execution Mind is functional
 # and all 5 Lynchpin Risk Pillars are active.
 
@@ -27,7 +27,7 @@ async def test_agent_c_sovereign_integrity(ticker) -> None:
     assert sizer is not None
 
     # 2. Sizing Test (Mathematical Integrity)
-    # Samvid v1.0-beta-beta: Corrected r_r_ratio key alignment
+    # Samvid v1.0-beta-beta-beta: Corrected r_r_ratio key alignment
     sizing = sizer.calculate(
         win_prob=0.65, r_r_ratio=2.0, balance=100000.0, symbol=ticker, price=150.0, stop_price=145.0
     )

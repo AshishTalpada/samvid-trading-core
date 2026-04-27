@@ -1,6 +1,6 @@
-import os
-import sys
 import ast
+import os
+
 
 def find_imports(filepath):
     with open(filepath, 'r', encoding='utf-8') as f:
@@ -8,7 +8,7 @@ def find_imports(filepath):
             tree = ast.parse(f.read())
         except Exception:
             return []
-    
+
     imports = []
     for node in ast.walk(tree):
         if isinstance(node, ast.Import):
@@ -39,14 +39,14 @@ def build_graph(src_dir):
 def find_cycle(graph):
     visited = set()
     path = []
-    
+
     def visit(node):
         if node in path:
             cycle = path[path.index(node):] + [node]
             return cycle
         if node in visited:
             return None
-        
+
         visited.add(node)
         path.append(node)
         for neighbor in graph.get(node, []):

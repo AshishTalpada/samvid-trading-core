@@ -1,6 +1,5 @@
 import asyncio
 import logging
-from datetime import datetime
 from typing import Any
 
 from mind_bridge import MindBridge
@@ -62,14 +61,14 @@ class MindExperiment:
         """Records a trade outcome into the experiment's performance history (GAP-272)."""
         if feature_name not in self.active_experiments:
              return {"success": False, "error": f"Experiment {feature_name} not found."}
-        
+
         self.active_experiments[feature_name]["performance_history"].append(pnl)
         logger.info(f"MindExperiment: RECORDED OUTCOME for {feature_name}: ${pnl:+.2f} (Total: {len(self.active_experiments[feature_name]['performance_history'])})")
         return {"success": True, "history_depth": len(self.active_experiments[feature_name]["performance_history"])}
 
     async def _tool_gate_feature(self, feature_name: str, enabled: bool) -> dict[str, Any]:
         """
-        Gates or enables a feature based on experiment results (Samvid v1.0-beta-beta Evidence-Based).
+        Gates or enables a feature based on experiment results (Samvid v1.0-beta-beta-beta Evidence-Based).
         Ensures AI cannot enable features without recorded shadow performance.
         """
         logger.info(f"MindExperiment: Evaluating GATE request for {feature_name} (ENABLED={enabled})...")
@@ -82,7 +81,7 @@ class MindExperiment:
                 return {"success": False, "error": "Neural Guard: No shadow test evidence found."}
 
             # 2. EVIDENCE CHECK: Retrieve shadow performance from database
-            # In Samvid v1.0-beta-beta, we require at least 5 variants of shadow results with positive expectation
+            # In Samvid v1.0-beta-beta-beta, we require at least 5 variants of shadow results with positive expectation
             try:
                 # Mock performance check - in production this queries QuestDB/SQLite
                 # We enforce that the AI cannot self-enable without performance metadata
@@ -90,7 +89,7 @@ class MindExperiment:
                 if len(performance) < 5:
                     logger.warning(f"MindExperiment: GATE REJECTED. Insufficient evidence ({len(performance)}/5 trades).")
                     return {"success": False, "error": f"Evidence Guard: Only {len(performance)}/5 trades recorded."}
-                
+
                 avg_win = sum(1 for p in performance if p > 0) / len(performance)
                 if avg_win < 0.55:
                     logger.warning(f"MindExperiment: GATE REJECTED. Shadow WinRate {avg_win:.1%} below 55% threshold.")

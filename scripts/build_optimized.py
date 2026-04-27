@@ -58,7 +58,7 @@ NUITKA_ARGS = [
 
     # === Automate Downloads ===
     "--assume-yes-for-downloads",   # Don't ask for permission to download CC/UPX
-    
+
     # === Entry ===
     str(ENTRY),
 ]
@@ -66,7 +66,7 @@ NUITKA_ARGS = [
 if __name__ == "__main__":
     DIST.mkdir(exist_ok=True)
     print("=" * 60)
-    print("Trading System V3.0 — HPC Nuitka Build")
+    print("Trading System v1.0-beta — HPC Nuitka Build")
     print("=" * 60)
     print(f"\nEntry: {ENTRY}")
     print(f"Output: {DIST / 'TradingSystem.exe'}")

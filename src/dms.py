@@ -1,6 +1,6 @@
 # pyre-ignore-all-errors[21]
 """
-src/dms.py - Dead Man Switch Monitor (v1.0-beta-beta)
+src/dms.py - Dead Man Switch Monitor (v1.0-beta-beta-beta)
 
 Monitors system health and flattens all positions if the trading system
 goes unresponsive. Uses Telegram for alerts and IB Gateway + MT5 for
@@ -8,19 +8,18 @@ emergency position flattening.
 
 Implements:
 - GAP-06: Emergency flatten logic via IBKR and MT5
-- v1.0-beta DMS: Agent C alive check → 5-min grace → flatten
+- v1.0-beta-beta DMS: Agent C alive check → 5-min grace → flatten
 - Heartbeat monitoring with 30s check intervals
 - Hourly status reports via Telegram
 """
 
 import asyncio
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
+from typing import TYPE_CHECKING, Optional
 
 import aiohttp
-import MetaTrader5 as mt5 # type: ignore
-from ib_insync import MarketOrder # type: ignore
-from typing import Optional, TYPE_CHECKING
+import MetaTrader5 as mt5  # type: ignore
 
 if TYPE_CHECKING:
     from intelligence_bus import SharedIntelligenceBus
@@ -47,7 +46,7 @@ class DMSMonitor:
         bus: Optional["SharedIntelligenceBus"] = None,
     ) -> None:
         self.bus = bus
-        # Samvid v1.0-beta-beta Support: Secure fallback to Vault
+        # Samvid v1.0-beta-beta-beta Support: Secure fallback to Vault
         if not bot_token or bot_token == "YOUR_BOT_TOKEN_HERE":
             bot_token = Vault.get("TELEGRAM_BOT_TOKEN", "")
         if not chat_id or chat_id == "YOUR_CHAT_ID_HERE":
@@ -55,17 +54,17 @@ class DMSMonitor:
 
         self.bot_token = bot_token
         self.chat_id = chat_id
-        self.ibkr_port = ibkr_port  # Samvid v1.0-beta-beta Port Injection
+        self.ibkr_port = ibkr_port  # Samvid v1.0-beta-beta-beta Port Injection
         self.timeout = timeout  # Configurable; default 300s from constructor
         self.max_retries = 2
         self.retry_count = 0
-        
+
         # GAP-84: Modular Heartbeat Registry
         self.agent_heartbeats: dict[str, datetime] = {
             "BRAIN_PRIMARY": datetime.now(timezone.utc),
         }
         self.critical_agents = ["BRAIN_PRIMARY", "AGENT_A", "AGENT_C", "COORDINATOR"]
-        
+
         self.last_status_ok = datetime.now(timezone.utc)
         self.api_url = f"https://api.telegram.org/bot{bot_token}"
         self.running = False
@@ -77,7 +76,7 @@ class DMSMonitor:
         self.ibkr_client = ibkr_client
         self.mt5_client = mt5_client
 
-        # v1.0-beta: Grace period before flatten (Agent C alive check)
+        # v1.0-beta-beta: Grace period before flatten (Agent C alive check)
         self.grace_period = 15  # 15 seconds (down from 30s) (GAP-85)
         self.timeout_detected_at: datetime | None = None
 
@@ -108,7 +107,7 @@ class DMSMonitor:
         payload = {"chat_id": self.chat_id, "text": message, "parse_mode": "HTML"}
 
         try:
-            # Samvid v1.0-beta-beta: Telegram Timeout Hardening (30s)
+            # Samvid v1.0-beta-beta-beta: Telegram Timeout Hardening (30s)
             timeout = aiohttp.ClientTimeout(total=30.0)
             async with session.post(url, json=payload, timeout=timeout) as response:
                 if response.status == 200:
@@ -150,7 +149,7 @@ class DMSMonitor:
                 stale_agents.append(f"{agent} ({int(time_since_hb)}s)")
 
         if stale_agents:
-            # v1.0-beta: Differentiate between connection blips and actual crashes
+            # v1.0-beta-beta: Differentiate between connection blips and actual crashes
             self.retry_count += 1
             if self.retry_count < self.max_retries:
                 logger.warning(f"DMS: Ghost drift detected in {stale_agents} ({self.retry_count}/{self.max_retries}).")
@@ -168,7 +167,7 @@ class DMSMonitor:
                 await self.send_emergency_alert(stale_agents)
                 self.alert_sent = True
 
-            # v1.0-beta: Wait grace period, then execute flatten
+            # v1.0-beta-beta: Wait grace period, then execute flatten
             grace_elapsed = (current_time - timeout_at).total_seconds()
             if grace_elapsed >= self.grace_period and not self.flatten_executed:
                 logger.critical(f"DMS: Panic threshold reached for {stale_agents} — executing emergency flatten!")
@@ -184,7 +183,7 @@ class DMSMonitor:
     async def send_emergency_alert(self, stale_agents: list[str]) -> None:
         """Send emergency alert via Telegram."""
         current_time = datetime.now(timezone.utc)
-        
+
         message = (
             "🚨 <b>[EMERGENCY] GHOST DRIFT DETECTED!</b> 🚨\n\n"
             f"🕒 <b>Alert Time:</b> {current_time.strftime('%Y-%m-%d %H:%M:%S')}\n"
@@ -204,10 +203,13 @@ class DMSMonitor:
         This is the actual Dead Man Switch action.
         """
         # GAP-89/91: Global Concurrency Lock (Atomic O_EXCL implementation)
-        import os, socket, time
+        import os
+        import socket
+        import time
+
         from data_pipeline import DataPipeline
         lock_file = DataPipeline.DMS_LOCK_FILE
-        
+
         # Proactive directory creation (GAP-91)
         try:
             os.makedirs(os.path.dirname(lock_file), exist_ok=True)
@@ -247,10 +249,10 @@ class DMSMonitor:
                                     # GAP-23 FIX: Sovereign Shield (Aggressive Limit instead of Market)
                                     direction = "SELL" if pos.position > 0 else "BUY"
                                     shares = abs(pos.position)
-                                    
+
                                     ticker = await asyncio.to_thread(self.ibkr_client.ticker, pos.contract)
                                     price = ticker.last or ticker.close or pos.avgCost
-                                    
+
                                     from ib_insync import LimitOrder, MarketOrder
                                     if not price or price <= 0:
                                          logger.warning(f"DMS: Invalid price for {pos.contract.symbol}, falling back to market.")
@@ -266,7 +268,7 @@ class DMSMonitor:
                                     await asyncio.wait_for(self.ibkr_client.qualifyContractsAsync(pos.contract), timeout=15.0)
                                     trade = self.ibkr_client.placeOrder(pos.contract, order)
                                     ibkr_count += 1
-                                    
+
                                     order_desc = f"{round(lmt_price, 4)}" if isinstance(order, LimitOrder) else "MKT"
                                     flatten_results.append(f"IBKR: {direction} {shares} {pos.contract.symbol} @ {order_desc}")
                                     logger.critical(f"DMS FLATTEN: {direction} {shares} {pos.contract.symbol} OrderId={trade.order.orderId}")
@@ -301,7 +303,7 @@ class DMSMonitor:
         if self.mt5_client:
             try:
 
-                # v1.0-beta: Retry with 60s intervals (up to 3 attempts)
+                # v1.0-beta-beta: Retry with 60s intervals (up to 3 attempts)
                 for attempt in range(3):
                     positions = await asyncio.to_thread(mt5.positions_get)
                     if positions is None:
@@ -320,7 +322,7 @@ class DMSMonitor:
                             )
                             symbol_info = await asyncio.to_thread(mt5.symbol_info, pos.symbol)
                             price = symbol_info.bid if close_type == mt5.ORDER_TYPE_SELL else symbol_info.ask
-                            
+
                             request = {
                                 "action": mt5.TRADE_ACTION_DEAL,
                                 "position": pos.ticket,
@@ -373,7 +375,7 @@ class DMSMonitor:
     async def send_status_ok(self) -> None:
         """Send hourly OK status message."""
         current_time = datetime.now(timezone.utc)
-        
+
         hb_summary = ""
         for agent, ts in self.agent_heartbeats.items():
             age = (current_time - ts).total_seconds()

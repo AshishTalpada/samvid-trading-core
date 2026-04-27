@@ -15,10 +15,10 @@ class MindMath:
         self.bridge.register_tool("validate_geometry", self._tool_validate_geometry)
 
     async def _tool_validate_geometry(
-        self, 
-        direction: str, 
-        entry_price: float, 
-        stop_price: float, 
+        self,
+        direction: str,
+        entry_price: float,
+        stop_price: float,
         target_price: float,
         atr: float | None = None
     ) -> dict[str, Any]:
@@ -27,9 +27,9 @@ class MindMath:
         Vetoes trades with inverted stops, zero R:R, or ATR violations.
         """
         from decimal import Decimal, getcontext
-        # Samvid v1.0-beta-beta: Set precision for institutional math (9 places for micro-cap assets)
+        # Samvid v1.0-beta-beta-beta: Set precision for institutional math (9 places for micro-cap assets)
         getcontext().prec = 28
-        
+
         try:
             # 1. Convert to Decimal to prevent floating point drift (GAP-155 Remediation)
             d_entry = Decimal(str(entry_price))
@@ -52,10 +52,10 @@ class MindMath:
             # 3. Minimum R:R Ratio Check (Strict 1.5 Floor for Sovereign)
             risk = abs(d_entry - d_stop)
             reward = abs(d_target - d_entry)
-            
+
             if risk == 0:
                 return {"valid": False, "reason": "Deterministic VETO: Zero risk calculation detected."}
-                
+
             rr_ratio = reward / risk
             if rr_ratio < Decimal("1.5"):
                 return {"valid": False, "reason": f"Deterministic VETO: R:R ratio {float(rr_ratio):.2f} below 1.5 Sovereign Floor."}

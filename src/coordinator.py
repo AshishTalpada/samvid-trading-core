@@ -1,27 +1,26 @@
 import asyncio
-import time
 import logging
+import time
 import uuid
-import json
+from datetime import datetime, timezone
+from typing import TYPE_CHECKING, Any
+
 import numpy as np
 import pandas as pd
-from datetime import datetime, timezone
 from dateutil import parser as dtparser
-from typing import TYPE_CHECKING, Any
-from apex_overlay import ApexExoskeleton
 
-from config import COMMISSION_PER_ROUND_TRIP
+from apex_overlay import ApexExoskeleton
 
 if TYPE_CHECKING:
     from brain import TradingBrain
     from mind_bridge import MindBridge
 
-from agent_a import PatternDetector, agent_a_validate_trade
+from agent_a import agent_a_validate_trade
 from telegram_alerts import send_telegram_alert
 
 logger = logging.getLogger(__name__)
 
-# Samvid v1.0-beta-beta SINGULARITY PILARS
+# Samvid v1.0-beta-beta-beta SINGULARITY PILARS
 CONCURRENCY_LIMIT = 3
 # NOTE: asyncio.Semaphore is created lazily inside the class to avoid
 # attaching to the wrong event loop when imported at module level.
@@ -29,13 +28,13 @@ CONCURRENCY_LIMIT = 3
 
 class TradingCoordinator:
     """
-    Samvid v1.0-beta-beta 'Sovereign' Trade Coordinator (Agent M).
+    Samvid v1.0-beta-beta-beta 'Sovereign' Trade Coordinator (Agent M).
     Equipped with Concurrent Task-Graphing (Pillar 3), Adaptive Thinking (Pillar 5),
     and Autonomy Skill Permissioning (Pillar 6).
     """
 
     _neural_semaphore_obj: asyncio.Semaphore | None = None
-    
+
     @classmethod
     def get_neural_semaphore(cls) -> asyncio.Semaphore:
         """Lazy-initializes the semaphore to ensure it binds to the running event loop."""
@@ -46,16 +45,16 @@ class TradingCoordinator:
     def __init__(self, bridge: "MindBridge", brain: "TradingBrain") -> None:
         self.bridge = bridge
         self.brain = brain
-        self._pending_vets = set()  # Samvid v1.0-beta-beta Idempotency Guard
+        self._pending_vets = set()  # Samvid v1.0-beta-beta-beta Idempotency Guard
         self.exoskeleton = ApexExoskeleton(brain)
         self._semaphore: asyncio.Semaphore | None = None  # Lazy-init to bind to running loop
 
     async def initiate_trade_lifecycle(self, symbol: str, proposal: dict[str, Any], is_probe: bool = False) -> bool | None:
-        """Starts the multi-phase vetting of a trade proposal (v1.0-beta Sovereign Quorum)."""
+        """Starts the multi-phase vetting of a trade proposal (v1.0-beta-beta Sovereign Quorum)."""
         symbol = symbol.upper()
         task = proposal.get("task")
-        
-        # --- LIVE QUORUM STREAM (Samvid v1.0-beta-beta Start) ---
+
+        # --- LIVE QUORUM STREAM (Samvid v1.0-beta-beta-beta Start) ---
         if self.brain.bus:
             await self.brain.bus.publish("consensus.update", {
                 "symbol": symbol,
@@ -64,18 +63,18 @@ class TradingCoordinator:
                 "votes": [],
                 "timestamp": time.time() * 1000
             })
-        
+
         # ── IMPERIAL MANDATE: RR CHECK ──
         pattern = proposal.get("pattern")
         if pattern:
             if task: task.log(f"PHASE_RR: Analyzing Risk/Reward for {symbol}. Pattern: {pattern.name}")
             balance = await self.brain.get_safe_buying_power("ibkr")
             from config import COMMISSION_PER_ROUND_TRIP, USD_CAD_RATE
-            
+
             # GAP-154 FIX: Institutional Currency Adjustment (CAD -> USD)
             # Necessary for accurate sizing when trading US assets on a CAD-denominated account.
             balance_usd = (balance or 500.0) / USD_CAD_RATE
-            
+
             risk_amt = abs(pattern.entry - pattern.stop)
             reward_amt = abs(pattern.target - pattern.entry)
             est_shares = max(1, int(balance_usd * 0.8 / pattern.entry))
@@ -84,34 +83,34 @@ class TradingCoordinator:
             # This prevents the Friction Veto from killing trades before the sizer can floor them.
             if (balance or 0) < 1000:
                 risk_amt = max(risk_amt, 2.0 / est_shares)
-            
+
             if risk_amt > 0:
                 spread_data = await self.brain.get_current_spread(symbol)
                 spread = spread_data.get("spread", 0.01) or 0.01
                 comm_per_share = COMMISSION_PER_ROUND_TRIP / est_shares
-                
+
                 total_reward_dollars = (reward_amt - spread - comm_per_share)
                 total_risk_dollars = (risk_amt + spread + comm_per_share)
                 real_rr = total_reward_dollars / total_risk_dollars if total_risk_dollars > 0 else 0
-                
+
                 # GAP-09 FIX: RR-Drag Relaxation for Small Accounts ($500 CAD)
                 # On small accounts, the 1.3 Net RR is a 'Mathematical Wall' due to fixed commission.
                 # If the total dollar risk is < 1.5% of the account, we relax the RR requirement to 1.0.
                 is_small_account = (balance or 0) < 2000.0
                 dollar_risk = total_risk_dollars * est_shares
-                
+
                 # Compare USD risk against USD balance for consistent ratio (GAP-154 Alignment)
                 risk_pct = (dollar_risk / balance_usd) if (balance_usd > 0) else 0.05
-                
+
                 threshold = 1.3
                 if is_small_account and risk_pct < 0.015:
                     threshold = 1.0 # Relax to 1:1 if risk is very low
                     if task: task.log(f"RR_RELAX: Small account detected. Lowering threshold to 1.0 (Risk: ${dollar_risk:.2f} USD).")
 
-                if real_rr < threshold and not is_probe: 
+                if real_rr < threshold and not is_probe:
                      if task: task.log(f"FRICTION_VETO: Net RR {real_rr:.2f} < {threshold} (S:{spread}, C:{comm_per_share:.3f}). Aborting.")
                      logger.warning(f"Coordinator [{symbol}] 🛑 FRICTION VETO: Net RR {real_rr:.2f} is < {threshold}.")
-                     
+
                      if self.brain.bus:
                         await self.brain.bus.publish("consensus.update", {
                             "symbol": symbol,
@@ -143,9 +142,9 @@ class TradingCoordinator:
 
             if self._semaphore is None:
                 self._semaphore = asyncio.Semaphore(CONCURRENCY_LIMIT)
-            async with self._semaphore: 
+            async with self._semaphore:
 
-                # ── PILLAR 4: NEURAL DISPATCHER (Samvid v1.0-beta-beta) ──
+                # ── PILLAR 4: NEURAL DISPATCHER (Samvid v1.0-beta-beta-beta) ──
                 async def _poll_safe(name, func):
                     """Imperial Dispatcher (Sync -> Thread | Async -> Native)"""
                     try:
@@ -166,8 +165,8 @@ class TradingCoordinator:
 
                 proposal_id = str(uuid.uuid4())[:8]
                 if task: task.log(f"QUORUM_INIT: Starting 7-Agent Sovereign Audit for {symbol}.")
-                
-                # --- LIVE QUORUM STREAM (Samvid v1.0-beta-beta) ---
+
+                # --- LIVE QUORUM STREAM (Samvid v1.0-beta-beta-beta) ---
                 if self.brain.bus:
                     await self.brain.bus.publish("consensus.update", {
                         "symbol": symbol,
@@ -176,12 +175,12 @@ class TradingCoordinator:
                         "votes": [],
                         "timestamp": time.time() * 1000
                     })
-                
+
                 # -- PILLAR 6: SKILL TREE PERMISSIONING -------------------
                 if not self.brain.skill_tree.is_unlocked("vetting"):
                     logger.warning("Coordinator: Skill 'vetting' is LOCKED. Matrix is in Training Mode.")
                     return False
-                
+
                 # GAP-84: Coordinate Heartbeat
                 if self.brain.dms:
                     self.brain.dms.record_heartbeat("COORDINATOR")
@@ -190,8 +189,8 @@ class TradingCoordinator:
                 timestamp = datetime.now(timezone.utc).isoformat()
                 account_value = await self.brain.get_safe_buying_power("ibkr")
                 pattern = proposal["pattern"]
-                
-                # Samvid v1.0-beta-beta: Use machine-learned 'lambda' for sizing (the Sovereign Alpha)
+
+                # Samvid v1.0-beta-beta-beta: Use machine-learned 'lambda' for sizing (the Sovereign Alpha)
                 alpha_val = proposal.get("lambda", pattern.confidence / 100.0)
 
                 # ── PILLAR 2: DATA HYDRATION ──
@@ -231,7 +230,7 @@ class TradingCoordinator:
                     )
                     shares = int(sizing.get("step8_shares", 0))
                     pos_value = sizing.get("position_value", 0.0)
-                    
+
                     # GAP-44: Imperial Risk Notification (Transparency Protocol)
                     total_mod = sizing.get("total_multiplier", 1.0)
                     if total_mod < 0.9 and not is_probe:
@@ -266,7 +265,7 @@ class TradingCoordinator:
                     "commission": max(COMMISSION_PER_ROUND_TRIP, (shares or 1) * 0.01)
                 }
 
-                # ── PHASE 0: DETERMINISTIC MATH VETO (Samvid v1.0-beta-beta Sovereign) ──
+                # ── PHASE 0: DETERMINISTIC MATH VETO (Samvid v1.0-beta-beta-beta Sovereign) ──
                 # Probes use synthetic geometry — skip data-quality vetoes for wiring tests
                 if not is_probe:
                     math_val = await self.brain.mind_math._tool_validate_geometry(
@@ -280,7 +279,7 @@ class TradingCoordinator:
                         logger.warning(f"Coordinator [{proposal_id}] 🛑 MATH VETO: {math_val['reason']}")
                         return False
 
-                # ── PHASE 0.5: QUANT CONSENSUS VETO (Samvid v1.0-beta-beta Imperial) ──
+                # ── PHASE 0.5: QUANT CONSENSUS VETO (Samvid v1.0-beta-beta-beta Imperial) ──
                 try:
                     if not is_probe:
                         ohlcv_data = await self.brain._fetch_ohlcv(symbol)
@@ -298,7 +297,7 @@ class TradingCoordinator:
                 except Exception as qe:
                     logger.warning(f"Coordinator: QuantGate logic error: {qe}")
 
-                # ── PHASE 0: MARGIN & LIQUIDITY SHIELD (Samvid v1.0-beta-beta) ──
+                # ── PHASE 0: MARGIN & LIQUIDITY SHIELD (Samvid v1.0-beta-beta-beta) ──
                 if self.brain.mode != "paper":
                     try:
                         cushion = await self.brain.get_ibkr_cushion()
@@ -413,7 +412,7 @@ class TradingCoordinator:
 
 
                 agent_a_out = await _poll_neural_safe("Agent_A", poll_agent_a)
-                
+
                 if agent_a_out["vote"] == "NO":
                     logger.info(f"Coordinator [{proposal_id}] 🛑 SOVEREIGN VETO: Agent A rejected proposal. {agent_a_out.get('reason')}")
                     if self.brain.bus:
@@ -426,7 +425,7 @@ class TradingCoordinator:
                             "timestamp": time.time() * 1000
                         })
                     return False
-                
+
                 # --- LIVE QUORUM STREAM (Agent A Progress) ---
                 if self.brain.bus:
                     await self.brain.bus.publish("consensus.update", {
@@ -452,7 +451,7 @@ class TradingCoordinator:
                         if learned_wr is not None and isinstance(learned_wr, float) and learned_wr < 0.40:
                              agent_d_vote["vote"] = "NO"
                              agent_d_vote["reason"] = f"🛑 IMPERIAL VETO: Internal WR too low ({learned_wr:.2%})"
-                        
+
                         return agent_d_vote
                     except Exception as e:
                         logger.error(f"Coordinator: Agent D poll failed: {e}")
@@ -469,7 +468,7 @@ class TradingCoordinator:
                     state = self.brain.conviction_state.get("Dhatu_Oracle")
                     if state and (datetime.now(timezone.utc) - dtparser.parse(state["timestamp"])).total_seconds() < 90:
                         return state
-                    
+
                     try:
                         if self.brain.dhatu_oracle is None:
                             raise RuntimeError("DhatuOracle not configured")
@@ -478,7 +477,7 @@ class TradingCoordinator:
                     except Exception as e:
                         logger.warning(f"Coordinator: Oracle Live Fallback failed: {e}")
                         return {
-                            "agent": "Dhatu_Oracle", "vote": "YES", "confidence": 0.5, 
+                            "agent": "Dhatu_Oracle", "vote": "YES", "confidence": 0.5,
                             "reason": "Oracle Offline (Deferred to Quorum)", "timestamp": timestamp
                         }
 
@@ -496,7 +495,7 @@ class TradingCoordinator:
                     except Exception as e:
                         logger.warning(f"Coordinator: Swarm Live Fallback failed: {e}")
                         return {
-                            "agent": "Swarm_Predictor", "vote": "YES", "confidence": 0.5, 
+                            "agent": "Swarm_Predictor", "vote": "YES", "confidence": 0.5,
                             "reason": "Swarm Offline (Deferred to Quorum)", "timestamp": timestamp
                         }
 
@@ -524,10 +523,10 @@ class TradingCoordinator:
                     for name, func in tier1_agents.items():
                         tier1_votes.append(await _poll_safe(name, func))
                     dummy_tail = None
-                
+
                 if 'all_votes' not in locals():
                     all_votes = [agent_a_out] + tier1_votes
-                
+
                 if not dummy_tail:
                     deterministic_deny = any(v["vote"] == "NO" for v in tier1_votes if v["agent"] in ["Agent_B", "Agent_C", "Risk_Guard", "Agent_E", "Agent_F", "Agent_G"])
                     if deterministic_deny:
@@ -538,7 +537,7 @@ class TradingCoordinator:
                              {"agent": "Mind_Ultrathink", "vote": "NO", "confidence": 0.0, "reason": "Skipped", "timestamp": timestamp}
                          ]
                          all_votes.extend(dummy_tail)
-                
+
                 if not dummy_tail:
                     logger.info(f"Coordinator [{proposal_id}]: Stage 1 Clear. Entering Neural Gate for Gated agents...")
                     try:
@@ -547,9 +546,9 @@ class TradingCoordinator:
                             ("Swarm_Predictor", poll_swarm),
                             ("Mind_Ultrathink", lambda: self.brain.mind_ultrathink.evaluate_proposal(shared_context))
                         ]
-                        
+
                         vram_pct = 0  # LLM purged — no VRAM contention
-                        
+
                         gated_votes = []
                         background_success = True
                         for name, _ in gated_agents:
@@ -570,17 +569,17 @@ class TradingCoordinator:
                             funcs = [f for _, f in gated_agents]
 
                             results = await asyncio.gather(
-                                *[asyncio.wait_for(_poll_neural_safe(name, func), timeout=120.0) for name, func in zip(names, funcs)],
+                                *[asyncio.wait_for(_poll_neural_safe(name, func), timeout=120.0) for name, func in zip(names, funcs, strict=False)],
                                 return_exceptions=True
                             )
 
-                            for name, res in zip(names, results):
+                            for name, res in zip(names, results, strict=False):
                                 if isinstance(res, (Exception, asyncio.TimeoutError)):
                                      logger.error(f"Neural Gate: {name} Failed or Timed Out: {res}")
                                      gated_votes.append({"agent": name, "vote": "YES", "confidence": 0.4, "reason": "Latency/Error Fallback"})
                                 else:
                                      gated_votes.append(res)
-                        
+
                         all_votes = [agent_a_out] + tier1_votes + gated_votes
                     except Exception as gated_e:
                         logger.error(f"Coordinator: Gated Intelligence failure: {gated_e}")
@@ -595,7 +594,7 @@ class TradingCoordinator:
                 # GAP-218 FIX: Spawn Task with full pattern metadata if not already provided
                 if task is None and not is_probe:
                     task = self.brain.task_manager.spawn_trade(symbol, pattern.to_dict())
-                    
+
                 return await self._execute_decision(symbol, decision, pattern, all_votes, is_probe, shares, task)
 
         except Exception as e:
@@ -610,13 +609,13 @@ class TradingCoordinator:
         """The dedicated execution nexus for the Sovereign system."""
         try:
             proposal_id = all_votes[0].get("proposal_id", "CACHE")
-            
+
             if decision["decision"] == "EXECUTE":
                 if is_probe:
                     if task: task.log("EXECUTION_PHANTOM: System verified operational. Standing down (Probe Mode).")
                     logger.info(f"Coordinator [{proposal_id}] ✅ PHANTOM PROBE SUCCESS: System wiring is 100% OPERATIONAL.")
                     return True
-                    
+
                 if task: task.log(f"EXECUTION_START: Routing {shares} shares to {self.brain.active_broker}.")
                 logger.info(f"Coordinator [{proposal_id}] [QUORUM_OK] Executing trade for {symbol}")
 
@@ -624,7 +623,7 @@ class TradingCoordinator:
                 order_side = "BUY" if is_long else "SELL"
                 urgency = "HIGH" if self.brain.current_regime in ["VOLATILE", "TRENDING"] else "LOW"
 
-                # ── BROKER ROUTING (Samvid v1.0-beta-beta APEX) ──
+                # ── BROKER ROUTING (Samvid v1.0-beta-beta-beta APEX) ──
                 if self.brain.active_broker == "MAINTENANCE":
                      if task: task.log("MAINTENANCE_VETO: Market rollover detected. Aborting.")
                      logger.warning(f"Coordinator [{proposal_id}] 🛡️ MAINTENANCE STAND-DOWN: Market rollover in progress. Order skipped.")
@@ -634,14 +633,14 @@ class TradingCoordinator:
                 order_id = None
                 if self.brain.active_broker == "IBKR":
                     order_id = await self.brain._place_ibkr_order(
-                        symbol=symbol, 
-                        direction=order_side, 
-                        shares=shares, 
-                        urgency=urgency, 
+                        symbol=symbol,
+                        direction=order_side,
+                        shares=shares,
+                        urgency=urgency,
                         limit_price=pattern.entry,
                         stop_price=pattern.stop,
                         target_price=pattern.target,
-                        **decision 
+                        **decision
                     )
                 elif self.brain.active_broker == "MT5":
                     order_id = await self.brain._place_mt5_order(
@@ -654,10 +653,10 @@ class TradingCoordinator:
                         **decision
                     )
                 if order_id:
-                    if task: 
+                    if task:
                         task.log(f"EXECUTION_CONFIRMED: Order {order_id} active.")
                         task.finalize("SUCCESS")
-                    
+
                     quorum_count = len(all_votes)
                     # Compute Intent String
                     intent = "UNKNOWN"
@@ -665,10 +664,10 @@ class TradingCoordinator:
                     elif pattern.category == "SWING": intent = "Swing"
                     elif pattern.category == "SCALP": intent = "Scalp"
                     elif pattern.category == "HFT": intent = "HFT"
-                    
+
                     side_str = "LONG" if order_side == "BUY" else "SHORT"
                     full_intent = f"{side_str} {intent}"
-                    
+
                     await send_telegram_alert(
                         f"🚀 *EXECUTION: {symbol}*\n"
                         f"Type: {full_intent}\n"
@@ -705,7 +704,7 @@ class TradingCoordinator:
                     await self.brain._log_trade_entry(pos)
                     return True
                 else:
-                    if task: 
+                    if task:
                         task.log("EXECUTION_FAILURE: Order rejected by broker.")
                         task.finalize("FAILED")
                     if shares < 1:
@@ -726,7 +725,7 @@ class TradingCoordinator:
             else:
                  reason = decision.get('reason', 'Consensus No')
                  logger.info(f"Coordinator [{proposal_id}] 🛡️ VETO: {symbol} rejected by decision engine. Reason: {reason}")
-                 
+
                  # GAP-241 FIX: Alert User on Veto
                  from telegram_alerts import send_telegram_alert
                  await send_telegram_alert(
@@ -734,7 +733,7 @@ class TradingCoordinator:
                      f"Reason: {reason}\n"
                      f"ID: {proposal_id}"
                  )
-                 
+
                  # --- BUG #12 FIX: Shadow Trade Monitoring ---
                  # Log the rejected proposal as a 'Shadow Trade' for post-mortem calibration.
                  try:
@@ -760,7 +759,7 @@ class TradingCoordinator:
                  except Exception as shadow_e:
                      logger.debug(f"Shadow Trade Logging failed: {shadow_e}")
 
-                 if task: 
+                 if task:
                      task.log(f"QUORUM_REJECT: {reason}")
                      task.finalize("VETOED")
                  logger.info(f"Coordinator [{proposal_id}] [QUORUM_REJECT] {reason}")
@@ -770,7 +769,7 @@ class TradingCoordinator:
             logger.error(f"Coordinator Error inside Sovereign Lifecycle: {e}", exc_info=True)
             return False
         finally:
-            # --- v1.0-beta FIX: Use discard() to avoid KeyError if already removed ---
+            # --- v1.0-beta-beta FIX: Use discard() to avoid KeyError if already removed ---
             self._pending_vets.discard(symbol)
             # Add to a local 'cooldown' in the brain to prevent the scanner from re-submitting for 30s
             if hasattr(self.brain, "_vetting_cooldowns"):

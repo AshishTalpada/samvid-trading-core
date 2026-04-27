@@ -1,17 +1,25 @@
 import asyncio
 import logging
 import socket
+import sqlite3
 import time
 from contextlib import asynccontextmanager  # pyre-ignore[21]
 from datetime import datetime
 from typing import Any
 
 import uvicorn  # pyre-ignore[21]
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Depends, HTTPException, Query, Header  # pyre-ignore[21]
+from fastapi import (  # pyre-ignore[21]
+    Depends,
+    FastAPI,
+    Header,
+    HTTPException,
+    Query,
+    WebSocket,
+    WebSocketDisconnect,
+)
 from fastapi.middleware.cors import CORSMiddleware  # pyre-ignore[21]
-from fastapi.security import APIKeyHeader  # pyre-ignore[21]
+
 from vault import Vault
-import sqlite3
 
 logger = logging.getLogger(__name__)
 
@@ -31,7 +39,7 @@ class APIServer:
         self._state_lock = asyncio.Lock()
         self._http_semaphore = asyncio.Semaphore(10)  # Max 10 concurrent /state callers
         self.active_connections: dict[WebSocket, asyncio.Queue] = {} # {WS: Queue}
-        
+
         # ── PERFORMANCE GUARD: THROTTER CACHE ──────────────────────────
         self._last_tick_broadcast: dict[str, float] = {} # symbol -> ts
 
@@ -52,7 +60,7 @@ class APIServer:
 
         self.app = FastAPI(title="TradingSystem Elite API", lifespan=lifespan)
 
-        # ── SECURITY GUARD: RESTRICTED CORS (Samvid v1.0-beta-beta) ──
+        # ── SECURITY GUARD: RESTRICTED CORS (Samvid v1.0-beta-beta-beta) ──
         # In production, specify your frontend URL instead of "*"
         self.app.add_middleware(
             CORSMiddleware,
@@ -78,18 +86,18 @@ class APIServer:
             }
             if any(v in ["DISCONNECTED", "DOWN", "OFFLINE"] for v in components.values()):
                 status = "DEGRADED"
-            
+
             return {
                 "status": status,
                 "timestamp": datetime.now().isoformat(),
                 "components": components,
-                "version": "Sovereign-v1.0-beta"
+                "version": "Sovereign-v1.0-beta-beta"
             }
 
     def _subscribe_to_bus(self) -> None:
         """Bind to the SharedIntelligenceBus for instant 100Hz pushing."""
         if hasattr(self.system, "bus") and self.system.bus is not None:
-            # ── CONSOLIDATED BROADCASTERS (Samvid v1.0-beta-beta) ──
+            # ── CONSOLIDATED BROADCASTERS (Samvid v1.0-beta-beta-beta) ──
             # HFT topics use the Queue model to prevent memory leaks
             self._tick_queue = self.system.bus.subscribe("tick.hft", maxsize=50)
             asyncio.create_task(self._run_tick_broadcaster())
@@ -115,7 +123,7 @@ class APIServer:
             "data": payload,
             "meta": {"nodes": ["news_harvester", "intel_bus"]}
         }
-        for ws, q in self.active_connections.items():
+        for _ws, q in self.active_connections.items():
             try:
                 q.put_nowait(msg)
             except asyncio.QueueFull:
@@ -130,7 +138,7 @@ class APIServer:
             "data": payload,
             "meta": {"nodes": ["pipeline", "sqlite", "intel_bus"]}
         }
-        for ws, q in self.active_connections.items():
+        for _ws, q in self.active_connections.items():
             try:
                 q.put_nowait(msg)
             except asyncio.QueueFull:
@@ -146,7 +154,7 @@ class APIServer:
             "data": payload,
             "meta": {"nodes": ["apex_overlay", "intel_bus"]}
         }
-        for ws, q in self.active_connections.items():
+        for _ws, q in self.active_connections.items():
             try:
                 q.put_nowait(msg)
             except asyncio.QueueFull:
@@ -161,7 +169,7 @@ class APIServer:
             "data": payload,
             "meta": {"nodes": ["brain", "intel_bus"]}
         }
-        for ws, q in self.active_connections.items():
+        for _ws, q in self.active_connections.items():
             try:
                 q.put_nowait(msg)
             except asyncio.QueueFull:
@@ -176,14 +184,14 @@ class APIServer:
             "data": payload,
             "meta": {"nodes": payload.get("nodes", ["intel_bus", "brain"])}
         }
-        for ws, q in self.active_connections.items():
+        for _ws, q in self.active_connections.items():
             try:
                 q.put_nowait(msg)
             except asyncio.QueueFull:
                 pass
 
     async def _run_tick_broadcaster(self) -> None:
-        """Background worker to broadcast ticks at a sane frequency (Samvid v1.0-beta-beta)."""
+        """Background worker to broadcast ticks at a sane frequency (Samvid v1.0-beta-beta-beta)."""
         logger.info("API Server: Tick Broadcaster worker started.")
         while True:
             try:
@@ -199,12 +207,12 @@ class APIServer:
     async def _broadcast_tick(self, payload: dict) -> None:
         if not self.active_connections:
             return
-            
-        # --- PERFORMANCE GUARD (Samvid v1.0-beta-beta) ---
+
+        # --- PERFORMANCE GUARD (Samvid v1.0-beta-beta-beta) ---
         symbol = payload.get("symbol", "ALL")
         now = time.time()
         if now - self._last_tick_broadcast.get(symbol, 0) < 0.01: # 100Hz Limit
-             return 
+             return
         self._last_tick_broadcast[symbol] = now
         msg = {
             "type": "tick.hft",
@@ -212,7 +220,7 @@ class APIServer:
             "data": payload,
             "meta": {"nodes": ["ibkr", "questdb", "pipeline", "intel_bus"]}
         }
-        for ws, q in self.active_connections.items():
+        for _ws, q in self.active_connections.items():
             try:
                 q.put_nowait(msg)
             except asyncio.QueueFull:
@@ -228,7 +236,7 @@ class APIServer:
             "data": payload,
             "meta": {"nodes": ["oracle", "intel_bus", "swarm", "consensus"]}
         }
-        for ws, q in self.active_connections.items():
+        for _ws, q in self.active_connections.items():
             try:
                 q.put_nowait(msg)
             except asyncio.QueueFull:
@@ -243,7 +251,7 @@ class APIServer:
             "data": payload,
             "meta": {"nodes": ["agent_d", "pipeline", "sqlite", "intel_bus"]}
         }
-        for ws, q in self.active_connections.items():
+        for _ws, q in self.active_connections.items():
             try:
                 q.put_nowait(msg)
             except asyncio.QueueFull:
@@ -261,7 +269,7 @@ class APIServer:
             "data": payload,
             "meta": {"nodes": [node_id, "intel_bus"]}
         }
-        for ws, q in self.active_connections.items():
+        for _ws, q in self.active_connections.items():
             try:
                 q.put_nowait(msg)
             except asyncio.QueueFull:
@@ -277,7 +285,7 @@ class APIServer:
             "data": payload,
             "meta": {"nodes": ["consensus", "intel_bus"] + payload.get("nodes", [])}
         }
-        for ws, q in self.active_connections.items():
+        for _ws, q in self.active_connections.items():
             try:
                 q.put_nowait(msg)
             except asyncio.QueueFull:
@@ -309,7 +317,7 @@ class APIServer:
              # If no key is set, we allow local access but warn
              logger.warning("API Server: No API_SERVER_KEY found in Vault. Defaulting to OPEN session (Insecure).")
              return
-        
+
         if x_sovereign_key != secret:
              raise HTTPException(status_code=403, detail="Invalid Sovereign API Key")
 
@@ -321,13 +329,14 @@ class APIServer:
 
         @self.app.websocket("/ws")
         async def websocket_endpoint(websocket: WebSocket, token: str = Query(None)) -> None:
-            # ── SOVEREIGN WS HANDSHAKE (Samvid v1.0-beta-beta GAP-37 FIX) ──
+            # ── SOVEREIGN WS HANDSHAKE (Samvid v1.0-beta-beta-beta GAP-37 FIX) ──
             from time_sync import TimeSync
             secret = Vault.get("API_SERVER_KEY")
             if secret:
                 ts = int(TimeSync.now().timestamp()) // 30
                 valid = False
-                import hmac, hashlib
+                import hashlib
+                import hmac
                 # Allow for significant clock drift (up to 5 mins) between frontend and backend
                 for offset in range(-10, 11):
                     msg = str(ts + offset).encode()
@@ -335,7 +344,7 @@ class APIServer:
                     if hmac.compare_digest(token or "", expected):
                         valid = True
                         break
-                
+
                 if not valid:
                     msg0 = str(ts).encode()
                     exp0 = hmac.new(secret.encode(), msg0, hashlib.sha256).hexdigest()
@@ -363,7 +372,7 @@ class APIServer:
                         del self.active_connections[websocket]
 
             writer_task = asyncio.create_task(_ws_writer())
-            
+
             try:
                 # 1. Provide an immediate full-state sync upon connection
                 await self._safe_send_json(
@@ -389,7 +398,7 @@ class APIServer:
         """Send JSON with connection state check."""
         try:
             if websocket.client_state.name == "CONNECTED":
-                # Samvid v1.0-beta-beta: 5s timeout on sends to prevent zombie client bloat
+                # Samvid v1.0-beta-beta-beta: 5s timeout on sends to prevent zombie client bloat
                 await asyncio.wait_for(websocket.send_json(data), timeout=5.0)
         except Exception as _ws_err:
             logger.debug(f"WS send failed (socket closing or timeout): {_ws_err}")
@@ -500,7 +509,7 @@ class APIServer:
 
                 pg_reserve = "20% Reserve"
                 if hasattr(brain, "portfolio_guard") and brain.portfolio_guard:
-                    # In v1.0-beta, we track via cash reserve check
+                    # In v1.0-beta-beta, we track via cash reserve check
                     pg_reserve = "20% Reserve (Active)"
 
                 # Extract Agent D (Learning Mind) stats
@@ -602,7 +611,7 @@ class APIServer:
                         "system": "ACTIVE" if hasattr(brain, "mind_system") else "STANDBY",
                         "ghost": "ACTIVE" if hasattr(brain, "mind_ghost") else "STANDBY",
                 }
-                
+
                 brain_data["agents"] = {
                         "agent_a": {
                             "status": "SYNCHRONIZED" if scan_stats else "SCANNING",

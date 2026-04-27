@@ -17,7 +17,6 @@ Usage:
 import asyncio
 import hashlib
 import logging
-import threading
 import time
 from collections.abc import Callable, Coroutine
 from typing import Any
@@ -43,12 +42,12 @@ class TTLCache:
         self._hits = 0
         self._misses = 0
         self._is_running = True
-        
+
         # GAP-46: Periodic Scavenger (Anti-Zombie Task)
         self._cleanup_task = asyncio.create_task(self._cleanup_loop())
 
     async def _cleanup_loop(self) -> None:
-        """Background loop to periodically prune stale entries (Samvid v1.0-beta-beta)."""
+        """Background loop to periodically prune stale entries (Samvid v1.0-beta-beta-beta)."""
         while self._is_running:
             try:
                 await asyncio.sleep(60) # Scavenge every minute

@@ -1,9 +1,9 @@
-import time
-import os
 import json
 import logging
-from enum import Enum
+import os
+import time
 from datetime import datetime
+from enum import Enum
 from typing import Any, Dict, List
 
 logger = logging.getLogger("SovereignTask")
@@ -30,16 +30,16 @@ class SovereignTask:
         self.start_time = datetime.now(_timezone.utc).timestamp()
         self.end_time = None
         self.output_file = f"data/tasks/{self.id}.log"
-        
-        # ── AGENTIC DIAGNOSTICS (Samvid v1.0-beta-beta) ──
+
+        # ── AGENTIC DIAGNOSTICS (Samvid v1.0-beta-beta-beta) ──
         self.baseline_state = {}     # Snapshot at creation
         self.delta_metrics = {}      # Tracks shifts
         self.reflection_log = []     # Post-mortem notes
         self.status_summary = "Initializing"
-        
+
         # Ensure directory exists
         os.makedirs("data/tasks", exist_ok=True)
-        
+
     def transition(self, new_status: TaskStatus):
         logger.info(f"Task {self.id}: {self.status.value} -> {new_status.value}")
         self.status = new_status
@@ -70,7 +70,7 @@ class SovereignTask:
         self.log(f"TASK_FINALIZED: State set to {final_state}.")
 
     def log(self, message: str):
-        # 1. Persistent File Log (Samvid v1.0-beta-beta: Non-blocking optimization)
+        # 1. Persistent File Log (Samvid v1.0-beta-beta-beta: Non-blocking optimization)
         try:
             with open(self.output_file, "a", encoding="utf-8") as f:
                 from datetime import timezone as _timezone
@@ -78,8 +78,8 @@ class SovereignTask:
                 f.write(f"[{timestamp}] {message}\n")
         except Exception as e:
             logger.error(f"Task {self.id}: Log write failed: {e}")
-        
-        # 2. Real-time Terminal Log (Samvid v1.0-beta-beta Visibility)
+
+        # 2. Real-time Terminal Log (Samvid v1.0-beta-beta-beta Visibility)
         logger.info(f"Task {self.id}: {message}")
 
     def save(self):
@@ -122,7 +122,7 @@ class SovereignTask:
         }
 
 class TaskManager:
-    """Orchestrates the lifecycle of Sovereign Tasks (Samvid v1.0-beta-beta Hardened)."""
+    """Orchestrates the lifecycle of Sovereign Tasks (Samvid v1.0-beta-beta-beta Hardened)."""
     def __init__(self, registry_path: str = "data/active_tasks.json"):
         self.registry_path = registry_path
         self.tasks: Dict[str, SovereignTask] = {}
@@ -139,7 +139,7 @@ class TaskManager:
         task = SovereignTask(task_id, "trade", f"Executing {symbol} Trade", setup)
         task.transition(TaskStatus.RUNNING)
         self.tasks[task_id] = task
-        
+
         if symbol not in self._symbol_index:
             self._symbol_index[symbol] = []
         self._symbol_index[symbol].append(task_id)
@@ -160,9 +160,9 @@ class TaskManager:
                 for tid, state in data.items():
                     try:
                         task = SovereignTask(
-                            task_id=tid, 
-                            task_type=state.get('type', 'unknown'), 
-                            description=state.get('description', 'Restored Task'), 
+                            task_id=tid,
+                            task_type=state.get('type', 'unknown'),
+                            description=state.get('description', 'Restored Task'),
                             metadata=state.get('metadata', {})
                         )
                         task.status = TaskStatus(state.get('status', 'pending'))
@@ -170,7 +170,7 @@ class TaskManager:
                         task.end_time = state.get('end_time')
                         task.delta_metrics = state.get('delta_metrics', {})
                         self.tasks[tid] = task
-                        
+
                         # Rebuild index
                         symbol = tid.split("_")[1] if "_" in tid else "UNKNOWN"
                         if symbol not in self._symbol_index:
@@ -195,13 +195,13 @@ class TaskManager:
 
             data = {tid: t.to_dict() for tid, t in self.tasks.items()}
             temp_path = f"{self.registry_path}.tmp"
-            
+
             import time as _time
             for attempt in range(5):
                 try:
                     with open(temp_path, "w", encoding="utf-8") as f:
                         json.dump(data, f, indent=2)
-                    
+
                     if os.path.exists(self.registry_path):
                         try:
                             os.replace(temp_path, self.registry_path)
@@ -224,7 +224,7 @@ class TaskManager:
         max_age_sec = max_age_days * 86400
         stale_threshold_sec = 86400 # 24 hours for non-finished tasks
         to_remove = []
-        
+
         # 1. Standard Finished Purge
         for tid, task in self.tasks.items():
             if task.status in [TaskStatus.COMPLETED, TaskStatus.FAILED, TaskStatus.KILLED]:
@@ -233,13 +233,13 @@ class TaskManager:
             # 2. GAP-266: Stale Task Purge (Orphaned Pending/Running)
             elif (now - task.start_time) > stale_threshold_sec:
                 to_remove.append(tid)
-        
+
         for tid in to_remove:
             self._delete_task_reference(tid)
-            
+
         if to_remove:
             logger.info(f"TaskManager: Purged {len(to_remove)} stale/finished tasks from memory.")
-            
+
         # 3. GAP-267: Hard Ceiling Purge (Safety Valve for Registry Bloat)
         # If we still have > 1000 tasks (e.g. from a massive backlog), keep only the 500 newest.
         if len(self.tasks) > 1000:

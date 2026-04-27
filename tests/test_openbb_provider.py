@@ -12,7 +12,7 @@ import pytest  # pyre-ignore[21]
 
 def test_openbb_provider_initializes_without_pat() -> None:
     """OpenBBProvider should initialize without a PAT token."""
-    from src.openbb_provider import OpenBBProvider # type: ignore
+    from src.openbb_provider import OpenBBProvider  # type: ignore
 
     provider = OpenBBProvider(pat="", preferred_provider="yfinance")
     # Should not crash — may or may not be "available" depending on
@@ -60,7 +60,7 @@ async def test_ohlcv_returns_none_when_unavailable() -> None:
 @pytest.mark.asyncio
 async def test_current_price_returns_none_when_unavailable() -> None:
     """get_current_price should return None when OpenBB is not available."""
-    from src.openbb_provider import OpenBBProvider # type: ignore
+    from src.openbb_provider import OpenBBProvider  # type: ignore
 
     provider = OpenBBProvider.__new__(OpenBBProvider)
     provider._initialized = False
@@ -88,7 +88,7 @@ async def test_technical_indicators_returns_empty_when_unavailable() -> None:
 @pytest.mark.asyncio
 async def test_macro_data_returns_empty_when_unavailable() -> None:
     """fetch_macro_data should return empty dict when OpenBB is not available."""
-    from src.openbb_provider import OpenBBProvider # type: ignore
+    from src.openbb_provider import OpenBBProvider  # type: ignore
     provider = OpenBBProvider.__new__(OpenBBProvider)
     provider._initialized = False
     provider._pat = ""
@@ -101,7 +101,7 @@ async def test_macro_data_returns_empty_when_unavailable() -> None:
 @pytest.mark.asyncio
 async def test_news_returns_empty_when_unavailable() -> None:
     """fetch_news should return empty list when OpenBB is not available."""
-    from src.openbb_provider import OpenBBProvider # type: ignore
+    from src.openbb_provider import OpenBBProvider  # type: ignore
 
     provider = OpenBBProvider.__new__(OpenBBProvider)
     provider._initialized = False

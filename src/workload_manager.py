@@ -10,7 +10,7 @@ logger = logging.getLogger(__name__)
 
 class WorkloadManager:
     """
-    Persistent Mission Mission Board (Samvid v1.0-beta-beta).
+    Persistent Mission Mission Board (Samvid v1.0-beta-beta-beta).
     Inspired by Claude-Code's 'workloadContext.tss' and 'teammateMailbox.ts'.
     Ensures 'Absolute Step-by-Step Task Completion' across restarts.
     """
@@ -32,7 +32,7 @@ class WorkloadManager:
 
     @property
     def current_mission(self) -> str:
-        """Expose current mission name (Samvid v1.0-beta-beta)."""
+        """Expose current mission name (Samvid v1.0-beta-beta-beta)."""
         with self._lock:
             return self.mission_board.get("current_mission", "UNKNOWN")
 
@@ -60,7 +60,7 @@ class WorkloadManager:
                 temp_path = f"{self.path}.tmp"
                 # Ensure directory exists (Defensive)
                 os.makedirs(os.path.dirname(self.path), exist_ok=True)
-                
+
                 with open(temp_path, "w", encoding="utf-8") as f:
                     # GAP-231 FIX: Restricted permissions (User-only read/write)
                     try:
@@ -70,7 +70,7 @@ class WorkloadManager:
                     json.dump(self.mission_board, f, indent=2)
                     f.flush()
                     os.fsync(f.fileno()) # Force write to physical media
-                
+
                 # GAP-113: Verify temp file is non-empty before swap
                 if os.path.getsize(temp_path) > 0:
                     os.replace(temp_path, self.path)
@@ -97,7 +97,7 @@ class WorkloadManager:
                 owner = owner.strip().upper()
                 task_text = task_text.strip()
             new_steps.append({"id": i, "task": task_text, "owner": owner, "done": False})
-            
+
         self.mission_board["steps"] = new_steps
         self.mission_board["status"] = "ACTIVE"
         await self.save_async()
@@ -124,6 +124,6 @@ class WorkloadManager:
         # GAP-115: Only return tasks assigned to this mind_id or 'ALL'
         mid = str(mind_id).strip().upper()
         return [
-            s for s in self.mission_board["steps"] 
+            s for s in self.mission_board["steps"]
             if not s["done"] and (s.get("owner", "ALL") == mid or s.get("owner", "ALL") == "ALL")
         ]
