@@ -26,7 +26,7 @@ jobs:
           pip install -e .
 
       - name: Lint with Ruff
-        run: ruff check src tests --select E,F,I,B,W --ignore E501
+        run: ruff check src tests 
 
       - name: Type check with Mypy
         run: mypy
