@@ -49,7 +49,8 @@ ignore = [
     "F841", # Local variable is assigned to but never used,
         "E702", # Multiple statements on one line (semicolon)
             "B023", # Function definition does not bind loop variable
-                "B007", # Loop control variable not used
+                "B007", # Loop control variable not used,
+                    "B904", # Within an except clause, raise exceptions with raise ... from err
 ]
 
 [tool.mypy]
