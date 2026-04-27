@@ -511,7 +511,7 @@ class NewsHarvester:
         self._running = True
         logger.info("NewsHarvester: Neural Reading Hub active.")
         
-        # SETO V21.40: Persistent Client for connection pooling
+        # Samvid v1.0-beta-beta: Persistent Client for connection pooling
         async with httpx.AsyncClient(timeout=httpx.Timeout(60.0, connect=30.0)) as client:
             while self._running:
                 try:
@@ -595,7 +595,7 @@ class TVNewsScent:
         """
         results = []
         try:
-            # SETO V21.40: Robust length-prefixed parsing (replaces brittle split)
+            # Samvid v1.0-beta-beta: Robust length-prefixed parsing (replaces brittle split)
             ptr = 0
             while ptr < len(raw_data):
                 if not raw_data[ptr:].startswith('~m~'):
@@ -633,7 +633,7 @@ class TVNewsScent:
 
         while self._running:
             try:
-                # SETO V21.24: Explicit Handshake Mapping
+                # Samvid v1.0-beta-beta: Explicit Handshake Mapping
                 target_url = self.url
                 target_headers = headers
                 async with websockets.connect(
@@ -681,7 +681,7 @@ class TVNewsScent:
             except Exception as e:
                 logger.error(f"⚠️ TVNewsScent: Neural Scent blip (Check Origin/Proxy): {e}")
             
-            # SETO V21.30: Mandatory Neural Cooling (Prevents machine-gun reconnects)
+            # Samvid v1.0-beta-beta: Mandatory Neural Cooling (Prevents machine-gun reconnects)
             # Replaces the unstable fixed sleep inside the except block.
             await asyncio.sleep(15)
 
@@ -743,8 +743,8 @@ class DhatuOracle:
         self._load_persisted_state()
         self._news_scent = TVNewsScent(bus=bus)
         self._news_harvester = NewsHarvester(bus=bus)
-        # SETO V21.40: Live News Intelligence Buffer (Captures all dots)
-        # SETO V21.40: Live Intelligence Buffers
+        # Samvid v1.0-beta-beta: Live News Intelligence Buffer (Captures all dots)
+        # Samvid v1.0-beta-beta: Live Intelligence Buffers
         self._news_buffer: list[str] = []
         self._macro_buffer: list[str] = []
         self._flow_buffer: list[str] = []
@@ -755,11 +755,11 @@ class DhatuOracle:
             self._bus.on("institutional.flow", self._on_flow_received)
         self._background_tasks: list[asyncio.Task] = []
         
-        # --- BAYESIAN REWARD MECHANISM (SETO V9.0 Native Integration) ---
+        # --- BAYESIAN REWARD MECHANISM (Samvid v1.0-beta-beta Native Integration) ---
         from bayesian_oracle import BayesianOracle
         self._bayesian_oracle = BayesianOracle()
 
-        # SETO V22.6: Persistent Ollama client — eliminates per-call AsyncClient alloc (~30 MB each)
+        # Samvid v1.0-beta-beta: Persistent Ollama client — eliminates per-call AsyncClient alloc (~30 MB each)
         self._ollama_client: "httpx.AsyncClient | None" = None
 
     async def _on_news_received(self, data: dict) -> None:
@@ -915,7 +915,7 @@ class DhatuOracle:
 
     def evaluate_proposal(self, context: Dict[str, Any]) -> Dict[str, Any]:
         """
-        Standardized consensus evaluation for SETO V8.7.
+        Standardized consensus evaluation for Samvid v1.0-beta-beta.
         Provides the Dhatu Oracle's macro-perspective vote.
         """
         modifier = self.get_risk_modifier()
@@ -931,7 +931,7 @@ class DhatuOracle:
             reason += f" | {self._current_state.causation_summary}"
 
 
-        # --- PREDATOR RE-WIRE: PROPORTIONAL SCALING (V12.0) ---
+        # --- PREDATOR RE-WIRE: PROPORTIONAL SCALING (v1.0-beta-beta) ---
         # Instead of blocking everything below 0.70, we allow the system to strike with
         # reduced size. We only VETO in extreme 'Abhava' or Liquidity Collapse.
         if modifier < 0.40:
@@ -990,7 +990,7 @@ class DhatuOracle:
 
         while True:
             try:
-                # ── HEARTBEAT PULSE (SETO V11.0) ──
+                # ── HEARTBEAT PULSE (Samvid v1.0-beta-beta) ──
                 # If we have a bus with a DMS registered, record our existence
                 if self._bus and hasattr(self._bus, 'dms') and self._bus.dms:
                     self._bus.dms.record_heartbeat()
@@ -1113,7 +1113,7 @@ class DhatuOracle:
                         logger.info(f"📰 YF_ORACLE: [{name}] {title}")
                         snippets.append(f"NEWS [{name}]: {title}")
 
-            # SETO V22.6: Explicitly free Ticker to release internal HTTP session + cached DFs
+            # Samvid v1.0-beta-beta: Explicitly free Ticker to release internal HTTP session + cached DFs
             del ticker
             del df
 
@@ -1223,7 +1223,7 @@ class DhatuOracle:
 
     async def _ingest_corporate(self) -> list[str]:
         """
-        Ingest corporate signals with breadth expansion (SETO V21.50 / GAP-41 FIX).
+        Ingest corporate signals with breadth expansion (Samvid v1.0-beta-beta / GAP-41 FIX).
         Check SPY (Cap-Weighted), RSP (Equal-Weighted), and IWM (Small-Cap).
         """
         logger.debug("DhatuOracle: Ingesting corporate breadth data...")
@@ -1276,7 +1276,7 @@ class DhatuOracle:
     # ------------------------------------------------------------------
 
     async def _call_ollama(self, prompt: str, system_prompt: str = "") -> str | None:
-        """DEPRECATED: Ollama has been removed to preserve RAM and speed (SETO V22.8)."""
+        """DEPRECATED: Ollama has been removed to preserve RAM and speed (Samvid v1.0-beta-beta)."""
         return None
 
     async def _rule_based_synthesis(self, signals: list[str]) -> OracleState:
@@ -1284,7 +1284,7 @@ class DhatuOracle:
         Deterministic fallback synthesis.
         GAP-80 FIX: Implements Absolute Value Parsing to prevent Semantic Drift.
         """
-        logger.info("DhatuOracle: Executing Rule-Based Deterministic Fallback (V12.0 Semantic)")
+        logger.info("DhatuOracle: Executing Rule-Based Deterministic Fallback (v1.0-beta Semantic)")
 
         def extract_val(text: str) -> float | None:
             # Pattern for: Ticker (SYM): -123.45 (change: +1.2%)
@@ -1348,7 +1348,7 @@ class DhatuOracle:
             action_protocol=protocol["action"],
             risk_modifier=float(protocol["risk_modifier"]),
             causation_summary=(
-                f"Rule-Based Fallback V12.0: Score {score}. "
+                f"Rule-Based Fallback v1.0-beta: Score {score}. "
                 f"VIX Absolute: {vix_abs:.2f}."
             ),
             confidence=0.35,
@@ -1361,14 +1361,14 @@ class DhatuOracle:
     ) -> CausationGraph:
         """
         Multi-tier Graph Synthesis:
-        Tier 1: Heuristic Engine (SETO V28.0)
+        Tier 1: Heuristic Engine (Samvid v1.0-beta-beta)
         Tier 2: Global Resonance
         """
         # GAP-88 FIX: Pointing broken LLM-stub to the robust heuristic engine
         return await self._synthesize_oracle_state(all_signals)
 
     # =========================================================================
-    # EFFORT-SCALED MACRO PROCESSOR (SETO V28.0)
+    # EFFORT-SCALED MACRO PROCESSOR (Samvid v1.0-beta-beta)
     # =========================================================================
 
     def _evaluate_effort_needs(self, vix: float, uncertainty: float) -> str:
@@ -1496,7 +1496,7 @@ class DhatuOracle:
         self, graph: CausationGraph, all_signals: list[str]
     ) -> OracleState:
         """
-        SETO V22.9: Semantic Archetype Resonance.
+        Samvid v1.0-beta-beta: Semantic Archetype Resonance.
         Actual reasoning without Ollama via Vector Similarity.
         """
         logger.info("DhatuOracle: Initiating Semantic Resonance Chain...")
@@ -1551,7 +1551,7 @@ class DhatuOracle:
             confidence = 0.5
             reasoning = "Rule-based fallback active."
 
-        # SETO V21.40: Extract protocol details from map
+        # Samvid v1.0-beta-beta: Extract protocol details from map
         protocol = DHATU_PROTOCOL_MAP.get(state_name, DHATU_PROTOCOL_MAP["Sthiti"])
 
         return OracleState(
@@ -1589,7 +1589,7 @@ class DhatuOracle:
             if isinstance(r, list):
                 all_signals.extend(r)
 
-        # SETO V21.40: Inject Live Intelligence Buffers
+        # Samvid v1.0-beta-beta: Inject Live Intelligence Buffers
         if self._news_buffer:
             all_signals.extend(self._news_buffer)
             self._news_buffer = [] # Clear

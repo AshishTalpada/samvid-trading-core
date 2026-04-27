@@ -7,7 +7,7 @@ logger = logging.getLogger(__name__)
 
 class MindPrompts:
     """
-    Context Injector for the SETO V4.0 Prime Architecture.
+    Context Injector for the Samvid v1.0-beta-beta Prime Architecture.
     Constructs meticulous system prompts for the minds.
     Inspired by Claude-Code's 'prompts.ts' and 'context.ts' logic.
     """
@@ -15,7 +15,7 @@ class MindPrompts:
     def __init__(self, memory: MemoryManager) -> None:
         self.memory = memory
         self.system_identity = (
-            "You are a core mind in a SETO (Self-Evolving Trading Organism) V9.0 Sovereign. "
+            "You are a core mind in a SETO (Self-Evolving Trading Organism) v1.0-beta Sovereign. "
             "You operate in a high-stakes financial environment where code integrity and risk management are paramount."
         )
 

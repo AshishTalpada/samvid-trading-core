@@ -1,6 +1,6 @@
 # pyre-ignore-all-errors[21]
 """
-src/agent_e.py - Sector Correlation Guard (V3.0)
+src/agent_e.py - Sector Correlation Guard (v1.0-beta-beta)
 ==============================================
 Prevents portfolio over-exposure to a single market sector.
 Implements rule: Max 30% allocation per sector.
@@ -171,7 +171,7 @@ class CorrelationGuard:
 
     async def evaluate_proposal(self, context: Dict[str, Any], agent_name: str = "Agent_E") -> Dict[str, Any]:
         """
-        Standardized consensus evaluation for SETO V8.7.
+        Standardized consensus evaluation for Samvid v1.0-beta-beta.
         Provides Agent E's correlation-based vote.
         """
 

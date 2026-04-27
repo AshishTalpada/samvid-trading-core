@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 
 class SovereignLogicEngine:
     """
-    The Single Source of Truth for the 500-Ability Sovereign Mind (V9.0).
+    The Single Source of Truth for the 500-Ability Sovereign Mind (v1.0-beta-beta).
     Acts as a logical dispatcher and executor for the capability registry.
     """
 
@@ -187,7 +187,7 @@ class SovereignLogicEngine:
 
     def _logic_166_blackswan(self, ctx: Dict[str, Any]) -> Dict[str, Any]:
         """
-        Black-Swan Veto — triggers on catastrophic news keywords (SETO V21.50).
+        Black-Swan Veto — triggers on catastrophic news keywords (Samvid v1.0-beta-beta).
         Remediated GAP-17: Now handles basic negation and context check.
         """
         headline = ctx.get("headline", "").lower()

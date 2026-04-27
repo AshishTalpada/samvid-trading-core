@@ -29,7 +29,7 @@ class Diagnostic:
 
 class DiagnosticTracker:
     """
-    SETO V7.0 Diagnostic Tracking System.
+    Samvid v1.0-beta-beta Diagnostic Tracking System.
     Inspired by Claude-Code's DiagnosticTrackingService.ts.
     Maintains baselines and detects 'New Bleeding' (regressions).
     """

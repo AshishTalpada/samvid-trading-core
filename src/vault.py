@@ -61,7 +61,7 @@ class Vault:
     @staticmethod
     def get(key: str, default: str | None = None) -> str | None:
         """
-        Retrieve a secret (SETO V8.0 Universal String-Shield).
+        Retrieve a secret (Samvid v1.0-beta-beta Universal String-Shield).
         Ensures the return value is projects-wide safe for SDKs and lengths.
         """
         # 0. Check Cache First (GAP-81)

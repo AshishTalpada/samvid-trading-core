@@ -7,7 +7,7 @@ logger = logging.getLogger(__name__)
 
 class SharedEmbeddingEngine:
     """
-    SETO V21.50: Singleton Embedding Engine.
+    Samvid v1.0-beta-beta: Singleton Embedding Engine.
     Hardened for concurrent VRAM access and batch processing (GAP-73/75/76).
     """
     _instance: Optional['SharedEmbeddingEngine'] = None
@@ -28,7 +28,7 @@ class SharedEmbeddingEngine:
                 TextEmbedding = fastembed.TextEmbedding
                 
                 # GAP-206 FIX: swappable model from Vault
-                model_name = Vault.get("EMBEDDING_MODEL", "BAAI/bge-small-en-v1.5")
+                model_name = Vault.get("EMBEDDING_MODEL", "BAAI/bge-small-en-v1.0-beta")
                 self._model = TextEmbedding(model_name)
                 logger.info(f"✓ SharedEmbeddingEngine: {model_name} loaded into memory.")
             except Exception as e:

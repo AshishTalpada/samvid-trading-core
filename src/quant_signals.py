@@ -1,5 +1,5 @@
 """
-SETO V9.0 — Quantitative Signal Library
+Samvid v1.0-beta-beta — Quantitative Signal Library
 Replaces LLM agent opinions with statistically validated signals.
 Each signal is independently testable and has a known theoretical basis.
 """
@@ -128,7 +128,7 @@ class MultiFactorAlpha:
             'vol_regime':     0.15,
             'volume_surge':   0.15,
         }
-        # SETO V9.5: Kalman state for vol smoothing
+        # Samvid v1.0-beta-beta: Kalman state for vol smoothing
         self._vol_kalman = None
         self._vol_P = 1.0
 

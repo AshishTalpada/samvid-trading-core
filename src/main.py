@@ -81,7 +81,7 @@ from telegram_remote import get_remote
 
 class SovereignFormatter(logging.Formatter):
     """
-    Sovereign Intelligence Formatter (V12.0).
+    Sovereign Intelligence Formatter (v1.0-beta-beta).
     Combines Unicode-safe stream handling with mandatory secret redaction (GAP-82).
     """
     def __init__(self, fmt=None, datefmt=None, secrets=None):
@@ -136,7 +136,7 @@ stream_handler.setFormatter(formatter)
 root_logger.addHandler(file_handler)
 root_logger.addHandler(stream_handler)
 
-# GAP-172 FIX: Suppress noisy third-party libraries (SETO V22.9 Cleanup)
+# GAP-172 FIX: Suppress noisy third-party libraries (Samvid v1.0-beta-beta Cleanup)
 logging.getLogger("urllib3").setLevel(logging.WARNING)
 logging.getLogger("uvicorn.access").setLevel(logging.WARNING)
 logging.getLogger("uvicorn.error").setLevel(logging.INFO)
@@ -162,7 +162,7 @@ logging.getLogger("data_pipeline").setLevel(logging.INFO)
 logging.getLogger("mind_bridge").setLevel(logging.WARNING)
 logging.getLogger("questdb_adapter").setLevel(logging.WARNING)
 
-# SETO V8.0 Silence Filter: Capture and discard broken chromadb telemetry logs
+# Samvid v1.0-beta-beta Silence Filter: Capture and discard broken chromadb telemetry logs
 class TelemetryFilter(logging.Filter):
     def filter(self, record):
         msg = record.getMessage()
@@ -177,7 +177,7 @@ logger = logging.getLogger(__name__)
 
 
 class StartupProfiler:
-    """Institutional-grade startup profiling (SETO V8.0)."""
+    """Institutional-grade startup profiling (Samvid v1.0-beta-beta)."""
 
     def __init__(self) -> None:
         self._marks = {}
@@ -281,7 +281,7 @@ class TradingSystem:
         self._mt5_failure_count = 0 # Track sequential MT5 heartbeat failures
 
         self.background_tasks: dict[str, asyncio.Task[None]] = {}
-        self.db_lock = asyncio.Lock() # SETO V22.4: Sovereign SQL serialization
+        self.db_lock = asyncio.Lock() # Samvid v1.0-beta-beta: Sovereign SQL serialization
         self._shutdown_event = asyncio.Event() 
         self._hft_pulse_queue: Any = None 
         
@@ -383,7 +383,7 @@ class TradingSystem:
         
         # Launch health-Pulse Monitor
         self._aegis_task = asyncio.create_task(self._run_aegis_watchdog())
-        # Launch Persistence Sentinel (SETO V13.0)
+        # Launch Persistence Sentinel (Samvid v1.0-beta-beta)
         self._sentinel_task = asyncio.create_task(self._run_persistence_sentinel())
         
         # GAP-230 FIX: Performance Metrics Task
@@ -678,7 +678,7 @@ class TradingSystem:
         return False
 
     async def connect_ibkr(self) -> bool | None:
-        """Connect to Interactive Brokers TWS/Gateway (Sovereign Serialized Probe V9.99)"""
+        """Connect to Interactive Brokers TWS/Gateway (Sovereign Serialized Probe v1.0-beta)"""
         if not hasattr(self, "_ibkr_lock"):
             self._ibkr_lock = asyncio.Lock()
 
@@ -1020,7 +1020,7 @@ class TradingSystem:
                 timeout=300,
                 ibkr_client=self.ibkr_client,
                 mt5_client=self.mt5_client,
-                ibkr_port=self.ibkr_port,  # SETO V8.0 Port Alignment
+                ibkr_port=self.ibkr_port,  # Samvid v1.0-beta-beta Port Alignment
                 bus=self.bus,             # Audit Fix [P2]: Bridge DMS to shared bus
             )
 
@@ -1061,7 +1061,7 @@ class TradingSystem:
 
             brain = self.trading_brain
             if brain:
-                # V9.0: Logic natively integrated (GAP-60)
+                # v1.0-beta: Logic natively integrated (GAP-60)
                 # Start brain in supervised background task
                 self._start_supervised_task("trading_brain", brain.run)
 
@@ -1090,7 +1090,7 @@ class TradingSystem:
             )
             self.dhatu_oracle = oracle
             self._start_supervised_task("dhatu_oracle", oracle.run_continuous)
-            # V9.0: Logic natively integrated (GAP-60)
+            # v1.0-beta: Logic natively integrated (GAP-60)
             logger.info("✅ Dhatu Oracle started (15-minute global synthesis cycle)")
             return True
         except ImportError as e:
@@ -1102,7 +1102,7 @@ class TradingSystem:
 
     async def send_telegram_notification(self, message: str) -> bool:
         """
-        Sends a Telegram notification with Elite Signal Sterilization (SETO V12.5).
+        Sends a Telegram notification with Elite Signal Sterilization (Samvid v1.0-beta-beta).
         Discards routine signal noise captured by the main loop or background tasks.
         """
         # ── ELITE SIGNAL GATE (Sovereign Sterilization) ──
@@ -1180,7 +1180,7 @@ class TradingSystem:
             logger.info(f"API Server skipped (already active on port {_p})")
 
     async def startup(self) -> None:
-        """Main startup sequence (Sovereign Parallel V9.99)"""
+        """Main startup sequence (Sovereign Parallel v1.0-beta)"""
         # ── PHASE 0: RISK SANCTITY (GAP-86) ──
         from risk_invariants import RiskInvariants
         if not RiskInvariants.verify_config():
@@ -1188,7 +1188,7 @@ class TradingSystem:
             raise RuntimeError("Critical Risk Invariants Corrupted.")
 
         logger.info("=" * 60)
-        logger.info("Trading System V3.0 - Starting Up (Asynchronous Matrix)")
+        logger.info("Trading System v1.0-beta - Starting Up (Asynchronous Matrix)")
         logger.info("=" * 60)
 
         start_time = datetime.now(timezone.utc)
@@ -1219,7 +1219,7 @@ class TradingSystem:
 
             # 2. Start Critical Infrastructure synchronously/awaited
             await self.start_dms()
-            # Step 4: Starting Trading Brain & Remote Command Hub (SETO V22.4 Zero-Block)
+            # Step 4: Starting Trading Brain & Remote Command Hub (Samvid v1.0-beta-beta Zero-Block)
             logger.info("\n[4/10] Starting Trading Brain (Standby Mode)...")
             await self.start_trading_brain()
 
@@ -1282,7 +1282,7 @@ class TradingSystem:
             logger.info("\n[10/10] Sending startup notification...")
             (datetime.now(timezone.utc) - start_time).total_seconds()
 
-            # Step 10: Dynamic Status Generation (Sovereign V9.99)
+            # Step 10: Dynamic Status Generation (Sovereign v1.0-beta)
             ibkr_status = self._get_status_icon("ibkr")
             mt5_status = self._get_status_icon("mt5")
             self._get_status_icon("qdb")
@@ -1311,7 +1311,7 @@ class TradingSystem:
                     await asyncio.sleep(5)
                     await self.trading_brain.bus.publish("mind.dialogue", {
                         "sender": "architect",
-                        "content": "Sovereign Matrix awakening. Synchronizing with SETO V8.5 Global Bus. Initializing diagnostic pre-flight checks.",
+                        "content": "Sovereign Matrix awakening. Synchronizing with Samvid v1.0-beta-beta Global Bus. Initializing diagnostic pre-flight checks.",
                         "metadata": {"type": "STATUS"}
                     })
                     await asyncio.sleep(3)
@@ -1395,7 +1395,7 @@ class TradingSystem:
             pass
 
         try:
-            # Heartbeat & Telemetry loop (SETO V22.8)
+            # Heartbeat & Telemetry loop (Samvid v1.0-beta-beta)
             import aiohttp
             while self.is_running:
                 await asyncio.sleep(60)  # Pulse every 60 seconds
@@ -1439,13 +1439,13 @@ class TradingSystem:
                     except Exception as e:
                         logger.debug(f"Telemetry: Phone Home failed (non-fatal): {e}")
 
-                # SETO V22.4 GAP-35: Report Cache Saturation (Dropped Ticks)
+                # Samvid v1.0-beta-beta GAP-35: Report Cache Saturation (Dropped Ticks)
                 if hasattr(self, "hft_streamer") and self.hft_streamer:
                     drops = self.hft_streamer.dropped_ticks
                     if drops > 0:
                          logger.warning(f"Sovereign Monitor: {drops} ticks DROPPED during current session. Bus Saturation detected.")
 
-                # --- PERIODIC CHECKPOINT (SETO V9.0 Sovereign) ---
+                # --- PERIODIC CHECKPOINT (Samvid v1.0-beta-beta Sovereign) ---
                 # Checkpoint every 5 minutes (300s) to protect against local crashes
                 if not hasattr(self, "_last_freeze_time"): self._last_freeze_time = 0
                 now = time.time()
@@ -1526,7 +1526,7 @@ class TradingSystem:
     async def shutdown(self) -> None:
         """Graceful shutdown sequence"""
         logger.info("\n" + "=" * 60)
-        logger.info("Trading System V3.0 - Shutting Down")
+        logger.info("Trading System v1.0-beta - Shutting Down")
         logger.info("=" * 60)
 
         try:
@@ -1537,7 +1537,7 @@ class TradingSystem:
                 try:
                     cursor = self.db_conn.cursor()
                     today_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-                    # Query plaintext pnl_dollars (SETO V21.21: Direct learning-safe access)
+                    # Query plaintext pnl_dollars (Samvid v1.0-beta-beta: Direct learning-safe access)
                     cursor.execute(
                         "SELECT pnl_dollars FROM trades WHERE timestamp LIKE ?", (f"{today_str}%",)
                     )
@@ -1608,7 +1608,7 @@ class TradingSystem:
                     logger.warning("Shutdown: Task cancellation timed out after 10s. Forcing exit.")
             self.background_tasks.clear()
 
-            # 4.5. CLOSE SHARED HTTP SESSIONS (SETO V22.6: Memory Leak Fix)
+            # 4.5. CLOSE SHARED HTTP SESSIONS (Samvid v1.0-beta-beta: Memory Leak Fix)
             if hasattr(self, '_telegram_session') and self._telegram_session and not self._telegram_session.closed:
                 await self._telegram_session.close()
                 self._telegram_session = None
@@ -1692,7 +1692,7 @@ class TradingSystem:
 
     async def _run_aegis_watchdog(self) -> None:
         """
-        SETO V12.0 Aegis Watchdog:
+        Samvid v1.0-beta-beta Aegis Watchdog:
         Monitors the physical layer heart rate and triggers autonomous repair.
         """
         logger.info("Watchdog: Aegis Stability Protocol Active.")
@@ -1740,7 +1740,7 @@ class TradingSystem:
 
     async def _run_hft_pulse_worker(self) -> None:
         """
-        Sovereign HFT Pulse Worker (SETO V22.2).
+        Sovereign HFT Pulse Worker (Samvid v1.0-beta-beta).
         Single background worker to process 100Hz ticks WITHOUT spawning new tasks.
         """
         logger.info("Main: HFT Pulse Worker started.")
@@ -1759,10 +1759,10 @@ class TradingSystem:
         """Sovereign Pulse Handler: Routes 10ms ticks to the Brain with zero-skip safety."""
         self._last_tick_time = time.monotonic()
 
-        # PILLAR 12: Real-time Brain Sync (SETO V21.30 Optimized)
+        # PILLAR 12: Real-time Brain Sync (Samvid v1.0-beta-beta Optimized)
         if hasattr(self, "trading_brain") and self.trading_brain:
             try:
-                # SETO V22.4: Reduced event-loop churn.
+                # Samvid v1.0-beta-beta: Reduced event-loop churn.
                 # BrainBusListener handles the heavy lifting via on_tick.
                 # Here we only monitor for Watchdog purposes.
                 pass
@@ -1789,7 +1789,7 @@ class TradingSystem:
 
 
     async def _run_persistence_sentinel(self) -> None:
-        """Background task that maintains database health and triggers long-term learning (SETO V21.20)."""
+        """Background task that maintains database health and triggers long-term learning (Samvid v1.0-beta-beta)."""
         logger.info("Sentinel: Persistence Grooming Task ACTIVE (Interval: 24h).")
         self._sentinel_running = False
         
@@ -1839,7 +1839,7 @@ class TradingSystem:
                         import os
                         import psutil
                         
-                        # ANTI-STACKING GUARD: Hardware Safety (SETO V21.30)
+                        # ANTI-STACKING GUARD: Hardware Safety (Samvid v1.0-beta-beta)
                         ram_pct = psutil.virtual_memory().percent
                         if ram_pct > 75.0:
                             logger.warning(f"Sentinel: RAM at {ram_pct:.1f}% is TOO HIGH for deep training. Postponing cycle.")
@@ -1880,7 +1880,7 @@ class TradingSystem:
         """Final Aesthetit Polish: Displays a terminal-grade dashboard of active Minds."""
         banner = (
             "\n" + "╔" + "═" * 78 + "╗\n"
-            "║" + "  🌌  THE SOVEREIGN SINGULARITY MATRIX (SETO V8.0)  ".center(78) + "║\n"
+            "║" + "  🌌  THE SOVEREIGN SINGULARITY MATRIX (Samvid v1.0-beta-beta)  ".center(78) + "║\n"
             "╠" + "═" * 78 + "╣\n"
             "║" + f"  STATUS:   ACTIVE  |  MODE:     {self.mode.upper().center(10)}  |  TICK:  100Hz (0.01s)  ".center(78) + "║\n"
             "╠" + "═" * 38 + "╦" + "═" * 39 + "╣\n"
@@ -1930,7 +1930,7 @@ async def main() -> None:
     except Exception as e:
         logger.error(f"FATAL MATRIX FAILURE: {e}", exc_info=True)
     finally:
-        # Step 7: Final Unified Cleanup Handshake (SETO V8.0)
+        # Step 7: Final Unified Cleanup Handshake (Samvid v1.0-beta-beta)
         await s.shutdown()
 
 
@@ -1964,11 +1964,11 @@ if __name__ == "__main__":
         except Exception:
             pass # Fallback for environments where buffer is not available
 
-    # --- SOVEREIGN GHOST KEY PROTOCOL (V16.2) ---
+    # --- SOVEREIGN GHOST KEY PROTOCOL (v1.0-beta-beta) ---
     # Memory-Only Key Injection to retain 100% IQ with zero disk-print.
     import getpass
     from vault import Vault
-    # AVOID TTY HANG (SETO V21.41): Skip if input is not a TTY or explicitly requested quiet
+    # AVOID TTY HANG (Samvid v1.0-beta-beta): Skip if input is not a TTY or explicitly requested quiet
     is_tty = sys.stdin.isatty() and sys.stdout.isatty()
     
     if not str(Vault.get("DEEPSEEK_API_KEY", "")).strip() and is_tty:
@@ -1987,7 +1987,7 @@ if __name__ == "__main__":
     elif not is_tty and not str(Vault.get("DEEPSEEK_API_KEY", "")).strip():
         logger.info("Sovereign: Non-TTY environment detected. Skipping interactive key injection.")
 
-    # --- SETO V22.5: WINDOWS CTRL+C FREEZE FIX ---
+    # --- Samvid v1.0-beta-beta: WINDOWS CTRL+C FREEZE FIX ---
     import signal
     try:
         # Force default INT handler to bypass winloop swallowing Ctrl+C
@@ -1995,7 +1995,7 @@ if __name__ == "__main__":
     except Exception:
         pass
 
-    # --- SETO V22.6: ROBUST LOOP MANAGEMENT ---
+    # --- Samvid v1.0-beta-beta: ROBUST LOOP MANAGEMENT ---
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
     
@@ -2017,14 +2017,14 @@ if __name__ == "__main__":
                 
                 # Drain the loop with a 5s hard timeout
                 try:
-                    # SETO V22.6: Use wait() with timeout to avoid hanging on stuck handles
+                    # Samvid v1.0-beta-beta: Use wait() with timeout to avoid hanging on stuck handles
                     loop.run_until_complete(asyncio.wait(pending, timeout=5.0))
                 except (KeyboardInterrupt, asyncio.TimeoutError):
                     logger.warning("Shutdown: Timeout or double Ctrl+C detected. Force closing loop.")
                 except Exception as e:
                     logger.debug(f"Shutdown: Loop drain exception: {e}")
             
-            # --- FINAL WINLOOP STABILIZER (SETO V22.7) ---
+            # --- FINAL WINLOOP STABILIZER (Samvid v1.0-beta-beta) ---
             # Ensure all handles are closed before loop.close() to prevent UVHandle warnings
             try:
                 loop.run_until_complete(loop.shutdown_asyncgens())

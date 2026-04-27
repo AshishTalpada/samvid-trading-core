@@ -4,7 +4,7 @@ import logging
 import time
 import os
 # =========================================================================
-# SOVEREIGN LATENCY WATCHDOG (SETO V31.0 - CLAUDE SLOW-OP PORT)
+# SOVEREIGN LATENCY WATCHDOG (Samvid v1.0-beta-beta - CLAUDE SLOW-OP PORT)
 # =========================================================================
 
 class LatencyWatchdog:
@@ -47,7 +47,7 @@ from vault import Vault
 logger = logging.getLogger(__name__)
 
 # =============================================================================
-# ANTIGRAVITY-TIER COGNITIVE ENGINE (SETO V25.0)
+# ANTIGRAVITY-TIER COGNITIVE ENGINE (Samvid v1.0-beta-beta)
 # =============================================================================
 
 def _monte_carlo_outcome_simulation(vix: float, roi: float) -> float:
@@ -95,7 +95,7 @@ def _calculate_epistemic_entropy(ctx: str) -> float:
     return min(1.0, entropy)
 
 # =============================================================================
-# SOVEREIGN ANALYTICAL PROCESSOR (SETO V24.0)
+# SOVEREIGN ANALYTICAL PROCESSOR (Samvid v1.0-beta-beta)
 # =============================================================================
 
 class SovereignBrain:
@@ -143,7 +143,7 @@ class SovereignBrain:
 
 class MindUltrathink:
     """
-    ULTRATHINK Adaptive Reasoning (SETO V24.0 Sovereign).
+    ULTRATHINK Adaptive Reasoning (Samvid v1.0-beta-beta Sovereign).
     A 500+ line local intelligence system with recursive sub-agent simulation.
     """
 
@@ -179,7 +179,7 @@ class MindUltrathink:
                 logger.error(f"Mind_Ultrathink: Failed to load capabilities: {e}")
 
     # =========================================================================
-    # COORDINATOR SYNTHESIS ENGINE (SETO V26.0)
+    # COORDINATOR SYNTHESIS ENGINE (Samvid v1.0-beta-beta)
     # =========================================================================
 
     def _synthesize_worker_spec(self, metrics: dict) -> str:
@@ -200,7 +200,7 @@ class MindUltrathink:
         # STEP 1: ADVERSARIAL ASSUMPTION
         if outcome_prob < 0.70: return False 
         
-        # STEP 2: INDEPENDENT CHECK (SETO V26.4)
+        # STEP 2: INDEPENDENT CHECK (Samvid v1.0-beta-beta)
         # Verify that the spec isn't just 'Mismatched Liquidity'
         is_verified = "Mismatched" not in spec and outcome_prob > 0.78
         
@@ -222,7 +222,7 @@ class MindUltrathink:
         return self.STATE_LOCK.locked_ids
 
     # =========================================================================
-    # WISDOM DISTILLATION ENGINE (DREAMER MODE - SETO V27.0)
+    # WISDOM DISTILLATION ENGINE (DREAMER MODE - Samvid v1.0-beta-beta)
     # =========================================================================
 
     def _distill_wisdom_index(self, results: list[dict] = None):
@@ -295,7 +295,7 @@ class MindUltrathink:
 
     async def start(self) -> None:
         self.is_running = True
-        logger.info("Mind_Ultrathink V24.0 (Cognitive Singularity): OLLAMA-FREE Intelligence active.")
+        logger.info("Mind_Ultrathink v1.0-beta (Cognitive Singularity): OLLAMA-FREE Intelligence active.")
 
     async def stop(self) -> None:
         self.is_running = False
@@ -347,7 +347,7 @@ class MindUltrathink:
 
     async def _tool_pause_and_reason(self, task: str, intensity: str = "RAINBOW", temperature: float = 0.4) -> dict[str, Any]:
         """
-        SETO V25.1: ANTIGRAVITY COGNITIVE ANALYZER.
+        Samvid v1.0-beta-beta: ANTIGRAVITY COGNITIVE ANALYZER.
         GAP-72: Added temperature parameter for cognitive diversity.
         GAP-70: Added proactive token truncation.
         """
