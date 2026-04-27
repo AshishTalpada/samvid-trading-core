@@ -76,8 +76,8 @@ class OpenBBProvider:
         # Do NOT load OpenBB SDK here during startup to avoid hanging the system.
         # It takes ~5 minutes to load and consumes 1GB RAM.
         # We will load it on first use inside the fetch_ methods instead.
-        
-        # If PAT is provided, we can't login yet because `obb` isn't loaded. 
+
+        # If PAT is provided, we can't login yet because `obb` isn't loaded.
         # We will defer PAT login.
 
         # Trigger a non-blocking availability check (pre-warms the cache)
@@ -91,7 +91,7 @@ class OpenBBProvider:
 
     @property
     def is_available(self) -> bool:
-        # Returns True if initialized and not explicitly disabled, 
+        # Returns True if initialized and not explicitly disabled,
         # even if SDK is still loading in background.
         if self._disabled_by_env:
             return False
@@ -100,10 +100,12 @@ class OpenBBProvider:
     @property
     def status(self) -> str:
         """Returns the current connectivity status (ONLINE, PROBING, or OFFLINE)."""
-        global _OPENBB_AVAILABLE
-        if not self._initialized: return "OFFLINE"
-        if _OPENBB_AVAILABLE is True: return "ONLINE"
-        if _OPENBB_AVAILABLE is False: return "OFFLINE"
+        if not self._initialized:
+            return "OFFLINE"
+        if _OPENBB_AVAILABLE is True:
+            return "ONLINE"
+        if _OPENBB_AVAILABLE is False:
+            return "OFFLINE"
         return "PROBING"
 
     async def _ensure_obb(self) -> bool:
@@ -113,12 +115,12 @@ class OpenBBProvider:
         The 5-minute OpenBB import is run in a thread pool, so it never blocks
         the event loop. After first successful load the result is cached globally.
         """
-        global _OPENBB_AVAILABLE, obb
+        global _OPENBB_AVAILABLE
         if _OPENBB_AVAILABLE is True:
             return True
         if _OPENBB_AVAILABLE is False:
             return False
-            
+
         async with self._load_lock:
             # Re-check after acquiring lock
             if _OPENBB_AVAILABLE is not None:
@@ -144,7 +146,7 @@ class OpenBBProvider:
         try:
             from vault import Vault
             pat = Vault.get("OPENBB_PAT")
-            
+
             # Samvid v1.0-beta-beta: Activate PAT if available (Prioritize Hub Sync)
             # This enables 'Active PAT' mode requested by the user.
             if pat:
@@ -171,11 +173,11 @@ class OpenBBProvider:
                 "intrinio_api_key": Vault.get("INTRINIO_API_KEY"),
                 "av_api_key": Vault.get("ALPHA_VANTAGE_API_KEY"),
             }
-            
+
             for key, val in creds.items():
                 if val:
                     setattr(obb.user.credentials, key, val)
-            
+
             logger.info("✓ OpenBB Provider synchronized with Sovereign Vault.")
         except Exception as e:
             logger.warning(f"OpenBB credential injection failed (non-fatal): {e}")
@@ -315,7 +317,7 @@ class OpenBBProvider:
                 return {}
 
             # GAP-54: Market Holiday / Gap Hardening
-            # Indicators can produce NaNs at the start or during gaps. 
+            # Indicators can produce NaNs at the start or during gaps.
             # We enforce forward-filling to ensure continuity during low-liquidity/holidays.
             close = df["close"].ffill().bfill()
             high = df["high"].ffill().bfill()
