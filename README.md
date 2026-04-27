@@ -1,4 +1,4 @@
-# 🪐 Samvid Trading Core (v1.0-beta)
+# 🪐 Samvid Trading Core (v1.0-beta-beta)
 
 [![Build Status](https://github.com/AshishTalpada/samvid-trading-core/actions/workflows/main.yml/badge.svg)](https://github.com/AshishTalpada/samvid-trading-core/actions)
 [![Version](https://img.shields.io/badge/version-1.0.0--beta-cyan.svg)](https://github.com/AshishTalpada/samvid-trading-core/blob/main/CHANGELOG.md)
