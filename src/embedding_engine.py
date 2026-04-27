@@ -30,7 +30,7 @@ class SharedEmbeddingEngine:
                 TextEmbedding = fastembed.TextEmbedding
 
                 # GAP-206 FIX: swappable model from Vault
-                model_name = Vault.get("EMBEDDING_MODEL", "BAAI/bge-small-en-v1.0-beta-beta")
+                model_name = Vault.get("EMBEDDING_MODEL", "BAAI/bge-small-en-v1.5")
                 self._model = TextEmbedding(model_name)
                 logger.info(f"✓ SharedEmbeddingEngine: {model_name} loaded into memory.")
             except Exception as e:
