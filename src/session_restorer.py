@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 
 class SessionRestorer:
     """
-    Quantum Session Restoration (SETO V6.0).
+    Quantum Session Restoration (Samvid v1.0-beta-beta).
     Inspired by Claude-Code's tmuxSocket.ts and terminalPanel.ts.
     Allows for 'State Freezing' and 'Thawing' of the cognitive process.
     """
@@ -147,7 +147,7 @@ class SessionRestorer:
             return None
 
     def save_cognitive_capsule(self, state: Dict[str, Any]) -> None:
-        """SETO V21.20: Persists the Short-Term 'Vibe' of the market."""
+        """Samvid v1.0-beta-beta: Persists the Short-Term 'Vibe' of the market."""
         from time_sync import TimeSync
         try:
             capsule_path = "data/cognitive_capsule.json"
@@ -204,7 +204,7 @@ class SessionRestorer:
 
     async def reconcile_with_broker(self, ib: Any, db_conn: sqlite3.Connection) -> list[Any]:
         """
-        Sovereign Reconciliation (SETO V22.0): The 'Adoption' Protocol.
+        Sovereign Reconciliation (Samvid v1.0-beta-beta): The 'Adoption' Protocol.
         Synchronizes broker positions with the database and managed tasks.
         Returns a list of Position objects to be injected into the Brain.
         """
@@ -270,7 +270,7 @@ class SessionRestorer:
                     # Persist Adoption to DB
                     cursor.execute(
                         "INSERT INTO trades (instrument, direction, quantity, entry_price, status, stop_price, target_price, notes) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-                        (symbol, direction, broker_qty, price, "OPEN", adopted.stop_loss, adopted.take_profit, "Sovereign Adoption Protocol V22.0")
+                        (symbol, direction, broker_qty, price, "OPEN", adopted.stop_loss, adopted.take_profit, "Sovereign Adoption Protocol v1.0-beta")
                     )
                     adopted.db_id = cursor.lastrowid
                     adopted_positions.append(adopted)

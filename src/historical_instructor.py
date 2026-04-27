@@ -6,7 +6,7 @@ logger = logging.getLogger(__name__)
 
 class HistoricalInstructor:
     """
-    SETO V9.5 Sovereign Instructor.
+    Samvid v1.0-beta-beta Sovereign Instructor.
     Validates century-scale models using the backtest engine.
     """
     def __init__(self):

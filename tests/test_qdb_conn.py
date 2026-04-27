@@ -1,7 +1,7 @@
 import socket
 import time
 
-# SETO V8.0 QUESTDB ILP AUDIT (Agent S)
+# Samvid v1.0-beta-beta QUESTDB ILP AUDIT (Agent S)
 # Verifies raw socket connectivity to the QuestDB Ingestion Line Protocol (ILP).
 
 

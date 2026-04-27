@@ -34,7 +34,7 @@ class MindObserver:
         self._task = asyncio.create_task(self._run_observation_loop())
 
     def stop(self) -> None:
-        """Gracefully stop the Observation Mind (SETO V21.40)."""
+        """Gracefully stop the Observation Mind (Samvid v1.0-beta-beta)."""
         self.is_running = False
         if self._task and not self._task.done():
             self._task.cancel()

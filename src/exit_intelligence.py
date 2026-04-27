@@ -26,7 +26,7 @@ class ExitDecision:
 
 
 class ExitIntelligence:
-    """Cost-Aware High-RR Exit Engine (Sovereign V8.0)"""
+    """Cost-Aware High-RR Exit Engine (Sovereign v1.0-beta)"""
 
     def __init__(self, config: dict | None = None) -> None:
         self.config = config or {}
@@ -57,7 +57,7 @@ class ExitIntelligence:
         if qty == 0:
             return ExitDecision(action=ExitAction.HOLD, priority=0, reason="Zero quantity position detected")
 
-        # --- GAP-38: Dhatu-Adaptive Multiples (SETO V9.0) ---
+        # --- GAP-38: Dhatu-Adaptive Multiples (Samvid v1.0-beta-beta) ---
         partial_r_target = 1.5
         trail_activation_r = 1.0
         trail_tightness = 0.5 # R-distance

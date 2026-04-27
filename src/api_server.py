@@ -52,7 +52,7 @@ class APIServer:
 
         self.app = FastAPI(title="TradingSystem Elite API", lifespan=lifespan)
 
-        # ── SECURITY GUARD: RESTRICTED CORS (SETO V19.0) ──
+        # ── SECURITY GUARD: RESTRICTED CORS (Samvid v1.0-beta-beta) ──
         # In production, specify your frontend URL instead of "*"
         self.app.add_middleware(
             CORSMiddleware,
@@ -83,13 +83,13 @@ class APIServer:
                 "status": status,
                 "timestamp": datetime.now().isoformat(),
                 "components": components,
-                "version": "Sovereign-V22.9"
+                "version": "Sovereign-v1.0-beta"
             }
 
     def _subscribe_to_bus(self) -> None:
         """Bind to the SharedIntelligenceBus for instant 100Hz pushing."""
         if hasattr(self.system, "bus") and self.system.bus is not None:
-            # ── CONSOLIDATED BROADCASTERS (SETO V22.2) ──
+            # ── CONSOLIDATED BROADCASTERS (Samvid v1.0-beta-beta) ──
             # HFT topics use the Queue model to prevent memory leaks
             self._tick_queue = self.system.bus.subscribe("tick.hft", maxsize=50)
             asyncio.create_task(self._run_tick_broadcaster())
@@ -183,7 +183,7 @@ class APIServer:
                 pass
 
     async def _run_tick_broadcaster(self) -> None:
-        """Background worker to broadcast ticks at a sane frequency (SETO V22.2)."""
+        """Background worker to broadcast ticks at a sane frequency (Samvid v1.0-beta-beta)."""
         logger.info("API Server: Tick Broadcaster worker started.")
         while True:
             try:
@@ -200,7 +200,7 @@ class APIServer:
         if not self.active_connections:
             return
             
-        # --- PERFORMANCE GUARD (SETO V22.0) ---
+        # --- PERFORMANCE GUARD (Samvid v1.0-beta-beta) ---
         symbol = payload.get("symbol", "ALL")
         now = time.time()
         if now - self._last_tick_broadcast.get(symbol, 0) < 0.01: # 100Hz Limit
@@ -321,7 +321,7 @@ class APIServer:
 
         @self.app.websocket("/ws")
         async def websocket_endpoint(websocket: WebSocket, token: str = Query(None)) -> None:
-            # ── SOVEREIGN WS HANDSHAKE (SETO V22.4 GAP-37 FIX) ──
+            # ── SOVEREIGN WS HANDSHAKE (Samvid v1.0-beta-beta GAP-37 FIX) ──
             from time_sync import TimeSync
             secret = Vault.get("API_SERVER_KEY")
             if secret:
@@ -389,7 +389,7 @@ class APIServer:
         """Send JSON with connection state check."""
         try:
             if websocket.client_state.name == "CONNECTED":
-                # SETO V21.40: 5s timeout on sends to prevent zombie client bloat
+                # Samvid v1.0-beta-beta: 5s timeout on sends to prevent zombie client bloat
                 await asyncio.wait_for(websocket.send_json(data), timeout=5.0)
         except Exception as _ws_err:
             logger.debug(f"WS send failed (socket closing or timeout): {_ws_err}")
@@ -500,7 +500,7 @@ class APIServer:
 
                 pg_reserve = "20% Reserve"
                 if hasattr(brain, "portfolio_guard") and brain.portfolio_guard:
-                    # In V8.0, we track via cash reserve check
+                    # In v1.0-beta, we track via cash reserve check
                     pg_reserve = "20% Reserve (Active)"
 
                 # Extract Agent D (Learning Mind) stats
