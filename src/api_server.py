@@ -742,11 +742,11 @@ class APIServer:
 
         self._broadcaster_task = asyncio.create_task(self._run_tick_broadcaster())
         self._server_task = asyncio.create_task(_serve())
-        
+
         def _log_task_exception(t: asyncio.Task) -> None:
             if not t.cancelled() and t.exception() is not None:
                 logger.error(f"API Server task raised unhandled exception: {t.exception()}")
-        
+
         self._server_task.add_done_callback(_log_task_exception)
         logger.info(f"✓ API Server started on http://{self.host}:{self.port}")
         return True
@@ -754,10 +754,10 @@ class APIServer:
     async def stop(self) -> None:
         """Graceful shutdown of the API server (Samvid v1.0-beta)."""
         logger.info("Stopping API Server...")
-        
+
         if hasattr(self, "server"):
             self.server.should_exit = True
-            
+
         # Cancel tasks
         for attr in ["_broadcaster_task", "_server_task"]:
             task = getattr(self, attr, None)
@@ -769,6 +769,6 @@ class APIServer:
                     pass
                 except Exception as e:
                     logger.error(f"Error stopping API Server task {attr}: {e}")
-        
+
         logger.info("API Server stopped.")
 
