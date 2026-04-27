@@ -19,7 +19,7 @@ dependencies = [
     "httpx",
     "python-dotenv",
     "ib-insync",
-    "MetaTrader5",
+    "MetaTrader5; sys_platform == 'win32'",
     "keyring",
     "ruff",
     "mypy",
