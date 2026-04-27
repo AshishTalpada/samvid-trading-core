@@ -1,4 +1,4 @@
-# 🪐 Samvid Trading Core (संविद्)
+# 🪐 Samvid Trading Core (v1.0-beta)
 
 [![Build Status](https://github.com/AshishTalpada/samvid-trading-core/actions/workflows/main.yml/badge.svg)](https://github.com/AshishTalpada/samvid-trading-core/actions)
 [![Version](https://img.shields.io/badge/version-1.0.0--beta-cyan.svg)](https://github.com/AshishTalpada/samvid-trading-core/blob/main/CHANGELOG.md)
@@ -7,7 +7,8 @@
 
 **Status: Active Development | Core Agent Mesh Functional | Dashboard Telemetry Active**
 
-**Samvid** (Sanskrit for *Consensus* or *Shared Intelligence*) is an experimental, event-driven trading engine. It utilizes a decentralized mesh of specialized agents that collaborate via a consensus-based voting model to manage trade discovery, macro-analysis, and execution.
+**Samvid** (Sanskrit for *Consensus* or *Shared Intelligence*) is an experimental, event-driven trading engine. Iteratively developed through 13 internal research versions, it utilizes a decentralized mesh of specialized agents that collaborate via a consensus-based voting model to manage trade discovery, macro-analysis, and execution.
+
 
 ---
 
