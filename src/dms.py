@@ -121,7 +121,7 @@ class DMSMonitor:
             logger.error(f"Exception sending Telegram message: {e}")
             return False
         # unreachable path — all branches above return; explicit for clarity
-        return False  # noqa: unreachable
+        return False  # noqa: F811
 
     def record_heartbeat(self, agent_id: str = "BRAIN_PRIMARY") -> None:
         """Record a heartbeat from a specific agent."""
