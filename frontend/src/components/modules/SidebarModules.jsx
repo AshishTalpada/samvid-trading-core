@@ -19,7 +19,7 @@ export function SidebarHeader({ connected, sysTime, uptime }) {
   return (
     <GlassPanel style={{ borderLeft: '2px solid var(--cyan)', background: 'rgba(0,0,0,0.6)', padding: '16px' }}>
       <div style={{ display: 'flex', flexDirection: 'column', marginBottom: '16px' }}>
-        <div className="font-outfit fw-900 c-top" style={{ fontSize: '1.25rem', lineHeight: '1.2', letterSpacing: '-0.03em' }}>SOVEREIGN</div>
+        <div className="font-outfit fw-900 c-top" style={{ fontSize: '1.25rem', lineHeight: '1.2', letterSpacing: '-0.03em' }}>SAMVID</div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           <span className="c-cyan fw-900 font-outfit" style={{ fontSize: '1.4rem', letterSpacing: '-0.03em' }}>MATRIX</span>
           <span className="badge-sovereign c-red" style={{ border: '1px solid rgba(255,43,94,0.4)' }}>V13.6.4 PRO</span>
