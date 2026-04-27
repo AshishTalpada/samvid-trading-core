@@ -7,7 +7,20 @@
 
 **Status: Active Development | Core Agent Mesh Functional | Dashboard Telemetry Active**
 
+---
+
+## 🖼️ Visualizing the Mesh
+
+### Institutional Intelligence Dashboard
+![Dashboard](docs/images/dashboard.png)
+
+### Dhatu Macro-Causation Oracle
+![Oracle](docs/images/oracle.png)
+
+---
+
 **Samvid** (Sanskrit for *Consensus* or *Shared Intelligence*) is an experimental, event-driven trading engine. It utilizes a decentralized mesh of specialized agents that collaborate via a consensus-based voting model to manage trade discovery, macro-analysis, and risk-managed execution.
+
 
 ---
 
