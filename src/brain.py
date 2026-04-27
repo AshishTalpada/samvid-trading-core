@@ -1,6 +1,6 @@
 # pyre-ignore-all-errors[21]
 """
-src/brain.py - Trading System Coordinator (v1.0-beta-beta)
+src/brain.py - Trading System Coordinator (v1.0-beta-beta-beta)
 
 Central orchestrator that manages trading workflow, state transitions,
 and coordinates all agents (A, B, C_IBKR, C_MT5, D) and Exit Intelligence.
@@ -13,9 +13,9 @@ Implements:
 
 import asyncio  # pyre-ignore[21]
 import collections  # pyre-ignore[21]
+import json
 import logging  # pyre-ignore[21]
 import os
-import json
 import time
 import traceback
 import uuid  # pyre-ignore[21]
@@ -30,9 +30,9 @@ from typing import (  # pyre-ignore[21]
     cast,
 )
 
+import numpy as np  # pyre-ignore[21]
 import pandas as pd  # pyre-ignore[21]
 import polars as pl  # pyre-ignore[21]
-import numpy as np  # pyre-ignore[21]
 
 logger = logging.getLogger(__name__)
 
@@ -40,14 +40,13 @@ logger = logging.getLogger(__name__)
 from agent_a import (  # pyre-ignore[21]
     ContinuousBudgetMonitor,
     EscapeVelocityClassifier,
+    FactorWeightCalibration,
+    InMemorySovereignAtlas,
     MultiTimeframeAligner,
+    NeuralRegimeClassifier,
     PatternDetector,
     PatternResult,
     SignalEntropyCalculator,
-    _global_ohlcv_buffer,
-    InMemorySovereignAtlas,
-    FactorWeightCalibration,
-    NeuralRegimeClassifier,
 )
 from agent_b import ABHAVADetector, BayesianBeliefTracker, DhatuClassifier  # pyre-ignore[21]
 from agent_c import EvolutionManager  # pyre-ignore[21]
@@ -59,19 +58,26 @@ from agent_c_ibkr import (  # pyre-ignore[21]
     PositionSizingChain,
     VIXProtocol,
 )
-# --- MT5 Cognitive Decoupling (v1.0-beta-beta) ---
+
+# --- MT5 Cognitive Decoupling (v1.0-beta-beta-beta) ---
 # Imports are now lazy-loaded inside initialize_mt5_agents() to prevent unwanted terminal boot.
 from agent_d import (  # pyre-ignore[21]
     EdgeCrowdingDetector,
     LiveLearningEngine,
+    LiveRecursiveEvolution,
     RegimeClassifier,
     StatisticalSignificanceGate,
     SystemEntropyMonitor,
-    LiveRecursiveEvolution,
 )
 from agent_e import CorrelationGuard  # pyre-ignore[21]
-from config import FORCED_PAPER_MODE, IBKR_MAX_TRADES_PER_DAY, QUESTDB_ENABLED, STARTING_CAPITAL_CAD  # pyre-ignore[21]
+from config import (  # pyre-ignore[21]
+    FORCED_PAPER_MODE,
+    IBKR_MAX_TRADES_PER_DAY,
+    QUESTDB_ENABLED,
+    STARTING_CAPITAL_CAD,
+)
 from exit_intelligence import ExitAction, ExitIntelligence  # pyre-ignore[21]
+from intelligence_bus import SharedIntelligenceBus  # pyre-ignore[21]
 from memdir import MemoryManager
 from mind_architect import MindArchitect
 from mind_bridge import MindBridge
@@ -79,31 +85,26 @@ from mind_evolution import MindEvolution
 from mind_experiment import MindExperiment
 from mind_ghost import MindGhost
 from mind_macros import MindMacros
+from mind_math import MindMath
 from mind_observer import MindObserver
 from mind_prompts import MindPrompts
 from mind_system import MindSystem
 from mind_ultrathink import MindUltrathink
-from mind_math import MindMath
+from quant_signals import QuantConsensus
 from questdb_adapter import QuestDBAdapter  # pyre-ignore[21]
 from session_restorer import SessionRestorer
+from sovereign_decision_engine import SovereignDecisionEngine  # pyre-ignore[21]
+from sovereign_task import TaskManager
 from swarm_predictor import SwarmPredictor  # pyre-ignore[21]
 from system_types import Position  # pyre-ignore[21]
 from vault import Vault  # pyre-ignore[21]
 from wisdom import SkillTreeManager, WisdomRepository
 from workload_manager import WorkloadManager
 
-from sovereign_task import TaskManager
-from intelligence_bus import SharedIntelligenceBus  # pyre-ignore[21]
-from sovereign_decision_engine import SovereignDecisionEngine  # pyre-ignore[21]
-from quant_signals import QuantConsensus
-
 if TYPE_CHECKING:
     import sqlite3
 
-    from ib_insync import IB
-
     from dhatu_oracle import DhatuOracle
-    from dms import DMSMonitor
 
 # =============================================================================
 # DRAWDOWN LADDER (GAP-07)
@@ -146,7 +147,7 @@ class DrawdownLadder:
 
     def update(self, equity: float) -> DrawdownLevel:
         """Update drawdown state and return current level."""
-        # --- AEGIS SANITY CHECK (Samvid v1.0-beta-beta) ---
+        # --- AEGIS SANITY CHECK (Samvid v1.0-beta-beta-beta) ---
         if self.peak_equity > equity * 2:
             logger.warning(
                 f"DrawdownLadder ({self.account_type}): Peak ${self.peak_equity:,.2f} is wildly above "
@@ -183,7 +184,7 @@ class DrawdownLadder:
         return self.level
 
     def get_size_modifier(self) -> float:
-        """Return position size modifier based on tapered risk profile (Samvid v1.0-beta-beta)."""
+        """Return position size modifier based on tapered risk profile (Samvid v1.0-beta-beta-beta)."""
         # SOLUTION 2: Eliminate Martingale (2.0x) and replace with Tapered Risk
         modifiers = {
             DrawdownLevel.NORMAL: 1.0,
@@ -210,7 +211,7 @@ class DrawdownLadder:
 @dataclass
 class ConsecutiveLossTracker:
     """
-    v1.0-beta G1 graduated response:
+    v1.0-beta-beta G1 graduated response:
     2 losses -> 50% size reduction
     3 losses -> 25% size + 1h pause
     4 losses -> paper mode
@@ -268,7 +269,7 @@ class ConsecutiveLossTracker:
         elif self.consecutive_losses >= 2:
             return 0.50
 
-        # --- NEW: VELOCITY ACCELERATOR (Samvid v1.0-beta-beta) ---
+        # --- NEW: VELOCITY ACCELERATOR (Samvid v1.0-beta-beta-beta) ---
         if self.win_streak >= 3:
             # 1.2x for streak 3, 1.4x for streak 4, up to 2.0x cap
             multiplier = 1.0 + (min(self.win_streak, 8) - 3) * 0.2
@@ -416,15 +417,15 @@ class TokenBucketRateLimiter:
 
 class TradingBrain:
     """
-    The Central Orchestrator of the Sovereign Trading System (Samvid v1.0-beta-beta).
-    
+    The Central Orchestrator of the Sovereign Trading System (Samvid v1.0-beta-beta-beta).
+
     Responsibilities:
     - Synchronizing the 7 Master Minds (Agents A-G) via the MindBridge.
     - Orchestrating the 20Hz (BRAIN_SCAN_INTERVAL) internal pulse.
     - Managing global state, regime shifts, and risk invariants.
     - Executing the 'Phantom Probe' system wiring checks.
-    
-    Main orchestrator for the trading system v1.0-beta.
+
+    Main orchestrator for the trading system v1.0-beta-beta.
     Manages state transitions, agent orchestration, position monitoring,
     drawdown ladders, consecutive loss tracking, and morning risk budget
     """
@@ -440,10 +441,10 @@ class TradingBrain:
             old_state = getattr(self, "state", TradingState.STANDBY)
             if old_state == new_state:
                 return
-            
+
             self.state = new_state
             logger.info(f"🧠 BRAIN STATE TRANSITION: {old_state.name} ➔ {new_state.name}")
-            
+
             if self.bus:
                 await self.bus.publish("system.state", {
                     "old": old_state.name,
@@ -516,9 +517,9 @@ class TradingBrain:
                     f"TradingBrain: Initialized with recovered Oracle state: {self._oracle_dhatu} "
                     f"(Modifier: {self._oracle_risk_modifier:.2f}, Freezed: {self._oracle_freeze})"
                 )
-        
-        self._last_reconciliation = 0.0 # Samvid v1.0-beta-beta Pulse Tracker
-        
+
+        self._last_reconciliation = 0.0 # Samvid v1.0-beta-beta-beta Pulse Tracker
+
         # ── Learned Thresholds (Auto-Evolution) ──
         # Updated via calibration.update events from Agent D's LiveLearningEngine
         # key: "PATTERN|REGIME|SESSION" -> win_rate (0.0 to 1.0)
@@ -563,7 +564,7 @@ class TradingBrain:
 
         # --- Agent C IBKR (Executor) ---
         self.ibkr_conn = IBKRConnection(ibkr_client)
-        self.ibkr_conn.brain = self  # Samvid v1.0-beta-beta: Back-reference for failure tracking
+        self.ibkr_conn.brain = self  # Samvid v1.0-beta-beta-beta: Back-reference for failure tracking
         self.ibkr_sizer = PositionSizingChain()
         self.vix_protocol = VIXProtocol()
         self.cascade_checker = CorrelationCascade()
@@ -575,7 +576,7 @@ class TradingBrain:
         self.mt5_conn = MT5Connection()
         self.mt5_sizer = MT5PositionSizer()
         # --- Broker Selection (Vault Powered) ---
-        # Samvid v1.0-beta-beta: Dynamic Hot-Swap from Secure Vault
+        # Samvid v1.0-beta-beta-beta: Dynamic Hot-Swap from Secure Vault
         self.active_broker = (Vault.get("ACTIVE_BROKER") or "IBKR").upper()
         logger.info(f"MindBrain: Active Broker target set to [{self.active_broker}]")
 
@@ -590,8 +591,8 @@ class TradingBrain:
         _db_path = "data/trading.db"
         self.db_path = _db_path  # Needed by session_restorer.restore_peak_equity
         self.live_learner = LiveLearningEngine(
-            db_path=_db_path, 
-            bus=bus, 
+            db_path=_db_path,
+            bus=bus,
             evolution_engine=self.recursive_evolution,
             dms=self.dms
         )
@@ -619,14 +620,14 @@ class TradingBrain:
         self.bus = bus
 
         # --- PILLAR 1 & 6: SOVEREIGN WISDOM & SKILLS ---
-        # --- Samvid v1.0-beta-beta COGNITIVE CORE (Pillar 1) ---
+        # --- Samvid v1.0-beta-beta-beta COGNITIVE CORE (Pillar 1) ---
         self.wisdom = WisdomRepository()
         self.skill_tree = SkillTreeManager()
         self.wisdom_context = "SYSTEM_WARMUP: Wisdom hydration in progress..."
 
         # --- MATRIX INFRASTRUCTURE (Pillar 2) ---
         self.session_restorer = SessionRestorer()
-        self.macros = MindMacros()  # Samvid v1.0-beta-beta Imperial Guard
+        self.macros = MindMacros()  # Samvid v1.0-beta-beta-beta Imperial Guard
         self.mission_manager = WorkloadManager()  # Unified Mission Board
         self.memory_manager = MemoryManager()
         self.mind_prompts = MindPrompts(memory=self.memory_manager)
@@ -647,13 +648,13 @@ class TradingBrain:
         self.mind_ultrathink = MindUltrathink(bridge=self.bridge)
         self.mind_system = MindSystem(bridge=self.bridge)
         self.mind_ghost = MindGhost(bridge=self.bridge)
-        self.mind_math = MindMath(bridge=self.bridge) # Samvid v1.0-beta-beta Sovereign Math Agent
-        
+        self.mind_math = MindMath(bridge=self.bridge) # Samvid v1.0-beta-beta-beta Sovereign Math Agent
+
         # --- QUANT CONSENSUS (GAP-60 Native Integration) ---
         self._quant_consensus = QuantConsensus()
         self._quant_fitted = False
 
-        # ── SEEDS: Higher-Level Orchestration (v1.0-beta-beta) ──
+        # ── SEEDS: Higher-Level Orchestration (v1.0-beta-beta-beta) ──
         from coordinator import TradingCoordinator  # pyre-ignore[21]
         self.coordinator = TradingCoordinator(self.bridge, self)
         self.task_manager = TaskManager()
@@ -662,7 +663,7 @@ class TradingBrain:
         self.current_regime = "CHOPPY" # GAP-294 FIX: Initialize before capsule check
         self.is_running = False        # GAP-295 FIX: Ensure state exists for heartbeat
         self.conviction_state = {}     # GAP-296 FIX: Initialize before async sync
-        
+
         capsule = self.session_restorer.load_cognitive_capsule()
         if capsule:
             self.current_regime = capsule.get("regime", "CHOPPY")
@@ -678,11 +679,11 @@ class TradingBrain:
             "Swarm_Predictor": {"agent": "Swarm_Predictor", "vote": "YES", "confidence": 0.5, "reason": "Initializing", "timestamp": datetime.now(timezone.utc).isoformat()},
             "Mind_Ultrathink": {"agent": "Mind_Ultrathink", "vote": "YES", "confidence": 0.5, "reason": "Initializing", "timestamp": datetime.now(timezone.utc).isoformat()}
         }
-        
+
         # Legacy aliases for backward compatibility (Fixes TraderMind Error)
         self.mind_bridge = self.bridge
         self._last_account_value = {"ibkr": 0.0, "mt5": 0.0, "timestamp": 0.0}
-        
+
         # --- Cognitive Tool Registration: Register the Brain's own Execution Tools ---
         # This MUST be done before agents start or they will fail to find these tools.
         self.bridge.register_tool("get_account_status", self._tool_get_account_status)
@@ -694,7 +695,7 @@ class TradingBrain:
             "patterns_rejected": 0, "pending": 0, "regime": "UNKNOWN",
         }
 
-        # --- Samvid v1.0-beta-beta: SOVEREIGN DECISION ENGINE ---
+        # --- Samvid v1.0-beta-beta-beta: SOVEREIGN DECISION ENGINE ---
         self.decision_engine = SovereignDecisionEngine(bus=self.bus)
 
         self.state = TradingState.STANDBY
@@ -706,13 +707,13 @@ class TradingBrain:
         self.MAX_ORDER_VALUE_USD = 50000.0  # GAP-07: Risk Guard
         self.evolution_manager = EvolutionManager(main_db_path=self.db_path, dms=self.dms)  # Agent C's learning engine
         self.evolution_manager.load_optimizations()  # GAP-44: Restore evolutionary gains
-        
-        # --- DYNAMIC MT5 INJECTION (v1.0-beta-beta) ---
+
+        # --- DYNAMIC MT5 INJECTION (v1.0-beta-beta-beta) ---
         # Only initialize if MT5 login exists and is not a placeholder
         _ml = Vault.get("MT5_LOGIN")
 
         if _ml and "YOUR_MT5" not in str(_ml).upper() and str(_ml).lower() != "none":
-            from agent_c_mt5 import FTMOComplianceLayer, MT5PositionSizer 
+            from agent_c_mt5 import FTMOComplianceLayer, MT5PositionSizer
             self.ftmo_compliance = FTMOComplianceLayer()
             self.mt5_sizer = MT5PositionSizer()
             logger.info("MindBrain: MT5 Cognitive Layer ENGAGED (Institutional Mode).")
@@ -723,7 +724,7 @@ class TradingBrain:
 
         # Event sync for Intelligence Bus (candle.batch wakes the scanner)
         self.new_candle_event = asyncio.Event()
-        self.safe_mode = False # Samvid v1.0-beta-beta: Hardware-responsive safe mode
+        self.safe_mode = False # Samvid v1.0-beta-beta-beta: Hardware-responsive safe mode
 
         # Dedicated Watchdog Background Task (Decouples heartbeats from processing state)
         self._watchdog_task: asyncio.Task | None = None
@@ -736,12 +737,12 @@ class TradingBrain:
         self.last_scan_time: datetime | None = None
         self._vetting_cooldowns: dict[str, datetime] = {}  # Symbol -> last vet time
 
-        # --- EXECUTION HARDENING (Samvid v1.0-beta-beta) ---
+        # --- EXECUTION HARDENING (Samvid v1.0-beta-beta-beta) ---
         self._exit_failure_count: dict[str, int] = {} # Symbol -> Strike Count
         self._exit_last_attempt: dict[str, datetime] = {} # Symbol -> Last Re-attempt
 
 
-        # ── SESSION THAW (Samvid v1.0-beta-beta Sovereign) ──
+        # ── SESSION THAW (Samvid v1.0-beta-beta-beta Sovereign) ──
         # Check if we have a persisted state to recover from after a crash
         # Dispatched as a background task to prevent blocking the boot dashboard
         asyncio.create_task(self._thaw_session_async())
@@ -765,11 +766,11 @@ class TradingBrain:
                             filtered_data = {k: v for k, v in p_data.items() if k in valid_keys}
                             self.positions.append(Position(**filtered_data))
                         except Exception: pass
-                
+
                 self.ibkr_drawdown.peak_equity = state.get("peak_equity", self.ibkr_drawdown.peak_equity)
                 if "loss_tracker" in state:
                     self.loss_tracker.consecutive_losses = state["loss_tracker"].get("consecutive_losses", 0)
-                
+
                 logger.info(f"MindBrain: Legacy state thawed in background. {len(self.positions)} positions restored.")
         except Exception as e:
             logger.error(f"MindBrain: Background thaw failure: {e}")
@@ -822,7 +823,7 @@ class TradingBrain:
 
         opposite = (side == "LONG" and quant_phase == "SELL") or \
                    (side == "SHORT" and quant_phase == "BUY")
-        
+
         if regime_veto:
             return {"approved": False, "reason": "quant_regime_veto", "consensus": consensus}
         if opposite and consensus["confidence"] > 0.6:
@@ -841,7 +842,6 @@ class TradingBrain:
         """Proxy to Agent C's margin probe."""
         if hasattr(self.coordinator, "agents") and "agent_c_ibkr" in self.coordinator.agents:
             # Type check before calling
-            from agent_c_ibkr import IBKRConnection
             agent = self.coordinator.agents["agent_c_ibkr"]
             if hasattr(agent, "get_margin_cushion"):
                 return agent.get_margin_cushion()
@@ -867,9 +867,9 @@ class TradingBrain:
 
         if is_hft_impact:
             logger.info(f"🚨 BRAIN: News Action Triggered -> {headline[:60]}... (Sent: {sentiment:.2f}, Imp: {impact:.2f})")
-            
+
             # Apply Neural Bias to the next scan cycle
-            # Samvid v1.0-beta-beta: Bias is now RELATIVE to Baseline, preventing permanent risk drift.
+            # Samvid v1.0-beta-beta-beta: Bias is now RELATIVE to Baseline, preventing permanent risk drift.
             # Base risk is set by oracle; news provides a transient ±15% shift.
             if sentiment != 0.0:
                 shift_size = sentiment * 0.15
@@ -877,19 +877,19 @@ class TradingBrain:
                 # Sane bounds
                 self._oracle_risk_modifier = max(0.5, min(1.8, target_modifier))
                 logger.info(f"🧠 BRAIN: News-Driven Risk Shift active (Transient Modifier: {self._oracle_risk_modifier:.2f})")
-            
+
             # Force an immediate scan of the watchlist
             self.new_candle_event.set()
- 
+
     async def _decay_risk_modifier(self):
         """Gradually decays the oracle risk modifier back towards baseline (Oracle State)."""
         if not self.dhatu_oracle: return
-        
+
         current_state = self.dhatu_oracle.get_current_state()
         if not current_state: return
-        
+
         baseline = float(current_state.risk_modifier)
-        
+
         if abs(self._oracle_risk_modifier - baseline) > 0.01:
             # 5% closure per cycle towards baseline
             diff = baseline - self._oracle_risk_modifier
@@ -905,9 +905,9 @@ class TradingBrain:
     async def start(self) -> None:
         """Start the trading brain as a background task."""
         self.is_running = True
-        logger.info(f"Trading Brain v1.0-beta started in {self.mode} mode.")
+        logger.info(f"Trading Brain v1.0-beta-beta started in {self.mode} mode.")
 
-        # --- SOVEREIGN SHIELD: PANIC LIQUIDATION (v1.0-beta-beta) ---
+        # --- SOVEREIGN SHIELD: PANIC LIQUIDATION (v1.0-beta-beta-beta) ---
         from config import PANIC_LIQUIDATE
         if PANIC_LIQUIDATE:
             logger.critical("🛑 PANIC SWITCH DETECTED: Initiating Total Portfolio Liquidation...")
@@ -927,10 +927,10 @@ class TradingBrain:
         self._evolution_task = asyncio.create_task(self.evolution_manager.run_evolution_cycle())
         self._main_task = asyncio.create_task(self._run_loop())
 
-        # Launch Matrix v1.0-beta Logic-Stream
-        logger.info("TradingBrain: Waking up The Infinity Matrix (Samvid v1.0-beta-beta)...")
+        # Launch Matrix v1.0-beta-beta Logic-Stream
+        logger.info("TradingBrain: Waking up The Infinity Matrix (Samvid v1.0-beta-beta-beta)...")
 
-        # --- QUANTUM THAW (Samvid v1.0-beta-beta Persistence) ---
+        # --- QUANTUM THAW (Samvid v1.0-beta-beta-beta Persistence) ---
         previous_state = self.session_restorer.thaw_state()
         if previous_state:
             # Restore thresholds, win rates, and cognitive mission board
@@ -965,12 +965,12 @@ class TradingBrain:
         )
 
         self._mind_task = asyncio.create_task(self._run_trader_mind())
-        
-        # ── PHANTOM PROBE: Silent Sentry (Samvid v1.0-beta-beta) ──
+
+        # ── PHANTOM PROBE: Silent Sentry (Samvid v1.0-beta-beta-beta) ──
         # Detects wiring disconnects by running non-destructive trial trades.
         self._phantom_probe_task = asyncio.create_task(self._run_phantom_probe())
-        
-        # ── ASYNC PREDICTION PIPELINE (Samvid v1.0-beta-beta) ──
+
+        # ── ASYNC PREDICTION PIPELINE (Samvid v1.0-beta-beta-beta) ──
         # SOLUTION 5: Background Reasoning to eliminate Live Latency
         self._conviction_task = asyncio.create_task(self._background_conviction_sync())
 
@@ -981,10 +981,10 @@ class TradingBrain:
 
     async def run(self) -> None:
         """Entry point for supervisor — blocks until tasks are finished."""
-        logger.info("🧠 MAIN BRAIN TASK ACTIVATED (Samvid v1.0-beta-beta Sovereign)")
+        logger.info("🧠 MAIN BRAIN TASK ACTIVATED (Samvid v1.0-beta-beta-beta Sovereign)")
         await self.start()
-        
-        # --- HEARTBEAT LOCK (Samvid v1.0-beta-beta) ---
+
+        # --- HEARTBEAT LOCK (Samvid v1.0-beta-beta-beta) ---
         # Ensures the Brain never exits unexpectedly after a Veto or Rejection.
         try:
             while self.is_running:
@@ -992,8 +992,8 @@ class TradingBrain:
                 # We await the main_loop task specifically as it's the heartbeat
                 if hasattr(self, "_main_task") and self._main_task:
                     await asyncio.shield(self._main_task)
-                
-                # If we get here, the main task finished or errored. 
+
+                # If we get here, the main task finished or errored.
                 # If is_running is still True, we must restart.
                 if self.is_running:
                     logger.warning("TradingBrain: Main task exited prematurely. Restarting cycle...")
@@ -1016,12 +1016,12 @@ class TradingBrain:
         logger.info("TradingBrain: Main system loop started.")
         while self.is_running:
             try:
-                # --- SSS-TIER STABILITY MANTRA (Samvid v1.0-beta-beta) ---
+                # --- SSS-TIER STABILITY MANTRA (Samvid v1.0-beta-beta-beta) ---
                 # No internal error shall ever stop the Sovereign.
                 try:
                     old_state = self.state
-                    
-                    # ── HEARTBEAT PULSE (Samvid v1.0-beta-beta Universal Sync) ──
+
+                    # ── HEARTBEAT PULSE (Samvid v1.0-beta-beta-beta Universal Sync) ──
                     if self.dms:
                         self.dms.record_heartbeat()
                     if self.mind_ghost:
@@ -1034,12 +1034,12 @@ class TradingBrain:
                     if self.emergency_halted:
                         await self._handle_emergency()
                         continue
-                        
-                    # ── SOVEREIGN HEARTBEAT (Samvid v1.0-beta-beta) ──
+
+                    # ── SOVEREIGN HEARTBEAT (Samvid v1.0-beta-beta-beta) ──
                     if self._scan_cycle % 50 == 0:
                         logger.info(f"[SOVEREIGN] Pulse active. Cycle: #{self._scan_cycle} | State: {self.state.name}")
-                        
-                    # ── SOVEREIGN RECONCILIATION PULSE (Samvid v1.0-beta-beta) ──
+
+                    # ── SOVEREIGN RECONCILIATION PULSE (Samvid v1.0-beta-beta-beta) ──
                     # Run Adoption/Pruning Protocol every 10 seconds across ALL states (GAP-187)
                     if time.monotonic() - self._last_reconciliation > 10:
                         await self._reconcile_broker_positions()
@@ -1048,15 +1048,15 @@ class TradingBrain:
                     if self.state == TradingState.STANDBY:
                         await self._state_standby()
                     elif self.state == TradingState.SCANNING:
-                        # ── DECANT NEWS RISK (Samvid v1.0-beta-beta) ──
+                        # ── DECANT NEWS RISK (Samvid v1.0-beta-beta-beta) ──
                         await self._decay_risk_modifier()
- 
+
                         if self.positions and (self._monitoring_task is None or self._monitoring_task.done()):
                             self._monitoring_task = asyncio.create_task(self._state_positioned())
-                        
+
                         if self.bus and self._scan_cycle % 100 == 0: # Only once every 100 cycles
                              await self.bus.publish("brain.warmup", {"symbols": ["SPY", "QQQ", "TSLA", "NVDA"]})
-                        
+
                         await self._state_scanning()
                     elif self.state == TradingState.ANALYZING:
                         await self._state_analyzing()
@@ -1073,7 +1073,7 @@ class TradingBrain:
                     logger.error(f"SSS-Tier Recovery: Loop anomaly detected: {loop_e}. Forcing reset to SCANNING...", exc_info=True)
                     async with self._state_lock:
                         self.state = TradingState.SCANNING
-                    await asyncio.sleep(5) 
+                    await asyncio.sleep(5)
                     continue
 
                 await asyncio.sleep(self.scan_interval)
@@ -1156,7 +1156,7 @@ class TradingBrain:
                     self.dms.record_heartbeat("AGENT_A")
                     self.dms.record_heartbeat("AGENT_C")
 
-                # ── Samvid v1.0-beta-beta: LIVE FRONTEND HEARTBEAT ──
+                # ── Samvid v1.0-beta-beta-beta: LIVE FRONTEND HEARTBEAT ──
                 # Publish system.state to the bus every 15s so the frontend
                 # stays live between WebSocket connect snapshots.
                 if self.bus is not None:
@@ -1233,13 +1233,13 @@ class TradingBrain:
                     if label == "oracle.state":
                         self._oracle_risk_modifier = float(payload.get("modifier", 1.0))
                         new_dhatu = str(payload.get("dhatu", "Sthiti"))
-                        
+
                         # GAP-213: Sticky Risk-Off Override (Loss Tracker Priority)
                         if getattr(self.loss_tracker, "consecutive_losses", 0) >= 5:
                             if new_dhatu != "Abhava":
                                 logger.debug(f"Risk-Off Override: Ignoring Oracle {new_dhatu} due to loss streak.")
                                 new_dhatu = "Abhava"
-                                
+
                         self._oracle_dhatu = new_dhatu
 
                         # --- BRAIN RE-ARM LOGIC ---
@@ -1359,11 +1359,11 @@ class TradingBrain:
         """Returns the last known bid, ask, and spread for a symbol."""
         bid = self.last_tick_bids.get(symbol, self.last_tick_prices.get(symbol, 0.0))
         ask = self.last_tick_asks.get(symbol, self.last_tick_prices.get(symbol, 0.0))
-        
+
         # If we have no data, return a default nominal spread (0.01% of price)
         if bid == 0 or ask == 0:
              return {"bid": 0.0, "ask": 0.0, "spread": 0.0, "mid": 0.0}
-             
+
         return {
             "bid": bid,
             "ask": ask,
@@ -1385,16 +1385,16 @@ class TradingBrain:
         self.last_tick_prices[symbol] = float(price)
         self.last_tick_bids[symbol] = float(data.get("bid", price))
         self.last_tick_asks[symbol] = float(data.get("ask", price))
-        
+
         # ── SPY MOMENTUM TRACKER ──
         if symbol == "SPY":
             self.spy_buffer.append(float(price))
-            
+
         self.new_tick_event.set()
 
 
         # 2. Strike-Zone Evaluation (Additive logic)
-        # If we are in SCANNING state and have a high-confidence zone waiting, 
+        # If we are in SCANNING state and have a high-confidence zone waiting,
         # we trigger the entry IMMEDIATELY on price hit.
         if self.state == TradingState.SCANNING:
              # This bypasses the 5s/60s sleep in _state_scanning
@@ -1417,7 +1417,7 @@ class TradingBrain:
         # 2. Check regime (MUST happen before budget generation)
         logger.info("STANDBY: Detecting market regime...")
         try:
-            # v1.0-beta: Timeout-guarded regime detection to prevent startup stalls
+            # v1.0-beta-beta: Timeout-guarded regime detection to prevent startup stalls
             self.current_regime = await asyncio.wait_for(self._detect_regime(), timeout=20.0)
             logger.info(f"STANDBY: Market Regime detected as {self.current_regime}")
         except Exception as e:
@@ -1476,37 +1476,37 @@ class TradingBrain:
             candle_task = asyncio.create_task(self.new_candle_event.wait())
             tick_task = asyncio.create_task(self.new_tick_event.wait())
             try:
-                # ── SOVEREIGN DUAL-PULSE TRIGGER (Samvid v1.0-beta-beta) ──
+                # ── SOVEREIGN DUAL-PULSE TRIGGER (Samvid v1.0-beta-beta-beta) ──
                 done, pending = await asyncio.wait(
                     [candle_task, tick_task],
                     timeout=5.0,
                     return_when=asyncio.FIRST_COMPLETED
                 )
             except (asyncio.TimeoutError, TimeoutError, Exception):
-                done, pending = set(), {candle_task, tick_task}
+                _done, _pending = set(), {candle_task, tick_task}
             finally:
-                # Samvid v1.0-beta-beta: Absolute Cleanup (Prevents task-leak during starvation)
+                # Samvid v1.0-beta-beta-beta: Absolute Cleanup (Prevents task-leak during starvation)
                 for task in [candle_task, tick_task]:
                     if not task.done():
                         task.cancel()
-                
+
                 self.new_candle_event.clear()
                 self.new_tick_event.clear()
 
-        # ── SOVEREIGN SCANNING PULSE (Samvid v1.0-beta-beta) ──
+        # ── SOVEREIGN SCANNING PULSE (Samvid v1.0-beta-beta-beta) ──
         # Execute the actual pattern discovery logic
         await self._run_scanning_cycle()
 
 
     async def _run_scanning_cycle(self) -> None:
         """
-        Sovereign Matrix Scan (Samvid v1.0-beta-beta Hardened).
+        Sovereign Matrix Scan (Samvid v1.0-beta-beta-beta Hardened).
         GAP-06 FIX: Concurrent Scan Protection
         """
         if getattr(self, "_is_scanning", False):
             return
         self._is_scanning = True
-        
+
         try:
             # ── Periodic Regime Refresh (1-Minute Interval) ──
             now = datetime.now(timezone.utc)
@@ -1532,8 +1532,8 @@ class TradingBrain:
                 return
 
             watchlist = await self._get_watchlist()
-            
-            # ── BROKER CONNECTIVITY GATE (Samvid v1.0-beta-beta) ──
+
+            # ── BROKER CONNECTIVITY GATE (Samvid v1.0-beta-beta-beta) ──
             broker_online = False
             if self.mode in ("paper", "ibkr_paper"):
                 broker_online = True
@@ -1541,9 +1541,9 @@ class TradingBrain:
                 broker_online = hasattr(self.ibkr_conn, "is_connected") and self.ibkr_conn.is_connected
             elif self.active_broker == "MT5":
                 broker_online = hasattr(self.mt5_conn, "is_connected") and await self.mt5_conn.is_connected()
-                
+
             if not broker_online:
-                if self._scan_cycle % 10 == 1: 
+                if self._scan_cycle % 10 == 1:
                     logger.info(f"SCAN SUSPENDED: [{self.active_broker}] is currently offline.")
                 await asyncio.sleep(5)
                 return
@@ -1561,13 +1561,13 @@ class TradingBrain:
 
             async def _scan_symbol(symbol: str):
                 from mind_ultrathink import LatencyWatchdog
-                
+
                 async with stats_lock: stats["scanned"] += 1
-                
+
                 if self._scan_cycle % 10 == 0:
                     logger.info(f"[SCAN] Sovereign Probe: Scanning {symbol}...")
-                
-                # --- HFT TELEMETRY PULSE (Samvid v1.0-beta-beta) ---
+
+                # --- HFT TELEMETRY PULSE (Samvid v1.0-beta-beta-beta) ---
                 if self.bus:
                     await self.bus.publish("system.pulse", {
                         "type": "telemetry.pulse",
@@ -1575,7 +1575,7 @@ class TradingBrain:
                         "symbol": symbol,
                         "timestamp": time.time() * 1000
                     })
-                
+
                 with LatencyWatchdog(f"Scan:{symbol}", threshold_ms=500.0):
                     try:
                         fetch_result = await self._fetch_ohlcv(symbol)
@@ -1605,7 +1605,7 @@ class TradingBrain:
 
                         found = [p for p in patterns if p and p.confidence >= 60.0]
 
-                        
+
                         if not found:
                             all_found = [p for p in patterns if p]
                             if all_found:
@@ -1615,18 +1615,18 @@ class TradingBrain:
                                 best_low = max(all_found, key=lambda x: x.confidence)
                                 logger.info(f"Scan [{symbol}]: Pattern {best_low.name} detected but confidence {best_low.confidence}% too low.")
                             return None
-                        
+
                         best = max(found, key=lambda x: x.confidence)
                         async with stats_lock:
                             stats["detected"] += 1
                             stats["approved"] += 1
-                        
+
                         # GAP-08: Always log discoveries immediately
                         logger.info(f"🎯 DISCOVERY: {symbol} matched {best.name} ({best.confidence:.1f}%)")
-                        
+
                         task = self.task_manager.spawn_trade(symbol, {"pattern": best.name, "conf": best.confidence})
                         task.log(f"DISCOVERY_HIT: {best.name} detected.")
-                        
+
                         return {"symbol": symbol, "pattern": best, "lambda": best.confidence / 100.0, "task": task}
 
                     except Exception as e:
@@ -1638,16 +1638,16 @@ class TradingBrain:
                 batch = watchlist[i : i + 3]
                 batch_results = await asyncio.gather(*[_scan_symbol(s.upper()) for s in batch])
                 results.extend(batch_results)
-                
+
                 # --- GAP-299: Keep-Alive Heartbeat during heavy vetting ---
                 if self.mind_ghost:
                     await self.mind_ghost.update_heartbeat("ENGINE")
-                
-                await asyncio.sleep(0.1) 
-            
+
+                await asyncio.sleep(0.1)
+
             discoveries = [r for r in results if r is not None]
-            
-            # --- RESTORED DIAGNOSTIC LOGGING (Samvid v1.0-beta-beta) ---
+
+            # --- RESTORED DIAGNOSTIC LOGGING (Samvid v1.0-beta-beta-beta) ---
             vix = await self._get_vix()
             vix_str = f"{vix:.2f}" if vix > 0 else "N/A"
             logger.info(
@@ -1657,7 +1657,7 @@ class TradingBrain:
                 f"| Detected={stats['detected']} Approved={stats['approved']} "
                 f"| Pending={len(discoveries)}"
             )
-            
+
             # Update global stats with lock
             async with self._state_lock:
                 self.last_scan_stats = {
@@ -1670,7 +1670,7 @@ class TradingBrain:
                     "regime": self.current_regime,
                 }
 
-            # GAP-40 FIX: Cognitive Flush (Samvid v1.0-beta-beta)
+            # GAP-40 FIX: Cognitive Flush (Samvid v1.0-beta-beta-beta)
             # Prevent 'Information Overload' by clearing buffers when signal density is too high.
             signal_density = stats["detected"] / max(1, stats["scanned"])
             if signal_density > 0.8:
@@ -1700,7 +1700,7 @@ class TradingBrain:
     async def _state_analyzing(self) -> None:
         """
         Phase-Based Veting Lifecycle (Agent M Coordinator).
-        Samvid v1.0-beta-beta: Concurrent Task-Graph Orchestration (Pillar 3).
+        Samvid v1.0-beta-beta-beta: Concurrent Task-Graph Orchestration (Pillar 3).
         Spawns parallel vetting tasks for all pending signals.
         """
         if not self.pending_signals:
@@ -1725,7 +1725,7 @@ class TradingBrain:
             task_obj = signal.get("task")
             task_id = task_obj.id if task_obj else "N/A"
             logger.info(f"MindBrain: Handing off Task {task_id} ({symbol}) to Coordinator Fortress.")
-            
+
             vetting_task = asyncio.create_task(self.coordinator.initiate_trade_lifecycle(symbol, signal))
             vetting_task.add_done_callback(_task_done)
 
@@ -1740,11 +1740,11 @@ class TradingBrain:
 
     async def _state_positioned(self) -> None:
         """Monitor active positions using 7-Level Exit Intelligence Engine."""
-        # --- RECONCILIATION GATE (Samvid v1.0-beta-beta) ---
+        # --- RECONCILIATION GATE (Samvid v1.0-beta-beta-beta) ---
         # Ensures orphan trades like GOOGL/SMCI are caught even if missed at startup
         self._sanitize_positions() # Ensure memory is objects, not dicts
         await self._reconcile_broker_positions()
-        
+
         logger.debug(f"MONITORING {len(self.positions)} active positions")
 
         exits_triggered = []
@@ -1761,19 +1761,19 @@ class TradingBrain:
                 # Update Bayesian belief and real-time PnL
                 pos.current_price = current_price
                 pos.unrealized_pnl = (current_price - pos.entry_price) * pos.qty
-                
-                # --- REALITY CHECK: Is the position actually there? (Samvid v1.0-beta-beta) ---
+
+                # --- REALITY CHECK: Is the position actually there? (Samvid v1.0-beta-beta-beta) ---
                 # Check IBKR cache to stop 'Phantom Tightening' logs
                 broker_qty = 0
                 if hasattr(self, 'agent_c_ibkr') and self.agent_c_ibkr.ibkr_conn:
                     broker_qty = self.agent_c_ibkr.ibkr_conn._positions_cache.get(pos.symbol, 0)
-                
+
                 pos.meta['broker_flat'] = (abs(broker_qty) < 0.1)
 
                 # MFE / MAE Tracking
                 risk_amt = abs(pos.entry_price - pos.initial_stop)
                 if risk_amt < 0.0001: risk_amt = 0.01 # Prevent ZeroDivision
-                
+
                 gross_r = ((current_price - pos.entry_price) / risk_amt) if pos.qty > 0 else ((pos.entry_price - current_price) / risk_amt)
                 pos.mfe = max(pos.mfe, gross_r)
                 pos.mae = min(pos.mae, gross_r)
@@ -1811,7 +1811,7 @@ class TradingBrain:
                     "daily_pnl": await self._get_daily_pnl(pos.account_type),
                 }
 
-                # ── INTERLEAVED THINKING (Samvid v1.0-beta-beta) ──
+                # ── INTERLEAVED THINKING (Samvid v1.0-beta-beta-beta) ──
                 # Perform a 500ms 'Heartbeat Re-vet' using Mind_Ultrathink
                 # This checks if the reasons we entered the trade are still valid.
                 thought_dna = await self.mind_ultrathink.heartbeat_vet(pos_dict, market_dict)
@@ -1819,7 +1819,7 @@ class TradingBrain:
                     logger.warning(f"🏛️ Sovereign HEARTBEAT VETO: {pos.symbol} — {thought_dna.get('reason')}")
                     exits_triggered.append((pos, "HEARTBEAT_VETO", current_price))
                     continue # Skip further monitoring for this tick
-                
+
                 # Dynamic Stop Adjustment from Thought DNA (Beta Gate)
                 if thought_dna.get("new_stop"):
                     pos.stop_loss = float(thought_dna["new_stop"])
@@ -1843,7 +1843,7 @@ class TradingBrain:
                     if decision.new_stop is not None:
                         old_stop = pos.stop_loss
                         pos.stop_loss = decision.new_stop
-                        
+
                         # Only log if the position actually still exists in reality
                         if not pos.meta.get('broker_flat', False):
                             logger.info(
@@ -1911,7 +1911,7 @@ class TradingBrain:
         logger.debug(f"MindBridge: Fetching account health for {account_type}...")
         equity = await self._get_account_value(account_type)
         daily_pnl = await self._get_daily_pnl(account_type)
-        
+
         # GAP-263: Pass through Unrealized PnL for conservative haircutting (GAP-45)
         unrealized_pnl = 0.0
         if account_type == "ibkr" and self.ibkr_client and self.ibkr_client.isConnected():
@@ -1985,12 +1985,12 @@ class TradingBrain:
     async def _process_exit(self, pos: Position, exit_type: str, exit_price: float) -> None:
         """Standardized Exit Resolver (Pillar 5 Upgrade)."""
         try:
-            # --- EXECUTION HARDENING (Samvid v1.0-beta-beta) ---
+            # --- EXECUTION HARDENING (Samvid v1.0-beta-beta-beta) ---
             symbol = pos.symbol
             now = datetime.now(timezone.utc)
-            
-            # ── BROKER CONNECTIVITY GATE (Samvid v1.0-beta-beta) ──
-            # Skip exit processing if broker is currently offline. 
+
+            # ── BROKER CONNECTIVITY GATE (Samvid v1.0-beta-beta-beta) ──
+            # Skip exit processing if broker is currently offline.
             # This prevents 3-strike lockouts caused by temporary connection blips.
             broker_online = False
             if self.mode == "paper":
@@ -1999,11 +1999,11 @@ class TradingBrain:
                 broker_online = hasattr(self.ibkr_conn, "is_connected") and self.ibkr_conn.is_connected
             elif pos.account_type == "mt5":
                 broker_online = hasattr(self.mt5_conn, "is_connected") and await self.mt5_conn.is_connected()
-            
+
             if not broker_online:
                 logger.warning(f"DELAYED EXIT [{symbol}]: {pos.account_type} is OFFLINE. Postponing pulse.")
                 return
-            
+
             # Strike-3 Lockout check
             strikes = self._exit_failure_count.get(symbol, 0)
             if strikes >= 3:
@@ -2016,7 +2016,7 @@ class TradingBrain:
                 logger.warning(f"DAMPENER ACTIVE: {symbol} exit attempt suppressed. Waiting for cooldown (Last try: {last_attempt.strftime('%H:%M:%S')}).")
                 return
 
-            # --- EXIT IMMUNITY CHECK (Samvid v1.0-beta-beta) ---
+            # --- EXIT IMMUNITY CHECK (Samvid v1.0-beta-beta-beta) ---
             # Prevent "Wash Trades" by enforcing a 15-minute minimum hold time
             # unless it is an emergency or hard-stop hit.
             age_seconds = (now - pos.entry_time).total_seconds()
@@ -2032,8 +2032,8 @@ class TradingBrain:
 
             # 1. Physical Exit (Broker Handshake)
             direction = "SELL" if pos.qty > 0 else "BUY"
-            
-            # Handling Partials from v1.0-beta
+
+            # Handling Partials from v1.0-beta-beta
             if exit_type == "PARTIAL":
                  exit_shares = max(1, abs(int(pos.qty * 0.5)))
             else:
@@ -2058,27 +2058,27 @@ class TradingBrain:
 
             # 2. Mathematical Reflection
             slice_qty = exit_shares if pos.qty > 0 else -exit_shares
-            pnl = (exit_price - pos.entry_price) * slice_qty
+            (exit_price - pos.entry_price) * slice_qty
             r_multiple = (
                 (exit_price - pos.entry_price) / abs(pos.entry_price - pos.stop_loss)
                 if abs(pos.entry_price - pos.stop_loss) > 0 else 0
             )
 
-            # --- SLIPPAGE ANALYSIS (Samvid v1.0-beta-beta) ---
+            # --- SLIPPAGE ANALYSIS (Samvid v1.0-beta-beta-beta) ---
             intended_price = getattr(pos, "target", exit_price)
             slippage_pct = abs(exit_price - intended_price) / max(intended_price, 0.01)
             is_dirty = slippage_pct > 0.005 # 50bps threshold
             if is_dirty:
                 logger.warning(f"SLIPPAGE DETECTED: {pos.symbol} fill deviated {slippage_pct:.2%} from target. Trade marked as DIRTY.")
 
-            # --- COMMISSION & SLIPPAGE SIMULATION (v1.0-beta Integration) ---
+            # --- COMMISSION & SLIPPAGE SIMULATION (v1.0-beta-beta Integration) ---
             commission_cost = max(2.0, exit_shares * 0.005)
             # GAP-34 FIX: Volume-weighted slippage heuristic
-            # If large exit_shares, increase penalty. (Samvid v1.0-beta-beta)
+            # If large exit_shares, increase penalty. (Samvid v1.0-beta-beta-beta)
             vol_multiplier = 1.0 + (exit_shares / 2000.0)
             slippage_penalty = exit_price * 0.0005 * vol_multiplier
             adjusted_exit_price = (exit_price - slippage_penalty if slice_qty > 0 else exit_price + slippage_penalty)
-            
+
             from decimal import Decimal
             d_exit = Decimal(str(adjusted_exit_price))
             d_entry = Decimal(str(pos.entry_price))
@@ -2086,7 +2086,7 @@ class TradingBrain:
             d_comm = Decimal(str(commission_cost))
             d_slip = Decimal(str(pos.slippage_cost))
             d_total_qty = Decimal(str(abs(pos.qty) or 1))
-            
+
             # GAP-170 FIX: Institutional PnL precision (No float drift)
             realized_net_pnl = float((d_exit - d_entry) * d_qty - d_comm - (d_slip * (Decimal(str(exit_shares)) / d_total_qty)))
 
@@ -2094,13 +2094,13 @@ class TradingBrain:
             self.session_pnl += realized_net_pnl
             if exit_type != "PARTIAL":
                  await self._log_trade_exit(pos, exit_type, adjusted_exit_price, realized_net_pnl, r_multiple)
-            
+
             # 4. Neural Cleanup & Learning
             if exit_type == "PARTIAL":
                 old_qty = abs(pos.qty)
-                if pos.qty > 0: 
+                if pos.qty > 0:
                     pos.qty -= exit_shares
-                else: 
+                else:
                     pos.qty += exit_shares
                 # GAP-211: Track remaining percentage for evolutionary telemetry
                 pos.shares_remaining = abs(pos.qty) / old_qty if old_qty > 0 else 0.0
@@ -2111,7 +2111,7 @@ class TradingBrain:
                 self.closed_positions.append(pos)
                 # Reset failure count on successful full exit
                 self._exit_failure_count[symbol] = 0
-                
+
                 # GAP-213 FIX: Loss Streak Protection (Risk-Off Trigger)
                 if not hasattr(self, "_loss_streak"): self._loss_streak = 0
                 if realized_net_pnl < 0:
@@ -2120,11 +2120,11 @@ class TradingBrain:
                         logger.critical(f"🚨 GAP-213: LOSS STREAK DETECTED ({self._loss_streak}). TRIGGERING RISK-OFF REGIME.")
                         self.current_regime = "RISK_OFF"
                         # Reset streak after triggering so we can eventually recover
-                        self._loss_streak = 0 
+                        self._loss_streak = 0
                 else:
                     self._loss_streak = 0
 
-            # --- ANTIGRAVITY BREAKTHROUGH: LIVE RECURSIVE RE-WIRE (Samvid v1.0-beta-beta) ---
+            # --- ANTIGRAVITY BREAKTHROUGH: LIVE RECURSIVE RE-WIRE (Samvid v1.0-beta-beta-beta) ---
             if hasattr(self, 'recursive_evolution'):
                 self.recursive_evolution.evolve_live(
                     pattern_name=pos.pattern or pos.meta.get("pattern", "UNKNOWN"),
@@ -2151,10 +2151,10 @@ class TradingBrain:
             # Telegram Alert (Enhanced for SE-12 Detail)
             from telegram_alerts import send_telegram_alert
             icon = "🟢" if realized_net_pnl > 0 else "🔴" if realized_net_pnl < 0 else "⚪"
-            
+
             intent = pos.meta.get("intent", "Sovereign")
             pattern_name = pos.meta.get("pattern", "UNKNOWN")
-            
+
             title = "PARTIAL EXIT" if exit_type == "PARTIAL" else "TRADE CLOSED"
             await send_telegram_alert(
                 f"{icon} *{title}: {pos.symbol}*\n"
@@ -2182,7 +2182,7 @@ class TradingBrain:
         try:
             vix = await self._get_vix()
 
-            # ── SOVEREIGN MEMORY SCAN (Samvid v1.0-beta-beta) ──
+            # ── SOVEREIGN MEMORY SCAN (Samvid v1.0-beta-beta-beta) ──
             # Use the local SPY buffer for zero-latency momentum calculation.
             # This eliminates the NameError and avoids heavy SQL queries.
             momentum = 0.0
@@ -2223,9 +2223,9 @@ class TradingBrain:
                         total = 0
                         positive = 0
                         major_indices = ["SPY", "QQQ", "IWM", "DIA", "XLK", "NVDA", "MSFT", "AAPL", "TSLA", "META"]
-                        
+
                         for sym in major_indices:
-                            # Use Tick Memory for Breadth (Samvid v1.0-beta-beta Fast-Path)
+                            # Use Tick Memory for Breadth (Samvid v1.0-beta-beta-beta Fast-Path)
                             if sym in self.last_tick_prices:
                                 total += 1
                                 if (sym in self.last_tick_prices): # placeholder for trend check
@@ -2329,7 +2329,7 @@ class TradingBrain:
         """Return True if NYSE is currently in the regular 9:30-16:00 ET session."""
         from zoneinfo import ZoneInfo  # pyre-ignore[21]
 
-        # Samvid v1.0-beta-beta: Simulated Market Open Override
+        # Samvid v1.0-beta-beta-beta: Simulated Market Open Override
         if os.environ.get("FORCED_MARKET_OPEN") == "1":
             return True
 
@@ -2366,7 +2366,7 @@ class TradingBrain:
 
             # QuestDB read path only when the shared adapter is active (same instance as pipeline)
             df_qdb = None
-            
+
             # --- GAP-303 FIX: Slowness Circuit Breaker ---
             # If QuestDB has timed out repeatedly, we 'Break the circuit' and skip it for 5 minutes.
             if self._qdb_circuit_broken and (now_mono - self._qdb_last_failure_time) < 300:
@@ -2384,7 +2384,7 @@ class TradingBrain:
                     self._qdb_last_failure_time = now_mono
                     if self._qdb_failure_count >= 3:
                         self._qdb_circuit_broken = True
-                        logger.critical(f"QuestDB SLOWNESS DETECTED. Circuit Broken for 5 minutes. Failing over to SQLite/Cache.")
+                        logger.critical("QuestDB SLOWNESS DETECTED. Circuit Broken for 5 minutes. Failing over to SQLite/Cache.")
                     else:
                         logger.warning(f"QuestDB timeout for {symbol} ({self._qdb_failure_count}/3) — failing over to SQLite")
                     df_qdb = None
@@ -2420,7 +2420,7 @@ class TradingBrain:
                     "ORDER BY timestamp DESC LIMIT 200"
                 )
                 try:
-                    # Samvid v1.0-beta-beta: Increased timeout from 3.0s to 15.0s for G3 hardware stability
+                    # Samvid v1.0-beta-beta-beta: Increased timeout from 3.0s to 15.0s for G3 hardware stability
                     df = await asyncio.wait_for(
                         asyncio.to_thread(pd.read_sql_query, query, self.db_conn, params=[symbol]),
                         timeout=10.0,
@@ -2441,7 +2441,7 @@ class TradingBrain:
                 logger.warning(f"NO DATA: {symbol} — SQLite ohlcv table returned empty dataframe")
                 return None
 
-            # GAP-19 FIX: SQLite returns 'ORDER BY timestamp DESC' to get the last N bars, 
+            # GAP-19 FIX: SQLite returns 'ORDER BY timestamp DESC' to get the last N bars,
             # but all indicators and slicing ([-1]) expect ASCENDING chronological order.
             df_frame = df_frame.iloc[::-1].reset_index(drop=True)
 
@@ -2464,11 +2464,11 @@ class TradingBrain:
                 # 48 h when closed (covers weekday evenings + weekends without false
                 # staleness rejections — prior session data is still valid for pre-scan).
                 staleness_limit = 3600 if market_open else 259200
-                
-                # Samvid v1.0-beta-beta: Loosen gate for simulation/replay
+
+                # Samvid v1.0-beta-beta-beta: Loosen gate for simulation/replay
                 if os.environ.get("FORCED_MARKET_OPEN") == "1":
                     staleness_limit = 1_000_000 # Allow very old data for sim
-                
+
                 if staleness > staleness_limit:
                     staleness_min = staleness / 60
                     if market_open:
@@ -2560,7 +2560,7 @@ class TradingBrain:
 
                     age_hours = (datetime.now(timezone.utc) - entry_time).total_seconds() / 3600
 
-                    # Samvid v1.0-beta-beta: Removed 24h limit. If it's 'OPEN' in DB, we duty-bound to manage it until Exit.
+                    # Samvid v1.0-beta-beta-beta: Removed 24h limit. If it's 'OPEN' in DB, we duty-bound to manage it until Exit.
                     # GAP-269 FIX: Make duplicate detection broker-aware to support multi-broker parity
                     if age_hours > 720 or (symbol, broker) in seen_symbols:
                         cursor.execute(
@@ -2611,7 +2611,7 @@ class TradingBrain:
 
         await asyncio.to_thread(_sync_restore)  # type: ignore
         self._sanitize_positions() # Pre-emptive purge before first cycle
-        # --- RECONCILIATION GATE (Samvid v1.0-beta-beta) ---
+        # --- RECONCILIATION GATE (Samvid v1.0-beta-beta-beta) ---
         await self._reconcile_broker_positions()
 
     def _sanitize_positions(self):
@@ -2623,6 +2623,7 @@ class TradingBrain:
             elif isinstance(p, dict) and "symbol" in p:
                 try:
                     from dataclasses import fields
+
                     from system_types import Position
                     field_names = {f.name for f in fields(Position)}
                     filtered = {k: v for k, v in p.items() if k in field_names}
@@ -2633,7 +2634,7 @@ class TradingBrain:
 
     async def _reconcile_broker_positions(self) -> None:
         """
-        Sovereign Reconciliation Cycle (Samvid v1.0-beta-beta): Dual-Broker Reality Handshake.
+        Sovereign Reconciliation Cycle (Samvid v1.0-beta-beta-beta): Dual-Broker Reality Handshake.
         Synchronizes internal memory with BOTH IBKR and MT5 realities.
         """
         try:
@@ -2641,7 +2642,7 @@ class TradingBrain:
             ibkr_reality = {}
             if self.ibkr_conn and self.ibkr_conn.is_connected:
                 ibkr_reality = self.ibkr_conn._positions_cache # {symbol: qty}
-                
+
                 # GAP-210 FIX: Cold Cache Shield for IBKR
                 # Always force a real-time check on the first reconciliation or if cache is empty
                 if not ibkr_reality:
@@ -2660,18 +2661,18 @@ class TradingBrain:
 
             # 2. Sanitize Memory
             self._sanitize_positions()
-            
+
             # 3. Memory-to-Reality Mapping
             now_ts = datetime.now(timezone.utc)
             uptime = (now_ts - self.start_time).total_seconds() if hasattr(self, "start_time") else 0.0
-            
+
             for p in list(self.positions):
                 broker = p.account_type
                 reality = ibkr_reality if broker == 'ibkr' else mt5_reality
                 broker_qty = reality.get(p.symbol, 0.0)
-                
+
                 age_seconds = (now_ts - p.entry_time).total_seconds()
-                
+
                 # A. The Zero-Sync Purge (Clean up phantom positions)
                 # ONLY purge if: Uptime > 300s, Age > 600s, and Reality is FLAT
                 if uptime > 300 and age_seconds > 600 and abs(broker_qty) < 0.1:
@@ -2687,7 +2688,7 @@ class TradingBrain:
                         p.qty = float(broker_qty)
                         self._update_trade_volume(p.symbol, broker, p.qty)
 
-            # --- SIDE-BY-SIDE RECONCILIATION REPORT (Samvid v1.0-beta-beta) ---
+            # --- SIDE-BY-SIDE RECONCILIATION REPORT (Samvid v1.0-beta-beta-beta) ---
             # Triggers a high-visibility audit once per cycle (or on-demand)
             report_lines = [
                 "\n" + "="*80,
@@ -2696,28 +2697,28 @@ class TradingBrain:
                 f" {'Symbol':<10} | {'Broker':<8} | {'Memory Qty':<12} | {'Reality Qty':<12} | {'Status':<10}",
                 "-"*80
             ]
-            
+
             all_symbols = set(ibkr_reality.keys()) | set(mt5_reality.keys()) | {p.symbol for p in self.positions}
             for sym in sorted(all_symbols):
                 for b in ['ibkr', 'mt5']:
                     reality_map = ibkr_reality if b == 'ibkr' else mt5_reality
                     if b == 'mt5' and not (self.mt5_conn and await self.mt5_conn.is_connected()): continue
-                    
+
                     m_pos = next((p for p in self.positions if p.symbol == sym and p.account_type == b), None)
                     m_qty = m_pos.qty if m_pos else 0.0
                     r_qty = reality_map.get(sym, 0.0)
-                    
+
                     if abs(m_qty) < 0.01 and abs(r_qty) < 0.01: continue
-                    
+
                     status = "✅ MATCH" if abs(m_qty - r_qty) < 0.0001 else "⚠️ DRIFT"
                     report_lines.append(f" {sym:<10} | {b:<8} | {m_qty:<12.2f} | {r_qty:<12.2f} | {status}")
-            
+
             report_lines.append("="*80 + "\n")
             logger.info("\n".join(report_lines))
 
             # 4. Adoption Protocol (Discover unmanaged positions)
             all_managed = { (p.symbol, p.account_type) for p in self.positions }
-            
+
             # Adopt from IBKR
             for symbol, qty in ibkr_reality.items():
                 if abs(qty) >= 0.1 and (symbol, 'ibkr') not in all_managed:
@@ -2740,9 +2741,9 @@ class TradingBrain:
             if price <= 0:
                 market_data = await self._fetch_market_snapshot(symbol)
                 price = market_data.get("price", 0.0) if market_data else 0.0
-            
+
             direction = "LONG" if qty > 0 else "SHORT"
-            
+
             # 2. Rehydrate from DB if exists
             db_row = None
             if self.db_conn:
@@ -2767,9 +2768,9 @@ class TradingBrain:
             # 3. Construct Position
             from system_types import Position
             adopted = Position(
-                symbol=symbol, 
+                symbol=symbol,
                 qty=qty, # GAP-199 FIX: Use signed qty for side-detection
-                entry_price=entry, 
+                entry_price=entry,
                 entry_time=datetime.now(timezone.utc),
                 pattern="ADOPTED_ORPHAN",
                 stop_loss=stop,
@@ -2779,22 +2780,22 @@ class TradingBrain:
                 account_type=broker,
                 meta={"adoption_ts": datetime.now(timezone.utc).isoformat()}
             )
-            
+
             self.positions.append(adopted)
-            
+
             # 4. Persistence
             if self.db_conn and not db_row:
                 cursor = self.db_conn.cursor()
                 cursor.execute(
                     "INSERT INTO trades (timestamp, instrument, direction, quantity, entry_price, outcome, stop_price, target_price, broker, notes) "
                     "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                    (datetime.now(timezone.utc).isoformat(), symbol, direction, qty, price, "OPEN", stop, target, broker, "Sovereign Adoption Protocol v1.0-beta")
+                    (datetime.now(timezone.utc).isoformat(), symbol, direction, qty, price, "OPEN", stop, target, broker, "Sovereign Adoption Protocol v1.0-beta-beta")
                 )
                 adopted.db_id = cursor.lastrowid
                 self.db_conn.commit()
 
             logger.info(f"✅ ADOPTED: {symbol} in {broker.upper()} absorbed @ {price:.2f}")
-            
+
             if self.bus:
                 await self.bus.publish("notification.telegram", {
                     "message": f"🧟 *ORPHAN ADOPTED*\nBroker: {broker.upper()}\nSymbol: {symbol}\nQty: {qty}\nStop: {stop:.2f}"
@@ -2845,15 +2846,15 @@ class TradingBrain:
                 snapshot["price"] = float(self._last_tick_price[symbol])
             elif symbol in self.last_tick_prices:
                 snapshot["price"] = float(self.last_tick_prices[symbol])
-            
+
             # 1. Fallback to latest price from OHLCV table if price is still None
             if snapshot["price"] is None:
                 df = await self._fetch_ohlcv(symbol)  # type: ignore
                 if df is not None and not isinstance(df, str) and len(df) > 0:
-                    # Samvid v1.0-beta-beta: Standardized Polars indexing for HFT snapshot
+                    # Samvid v1.0-beta-beta-beta: Standardized Polars indexing for HFT snapshot
                     latest_close = float(df["close"][-1])
                     prev_close = float(df["close"][-2]) if len(df) > 1 else latest_close
-                    
+
                     snapshot["price"] = latest_close
                     snapshot["price_change_pct"] = (
                         (latest_close - prev_close) / (prev_close + 1e-10)
@@ -2873,17 +2874,17 @@ class TradingBrain:
         """
         raw_equity = await self._get_account_value(account_type, force_fresh=True)
         vix = await self._get_vix()
-        
+
         # Volatility Haircut: 2% base + (VIX / 2.5)%
         # e.g., VIX 20 -> 10% Haircut | VIX 40 -> 18% Haircut
         haircut_pct = 0.02 + (vix / 250.0)
         safe_equity = raw_equity * (1.0 - haircut_pct)
-        
+
         logger.debug(f"Defensive Equity: Raw ${raw_equity:.2f} | VIX {vix:.1f} | Haircut {haircut_pct:.1%} | Safe ${safe_equity:.2f}")
         return safe_equity
 
     async def _get_account_value(self, account_type: str, force_fresh: bool = False) -> float:
-        """Get account equity value (Samvid v1.0-beta-beta Cache Shield to prevent IBKR Hammering)."""
+        """Get account equity value (Samvid v1.0-beta-beta-beta Cache Shield to prevent IBKR Hammering)."""
         now = time.time()
         if not force_fresh and (now - self._last_account_value["timestamp"]) < 60.0:
             cached = self._last_account_value.get(account_type, 0.0)
@@ -2893,7 +2894,7 @@ class TradingBrain:
         try:
             val = STARTING_CAPITAL_CAD
             if account_type == "ibkr" and self.ibkr_client:
-                # ── IBKR CACHE SHIELD (Samvid v1.0-beta-beta) ──
+                # ── IBKR CACHE SHIELD (Samvid v1.0-beta-beta-beta) ──
                 if hasattr(self.ibkr_client, "isConnected") and self.ibkr_client.isConnected():
                     # Priority: Use NetLiquidation to avoid currency confusion
                     acc_vals = self.ibkr_client.accountValues()
@@ -2909,12 +2910,12 @@ class TradingBrain:
                     return info.equity if info else STARTING_CAPITAL_CAD
 
                 val = await asyncio.to_thread(_sync_mt5_account)
-            
+
             # Update cache
             self._last_account_value[account_type] = val
             self._last_account_value["timestamp"] = now
             return val
-            
+
         except Exception as e:
             logger.warning(f"Account check failed (non-fatal): {e}")
             return self._last_account_value.get(account_type, STARTING_CAPITAL_CAD)
@@ -2966,20 +2967,20 @@ class TradingBrain:
             logger.error(f"IBKR client not connected — cannot place {direction} {shares} {symbol}")
             return None
 
-        # --- REALITY GUARD (Samvid v1.0-beta-beta Hardened) ---
+        # --- REALITY GUARD (Samvid v1.0-beta-beta-beta Hardened) ---
         # Prevent "Wrong Way" orders and Force-Sync brain memory.
         try:
             # Live query — touches the broker directly to be 100% sure
             broker_positions = {p.contract.symbol: p.position for p in self.ibkr_client.positions() if p.position != 0}
             broker_qty = broker_positions.get(symbol, 0)
-            
+
             # --- THE SOVEREIGN MIRROR SYNC ---
             # If the signs differ or magnitude is way off, fix memory IMMEDIATELY.
             for p in self.positions:
                 if p.symbol == symbol and (np.sign(p.qty) != np.sign(broker_qty) or abs(p.qty - broker_qty) > 0.1):
                     logger.warning(f"⚖️ MIRROR SYNC: {symbol} memory error ({p.qty}) corrected to Broker Reality ({broker_qty}).")
                     p.qty = float(broker_qty)
-            
+
             if direction == "SELL" and broker_qty < 0:
                 logger.critical(f"🛑 POLARITY SHIELD: Blocked SELL for {symbol} (Short exposure: {broker_qty}). Next cycle will BUY to close.")
                 return None
@@ -2993,7 +2994,7 @@ class TradingBrain:
         await self.rate_limiter.acquire()
 
         try:
-            # --- ZERO-SHARE SHIELD (Samvid v1.0-beta-beta) ---
+            # --- ZERO-SHARE SHIELD (Samvid v1.0-beta-beta-beta) ---
             if shares < 1:
                 warn_msg = f"🛑 ZERO-SHARE SHIELD: Blocked {direction} for {symbol} (Size=0). Check sizer math or Probe logic."
                 logger.warning(warn_msg)
@@ -3009,7 +3010,7 @@ class TradingBrain:
             # --- SOVEREIGN BRACKET ROUTING ---
             # If we have stop/target geometry, we use the bracket executor
             if stop_price > 0 and target_price > 0:
-                # --- SOVEREIGN PRE-FLIGHT ARMOR (v1.0-beta-beta) ---
+                # --- SOVEREIGN PRE-FLIGHT ARMOR (v1.0-beta-beta-beta) ---
                 ok, reason = await asyncio.to_thread(self.ibkr_conn.validate_order_pre_flight, symbol, direction, shares, limit_price)
                 if not ok:
                     logger.critical(f'🛑 PRE-FLIGHT REJECTION for {symbol}: {reason}')
@@ -3063,9 +3064,9 @@ class TradingBrain:
             self.db_conn.commit()
             cursor.close()
 
-        # --- PERIODIC CHECKPOINT (Samvid v1.0-beta-beta Sovereign) ---
+        # --- PERIODIC CHECKPOINT (Samvid v1.0-beta-beta-beta Sovereign) ---
         # Checkpoint every 5 minutes to protect against Windows crashes
-        # v1.0-beta: Throttled to ONCE per window to avoid slamming the disk
+        # v1.0-beta-beta: Throttled to ONCE per window to avoid slamming the disk
         now_ts = int(time.time())
         if now_ts % 300 < 60:
             last_freeze = getattr(self, "_last_freeze_time", 0)
@@ -3113,13 +3114,13 @@ class TradingBrain:
 
     def _determine_target_broker(self) -> str:
         """Determines if the system should be in Equities (IBKR) or Forex (MT5) mode using NY Time."""
-        # Samvid v1.0-beta-beta: Sync to New York Time (EST/EDT)
+        # Samvid v1.0-beta-beta-beta: Sync to New York Time (EST/EDT)
         # April is EDT (UTC-4)
         now_utc = datetime.now(timezone.utc)
         now_ny = now_utc - timedelta(hours=4)
         hour = now_ny.hour
         minute = now_ny.minute
-        
+
         # 16:00 - 17:00 NY: MAINTENANCE STAND-DOWN
         if hour == 16:
              logger.debug(f"Sovereign: Maintenance Window detected ({hour}:{minute:02d} NY). Standing down.")
@@ -3130,14 +3131,14 @@ class TradingBrain:
              if hour == 9 and minute < 30:
                   return "MT5" # Before Open
              return "IBKR"
-             
+
         # MT5 Forex: 5:00 PM - 9:00 AM NY (Includes Asian/London sessions)
         return "MT5"
 
     async def _perform_broker_hotswap(self, target: str):
         """Swaps the system consciousness between brokers to save VRAM/CPU."""
         logger.warning(f"🔄 SOVEREIGN HOT-SWAP: Switching from {self.active_broker} to {target}...")
-        
+
         if target == "MT5":
              # Shutdown IBKR streams if possible
              # (In this architecture, we keep connections but skip polling)
@@ -3161,12 +3162,12 @@ class TradingBrain:
     async def _place_mt5_order(self, symbol, direction, shares, limit_price, stop_price, target_price, **kwargs):
         """Forex Execution Engine for MT5."""
         logger.info(f"MT5: Placing {direction} order for {symbol} ({shares} lots)")
-        
-        # Samvid v1.0-beta-beta: Use high-fidelity sizer with account-aware risk (Fallback: $10)
+
+        # Samvid v1.0-beta-beta-beta: Use high-fidelity sizer with account-aware risk (Fallback: $10)
         risk_per_trade = getattr(self, "mt5_risk_per_trade", 10.0)
-        
+
         lots = self.mt5_sizer.calculate_lots(risk_per_trade, limit_price, stop_price, symbol) or 0.01
-        
+
         order_id = await asyncio.to_thread(
             self.mt5_conn.place_order,
             sym=symbol,
@@ -3188,8 +3189,8 @@ class TradingBrain:
                     # but keep the direction_str as the source of truth for side.
                     recorded_shares = abs(pos.qty)
                     direction_str = "LONG" if pos.qty > 0 else "SHORT"
-                    
-                    # --- PHASE 3: NEURAL SNAPSHOT (Samvid v1.0-beta-beta) ---
+
+                    # --- PHASE 3: NEURAL SNAPSHOT (Samvid v1.0-beta-beta-beta) ---
                     # Record the 'Intelligence Profile' immediately so we don't forget if we crash.
                     intel_snap = json.dumps({
                         "lambda": getattr(self, "current_lambda", 0),
@@ -3236,12 +3237,12 @@ class TradingBrain:
     async def _log_trade_exit(
         self, pos: Position, exit_type: str, exit_price: float, pnl: float, r_multiple: float
     ) -> None:
-        """Log trade exit to database and generate Sovereign Post-Mortem (v1.0-beta Wisdom)."""
+        """Log trade exit to database and generate Sovereign Post-Mortem (v1.0-beta-beta Wisdom)."""
 
         def _sync_log() -> None:
             nonlocal exit_price, pnl
             try:
-                # --- GHOST RECOVERY (Samvid v1.0-beta-beta) ---
+                # --- GHOST RECOVERY (Samvid v1.0-beta-beta-beta) ---
                 # If exit_price is zero/none (Broker lag), recover from the Last Known Price in pipeline
                 if not exit_price or exit_price <= 0:
                     logger.warning(f"GHOST RECOVERY: {pos.symbol} exit price is 0. Pulling reality from pipeline...")
@@ -3256,7 +3257,7 @@ class TradingBrain:
                 if self.db_conn:
                     cursor = self.db_conn.cursor()
                     hold_hours = (datetime.now(timezone.utc) - pos.entry_time).total_seconds() / 3600
-                    # Samvid v1.0-beta-beta: RowID Precision + Decrypted Alpha
+                    # Samvid v1.0-beta-beta-beta: RowID Precision + Decrypted Alpha
                     cursor.execute(
                         "UPDATE trades SET exit_price=?, outcome=?, pnl_dollars=?, r_multiple=?, "
                         "hold_hours=?, belief_at_exit=?, net_pnl=? WHERE rowid=?",
@@ -3329,7 +3330,7 @@ class TradingBrain:
                              await self.dms._send_telegram_message("📢 <b>[Sovereign Alert]</b>: Phantom Probe Failure. System wiring check returned REJECT.")
             except Exception as e:
                 logger.error(f"Phantom Probe Error: {e}")
-            
+
             await asyncio.sleep(3600) # Once per hour
 
     async def _background_conviction_sync(self) -> None:
@@ -3355,21 +3356,21 @@ class TradingBrain:
                 from coordinator import TradingCoordinator
                 now_iso = datetime.now(timezone.utc).isoformat()
                 new_convictions = {}
-                
-                # Samvid v1.0-beta-beta: Use class-level semaphore to manage neural contention (Ollama/VRAM)
+
+                # Samvid v1.0-beta-beta-beta: Use class-level semaphore to manage neural contention (Ollama/VRAM)
                 async with TradingCoordinator.get_neural_semaphore():
                     # 1. Oracle Poll
                     if self.dhatu_oracle:
                         try:
                             res = await asyncio.wait_for(
-                                asyncio.to_thread(self.dhatu_oracle.evaluate_proposal, global_ctx), 
+                                asyncio.to_thread(self.dhatu_oracle.evaluate_proposal, global_ctx),
                                 timeout=20.0
                             )
                             res["timestamp"] = now_iso
                             new_convictions["Dhatu_Oracle"] = res
                         except (asyncio.TimeoutError, Exception) as e:
                             logger.warning(f"Brain: Dhatu_Oracle sync latency/error: {type(e).__name__}")
-                    
+
                     # 2. Swarm Poll
                     if self.swarm_predictor:
                         try:
@@ -3382,7 +3383,7 @@ class TradingBrain:
                         except (asyncio.TimeoutError, Exception) as e:
                             import traceback
                             logger.warning(f"Brain: Swarm_Predictor sync latency/error: {type(e).__name__}\n{traceback.format_exc()}")
-                    
+
                     # 3. Ultrathink Poll
                     if self.mind_ultrathink:
                         try:
@@ -3400,10 +3401,10 @@ class TradingBrain:
                 logger.debug(f"🧠 Brain: Global Conviction State synchronized ({len(new_convictions)} agents).")
 
                 logger.debug("🧠 Brain: Global Conviction State synchronized.")
-                
+
             except Exception as e:
                 logger.error(f"Conviction Sync Error: {e}")
-            
+
             # Update every 60 seconds (Cognitive Refresh Rate)
             await asyncio.sleep(60)
 
@@ -3413,7 +3414,7 @@ class TradingBrain:
             # 1. Access Agent C
             if hasattr(self.coordinator, "agents") and "agent_c_ibkr" in self.coordinator.agents:
                 agent = self.coordinator.agents["agent_c_ibkr"]
-                
+
                 # Directly get positions from IB
                 import ib_insync
                 if hasattr(agent, "ib") and agent.ib.isConnected():
@@ -3421,18 +3422,18 @@ class TradingBrain:
                     if not positions:
                         logger.info("🛡️ SHIELD: No positions to liquidate. Clean Slate.")
                         return
-                    
+
                     logger.critical(f"🛡️ SHIELD: Liquidating {len(positions)} positions immediately.")
                     for p in positions:
                         contract = p.contract
                         qty = p.position
                         action = "SELL" if qty > 0 else "BUY"
                         abs_qty = abs(qty)
-                        
+
                         logger.warning(f"🛡️ SHIELD: Closing {contract.symbol} ({action} {abs_qty})")
                         order = ib_insync.MarketOrder(action, abs_qty)
                         agent.ib.placeOrder(contract, order)
-                    
+
                     logger.info("🛡️ SHIELD: Liquidation orders broadcast. Waiting for sync...")
                     await asyncio.sleep(5)
                     logger.critical("🏛️ SOVEREIGN SHIELD: TOTAL LIQUIDATION COMPLETE.")
@@ -3440,7 +3441,7 @@ class TradingBrain:
             logger.error(f"SHIELD: Panic Liquidation Failed: {e}")
 
     async def get_system_stats(self) -> dict[str, Any]:
-        """PILLAR 6: System Telemetry Synthesis (Samvid v1.0-beta-beta)."""
+        """PILLAR 6: System Telemetry Synthesis (Samvid v1.0-beta-beta-beta)."""
         return {
             "session_pnl": self.session_pnl,
             "session_stats": self.session_stats,
@@ -3452,12 +3453,12 @@ class TradingBrain:
         }
 
     async def stop(self) -> None:
-        """Graceful shutdown (Samvid v1.0-beta-beta)."""
+        """Graceful shutdown (Samvid v1.0-beta-beta-beta)."""
         logger.info("Stopping Trading Brain...")
         self.is_running = False
-        
+
         # ── COGNITIVE SHUTDOWN (Agent H Lifecycle Fix) ──
         if hasattr(self, "mind_observer") and self.mind_observer:
             self.mind_observer.stop()
-            
+
         await self.qdb.stop()

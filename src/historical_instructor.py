@@ -1,4 +1,5 @@
 import logging
+
 from backtest_engine import run_phase1_validation
 from quant_signals import QuantConsensus
 
@@ -6,7 +7,7 @@ logger = logging.getLogger(__name__)
 
 class HistoricalInstructor:
     """
-    Samvid v1.0-beta-beta Sovereign Instructor.
+    Samvid v1.0-beta-beta-beta Sovereign Instructor.
     Validates century-scale models using the backtest engine.
     """
     def __init__(self):
@@ -19,7 +20,7 @@ class HistoricalInstructor:
     def run_sanity_check(self, symbol: str = "SPY"):
         """
         GAP-52: Non-Circular Sanity Check.
-        Uses a fixed-rule 'Baseline Observer' to verify if the model is actually 
+        Uses a fixed-rule 'Baseline Observer' to verify if the model is actually
         finding alpha or just agreeing with itself.
         """
         logger.info(f"Instructor: Running NEUTRAL sanity check for {symbol}...")

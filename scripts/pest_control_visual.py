@@ -15,7 +15,7 @@ REPLACEMENTS = {
 
 def pest_control_encoding(dir_path):
     print(f"Pest Control: Sanitizing aesthetics in {dir_path}")
-    for root, dirs, files in os.walk(dir_path):
+    for root, _dirs, files in os.walk(dir_path):
         if any(x in root for x in [".git", ".gemini", "venv", "__pycache__"]):
             continue
         for file in files:
@@ -24,14 +24,14 @@ def pest_control_encoding(dir_path):
                 try:
                     with open(path, 'rb') as f:
                         raw = f.read()
-                    
+
                     if not raw: continue
-                    
+
                     # 1. Start with raw UTF-8 decode
                     try:
                         content = raw.decode('utf-8')
                         changed = False
-                        
+
                         # Fix misrendered "â" sequences that were accidentally escaped/converted
                         # Common pattern: "❌" might be stored as "â \u008c" or similar
                         misrendered = {
@@ -40,14 +40,13 @@ def pest_control_encoding(dir_path):
                             "❌": "❌",
                             "✖": "✖",
                             "—": "—",
-                            "✅": "✅",
                         }
-                        
+
                         for old, fixed in misrendered.items():
                             if old in content:
                                 content = content.replace(old, fixed)
                                 changed = True
-                        
+
                         if changed:
                             with open(path, 'w', encoding='utf-8', newline='\n') as f:
                                 f.write(content)
@@ -75,7 +74,7 @@ def pest_control_encoding(dir_path):
                                 if o in fixed_cp:
                                     fixed_cp = fixed_cp.replace(o, f)
                                     cp_changed = True
-                            
+
                             if cp_changed:
                                 with open(path, 'w', encoding='utf-8', newline='\n') as f:
                                     f.write(fixed_cp)

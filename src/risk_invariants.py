@@ -1,7 +1,5 @@
 import logging
-import os
 from dataclasses import dataclass
-from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -17,7 +15,7 @@ class RiskInvariants:
     Ensures that critical risk constants haven't been tampered with
     by an AI agent or a bug.
     """
-    
+
     # Hardcoded Sanctity Bounds
     SANCTITY_BOUNDS = {
         "SYSTEM_MAX_RISK": InvariantBounds(0.005, 0.05, "Maximum total system risk (0.5% - 5%)"),
@@ -35,21 +33,21 @@ class RiskInvariants:
         """
         import config
         corrupted = False
-        
+
         for key, bounds in cls.SANCTITY_BOUNDS.items():
             val = getattr(config, key, None)
             if val is None:
                 logger.critical(f"RISK CORRUPTION: Constant '{key}' is MISSING from config!")
                 corrupted = True
                 continue
-                
+
             if not (bounds.min_val <= val <= bounds.max_val):
                 logger.critical(
                     f"RISK CORRUPTION: '{key}' is {val}, which is outside safe bounds "
                     f"[{bounds.min_val}, {bounds.max_val}]! ({bounds.description})"
                 )
                 corrupted = True
-                
+
         return not corrupted
 
     @classmethod
@@ -62,10 +60,10 @@ class RiskInvariants:
         if not bounds:
             logger.warning(f"INVARIANT WARNING: No bounds defined for '{key}'. Mutation BLOCKED by default.")
             return False
-            
+
         if bounds.min_val <= proposed_value <= bounds.max_val:
             return True
-            
+
         logger.critical(
             f"INVARIANT VETO: Mutation for '{key}' to {proposed_value} is OUTSIDE SANCTITY BOUNDS "
             f"[{bounds.min_val}, {bounds.max_val}]! {bounds.description}"
@@ -80,11 +78,11 @@ class RiskInvariants:
         """
         if balance <= 0:
             return False
-            
+
         risk_pct = risk_dollars / balance
         # Absolute maximum risk per trade invariant: 3%
         if risk_pct > 0.03:
             logger.critical(f"RISK VIOLATION: Proposed trade risk {risk_pct:.2%} exceeds 3% hard invariant!")
             return False
-            
+
         return True

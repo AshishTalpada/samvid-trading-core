@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 
 class SessionRestorer:
     """
-    Quantum Session Restoration (Samvid v1.0-beta-beta).
+    Quantum Session Restoration (Samvid v1.0-beta-beta-beta).
     Inspired by Claude-Code's tmuxSocket.ts and terminalPanel.ts.
     Allows for 'State Freezing' and 'Thawing' of the cognitive process.
     """
@@ -147,7 +147,7 @@ class SessionRestorer:
             return None
 
     def save_cognitive_capsule(self, state: Dict[str, Any]) -> None:
-        """Samvid v1.0-beta-beta: Persists the Short-Term 'Vibe' of the market."""
+        """Samvid v1.0-beta-beta-beta: Persists the Short-Term 'Vibe' of the market."""
         from time_sync import TimeSync
         try:
             capsule_path = "data/cognitive_capsule.json"
@@ -169,7 +169,7 @@ class SessionRestorer:
                 if os.path.getsize(capsule_path) == 0:
                     logger.info("SessionRestorer: Cognitive capsule is empty. Starting fresh.")
                     return {}
-                    
+
                 with open(capsule_path, "r") as f:
                     try:
                         data = json.load(f)
@@ -204,33 +204,33 @@ class SessionRestorer:
 
     async def reconcile_with_broker(self, ib: Any, db_conn: sqlite3.Connection) -> list[Any]:
         """
-        Sovereign Reconciliation (Samvid v1.0-beta-beta): The 'Adoption' Protocol.
+        Sovereign Reconciliation (Samvid v1.0-beta-beta-beta): The 'Adoption' Protocol.
         Synchronizes broker positions with the database and managed tasks.
         Returns a list of Position objects to be injected into the Brain.
         """
         logger.info("🛡  Reconciler: Probing broker for state discrepancies...")
         adopted_positions = []
-        
+
         try:
             # 1. Fetch current Broker Positions
             ib_pos = ib.positions()
             broker_map = {p.contract.symbol: p for p in ib_pos}
-            
+
             # 2. Fetch Active Database Trades
             db_conn.row_factory = sqlite3.Row # Ensure safe dictionary-style access
             cursor = db_conn.cursor()
             cursor.execute("SELECT id, instrument, direction, shares_remaining, stop_price, target_price FROM trades WHERE status = 'OPEN'")
             db_trades = cursor.fetchall()
             db_map = {t['instrument']: t for t in db_trades}
-            
+
             # 3. Handle ORPHANS (In Broker, but not managed in DB)
             from system_types import Position
-            
+
             for symbol, p in broker_map.items():
                 broker_qty = abs(p.position)
                 if symbol not in db_map:
                     logger.warning(f"🧟 Reconciler: ORPHAN DETECTED [{symbol} | {broker_qty}]. Initiating Adoption Protocol.")
-                    
+
                     # GAP-61 FIX: Get actual market price if avgCost is 0
                     price = p.avgCost
                     if price <= 0:
@@ -241,18 +241,18 @@ class SessionRestorer:
                             logger.info(f"Reconciler: avgCost was 0 for {symbol}. Fetched marketPrice: ${price:.2f}")
                         except Exception:
                             price = 0.0
-                    
+
                     if price <= 0:
                         logger.error(f"Zombie Trade Risk: Could not resolve valid price for {symbol}. DEFERRING adoption.")
                         continue
-                        
+
                     direction = "LONG" if p.position > 0 else "SHORT"
-                    
+
                     # GAP-107 FIX: Dynamic Stop/Target based on ATR or 2.5x spread (fallback to 2.5%)
                     # Previously was hardcoded 1.5% which was too tight for adoption.
-                    stop_dist = price * 0.025 
+                    stop_dist = price * 0.025
                     target_dist = price * 0.05
-                    
+
                     # Create the Adoption Record
                     adopted = Position(
                         symbol=symbol,
@@ -266,11 +266,11 @@ class SessionRestorer:
                         shares_remaining=broker_qty,
                         meta={"adoption_ts": datetime.now(timezone.utc).isoformat()}
                     )
-                    
+
                     # Persist Adoption to DB
                     cursor.execute(
                         "INSERT INTO trades (instrument, direction, quantity, entry_price, status, stop_price, target_price, notes) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-                        (symbol, direction, broker_qty, price, "OPEN", adopted.stop_loss, adopted.take_profit, "Sovereign Adoption Protocol v1.0-beta")
+                        (symbol, direction, broker_qty, price, "OPEN", adopted.stop_loss, adopted.take_profit, "Sovereign Adoption Protocol v1.0-beta-beta")
                     )
                     adopted.db_id = cursor.lastrowid
                     adopted_positions.append(adopted)

@@ -1,9 +1,9 @@
-import logging
 import hashlib
 import hmac
-import base64
-import os
+import logging
+
 from cryptography.fernet import Fernet
+
 from vault import Vault
 
 logger = logging.getLogger(__name__)
@@ -24,11 +24,11 @@ class DatabaseSecurity:
             if not key:
                 logger.critical("DB_ENCRYPTION_KEY MISSING FROM VAULT!")
                 raise RuntimeError("System integrity compromised: DB_ENCRYPTION_KEY not found.")
-            
+
             cls._fernet = Fernet(key.encode())
             # Derive a secondary HMAC key for extra layer of integrity (GAP-88)
             cls._hmac_key = hashlib.sha256(key.encode() + b"HMAC_INTEGRITY").digest()
-            
+
         return cls._fernet
 
     @classmethod
@@ -53,7 +53,7 @@ class DatabaseSecurity:
         """Decrypt with mandatory HMAC verification (GAP-88)."""
         if not encrypted_data:
             return ""
-        
+
         try:
             if ":" not in encrypted_data:
                 # Fallback for legacy non-HMAC data to prevent system crash
@@ -61,7 +61,7 @@ class DatabaseSecurity:
 
             provided_hmac, actual_data = encrypted_data.split(":", 1)
             actual_data_bytes = actual_data.encode()
-            
+
             # Verify Integrity BEFORE Decryption
             expected_hmac = cls._generate_hmac(actual_data_bytes)
             if not hmac.compare_digest(provided_hmac, expected_hmac):
@@ -85,8 +85,8 @@ class DatabaseSecurity:
     @classmethod
     def rotate_key(cls, new_key: str) -> None:
         """GAP-84: Support for rotating the master encryption key."""
-        # Implementation would involve decrypting all DB records with old key 
-        # and re-encrypting with new key. 
+        # Implementation would involve decrypting all DB records with old key
+        # and re-encrypting with new key.
         # For now, we clear the cache so the new key is used for subsequent operations.
         cls._fernet = None
         cls._hmac_key = None

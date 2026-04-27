@@ -1,13 +1,16 @@
 """
-Samvid v1.0-beta-beta — Quantitative Signal Library
+Samvid v1.0-beta-beta-beta — Quantitative Signal Library
 Replaces LLM agent opinions with statistically validated signals.
 Each signal is independently testable and has a known theoretical basis.
 """
 from __future__ import annotations
+
 import logging
-import numpy as np
 from dataclasses import dataclass, field
 from typing import Optional
+
+import numpy as np
+
 from config import STARTING_CAPITAL_CAD
 
 logger = logging.getLogger(__name__)
@@ -49,11 +52,11 @@ class RegimeFilter:
         """Fit HMM on historical log-returns. Call during backtesting."""
         try:
             from hmmlearn import hmm
-            
+
             # GAP-21 HARDENING: Increased floor to 500 bars + Variance check
             returns = np.diff(np.log(np.abs(prices) + 1e-10)).reshape(-1, 1)
             returns = returns[np.isfinite(returns).all(axis=1)]
-            
+
             if len(returns) < 500:
                 logger.warning(f"RegimeFilter: insufficient data ({len(returns)} < 500)")
                 return
@@ -128,7 +131,7 @@ class MultiFactorAlpha:
             'vol_regime':     0.15,
             'volume_surge':   0.15,
         }
-        # Samvid v1.0-beta-beta: Kalman state for vol smoothing
+        # Samvid v1.0-beta-beta-beta: Kalman state for vol smoothing
         self._vol_kalman = None
         self._vol_P = 1.0
 
@@ -212,7 +215,7 @@ class KalmanEntryTimer:
         self.Q = process_noise       # process noise
         self.R = observation_noise   # observation noise
         # GAP-22 FIX: Per-symbol state tracking to prevent drift/contamination
-        self._states: dict[str, dict] = {} 
+        self._states: dict[str, dict] = {}
 
     def _get_state(self, symbol: str) -> dict:
         if symbol not in self._states:
@@ -245,7 +248,7 @@ class KalmanEntryTimer:
         try:
             state = self._get_state(symbol)
             current_price = float(prices[-1])
-            
+
             # Optimization: If the last seen price for this symbol is the previous bar,
             # just update with the NEW bar instead of re-running the entire array.
             if state["x"] is not None and len(prices) >= 2 and abs(prices[-2] - state["last_price"]) < 1e-8:
@@ -260,7 +263,7 @@ class KalmanEntryTimer:
 
             recent_std = float(np.std(prices[-20:])) if len(prices) >= 20 else 1.0
             deviation = (current_price - kalman_estimate) / (recent_std + 1e-10)
-            
+
             score = float(np.clip(-deviation * 0.5, -1.0, 1.0))
             confidence = min(0.9, 0.4 + abs(deviation) * 0.2)
 
@@ -296,12 +299,12 @@ class KellyPositionSizer:
 
             b = avg_win / avg_loss
             p, q = win_rate, 1.0 - win_rate
-            
+
             # GAP-233 FIX: Avoid division by zero if r_r_ratio (b) is zero or negative
             if b <= 0:
                 return SignalResult("kelly", 0.0, 0.5, "NEUTRAL",
                                     {"position_usd": 0, "kelly_f": 0})
-            
+
             kelly_f = (b * p - q) / b
 
             # Half-Kelly for safety
@@ -340,11 +343,12 @@ class QuantConsensus:
         self.position_sizer  = KellyPositionSizer()
         self._fitted         = False
         if trained_weights:
-            logger.info(f"QuantConsensus: loaded trained weights from Phase 1")
+            logger.info("QuantConsensus: loaded trained weights from Phase 1")
 
     @staticmethod
     def _load_trained_weights() -> Optional[dict]:
-        import json, os
+        import json
+        import os
         paths = [
             os.path.join(os.path.dirname(__file__), "trained_weights.json"),
             "src/trained_weights.json",
@@ -355,12 +359,12 @@ class QuantConsensus:
                 try:
                     with open(p) as f:
                         data = json.load(f)
-                    
+
                     # GAP-182: Log metadata for auditability
                     version = data.get("version", "UNKNOWN")
                     trained_at = data.get("trained_at", "UNKNOWN")
                     logger.info(f"QuantConsensus: Sourcing weights from {p} (Version: {version}, Trained: {trained_at})")
-                    
+
                     return data.get("factor_weights")
                 except Exception:
                     pass
@@ -382,7 +386,7 @@ class QuantConsensus:
         """
         regime_signal = self.regime_filter.predict(prices)
         current_regime = regime_override or regime_signal.meta.get("regime", "UNKNOWN")
-        
+
         alpha    = self.alpha_model.compute(prices, volumes, regime=current_regime)
         entry    = self.entry_timer.compute(symbol, prices)
         sizing   = self.position_sizer.compute(win_rate, avg_win, avg_loss, portfolio_value)

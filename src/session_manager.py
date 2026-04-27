@@ -1,13 +1,14 @@
-import aiohttp
 import asyncio
 import logging
 from typing import Optional
+
+import aiohttp
 
 logger = logging.getLogger(__name__)
 
 class SovereignSession:
     """
-    Samvid v1.0-beta-beta: Global Shared HTTP Session Manager (GAP-200).
+    Samvid v1.0-beta-beta-beta: Global Shared HTTP Session Manager (GAP-200).
     Prevents TCP connection leakage and memory exhaustion by pinning
     all outgoing HTTP requests to a single, persistent session.
     """

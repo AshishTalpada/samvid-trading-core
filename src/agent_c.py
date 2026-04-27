@@ -15,6 +15,7 @@ import sqlite3
 from datetime import datetime
 from pathlib import Path
 from typing import Any
+
 import numpy as np
 
 logger = logging.getLogger(__name__)
@@ -35,7 +36,7 @@ class EvolutionManager:
             self.db_path = str(project_root / "data" / "evolution.db")
         else:
             self.db_path = db_path
-            
+
         self._init_db()
         # GAP-209 FIX: Persistent connection for high-frequency snapshots
         self.conn = sqlite3.connect(self.db_path, timeout=60.0, check_same_thread=False)
@@ -126,7 +127,7 @@ class EvolutionManager:
         """
         if main_db_path is None:
             main_db_path = self.main_db_path
-            
+
         try:
             # Audit Fix [C3]: Parameterized/Safe ATTACH DATABASE
             from pathlib import Path
@@ -164,18 +165,18 @@ class EvolutionManager:
             best_state = "None"
             best_expectancy = -999.0
 
-            for state, total, wins, avg_pnl, g_wins, g_losses in rows:
+            for state, total, wins, _avg_pnl, g_wins, g_losses in rows:
                 wr = wins / total if total > 0 else 0.0
                 pf = g_wins / g_losses if g_losses > 0 else (g_wins if g_wins > 0 else 1.0)
                 expectancy = (wr * (g_wins/wins if wins > 0 else 0)) - ((1-wr) * (g_losses/(total-wins) if total > wins else 0))
-                
+
                 stats[state] = {
-                    "wr": round(wr, 2), 
-                    "n": total, 
+                    "wr": round(wr, 2),
+                    "n": total,
                     "pf": round(pf, 2),
                     "expectancy": round(expectancy, 2)
                 }
-                
+
                 if expectancy > best_expectancy:
                     best_expectancy = expectancy
                     best_state = state
@@ -199,8 +200,9 @@ class EvolutionManager:
             main_db_path = self.main_db_path
         try:
             from pathlib import Path
+
             from database_security import DatabaseSecurity
-            
+
             safe_db_path = str(Path(main_db_path).resolve())
             if not Path(safe_db_path).exists():
                 return {"error": "Main DB not found"}
@@ -214,7 +216,7 @@ class EvolutionManager:
             # 1. Fetch all trades to handle encryption in application layer
             cursor.execute("SELECT pnl_dollars FROM trades ORDER BY timestamp ASC")
             rows = cursor.fetchall()
-            
+
             if not rows:
                 conn.close()
                 return {"n": 0, "win_rate": 0.0, "total_pnl": 0.0, "max_drawdown": 0.0, "pf": 0.0, "sortino": 0.0}
@@ -224,12 +226,12 @@ class EvolutionManager:
             gross_wins = 0.0
             gross_losses = 0.0
             wins = 0
-            
+
             for row in rows:
                 val_raw = row['pnl_dollars']
                 if val_raw is None:
                     continue
-                
+
                 try:
                     if isinstance(val_raw, str) and val_raw.startswith("gAAAAA"):
                         p = DatabaseSecurity.decrypt_float(val_raw)
@@ -237,7 +239,7 @@ class EvolutionManager:
                         p = float(val_raw)
                 except Exception:
                     continue
-                
+
                 pnls.append(p)
                 if p > 0:
                     wins += 1
@@ -249,16 +251,16 @@ class EvolutionManager:
             if n == 0:
                 conn.close()
                 return {"n": 0, "win_rate": 0.0, "total_pnl": 0.0, "max_drawdown": 0.0, "pf": 0.0, "sortino": 0.0}
-                
+
             win_rate = wins / n
             profit_factor = gross_wins / gross_losses if gross_losses > 0 else gross_wins
 
             # 3. Calculate Drawdown
-            equity = 500.0 
+            equity = 500.0
             peak = equity
             max_dd = 0.0
             current_equity = equity
-            
+
             for p in pnls:
                 current_equity += p
                 if current_equity > peak:
@@ -274,7 +276,7 @@ class EvolutionManager:
                 avg_ret = np.mean(pnls)
                 std_ret = np.std(pnls)
                 sharpe = (avg_ret / std_ret) if std_ret > 0 else 0.0
-                
+
                 downside_rets = [p for p in pnls if p < 0]
                 downside_std = np.std(downside_rets) if downside_rets else 0.0
                 sortino = (avg_ret / downside_std) if downside_std > 0 else (sharpe if avg_ret > 0 else 0.0)
@@ -300,13 +302,13 @@ class EvolutionManager:
         """
         import config
         from risk_invariants import RiskInvariants
-        
+
         insights = self.audit_global_performance()
         if "error" in insights or insights.get("n", 0) < 10:
             return [] # Need at least 10 trades to evolve
 
         mutations = []
-        wr = insights["win_rate"]
+        insights["win_rate"]
         dd = insights["max_drawdown"]
         sortino = insights.get("sortino", 0.0)
         pf = insights.get("pf", 0.0)
@@ -334,13 +336,13 @@ class EvolutionManager:
         # Strategy 2: Exit Threshold Tuning
         current_exit = getattr(config, "BELIEF_EXIT_THRESHOLD", 0.35)
         new_exit = current_exit
-        
+
         # If profit factor is low, tighten exits. If very high, allow more breathing room.
         if sortino < 0.5 or pf < 1.2:
             new_exit = round(current_exit - 0.05, 2)
         elif sortino > 1.5 and pf > 2.0:
             new_exit = round(current_exit + 0.05, 2)
-            
+
         # GAP-287 FIX: Clamp to Sanctity Bounds
         e_bounds = RiskInvariants.SANCTITY_BOUNDS.get("BELIEF_EXIT_THRESHOLD")
         if e_bounds:
@@ -358,7 +360,7 @@ class EvolutionManager:
         try:
             # 1. Update Runtime Memory
             setattr(config, key, value)
-            
+
             # 2. Persist to DB using standardized GAP-44 schema
             try:
                 conn = sqlite3.connect(self.db_path, timeout=60.0)
@@ -371,7 +373,7 @@ class EvolutionManager:
                 """, (key, str(value), 1.0, sharpe, datetime.now().isoformat()))
                 conn.commit()
                 conn.close()
-            
+
                 logger.warning(f"🧬 MUTATION APPLIED: {key} is now {value}. System has evolved.")
             except Exception as e:
                 logger.error(f"EvolutionManager: Failed to apply mutation {key}: {e}")
@@ -393,12 +395,12 @@ class EvolutionManager:
             cursor = conn.cursor()
             cursor.execute("SELECT parameter_name, parameter_value FROM brain_optimization")
             rows = cursor.fetchall()
-            
+
             restored_count = 0
             for row in rows:
                 key = row['parameter_name']
                 val = float(row['parameter_value'])
-                
+
                 # Double-check safety even on load (prevents corruption at rest)
                 from risk_invariants import RiskInvariants
                 if hasattr(config, key) and RiskInvariants.is_mutation_safe(key, val):

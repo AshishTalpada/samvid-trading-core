@@ -19,17 +19,17 @@ Critical rules enforced:
 - F9: Partial exits defined per pattern — BullFlag, H&S, FallingWedge, etc.
 - F10: Resolution windows start at 2× theoretical, calibrate after 30 trades
 - P-01: Entropy monitor detects system decay — triggers urgent maintenance
-- Samvid v1.0-beta-beta: Bayesian priors integrated for cold-start stall bypass
-- Samvid v1.0-beta-beta: LiveRecursiveEvolution (Recursive Back-Prop) Active
+- Samvid v1.0-beta-beta-beta: Bayesian priors integrated for cold-start stall bypass
+- Samvid v1.0-beta-beta-beta: LiveRecursiveEvolution (Recursive Back-Prop) Active
 """
 
 from __future__ import annotations  # pyre-ignore[21]
 
 import json
 import logging  # pyre-ignore[21]
-import time
 import math  # pyre-ignore[21]
 import statistics  # pyre-ignore[21]
+import time
 from dataclasses import dataclass  # pyre-ignore[21]
 from datetime import datetime  # pyre-ignore[21]
 from pathlib import Path
@@ -38,7 +38,7 @@ from typing import Any, Dict  # pyre-ignore[21]
 
 class LiveRecursiveEvolution:
     """
-    Sovereign v1.0-beta Stable Evolution Engine.
+    Sovereign v1.0-beta-beta Stable Evolution Engine.
     GAP-43 FIX: Implements 'Learning Inertia' to prevent Luck-Based Weight Drift.
     Ensures that as pattern maturity (n_count) grows, individual noisy outcomes
     have diminishing impact on the core belief system.
@@ -54,7 +54,7 @@ class LiveRecursiveEvolution:
         # outcome: 1=WIN, -1=LOSS, 0=BE
         if pnl > 0.0001: outcome = 1.0
         elif pnl < -0.0001: outcome = -1.0
-        else: return # Break-even doesn't shift the weight state (Samvid v1.0-beta-beta)
+        else: return # Break-even doesn't shift the weight state (Samvid v1.0-beta-beta-beta)
 
         if not (self.atlas and getattr(self.atlas, "atlas_data", {})):
             return
@@ -63,7 +63,7 @@ class LiveRecursiveEvolution:
         n_count = len(patterns)
         if n_count == 0: return
 
-        # --- LEARNING INERTIA (Samvid v1.0-beta-beta) ---
+        # --- LEARNING INERTIA (Samvid v1.0-beta-beta-beta) ---
         # As n increases, the impact of 1 trade (alpha) decreases.
         # Base alpha 0.4 (40% impact for 1st trade) -> alpha 0.01 (1% impact for 400th trade)
         base_alpha = 0.4
@@ -82,12 +82,12 @@ class LiveRecursiveEvolution:
         for i in range(min(100, len(patterns))):
             idx = -(i+1)
             data = list(patterns[idx])
-            
+
             # Recency Decay: 100% impact for current trade, 50% for 50th trade back
             recency_decay = 1.0 / (1.0 + (i / 50.0))
             current_multiplier = 1.0 + (alpha * outcome * recency_decay)
-            
-            # CAP: min 0.1, max 3.0 (Sovereign v1.0-beta)
+
+            # CAP: min 0.1, max 3.0 (Sovereign v1.0-beta-beta)
             new_weight = data[1] * current_multiplier
             data[1] = min(3.0, max(0.1, new_weight))
             patterns[idx] = tuple(data)
@@ -417,7 +417,7 @@ class SystemEntropyMonitor:
         signals.append(regime_accuracy)
 
         # Combined entropy score: negative = decaying, positive = thriving
-        # Samvid v1.0-beta-beta: Empty list safety guard
+        # Samvid v1.0-beta-beta-beta: Empty list safety guard
         if not signals:
             return "LOW"
         entropy = sum(signals) / len(signals)
@@ -462,7 +462,7 @@ class ExpectancyData:
     data_rating: str = "INSUFFICIENT"
 
     def __post_init__(self):
-        # Samvid v1.0-beta-beta: Safety floor on denominator to prevent division-by-zero explosions
+        # Samvid v1.0-beta-beta-beta: Safety floor on denominator to prevent division-by-zero explosions
         if self.weighted_n > 0.0001:
             self.win_rate = self.weighted_wins / self.weighted_n
             self.avg_r = self.weighted_r / self.weighted_n
@@ -479,7 +479,7 @@ class ConditionalExpectancyMatrix:
     Builds a matrix of expected win rates conditioned on:
     pattern × regime × session
 
-    Samvid v1.0-beta-beta: Bayesian Warm-Start.
+    Samvid v1.0-beta-beta-beta: Bayesian Warm-Start.
     Activates from trade #1 by using historical priors.
     As live trades increase, the prior's influence decays.
     """
@@ -538,17 +538,17 @@ class ConditionalExpectancyMatrix:
             logging.getLogger(__name__).error(f"ConditionalExpectancyMatrix: Persistence failed: {e}")
 
     def build(
-        self, 
-        trade_history: Any, 
-        total_count: int | None = None, 
+        self,
+        trade_history: Any,
+        total_count: int | None = None,
         incremental: bool = False
     ) -> dict[str, ExpectancyData]:
         """
         Build or update the expectancy matrix while minimizing RAM.
-        Samvid v1.0-beta-beta: Supports streaming iterators and incremental updates.
+        Samvid v1.0-beta-beta-beta: Supports streaming iterators and incremental updates.
         """
         self.activated = True
-        
+
         if not incremental:
             self._raw_stats = {}
             self.n_live_historical = 0
@@ -613,7 +613,7 @@ class ConditionalExpectancyMatrix:
             self._raw_stats[key]["weighted_r"] += r_mult * weight
             if outcome == "WIN":
                 self._raw_stats[key]["weighted_wins"] += weight
-            
+
             if not incremental:
                 self.n_live_historical += 1
 
@@ -665,7 +665,7 @@ class ConditionalExpectancyMatrix:
         key = f"{pattern}|{regime}|{session}"
         data = self.matrix.get(key)
 
-        # Samvid v1.0-beta-beta: Session-Blindness Guard
+        # Samvid v1.0-beta-beta-beta: Session-Blindness Guard
         # If no session-specific data exists, fallback to RTH (the wisdom anchor)
         if data is None and session != "RTH":
             fallback_key = f"{pattern}|{regime}|RTH"
@@ -737,14 +737,14 @@ class PartialExitRules:
             "SECTOR_SYMPATHY": self._sector_sympathy_exits,
             "GAP_FILL": self._gap_fill_exits,
         }
- 
+
         fn = rules.get(pattern_upper, self._default_exits)
-        
-        # Samvid v1.0-beta-beta: Directional Parity (F9-Short Fix)
+
+        # Samvid v1.0-beta-beta-beta: Directional Parity (F9-Short Fix)
         # We pass a Directional Multiplier (1 for LONG, -1 for SHORT)
         # to ensure exits project correctly in price space.
         mult = -1.0 if direction.upper() == "SHORT" else 1.0
-        
+
         return fn(entry_price, r_size, mult)
 
     def _bull_flag_exits(self, entry: float, r: float, m: float) -> list[ExitLevel]:
@@ -1190,7 +1190,7 @@ class CalibrationPipeline:
 def run_after_trade(trade_result: dict, n_total: int, n_wins: int, recent_trades: list[dict]) -> dict:
     """
     Run Agent D's learning cycle after every completed trade.
-    Optimized for RAM (Samvid v1.0-beta-beta).
+    Optimized for RAM (Samvid v1.0-beta-beta-beta).
 
     Args:
         trade_result: The completed trade
@@ -1203,7 +1203,7 @@ def run_after_trade(trade_result: dict, n_total: int, n_wins: int, recent_trades
     """
     gate = StatisticalSignificanceGate()
     entropy = SystemEntropyMonitor()
-    
+
     rating = gate.rate_data(n_total)
     matrix_active = n_total >= ConditionalExpectancyMatrix.MIN_TRADES
 
@@ -1314,25 +1314,25 @@ class LiveLearningEngine:
             _lld_logger.warning(f"LiveLearningEngine: cannot ensure table: {e}")
 
     def _load_history(self) -> None:
-        """Load historical trade metrics from SQLite without bloating RAM (Samvid v1.0-beta-beta)."""
+        """Load historical trade metrics from SQLite without bloating RAM (Samvid v1.0-beta-beta-beta)."""
         try:
             conn = _sqlite3.connect(self.db_path, timeout=60)
             conn.execute("PRAGMA journal_mode=WAL;")
             conn.execute("PRAGMA busy_timeout = 60000;")
             conn.row_factory = _sqlite3.Row
-            
+
             # 1. Get totals via SQL to avoid loading 1,000,000 rows into RAM
             row = conn.execute("SELECT COUNT(*), SUM(CASE WHEN outcome='WIN' THEN 1 ELSE 0 END) FROM agent_d_trades").fetchone()
             self._n_trades = row[0] if row else 0
             self._n_wins = row[1] if row and row[1] else 0
-            
+
             # 2. Rebuild Matrix via streaming SQL aggregation
             if self._n_trades >= ConditionalExpectancyMatrix.MIN_TRADES:
                 _lld_logger.info(f"LiveLearningEngine: Bootstrapping Matrix from {self._n_trades} trades (Streaming SQL)...")
-                
+
                 # Fetch only required columns for matrix build
                 cursor = conn.execute("SELECT pattern, regime, session, outcome, r_multiple FROM agent_d_trades")
-                
+
                 # Use a generator to build matrix without a full list copy
                 def trade_generator():
                     while True:
@@ -1346,10 +1346,10 @@ class LiveLearningEngine:
                                 "outcome": r[3],
                                 "r_multiple": r[4]
                             }
-                
+
                 self._matrix.build(trade_generator(), total_count=self._n_trades)
                 _lld_logger.info("LiveLearningEngine: ConditionalExpectancyMatrix ACTIVATED (RAM-Lean Warm-Start)")
-            
+
             # 3. Load only the most RECENT trades for trend tracking
             rows = conn.execute("SELECT * FROM agent_d_trades ORDER BY id DESC LIMIT 200").fetchall()
             conn.close()
@@ -1431,7 +1431,7 @@ class LiveLearningEngine:
         self._n_trades += 1
         if trade["outcome"] == "WIN":
             self._n_wins += 1
-        
+
         n = self._n_trades
 
         # Run gate + calibration (using RAM-lean helper)
@@ -1452,9 +1452,9 @@ class LiveLearningEngine:
         # Build matrix if threshold crossed (AND trade is NOT dirty)
         is_dirty = payload.get("is_dirty", False)
         if result["matrix_active"] and not is_dirty:
-            # Re-incrementally build matrix? No, for now we let build() take 
+            # Re-incrementally build matrix? No, for now we let build() take
             # the single new trade to be fast.
-            matrix_data_raw = self._matrix.build([trade], total_count=self._n_trades, incremental=True) 
+            matrix_data_raw = self._matrix.build([trade], total_count=self._n_trades, incremental=True)
             # Condense to top patterns for the bus payload
             top_patterns = []
             for key, ed in sorted(
@@ -1477,7 +1477,7 @@ class LiveLearningEngine:
         if not is_dirty and (n % 10 == 0 or n < 10):
             await self._publish_calibration()
 
-        # --- EVOLUTIONARY CHECKPOINT (Samvid v1.0-beta-beta) ---
+        # --- EVOLUTIONARY CHECKPOINT (Samvid v1.0-beta-beta-beta) ---
         # Persist dynamic priors after EVERY trade to ensure 100% learning durability.
         # This prevents 'Amnesia' if the system crashes between the 50-trade cycles.
         if self._matrix.activated and not is_dirty:
@@ -1553,7 +1553,7 @@ class LiveLearningEngine:
         # --- PILLAR 7: AUTODREAM REFLECTION (SE-11 Port) ---
         last_dream_at = 0
         DREAM_INTERVAL = 3600 * 2 # dream every 2 hours
-        
+
         while True:
             try:
                 # GAP-84: Agent D Heartbeat (Pillar 6)
@@ -1593,7 +1593,7 @@ class LiveLearningEngine:
             last_trade = self._recent_trades[-1] if self._recent_trades else {}
             stats = run_after_trade(last_trade, self._n_trades, self._n_wins, list(self._recent_trades))
             entropy = stats["entropy_level"]
-            
+
             # 2. CONSOLIDATE WISDOM
             wisdom = {
                 "timestamp": datetime.now().isoformat(),
@@ -1602,20 +1602,20 @@ class LiveLearningEngine:
                 "entropy_state": entropy,
                 "top_performers": [k for k, v in sorted(self._matrix.matrix.items(), key=lambda x: x[1].win_rate, reverse=True)[:5]]
             }
-            
+
             # 3. SELF-CORRECTION (RE-WIRE IF DECAYING)
             if entropy == "HIGH ENTROPY":
                 _lld_logger.warning("🚨 [Agent D]: HIGH ENTROPY DETECTED. Forcing Emergency Weight Anchoring.")
                 # Reset Bayesian Alpha to be more aggressive for recovery
                 if self.evolution_engine:
                     # Logic shift: increased learning rate during crisis
-                    pass 
+                    pass
 
             # Persist the Dream result
             save_path = Path("data/wisdom.json")
             save_path.write_text(json.dumps(wisdom, indent=4))
             _lld_logger.info("🏛️ [Agent D]: Sovereign Dream finalized. Wisdom consolidated.")
-            
+
         except Exception as e:
             _lld_logger.error(f"Sovereign Dream failed: {e}")
 
@@ -1629,7 +1629,7 @@ class LiveLearningEngine:
 
     def evaluate_proposal(self, pattern_name: str, regime: str, session: str = "RTH") -> Dict[str, Any]:
         """
-        Standardized consensus evaluation for Samvid v1.0-beta-beta.
+        Standardized consensus evaluation for Samvid v1.0-beta-beta-beta.
         Provides Agent D's vote based on historical performance data.
         """
         win_rate = self.get_win_rate(pattern_name, regime, session)

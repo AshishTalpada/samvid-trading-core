@@ -1,4 +1,3 @@
-import os
 
 path = "src/main.py"
 with open(path, "rb") as f:
@@ -9,7 +8,7 @@ content = data.decode("utf-8", "ignore")
 new_dashboard = """    def _display_dashboard(self):
         \"\"\"Final Aesthetic Polish: Displays a terminal-grade dashboard of active Minds.\"\"\"
         print("\\n" + "╔" + "═"*78 + "╗")
-        print("║" + "  🌌  THE SOVEREIGN INFINITY MATRIX (SETO V7.2)  ".center(78) + "║")
+        print("║" + "  🌌  THE SOVEREIGN INFINITY MATRIX (Samvid v1.0-beta-beta)  ".center(78) + "║")
         print("╠" + "═"*78 + "╣")
         print("║" + f"  STATUS:   ACTIVE  |  MODE:     {self.mode.upper().center(10)}  |  TICK:  100Hz (0.01s)  ".center(78) + "║")
         print("╠" + "═"*38 + "╦" + "═"*39 + "╣")

@@ -2,7 +2,7 @@ import React, { useMemo, useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { SectionHeader } from '../ui/SovereignUI';
 
-/** 🧠 COGNITIVE MIND LAYER v1.0-beta — Large readable mind cards */
+/** 🧠 COGNITIVE MIND LAYER v1.0-beta-beta — Large readable mind cards */
 
 const MIND_META = {
   architect:  { icon: '🏛️', color: '#00e5ff', label: 'Architect',   role: 'System Designer' },

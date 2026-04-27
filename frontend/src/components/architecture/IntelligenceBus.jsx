@@ -1,7 +1,7 @@
 import React, { useMemo, useEffect, useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 
-/** ⚡ Intelligence Bus Monitor v1.0-beta — Large lane display */
+/** ⚡ Intelligence Bus Monitor v1.0-beta-beta — Large lane display */
 
 const EVENT_CONFIG = {
   'tick.hft':           { color: '#00e5ff', icon: '⚡', label: 'HFT TICK',        lane: 0 },
@@ -78,7 +78,7 @@ export default function IntelligenceBus({ eventQueue = [] }) {
     evCounter.current += fresh.length;
     fresh.forEach(ev => {
       if (ev.timestamp) {
-        // v1.0-beta: True Latency Mapping — No longer capping at 999ms to ensure system lag is visible.
+        // v1.0-beta-beta: True Latency Mapping — No longer capping at 999ms to ensure system lag is visible.
         latBuf.current.push(Date.now() - ev.timestamp);
       }
     });

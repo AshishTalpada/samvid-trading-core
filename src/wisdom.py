@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 
 class WisdomRepository:
     """
-    Samvid v1.0-beta-beta 'Wisdom' Repository (Agent L).
+    Samvid v1.0-beta-beta-beta 'Wisdom' Repository (Agent L).
     Implements 'Session Wisdom Preservation' directly from the Claude-Code memdir pattern.
     Stores and retrieves 'Post-Mortem' markdown analytics for every trade.
     """
@@ -49,7 +49,7 @@ class WisdomRepository:
             logger.error(f"Wisdom: Directory iteration failed: {e}")
             return full_context
 
-        # 2. Sort and Limit to Top 50 (Samvid v1.0-beta-beta)
+        # 2. Sort and Limit to Top 50 (Samvid v1.0-beta-beta-beta)
         # We only read the files we actually intend to use
         for wf, _mtime in sorted(wisdom_data, key=lambda x: x[1], reverse=True)[:50]:
             try:
@@ -115,7 +115,7 @@ class WisdomRepository:
 
 class SkillTreeManager:
     """
-    Samvid v1.0-beta-beta 'Autonomy Skill Tree' (Agent M).
+    Samvid v1.0-beta-beta-beta 'Autonomy Skill Tree' (Agent M).
     Manages the 'unlocked' capabilities of the Matrix based on performance.
     """
 

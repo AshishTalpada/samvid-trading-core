@@ -1,6 +1,6 @@
 import json
-import os
 import logging
+import os
 from datetime import datetime
 
 logging.basicConfig(level=logging.INFO)
@@ -22,7 +22,7 @@ def sync():
         "timestamp": datetime.now().isoformat(),
         "type": "TRAINING_INTEGRATION",
         "verdict": "SUCCESS",
-        "summary": f"Centennial Training V9.5 integrated. Avg Sharpe: {results.get('avg_sharpe', 0):.3f}",
+        "summary": f"Centennial Training v1.0-beta integrated. Avg Sharpe: {results.get('avg_sharpe', 0):.3f}",
         "learned_weights": results.get("optimised_weights", {}),
         "symbol_performance": results.get("results", {}),
         "insight": "System has successfully evolved past 10-year local bias into 100-year market survival logic."

@@ -1,7 +1,7 @@
 import React, { useMemo, useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 
-/** 🌀 Dhatu Oracle Causation Map v1.0-beta — 3-column HTML layout, large readable cards */
+/** 🌀 Dhatu Oracle Causation Map v1.0-beta-beta — 3-column HTML layout, large readable cards */
 
 const INPUT_NODES = [
   { id: 'Yields',     icon: '📈', color: '#ffb700', desc: 'Bond Yields' },
@@ -55,7 +55,7 @@ export default function OracleCausationGraph({ oracle = {}, activityMap = {} }) 
               Dhatu Oracle Causation Map
             </div>
             <div style={{ fontSize: '0.55rem', color: 'var(--dim)', fontFamily: 'JetBrains Mono' }}>
-              CAUSAL INFERENCE ENGINE · Samvid v1.0-beta-beta
+              CAUSAL INFERENCE ENGINE · Samvid v1.0-beta-beta-beta
             </div>
           </div>
         </div>
@@ -96,7 +96,7 @@ export default function OracleCausationGraph({ oracle = {}, activityMap = {} }) 
             INPUTS
           </div>
           {INPUT_NODES.map((node, i) => {
-            // v1.0-beta: Strict Data Integrity — Removing fake index-based 'activity' pulses.
+            // v1.0-beta-beta: Strict Data Integrity — Removing fake index-based 'activity' pulses.
             // Nodes are marked as active only when the system is LIVE and receiving oracle updates.
             const nodeActive = isLive; 
             return (
@@ -219,7 +219,7 @@ export default function OracleCausationGraph({ oracle = {}, activityMap = {} }) 
             OUTPUTS
           </div>
           {OUTPUT_NODES.map((node, i) => {
-            // v1.0-beta: Strict Data Integrity — Removing fake index-based 'activity' pulses.
+            // v1.0-beta-beta: Strict Data Integrity — Removing fake index-based 'activity' pulses.
             const nodeActive = isLive;
             return (
               <motion.div key={node.id}

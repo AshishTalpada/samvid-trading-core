@@ -128,7 +128,7 @@ function SignalNode({ node, accent, dhatu }) {
       transition={{ type: 'spring', stiffness: 280, damping: 22, delay: 0.05 }}>
       <defs>
         <filter id={`ng-${node.id}`}>
-          {/* v1.0-beta: Performance optimization — Using fixed-step blur to prevent SVG repaint storms on every tick */}
+          {/* v1.0-beta-beta: Performance optimization — Using fixed-step blur to prevent SVG repaint storms on every tick */}
           <feGaussianBlur stdDeviation={node.isCenter ? "4" : "2"} result="blur" />
           <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
         </filter>

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 
-/** 📡 Data Ingestion Pipeline v1.0-beta — Large HTML stage cards, horizontal flow */
+/** 📡 Data Ingestion Pipeline v1.0-beta-beta — Large HTML stage cards, horizontal flow */
 
 const SOURCES = [
   { id: 'IBKR',    icon: '⚡', rate: '100Hz', color: '#00e5ff', healthKey: 'ibkr',    desc: 'Live Feed' },
@@ -250,7 +250,7 @@ export default function DataPipelineFlow({ brain = {}, health = {}, activityMap 
             <div style={{ fontSize: '0.5rem', fontWeight: 900, fontFamily: 'JetBrains Mono', color: brainOnline ? 'var(--cyan)' : 'var(--dim)', textTransform: 'uppercase' }}>
               {brainOnline ? '⬤ LIVE' : '○ Standby'}
             </div>
-            <div style={{ fontSize: '0.45rem', color: 'var(--dim)', fontFamily: 'JetBrains Mono', letterSpacing: '0.01em' }}>Samvid v1.0-beta-beta BUS</div>
+            <div style={{ fontSize: '0.45rem', color: 'var(--dim)', fontFamily: 'JetBrains Mono', letterSpacing: '0.01em' }}>Samvid v1.0-beta-beta-beta BUS</div>
           </motion.div>
         </div>
       </div>
