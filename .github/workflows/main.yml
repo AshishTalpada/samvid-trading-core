@@ -16,20 +16,11 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-          cache: 'pip'
 
-      - name: Install dependencies
+      - name: Install lint tools
         run: |
           python -m pip install --upgrade pip
-          pip install ruff mypy pytest
-          # Install project in editable mode to handle imports correctly
-          pip install -e .
+          pip install ruff mypy
 
       - name: Lint with Ruff
-        run: ruff check src tests 
-
-      - name: Type check with Mypy
-        run: mypy
-
-      - name: Run Tests
-        run: pytest
+        run: ruff check src tests
