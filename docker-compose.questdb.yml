@@ -1,0 +1,16 @@
+# QuestDB for Unified Trading System — ILP ingest + SQL reads
+# Usage: docker compose -f docker-compose.questdb.yml up -d
+# Web UI: http://127.0.0.1:9000
+services:
+  questdb:
+    image: questdb/questdb:9.3.3
+    container_name: trading_questdb
+    ports:
+      - "9000:9000"   # REST / web console
+      - "9009:9009"   # InfluxDB line protocol (ILP) — data pipeline + ticks
+      - "8812:8812"   # PostgreSQL wire — brain OHLCV queries
+    volumes:
+      - questdb_data:/var/lib/questdb
+
+volumes:
+  questdb_data:

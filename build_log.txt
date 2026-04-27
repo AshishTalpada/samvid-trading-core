@@ -1,0 +1,96 @@
+﻿python : Nuitka-Options: 
+Used command line options:
+At line:1 char:1
++ python 
+scripts/build_optimized.py 
+2>&1 | Out-File -FilePath 
+build_log ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~
+    + CategoryInfo         
+     : NotSpecifi    ed: 
+(Nuitka-Option    s:...d 
+line option    s::String) 
+[], Rem    oteException
+    + FullyQualifiedEr    
+rorId : NativeComm    
+andError
+ 
+Nuitka-Options:   
+--standalone --onefile --ou
+tput-dir=C:\Users\talpa\Des
+ktop\System_Beta\TradingSys
+tem\dist --output-filename=
+TradingSystem 
+--follow-imports 
+--include-package=src --inc
+lude-package=ib_insync 
+--include-package=winloop 
+--lto=yes --jobs=4 --python
+-flag=no_docstrings 
+--python-flag=-O 
+--assume-yes-for-downloads 
+~\Desktop\System_Beta\Tradi
+ngSystem\src\main.py
+Nuitka:WARNING: The Python 
+version '3.14' is only 
+experimentally supported 
+by Nuitka '4.0.6', but an 
+upcoming release will 
+change that. In the mean 
+time use Python version 
+'3.13' instead or newer 
+Nuitka.
+Nuitka-Options: Following 
+all imports is the default 
+for onefile mode and need 
+not be specified.
+Nuitka: Starting Python 
+compilation with:
+Nuitka:   Version '4.0.6' 
+on Python 3.14 (flavor 
+'CPython Official') 
+commercial grade 'not 
+installed'.
+Nuitka-Plugins:WARNING: 
+anti-bloat: Undesirable 
+import of 'unittest' in 
+'winloop._testbase' (at '~\
+AppData\Roaming\Python\Pyth
+on314\site-packages\winloop
+\_testbase.py:20') 
+encountered. It may slow 
+down compilation.
+Nuitka-Plugins:WARNING:    
+ Complex topic! More 
+information can be found 
+at https://nuitka.net/info/
+unwanted-module.html
+Nuitka-Plugins:anti-bloat: 
+Not including 'pandas.core.
+_numba.extensions' 
+automatically in order to 
+avoid bloat, but this may 
+cause: no numba 
+acceleration.
+Nuitka: Downloading 'https:
+//dependencywalker.com/depe
+nds22_x64.zip'.
+Nuitka: Extracting to 'C:\U
+sers\talpa\AppData\Local\Nu
+itka\Nuitka\Cache\downloads
+\depends\x86_64\depends.exe
+'
+Nuitka: Completed Python 
+level compilation and 
+optimization.
+Nuitka: Generating source 
+code for C backend 
+compiler.
+Nuitka: Running data 
+composer tool for optimal 
+constant value handling.
+Nuitka: Running C 
+compilation via Scons.
+Nuitka-Scons: Backend C 
+compiler: cl (cl 14.5).

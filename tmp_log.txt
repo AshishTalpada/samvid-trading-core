@@ -1,0 +1,200 @@
+﻿2026-03-31 13:41:20,770 - src.data_pipeline - INFO - Fetched 100 bars for COIN (1m)
+2026-03-31 13:41:20,802 - src.data_pipeline - INFO - Fetched 100 bars for MU (1m)
+2026-03-31 13:41:20,843 - src.data_pipeline - INFO - Fetched 100 bars for MSTR (1m)
+2026-03-31 13:41:20,858 - src.data_pipeline - INFO - Fetched 100 bars for AVGO (1m)
+2026-03-31 13:41:20,868 - src.data_pipeline - INFO - Fetched 100 bars for MA (1m)
+2026-03-31 13:41:20,874 - src.data_pipeline - INFO - Fetched 100 bars for COST (1m)
+2026-03-31 13:41:20,887 - src.data_pipeline - INFO - Fetched 100 bars for JPM (1m)
+2026-03-31 13:41:20,902 - src.data_pipeline - INFO - Fetched 100 bars for V (1m)
+2026-03-31 13:41:20,912 - src.data_pipeline - INFO - Fetched 100 bars for WMT (1m)
+2026-03-31 13:41:20,926 - src.data_pipeline - INFO - Fetched 100 bars for NFLX (1m)
+2026-03-31 13:41:20,955 - src.data_pipeline - INFO - Stored 100 bars for SPY
+2026-03-31 13:41:20,969 - src.data_pipeline - INFO - Stored 100 bars for QQQ
+2026-03-31 13:41:20,984 - src.data_pipeline - INFO - Stored 100 bars for IWM
+2026-03-31 13:41:20,998 - src.data_pipeline - INFO - Stored 100 bars for DIA
+2026-03-31 13:41:21,007 - src.data_pipeline - INFO - Stored 100 bars for XLK
+2026-03-31 13:41:21,020 - src.data_pipeline - INFO - Stored 100 bars for XLF
+2026-03-31 13:41:21,029 - src.data_pipeline - INFO - Stored 100 bars for GC=F
+2026-03-31 13:41:21,036 - src.data_pipeline - INFO - Stored 100 bars for NQ=F
+2026-03-31 13:41:21,054 - src.data_pipeline - INFO - Stored 100 bars for AAPL
+2026-03-31 13:41:21,066 - src.data_pipeline - INFO - Stored 100 bars for MSFT
+2026-03-31 13:41:21,076 - src.data_pipeline - INFO - Stored 100 bars for GOOGL
+2026-03-31 13:41:21,085 - src.data_pipeline - INFO - Stored 100 bars for AMZN
+2026-03-31 13:41:21,096 - src.data_pipeline - INFO - Stored 100 bars for NVDA
+2026-03-31 13:41:21,115 - src.data_pipeline - INFO - Stored 100 bars for META
+2026-03-31 13:41:21,157 - src.data_pipeline - INFO - Stored 100 bars for TSLA
+2026-03-31 13:41:21,173 - src.data_pipeline - INFO - Stored 100 bars for AMD
+2026-03-31 13:41:21,190 - src.data_pipeline - INFO - Stored 100 bars for AVGO
+2026-03-31 13:41:21,208 - src.data_pipeline - INFO - Stored 100 bars for SMCI
+2026-03-31 13:41:21,221 - src.data_pipeline - INFO - Stored 100 bars for ARM
+2026-03-31 13:41:21,230 - src.data_pipeline - INFO - Stored 100 bars for MU
+2026-03-31 13:41:21,240 - src.data_pipeline - INFO - Stored 100 bars for PLTR
+2026-03-31 13:41:21,255 - src.data_pipeline - INFO - Stored 100 bars for COIN
+2026-03-31 13:41:21,264 - src.data_pipeline - INFO - Stored 100 bars for MSTR
+2026-03-31 13:41:21,273 - src.data_pipeline - INFO - Stored 100 bars for JPM
+2026-03-31 13:41:21,292 - src.data_pipeline - INFO - Stored 100 bars for GS
+2026-03-31 13:41:21,304 - src.data_pipeline - INFO - Stored 100 bars for V
+2026-03-31 13:41:21,313 - src.data_pipeline - INFO - Stored 100 bars for MA
+2026-03-31 13:41:21,329 - src.data_pipeline - INFO - Stored 100 bars for WMT
+2026-03-31 13:41:21,342 - src.data_pipeline - INFO - Stored 100 bars for COST
+2026-03-31 13:41:21,358 - src.data_pipeline - INFO - Stored 100 bars for NFLX
+2026-03-31 13:41:21,548 - src.data_pipeline - INFO - VIX: 26.22
+2026-03-31 13:41:21,738 - src.data_pipeline - INFO - Finnhub fetched 5 news items for SPY
+2026-03-31 13:41:22,033 - src.data_pipeline - INFO - YFinance fetched 5 news items for SPY
+2026-03-31 13:41:22,036 - src.data_pipeline - INFO - NEWS [SPY] from Finnhub (Yahoo): Fed Chair Powell Warns: Another Supply Shock Is Coming
+2026-03-31 13:41:22,036 - src.data_pipeline - INFO - NEWS [SPY] from Finnhub (Yahoo): What Correction? 4 Nasdaq Stocks on a Roll That Still Have More Upside
+2026-03-31 13:41:22,037 - src.data_pipeline - INFO - NEWS [SPY] from Finnhub (Yahoo): Stock Market Today: Dow Surges Over Trump's Olive Branch; Oil Prices Higher (Live Coverage)
+2026-03-31 13:41:22,170 - src.data_pipeline - INFO - Finnhub fetched 5 news items for QQQ
+2026-03-31 13:41:22,485 - src.data_pipeline - INFO - YFinance fetched 5 news items for QQQ
+2026-03-31 13:41:22,488 - src.data_pipeline - INFO - NEWS [QQQ] from Finnhub (SeekingAlpha): No, The Fed Isn't Going To Raise Rates
+2026-03-31 13:41:22,489 - src.data_pipeline - INFO - NEWS [QQQ] from Finnhub (SeekingAlpha): Pricing The Shock: Oil, Volatility And Portfolio Resilience
+2026-03-31 13:41:22,490 - src.data_pipeline - INFO - NEWS [QQQ] from Finnhub (SeekingAlpha): How To Prepare Your Portfolio For The Proposed 'Six-Figure' Social Security Limit
+2026-03-31 13:41:22,559 - src.brain - INFO - SCANNING for opportunities...
+2026-03-31 13:41:22,682 - src.data_pipeline - INFO - Finnhub fetched 5 news items for IWM
+2026-03-31 13:41:22,954 - src.data_pipeline - INFO - YFinance fetched 5 news items for IWM
+2026-03-31 13:41:22,957 - src.data_pipeline - INFO - NEWS [IWM] from Finnhub (SeekingAlpha): No, The Fed Isn't Going To Raise Rates
+2026-03-31 13:41:22,957 - src.data_pipeline - INFO - NEWS [IWM] from Finnhub (SeekingAlpha): Pricing The Shock: Oil, Volatility And Portfolio Resilience
+2026-03-31 13:41:22,958 - src.data_pipeline - INFO - NEWS [IWM] from Finnhub (SeekingAlpha): How To Prepare Your Portfolio For The Proposed 'Six-Figure' Social Security Limit
+2026-03-31 13:41:22,958 - src.data_pipeline - INFO - Data fetch cycle completed
+2026-03-31 13:41:24,193 - src.brain - INFO - SCANNING for opportunities...
+2026-03-31 13:41:25,770 - src.brain - INFO - SCANNING for opportunities...
+2026-03-31 13:41:27,281 - src.brain - INFO - SCANNING for opportunities...
+2026-03-31 13:41:29,153 - src.brain - INFO - SCANNING for opportunities...
+2026-03-31 13:41:30,734 - src.brain - INFO - SCANNING for opportunities...
+2026-03-31 13:41:32,269 - src.brain - INFO - SCANNING for opportunities...
+2026-03-31 13:41:33,736 - src.brain - INFO - SCANNING for opportunities...
+2026-03-31 13:41:35,298 - src.brain - INFO - SCANNING for opportunities...
+2026-03-31 13:41:36,890 - src.brain - INFO - SCANNING for opportunities...
+2026-03-31 13:41:38,355 - src.brain - INFO - SCANNING for opportunities...
+2026-03-31 13:41:39,971 - src.brain - INFO - SCANNING for opportunities...
+2026-03-31 13:41:41,488 - src.brain - INFO - SCANNING for opportunities...
+2026-03-31 13:41:42,958 - src.brain - INFO - SCANNING for opportunities...
+2026-03-31 13:41:44,345 - src.brain - INFO - SCANNING for opportunities...
+2026-03-31 13:41:46,271 - src.brain - INFO - SCANNING for opportunities...
+2026-03-31 13:41:47,992 - src.brain - INFO - SCANNING for opportunities...
+2026-03-31 13:41:49,319 - src.data_pipeline - INFO - Market is open - fetching data...
+2026-03-31 13:41:50,411 - src.data_pipeline - INFO - Fetched 100 bars for DIA (1m)
+2026-03-31 13:41:50,460 - src.data_pipeline - INFO - Fetched 100 bars for SPY (1m)
+2026-03-31 13:41:50,655 - src.brain - INFO - SCANNING for opportunities...
+2026-03-31 13:41:50,663 - src.data_pipeline - INFO - Fetched 100 bars for GC=F (1m)
+2026-03-31 13:41:50,673 - src.data_pipeline - INFO - Fetched 100 bars for IWM (1m)
+2026-03-31 13:41:50,680 - src.data_pipeline - INFO - Fetched 100 bars for XLF (1m)
+2026-03-31 13:41:50,689 - src.data_pipeline - INFO - Fetched 100 bars for XLK (1m)
+2026-03-31 13:41:50,694 - src.data_pipeline - INFO - Fetched 100 bars for NQ=F (1m)
+2026-03-31 13:41:50,703 - src.data_pipeline - INFO - Fetched 100 bars for QQQ (1m)
+2026-03-31 13:41:50,739 - src.data_pipeline - INFO - Stored 100 bars for SPY
+2026-03-31 13:41:50,759 - src.data_pipeline - INFO - Stored 100 bars for QQQ
+2026-03-31 13:41:50,776 - src.data_pipeline - INFO - Stored 100 bars for IWM
+2026-03-31 13:41:50,802 - src.data_pipeline - INFO - Stored 100 bars for DIA
+2026-03-31 13:41:50,912 - src.data_pipeline - INFO - Stored 100 bars for XLK
+2026-03-31 13:41:51,013 - src.data_pipeline - INFO - Stored 100 bars for XLF
+2026-03-31 13:41:51,113 - src.data_pipeline - INFO - Stored 100 bars for GC=F
+2026-03-31 13:41:51,151 - src.data_pipeline - INFO - Stored 100 bars for NQ=F
+2026-03-31 13:41:51,720 - src.data_pipeline - INFO - VIX: 26.16
+2026-03-31 13:41:54,868 - src.data_pipeline - INFO - Finnhub fetched 5 news items for SPY
+2026-03-31 13:41:55,191 - src.data_pipeline - INFO - YFinance fetched 5 news items for SPY
+2026-03-31 13:41:55,195 - src.data_pipeline - INFO - NEWS [SPY] from Finnhub (Yahoo): Fed Chair Powell Warns: Another Supply Shock Is Coming
+2026-03-31 13:41:55,195 - src.data_pipeline - INFO - NEWS [SPY] from Finnhub (Yahoo): What Correction? 4 Nasdaq Stocks on a Roll That Still Have More Upside
+2026-03-31 13:41:55,199 - src.data_pipeline - INFO - NEWS [SPY] from Finnhub (Yahoo): Stock Market Today: Dow Surges Over Trump's Olive Branch; Oil Prices Higher (Live Coverage)
+2026-03-31 13:41:55,827 - src.data_pipeline - INFO - Finnhub fetched 5 news items for QQQ
+2026-03-31 13:41:56,128 - src.data_pipeline - INFO - YFinance fetched 5 news items for QQQ
+2026-03-31 13:41:56,133 - src.data_pipeline - INFO - NEWS [QQQ] from Finnhub (SeekingAlpha): No, The Fed Isn't Going To Raise Rates
+2026-03-31 13:41:56,133 - src.data_pipeline - INFO - NEWS [QQQ] from Finnhub (SeekingAlpha): Pricing The Shock: Oil, Volatility And Portfolio Resilience
+2026-03-31 13:41:56,133 - src.data_pipeline - INFO - NEWS [QQQ] from Finnhub (SeekingAlpha): How To Prepare Your Portfolio For The Proposed 'Six-Figure' Social Security Limit
+2026-03-31 13:41:56,341 - src.data_pipeline - INFO - Finnhub fetched 5 news items for IWM
+2026-03-31 13:41:56,686 - src.data_pipeline - INFO - YFinance fetched 5 news items for IWM
+2026-03-31 13:41:56,689 - src.data_pipeline - INFO - NEWS [IWM] from Finnhub (SeekingAlpha): No, The Fed Isn't Going To Raise Rates
+2026-03-31 13:41:56,689 - src.data_pipeline - INFO - NEWS [IWM] from Finnhub (SeekingAlpha): Pricing The Shock: Oil, Volatility And Portfolio Resilience
+2026-03-31 13:41:56,689 - src.data_pipeline - INFO - NEWS [IWM] from Finnhub (SeekingAlpha): How To Prepare Your Portfolio For The Proposed 'Six-Figure' Social Security Limit
+2026-03-31 13:41:56,690 - src.data_pipeline - INFO - Data fetch cycle completed
+2026-03-31 13:41:57,003 - src.brain - INFO - SCANNING for opportunities...
+2026-03-31 13:41:58,898 - src.brain - INFO - SCANNING for opportunities...
+2026-03-31 13:42:01,208 - src.brain - INFO - SCANNING for opportunities...
+2026-03-31 13:42:03,870 - src.brain - INFO - SCANNING for opportunities...
+2026-03-31 13:42:05,575 - src.brain - INFO - SCANNING for opportunities...
+2026-03-31 13:42:07,382 - src.brain - INFO - SCANNING for opportunities...
+2026-03-31 13:42:09,150 - src.brain - INFO - SCANNING for opportunities...
+2026-03-31 13:42:11,015 - src.brain - INFO - SCANNING for opportunities...
+2026-03-31 13:42:13,287 - src.brain - INFO - SCANNING for opportunities...
+2026-03-31 13:42:15,616 - src.brain - INFO - SCANNING for opportunities...
+2026-03-31 13:42:17,593 - src.brain - INFO - SCANNING for opportunities...
+2026-03-31 13:42:19,559 - src.brain - INFO - SCANNING for opportunities...
+2026-03-31 13:42:22,646 - src.brain - INFO - SCANNING for opportunities...
+2026-03-31 13:42:22,963 - src.data_pipeline - INFO - Market is open - fetching data...
+2026-03-31 13:42:23,782 - src.data_pipeline - INFO - Fetched 100 bars for IWM (1m)
+2026-03-31 13:42:24,635 - src.data_pipeline - INFO - Fetched 100 bars for SPY (1m)
+2026-03-31 13:42:24,839 - src.data_pipeline - INFO - Fetched 100 bars for QQQ (1m)
+2026-03-31 13:42:24,939 - src.data_pipeline - INFO - Fetched 100 bars for MSFT (1m)
+2026-03-31 13:42:25,015 - src.data_pipeline - INFO - Fetched 100 bars for NVDA (1m)
+2026-03-31 13:42:25,127 - src.data_pipeline - INFO - Fetched 100 bars for DIA (1m)
+2026-03-31 13:42:25,364 - src.data_pipeline - INFO - Fetched 100 bars for AAPL (1m)
+2026-03-31 13:42:25,690 - src.data_pipeline - INFO - Fetched 100 bars for XLF (1m)
+2026-03-31 13:42:26,032 - src.data_pipeline - INFO - Fetched 100 bars for GOOGL (1m)
+2026-03-31 13:42:26,142 - src.data_pipeline - INFO - Fetched 100 bars for XLK (1m)
+2026-03-31 13:42:26,256 - src.data_pipeline - INFO - Fetched 100 bars for GC=F (1m)
+2026-03-31 13:42:26,372 - src.data_pipeline - INFO - Fetched 100 bars for META (1m)
+2026-03-31 13:42:26,577 - src.data_pipeline - INFO - Fetched 100 bars for TSLA (1m)
+2026-03-31 13:42:26,708 - src.data_pipeline - INFO - Fetched 100 bars for NQ=F (1m)
+2026-03-31 13:42:26,780 - src.data_pipeline - INFO - Fetched 100 bars for AMD (1m)
+2026-03-31 13:42:26,862 - src.data_pipeline - INFO - Fetched 100 bars for JPM (1m)
+2026-03-31 13:42:26,882 - src.data_pipeline - INFO - Fetched 100 bars for AMZN (1m)
+2026-03-31 13:42:26,913 - src.data_pipeline - INFO - Fetched 100 bars for GS (1m)
+2026-03-31 13:42:26,932 - src.data_pipeline - INFO - Fetched 100 bars for V (1m)
+2026-03-31 13:42:26,963 - src.data_pipeline - INFO - Fetched 100 bars for AVGO (1m)
+2026-03-31 13:42:26,988 - src.data_pipeline - INFO - Fetched 100 bars for MSTR (1m)
+2026-03-31 13:42:27,003 - src.data_pipeline - INFO - Fetched 100 bars for MU (1m)
+2026-03-31 13:42:27,025 - src.data_pipeline - INFO - Fetched 100 bars for COIN (1m)
+2026-03-31 13:42:27,055 - src.data_pipeline - INFO - Fetched 100 bars for PLTR (1m)
+2026-03-31 13:42:27,079 - src.data_pipeline - INFO - Fetched 100 bars for SMCI (1m)
+2026-03-31 13:42:27,107 - src.data_pipeline - INFO - Fetched 100 bars for ARM (1m)
+2026-03-31 13:42:27,170 - src.data_pipeline - INFO - Fetched 100 bars for WMT (1m)
+2026-03-31 13:42:27,222 - src.data_pipeline - INFO - Fetched 100 bars for COST (1m)
+2026-03-31 13:42:27,242 - src.data_pipeline - INFO - Fetched 100 bars for MA (1m)
+2026-03-31 13:42:27,300 - src.data_pipeline - INFO - Fetched 100 bars for NFLX (1m)
+2026-03-31 13:42:27,416 - src.data_pipeline - INFO - Stored 100 bars for SPY
+2026-03-31 13:42:27,507 - src.data_pipeline - INFO - Stored 100 bars for QQQ
+2026-03-31 13:42:27,574 - src.data_pipeline - INFO - Stored 100 bars for IWM
+2026-03-31 13:42:27,611 - src.data_pipeline - INFO - Stored 100 bars for DIA
+2026-03-31 13:42:27,670 - src.data_pipeline - INFO - Stored 100 bars for XLK
+2026-03-31 13:42:27,708 - src.data_pipeline - INFO - Stored 100 bars for XLF
+2026-03-31 13:42:27,736 - src.data_pipeline - INFO - Stored 100 bars for GC=F
+2026-03-31 13:42:27,780 - src.data_pipeline - INFO - Stored 100 bars for NQ=F
+2026-03-31 13:42:27,844 - src.data_pipeline - INFO - Stored 100 bars for AAPL
+2026-03-31 13:42:27,926 - src.data_pipeline - INFO - Stored 100 bars for MSFT
+2026-03-31 13:42:27,963 - src.data_pipeline - INFO - Stored 100 bars for GOOGL
+2026-03-31 13:42:28,058 - src.data_pipeline - INFO - Stored 100 bars for AMZN
+2026-03-31 13:42:28,401 - src.data_pipeline - INFO - Stored 100 bars for NVDA
+2026-03-31 13:42:28,631 - src.data_pipeline - INFO - Stored 100 bars for META
+2026-03-31 13:42:28,832 - src.data_pipeline - INFO - Stored 100 bars for TSLA
+2026-03-31 13:42:28,964 - src.data_pipeline - INFO - Stored 100 bars for AMD
+2026-03-31 13:42:28,991 - src.data_pipeline - INFO - Stored 100 bars for AVGO
+2026-03-31 13:42:29,060 - src.data_pipeline - INFO - Stored 100 bars for SMCI
+2026-03-31 13:42:29,336 - src.data_pipeline - INFO - Stored 100 bars for ARM
+2026-03-31 13:42:29,463 - src.data_pipeline - INFO - Stored 100 bars for MU
+2026-03-31 13:42:29,604 - src.data_pipeline - INFO - Stored 100 bars for PLTR
+2026-03-31 13:42:29,696 - src.data_pipeline - INFO - Stored 100 bars for COIN
+2026-03-31 13:42:29,760 - src.data_pipeline - INFO - Stored 100 bars for MSTR
+2026-03-31 13:42:29,831 - src.data_pipeline - INFO - Stored 100 bars for JPM
+2026-03-31 13:42:29,879 - src.data_pipeline - INFO - Stored 100 bars for GS
+2026-03-31 13:42:29,927 - src.data_pipeline - INFO - Stored 100 bars for V
+2026-03-31 13:42:29,982 - src.data_pipeline - INFO - Stored 100 bars for MA
+2026-03-31 13:42:30,092 - src.data_pipeline - INFO - Stored 100 bars for WMT
+2026-03-31 13:42:30,229 - src.data_pipeline - INFO - Stored 100 bars for COST
+2026-03-31 13:42:30,418 - src.data_pipeline - INFO - Stored 100 bars for NFLX
+2026-03-31 13:42:30,795 - src.data_pipeline - INFO - VIX: 26.17
+2026-03-31 13:42:31,135 - src.data_pipeline - INFO - Finnhub fetched 5 news items for SPY
+2026-03-31 13:42:31,605 - src.data_pipeline - INFO - YFinance fetched 5 news items for SPY
+2026-03-31 13:42:31,615 - src.data_pipeline - INFO - NEWS [SPY] from Finnhub (Yahoo): Fed Chair Powell Warns: Another Supply Shock Is Coming
+2026-03-31 13:42:31,618 - src.data_pipeline - INFO - NEWS [SPY] from Finnhub (Yahoo): What Correction? 4 Nasdaq Stocks on a Roll That Still Have More Upside
+2026-03-31 13:42:31,619 - src.data_pipeline - INFO - NEWS [SPY] from Finnhub (Yahoo): Stock Market Today: Dow Surges Over Trump's Olive Branch; Oil Prices Higher (Live Coverage)
+2026-03-31 13:42:31,785 - src.data_pipeline - INFO - Finnhub fetched 5 news items for QQQ
+2026-03-31 13:42:32,162 - src.data_pipeline - INFO - YFinance fetched 5 news items for QQQ
+2026-03-31 13:42:32,177 - src.data_pipeline - INFO - NEWS [QQQ] from Finnhub (SeekingAlpha): No, The Fed Isn't Going To Raise Rates
+2026-03-31 13:42:32,188 - src.data_pipeline - INFO - NEWS [QQQ] from Finnhub (SeekingAlpha): Pricing The Shock: Oil, Volatility And Portfolio Resilience
+2026-03-31 13:42:32,189 - src.data_pipeline - INFO - NEWS [QQQ] from Finnhub (SeekingAlpha): How To Prepare Your Portfolio For The Proposed 'Six-Figure' Social Security Limit
+2026-03-31 13:42:32,435 - src.data_pipeline - INFO - Finnhub fetched 5 news items for IWM
+2026-03-31 13:42:32,775 - src.data_pipeline - INFO - YFinance fetched 5 news items for IWM
+2026-03-31 13:42:32,794 - src.data_pipeline - INFO - NEWS [IWM] from Finnhub (SeekingAlpha): No, The Fed Isn't Going To Raise Rates
+2026-03-31 13:42:32,812 - src.data_pipeline - INFO - NEWS [IWM] from Finnhub (SeekingAlpha): Pricing The Shock: Oil, Volatility And Portfolio Resilience
+2026-03-31 13:42:32,822 - src.data_pipeline - INFO - NEWS [IWM] from Finnhub (SeekingAlpha): How To Prepare Your Portfolio For The Proposed 'Six-Figure' Social Security Limit
+2026-03-31 13:42:32,824 - src.data_pipeline - INFO - Data fetch cycle completed

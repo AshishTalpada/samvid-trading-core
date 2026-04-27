@@ -1,0 +1,12 @@
+import sqlite3
+conn = sqlite3.connect('data/trading.db')
+cursor = conn.cursor()
+cursor.execute('SELECT timestamp, open, high, low, close, volume FROM ohlcv WHERE symbol = "SPY" ORDER BY timestamp DESC LIMIT 1')
+row = cursor.fetchone()
+print(f"Timestamp: {row[0]}")
+print(f"Open: {row[1]}")
+print(f"High: {row[2]}")
+print(f"Low: {row[3]}")
+print(f"Close: {row[4]}")
+print(f"Volume: {row[5]}")
+conn.close()

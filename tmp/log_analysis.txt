@@ -1,0 +1,146 @@
+[162218] 2026-04-01 10:42:54,442 - src.brain - INFO - 📊 SCAN #25 STARTING... (Regime=CHOPPY, Watchlist=26)
+[162219] 2026-04-01 10:42:54,671 - src.brain - INFO - STALE DATA: MSFT newest bar is 909.9min old (pipeline may be lagging or clock skew) — skipping
+[162220] 2026-04-01 10:42:54,676 - src.brain - INFO - STALE DATA: AAPL newest bar is 909.9min old (pipeline may be lagging or clock skew) — skipping
+[162221] 2026-04-01 10:42:55,082 - src.brain - INFO - STALE DATA: GOOGL newest bar is 909.9min old (pipeline may be lagging or clock skew) — skipping
+[162222] 2026-04-01 10:42:55,176 - src.brain - INFO - STALE DATA: AMZN newest bar is 909.9min old (pipeline may be lagging or clock skew) — skipping
+[162223] 2026-04-01 10:42:55,290 - src.brain - INFO - 📊 SCAN #25 | Regime=CHOPPY | Watchlist=26 Scanned=22 | Detected=1 Approved=0 | Pending=0
+[162302] 2026-04-01 10:43:09,105 - src.brain - INFO - 📊 SCAN #26 STARTING... (Regime=CHOPPY, Watchlist=26)
+[162303] 2026-04-01 10:43:09,281 - src.brain - INFO - STALE DATA: MSFT newest bar is 910.2min old (pipeline may be lagging or clock skew) — skipping
+[162304] 2026-04-01 10:43:09,391 - src.brain - INFO - STALE DATA: GOOGL newest bar is 910.2min old (pipeline may be lagging or clock skew) — skipping
+[162305] 2026-04-01 10:43:09,499 - src.brain - INFO - STALE DATA: AAPL newest bar is 910.2min old (pipeline may be lagging or clock skew) — skipping
+[162306] 2026-04-01 10:43:09,506 - src.brain - INFO - STALE DATA: AMZN newest bar is 910.2min old (pipeline may be lagging or clock skew) — skipping
+[162307] 2026-04-01 10:43:09,935 - src.brain - INFO - 📊 SCAN #26 | Regime=CHOPPY | Watchlist=26 Scanned=22 | Detected=2 Approved=0 | Pending=0
+[162366] 2026-04-01 22:03:23,979 - src.dms - WARNING - Timeout detected! Last heartbeat 40816s ago
+[162367] 2026-04-01 22:03:24,446 - src.dms - ERROR - Exception sending Telegram message: Cannot connect to host api.telegram.org:443 ssl:default [getaddrinfo failed]
+[162392] 2026-04-01 22:03:44,285 - src.brain - INFO - 📊 SCAN #27 STARTING... (Regime=CHOPPY, Watchlist=26)
+[162393] 2026-04-01 22:03:44,417 - src.brain - WARNING - STALE (MARKET CLOSED): MSFT newest bar is 1591min old (>24h) — skipping
+[162394] 2026-04-01 22:03:44,457 - src.brain - WARNING - STALE (MARKET CLOSED): GOOGL newest bar is 1591min old (>24h) — skipping
+[162395] 2026-04-01 22:03:44,721 - src.brain - WARNING - STALE (MARKET CLOSED): AAPL newest bar is 1591min old (>24h) — skipping
+[162396] 2026-04-01 22:03:44,755 - src.brain - WARNING - STALE (MARKET CLOSED): AMZN newest bar is 1591min old (>24h) — skipping
+[162398] 2026-04-01 22:03:44,900 - src.brain - INFO - 📊 SCAN #27 | Regime=CHOPPY | Watchlist=26 Scanned=22 | Detected=2 Approved=1 | Pending=1
+[162400] 2026-04-01 22:03:45,023 - src.agent_c_ibkr - WARNING - POSITION CAP: Reduced shares to 64 (80% of $10,000 = max $8,000)
+[162407] 2026-04-01 22:04:02,580 - src.brain - INFO - PAPER TRADE: Falling Wedge MSTR x64 @ $123.37 (Urgency: LOW)
+[162408] 2026-04-01 22:04:02,632 - src.brain - INFO - 🚀 [TRADE ENTRY]: Falling Wedge MSTR x64 @ $123.37 SL=$122.74 TP=$124.65 R:R=2.1 Belief=0.83
+[162409] 2026-04-01 22:04:02,718 - src.brain - INFO - 📊 SCAN #28 STARTING... (Regime=CHOPPY, Watchlist=26)
+[162410] 2026-04-01 22:04:03,994 - src.brain - WARNING - STALE (MARKET CLOSED): GOOGL newest bar is 1591min old (>24h) — skipping
+[162411] 2026-04-01 22:04:04,007 - src.brain - WARNING - STALE (MARKET CLOSED): AMZN newest bar is 1591min old (>24h) — skipping
+[162412] 2026-04-01 22:04:04,379 - src.brain - WARNING - STALE (MARKET CLOSED): AAPL newest bar is 1591min old (>24h) — skipping
+[162413] 2026-04-01 22:04:04,418 - src.brain - WARNING - STALE (MARKET CLOSED): MSFT newest bar is 1591min old (>24h) — skipping
+[162415] 2026-04-01 22:04:04,917 - src.brain - INFO - 📊 SCAN #28 | Regime=CHOPPY | Watchlist=26 Scanned=22 | Detected=2 Approved=1 | Pending=1
+[162417] 2026-04-01 22:04:05,263 - src.agent_c_ibkr - WARNING - POSITION CAP: Reduced shares to 64 (80% of $10,000 = max $8,000)
+[162418] 2026-04-01 22:04:05,263 - src.agent_c_ibkr - WARNING - Portfolio Guard: Cash reserve would be -57.9% (below 20% minimum)
+[162419] 2026-04-01 22:04:05,264 - src.brain - INFO - Portfolio guard: 20% cash reserve would be violated (Invested: $7,896 New: $7,896 Account: $10,000)
+[162420] 2026-04-01 22:04:05,320 - src.brain - INFO - 📊 SCAN #29 STARTING... (Regime=CHOPPY, Watchlist=26)
+[162421] 2026-04-01 22:04:05,627 - src.brain - WARNING - STALE (MARKET CLOSED): GOOGL newest bar is 1591min old (>24h) — skipping
+[162422] 2026-04-01 22:04:05,792 - src.brain - WARNING - STALE (MARKET CLOSED): AAPL newest bar is 1591min old (>24h) — skipping
+[162423] 2026-04-01 22:04:06,182 - src.brain - WARNING - STALE (MARKET CLOSED): MSFT newest bar is 1591min old (>24h) — skipping
+[162424] 2026-04-01 22:04:06,304 - src.brain - WARNING - STALE (MARKET CLOSED): AMZN newest bar is 1591min old (>24h) — skipping
+[162426] 2026-04-01 22:04:06,791 - src.brain - INFO - 📊 SCAN #29 | Regime=CHOPPY | Watchlist=26 Scanned=22 | Detected=2 Approved=1 | Pending=1
+[162428] 2026-04-01 22:04:06,995 - src.agent_c_ibkr - WARNING - POSITION CAP: Reduced shares to 64 (80% of $10,000 = max $8,000)
+[162429] 2026-04-01 22:04:06,997 - src.agent_c_ibkr - WARNING - Portfolio Guard: Cash reserve would be -57.9% (below 20% minimum)
+[162430] 2026-04-01 22:04:06,997 - src.brain - INFO - Portfolio guard: 20% cash reserve would be violated (Invested: $7,896 New: $7,896 Account: $10,000)
+[162431] 2026-04-01 22:04:15,899 - src.brain - INFO - 📊 SCAN #30 STARTING... (Regime=CHOPPY, Watchlist=26)
+[162432] 2026-04-01 22:04:16,016 - src.brain - WARNING - STALE (MARKET CLOSED): AAPL newest bar is 1591min old (>24h) — skipping
+[162433] 2026-04-01 22:04:16,084 - src.brain - WARNING - STALE (MARKET CLOSED): MSFT newest bar is 1591min old (>24h) — skipping
+[162434] 2026-04-01 22:04:16,164 - src.brain - WARNING - STALE (MARKET CLOSED): AMZN newest bar is 1591min old (>24h) — skipping
+[162435] 2026-04-01 22:04:16,175 - src.brain - WARNING - STALE (MARKET CLOSED): GOOGL newest bar is 1591min old (>24h) — skipping
+[162437] 2026-04-01 22:04:16,472 - src.brain - INFO - 📊 SCAN #30 | Regime=CHOPPY | Watchlist=26 Scanned=22 | Detected=2 Approved=1 | Pending=1
+[162439] 2026-04-01 22:04:16,584 - src.agent_c_ibkr - WARNING - POSITION CAP: Reduced shares to 64 (80% of $10,000 = max $8,000)
+[162440] 2026-04-01 22:04:16,584 - src.agent_c_ibkr - WARNING - Portfolio Guard: Cash reserve would be -57.9% (below 20% minimum)
+[162441] 2026-04-01 22:04:16,589 - src.brain - INFO - Portfolio guard: 20% cash reserve would be violated (Invested: $7,896 New: $7,896 Account: $10,000)
+[162442] 2026-04-01 22:04:25,878 - src.brain - INFO - 📊 SCAN #31 STARTING... (Regime=CHOPPY, Watchlist=26)
+[162443] 2026-04-01 22:04:25,902 - src.brain - WARNING - STALE (MARKET CLOSED): AAPL newest bar is 1591min old (>24h) — skipping
+[162444] 2026-04-01 22:04:25,953 - src.brain - WARNING - STALE (MARKET CLOSED): MSFT newest bar is 1591min old (>24h) — skipping
+[162445] 2026-04-01 22:04:26,035 - src.brain - WARNING - STALE (MARKET CLOSED): GOOGL newest bar is 1591min old (>24h) — skipping
+[162446] 2026-04-01 22:04:26,043 - src.brain - WARNING - STALE (MARKET CLOSED): AMZN newest bar is 1591min old (>24h) — skipping
+[162448] 2026-04-01 22:04:26,341 - src.brain - INFO - 📊 SCAN #31 | Regime=CHOPPY | Watchlist=26 Scanned=22 | Detected=2 Approved=1 | Pending=1
+[162450] 2026-04-01 22:04:26,529 - src.agent_c_ibkr - WARNING - POSITION CAP: Reduced shares to 64 (80% of $10,000 = max $8,000)
+[162451] 2026-04-01 22:04:26,530 - src.agent_c_ibkr - WARNING - Portfolio Guard: Cash reserve would be -57.9% (below 20% minimum)
+[162452] 2026-04-01 22:04:26,532 - src.brain - INFO - Portfolio guard: 20% cash reserve would be violated (Invested: $7,896 New: $7,896 Account: $10,000)
+[162453] 2026-04-01 22:04:31,176 - __main__ - INFO - System shutdown requested
+[162456] 2026-04-01 22:04:31,203 - __main__ - WARNING - Background task 'data_pipeline' finished unexpectedly without error.
+[162479] 2026-04-01 22:04:31,852 - src.data_pipeline - INFO - Data pipeline shutdown requested.
+[162484] 2026-04-01 22:04:31,886 - __main__ - INFO - ✓ Shutdown complete
+[162486] 2026-04-01 22:11:25,566 - __main__ - WARNING - FORCED_PAPER_MODE is active — real trading is disabled.
+[162494] 2026-04-01 22:11:35,917 - __main__ - INFO - Trading System V3.0 - Starting Up
+[162526] 2026-04-01 22:11:36,776 - __main__ - INFO - ✓ Data Pipeline started
+[162530] 2026-04-01 22:11:36,780 - __main__ - INFO - ✓ DMS started (with emergency flatten capability)
+[162536] 2026-04-01 22:11:36,782 - __main__ - INFO - ✓ QuestDB Adapter started
+[162541] 2026-04-01 22:11:36,798 - __main__ - INFO - ✓ Dhatu Oracle started (15-minute global synthesis cycle)
+[162544] 2026-04-01 22:11:36,800 - src.api_server - INFO - ✓ API Server started on http://0.0.0.0:8000
+[162553] 2026-04-01 22:11:36,939 - __main__ - INFO - ✓ Trading Brain started
+[162562] 2026-04-01 22:11:36,943 - src.data_pipeline - INFO - 🔄 CORE SYNC: Starting background continuity validation for 30 instruments...
+[162563] 2026-04-01 22:11:36,944 - src.dms - INFO - Dead Man Switch Monitor started
+[162566] 2026-04-01 22:11:37,003 - src.brain - INFO - Trading Brain V3.0 started in paper mode.
+[162568] 2026-04-01 22:11:37,015 - src.data_pipeline - INFO - 📦 BACKFILL: SPY is missing 688 minutes of data.
+[162569] 2026-04-01 22:11:37,019 - src.data_pipeline - INFO - 📦 BACKFILL: QQQ is missing 688 minutes of data.
+[162570] 2026-04-01 22:11:37,024 - src.data_pipeline - INFO - 📦 BACKFILL: IWM is missing 688 minutes of data.
+[162571] 2026-04-01 22:11:37,029 - src.data_pipeline - INFO - 📦 BACKFILL: DIA is missing 688 minutes of data.
+[162572] 2026-04-01 22:11:37,033 - src.data_pipeline - INFO - 📦 BACKFILL: XLK is missing 689 minutes of data.
+[162573] 2026-04-01 22:11:37,036 - src.data_pipeline - INFO - 📦 BACKFILL: XLF is missing 688 minutes of data.
+[162574] 2026-04-01 22:11:37,041 - src.data_pipeline - INFO - 📦 BACKFILL: GC=F is missing 698 minutes of data.
+[162575] 2026-04-01 22:11:37,045 - src.data_pipeline - INFO - 📦 BACKFILL: NQ=F is missing 698 minutes of data.
+[162576] 2026-04-01 22:11:37,050 - src.data_pipeline - INFO - 📦 BACKFILL: AAPL is missing 688 minutes of data.
+[162577] 2026-04-01 22:11:37,052 - src.data_pipeline - INFO - 📦 BACKFILL: MSFT is missing 688 minutes of data.
+[162578] 2026-04-01 22:11:37,055 - src.data_pipeline - INFO - 📦 BACKFILL: GOOGL is missing 688 minutes of data.
+[162579] 2026-04-01 22:11:37,060 - src.data_pipeline - INFO - 📦 BACKFILL: AMZN is missing 688 minutes of data.
+[162580] 2026-04-01 22:11:37,064 - src.data_pipeline - INFO - 📦 BACKFILL: NVDA is missing 688 minutes of data.
+[162581] 2026-04-01 22:11:37,066 - src.data_pipeline - INFO - 📦 BACKFILL: META is missing 688 minutes of data.
+[162582] 2026-04-01 22:11:37,069 - src.data_pipeline - INFO - 📦 BACKFILL: TSLA is missing 688 minutes of data.
+[162583] 2026-04-01 22:11:37,072 - src.data_pipeline - INFO - 📦 BACKFILL: AMD is missing 689 minutes of data.
+[162584] 2026-04-01 22:11:37,079 - src.data_pipeline - INFO - 📦 BACKFILL: AVGO is missing 688 minutes of data.
+[162585] 2026-04-01 22:11:37,082 - src.data_pipeline - INFO - 📦 BACKFILL: SMCI is missing 688 minutes of data.
+[162586] 2026-04-01 22:11:37,085 - src.data_pipeline - INFO - 📦 BACKFILL: ARM is missing 688 minutes of data.
+[162587] 2026-04-01 22:11:37,087 - src.data_pipeline - INFO - 📦 BACKFILL: MU is missing 688 minutes of data.
+[162588] 2026-04-01 22:11:37,091 - src.data_pipeline - INFO - 📦 BACKFILL: PLTR is missing 688 minutes of data.
+[162589] 2026-04-01 22:11:37,094 - src.data_pipeline - INFO - 📦 BACKFILL: COIN is missing 688 minutes of data.
+[162590] 2026-04-01 22:11:37,097 - src.data_pipeline - INFO - 📦 BACKFILL: MSTR is missing 688 minutes of data.
+[162591] 2026-04-01 22:11:37,099 - src.data_pipeline - INFO - 📦 BACKFILL: JPM is missing 688 minutes of data.
+[162592] 2026-04-01 22:11:37,100 - src.data_pipeline - INFO - 📦 BACKFILL: GS is missing 688 minutes of data.
+[162593] 2026-04-01 22:11:37,102 - src.data_pipeline - INFO - 📦 BACKFILL: V is missing 688 minutes of data.
+[162594] 2026-04-01 22:11:37,105 - src.data_pipeline - INFO - 📦 BACKFILL: MA is missing 688 minutes of data.
+[162595] 2026-04-01 22:11:37,108 - src.data_pipeline - INFO - 📦 BACKFILL: WMT is missing 688 minutes of data.
+[162596] 2026-04-01 22:11:37,110 - src.data_pipeline - INFO - 📦 BACKFILL: COST is missing 688 minutes of data.
+[162597] 2026-04-01 22:11:37,111 - src.data_pipeline - INFO - 📦 BACKFILL: NFLX is missing 688 minutes of data.
+[162600] 2026-04-01 22:11:37,129 - src.brain - INFO - TradingBrain: Main system loop started.
+[162614] 2026-04-01 22:11:37,744 - src.dms - INFO - Telegram message sent: 🟢 <b>Dead Man Switch Monitor Started</b>
+[162616] Started ...
+[162620] 2026-04-01 22:11:37,779 - __main__ - INFO - ✓ Trading System V3.0 is ONLINE
+[162659] 2026-04-01 22:11:39,966 - src.data_pipeline - INFO - ✔️ BACKFILL COMPLETE: XLF synchronized.
+[162660] 2026-04-01 22:11:39,968 - src.data_pipeline - INFO - ✔️ BACKFILL COMPLETE: GC=F synchronized.
+[162663] 2026-04-01 22:11:39,979 - src.data_pipeline - INFO - ✔️ BACKFILL COMPLETE: SMCI synchronized.
+[162665] 2026-04-01 22:11:39,997 - src.data_pipeline - INFO - ✔️ BACKFILL COMPLETE: NQ=F synchronized.
+[162667] 2026-04-01 22:11:40,017 - src.data_pipeline - INFO - ✔️ BACKFILL COMPLETE: AVGO synchronized.
+[162669] 2026-04-01 22:11:40,041 - src.data_pipeline - INFO - ✔️ BACKFILL COMPLETE: TSLA synchronized.
+[162671] 2026-04-01 22:11:40,054 - src.data_pipeline - INFO - ✔️ BACKFILL COMPLETE: PLTR synchronized.
+[162673] 2026-04-01 22:11:40,080 - src.data_pipeline - INFO - ✔️ BACKFILL COMPLETE: MSTR synchronized.
+[162675] 2026-04-01 22:11:40,098 - src.data_pipeline - INFO - ✔️ BACKFILL COMPLETE: ARM synchronized.
+[162677] 2026-04-01 22:11:40,134 - src.data_pipeline - INFO - ✔️ BACKFILL COMPLETE: MU synchronized.
+[162679] 2026-04-01 22:11:40,166 - src.data_pipeline - INFO - ✔️ BACKFILL COMPLETE: META synchronized.
+[162681] 2026-04-01 22:11:40,221 - src.data_pipeline - INFO - ✔️ BACKFILL COMPLETE: COIN synchronized.
+[162683] 2026-04-01 22:11:40,244 - src.data_pipeline - INFO - ✔️ BACKFILL COMPLETE: AMD synchronized.
+[162685] 2026-04-01 22:11:40,268 - src.data_pipeline - INFO - ✔️ BACKFILL COMPLETE: V synchronized.
+[162687] 2026-04-01 22:11:40,296 - src.data_pipeline - INFO - ✔️ BACKFILL COMPLETE: JPM synchronized.
+[162689] 2026-04-01 22:11:40,323 - src.data_pipeline - INFO - ✔️ BACKFILL COMPLETE: GS synchronized.
+[162691] 2026-04-01 22:11:40,348 - src.data_pipeline - INFO - ✔️ BACKFILL COMPLETE: MA synchronized.
+[162693] 2026-04-01 22:11:40,378 - src.data_pipeline - INFO - ✔️ BACKFILL COMPLETE: NFLX synchronized.
+[162698] 2026-04-01 22:11:40,406 - src.data_pipeline - INFO - ✔️ BACKFILL COMPLETE: XLK synchronized.
+[162700] 2026-04-01 22:11:40,432 - src.data_pipeline - INFO - ✔️ BACKFILL COMPLETE: COST synchronized.
+[162702] 2026-04-01 22:11:40,450 - src.data_pipeline - INFO - ✔️ BACKFILL COMPLETE: WMT synchronized.
+[162704] 2026-04-01 22:11:40,497 - src.data_pipeline - INFO - ✔️ BACKFILL COMPLETE: IWM synchronized.
+[162706] 2026-04-01 22:11:40,544 - src.data_pipeline - INFO - ✔️ BACKFILL COMPLETE: AAPL synchronized.
+[162708] 2026-04-01 22:11:40,609 - src.data_pipeline - INFO - ✔️ BACKFILL COMPLETE: NVDA synchronized.
+[162710] 2026-04-01 22:11:40,737 - src.data_pipeline - INFO - ✔️ BACKFILL COMPLETE: SPY synchronized.
+[162712] 2026-04-01 22:11:40,786 - src.data_pipeline - INFO - ✔️ BACKFILL COMPLETE: QQQ synchronized.
+[162714] 2026-04-01 22:11:40,820 - src.data_pipeline - INFO - ✔️ BACKFILL COMPLETE: DIA synchronized.
+[162716] 2026-04-01 22:11:40,859 - src.data_pipeline - INFO - ✔️ BACKFILL COMPLETE: AMZN synchronized.
+[162718] 2026-04-01 22:11:40,923 - src.data_pipeline - INFO - ✔️ BACKFILL COMPLETE: GOOGL synchronized.
+[162720] 2026-04-01 22:11:41,023 - src.data_pipeline - INFO - ✔️ BACKFILL COMPLETE: MSFT synchronized.
+[162721] 2026-04-01 22:11:41,023 - src.data_pipeline - INFO - ✅ CORE SYNC COMPLETE: Database established continuity in background.
+[162722] 2026-04-01 22:11:41,025 - src.data_pipeline - INFO - 🔄 STARTUP REFRESH: Market closed — fetching latest available data for all instruments...
+[162783] 2026-04-01 22:11:43,462 - src.data_pipeline - INFO - ✅ STARTUP REFRESH COMPLETE: Stored fresh data for 30/30 instruments.
+[162784] 2026-04-01 22:11:43,464 - src.brain - INFO - 📊 SCAN #1 STARTING... (Regime=CHOPPY, Watchlist=26)
+[162786] 2026-04-01 22:11:43,879 - src.brain - INFO - 📊 SCAN #1 | Regime=CHOPPY | Watchlist=26 Scanned=26 | Detected=2 Approved=1 | Pending=1
+[162788] 2026-04-01 22:11:43,979 - src.agent_c_ibkr - WARNING - POSITION CAP: Reduced shares to 64 (80% of $10,000 = max $8,000)
+[162791] 2026-04-01 22:11:54,335 - src.brain - INFO - PAPER TRADE: Falling Wedge MSTR x64 @ $123.37 (Urgency: LOW)
+[162792] 2026-04-01 22:11:54,340 - src.brain - INFO - 🚀 [TRADE ENTRY]: Falling Wedge MSTR x64 @ $123.37 SL=$122.74 TP=$124.65 R:R=2.1 Belief=0.83

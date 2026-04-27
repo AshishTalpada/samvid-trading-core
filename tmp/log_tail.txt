@@ -1,0 +1,100 @@
+2026-04-01 22:17:26,219 - __main__ - INFO - ✓ QuestDB Adapter started
+2026-04-01 22:17:26,220 - __main__ - INFO - 
+[8/9] Starting Dhatu Oracle...
+2026-04-01 22:17:26,221 - __main__ - INFO - Starting Dhatu Oracle (Global Knowledge Graph)...
+2026-04-01 22:17:26,227 - src.dhatu_oracle - INFO - DhatuOracle: Recovered persisted state: Samyoga
+2026-04-01 22:17:26,227 - __main__ - INFO - ✓ Dhatu Oracle started (15-minute global synthesis cycle)
+2026-04-01 22:17:26,228 - __main__ - INFO - 
+[9/9] Starting Institutional API Server (Port 8000)...
+2026-04-01 22:17:26,228 - __main__ - ERROR - Startup failed: Config.__init__() got an unexpected keyword argument 'install_signal_handlers'
+Traceback (most recent call last):
+  File "C:\Users\talpa\Desktop\System_Beta\TradingSystem\src\main.py", line 947, in startup
+    await self._start_background_tasks()
+  File "C:\Users\talpa\Desktop\System_Beta\TradingSystem\src\main.py", line 902, in _start_background_tasks
+    started = await self.api_server.start()
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\talpa\Desktop\System_Beta\TradingSystem\src\api_server.py", line 267, in start
+    config = uvicorn.Config(
+             ^^^^^^^^^^^^^^^
+TypeError: Config.__init__() got an unexpected keyword argument 'install_signal_handlers'
+2026-04-01 22:17:26,232 - src.data_pipeline - INFO - Starting continuous data pipeline...
+2026-04-01 22:17:26,233 - src.data_pipeline - INFO - 🔄 CORE SYNC: Starting background continuity validation for 30 instruments...
+2026-04-01 22:17:26,233 - src.dms - INFO - Dead Man Switch Monitor started
+2026-04-01 22:17:26,234 - src.dhatu_oracle - INFO - DhatuOracle: Starting continuous global synthesis loop
+2026-04-01 22:17:26,234 - src.dhatu_oracle - INFO - DhatuOracle: Using cached state Samyoga for startup.
+2026-04-01 22:17:26,236 - src.data_pipeline - INFO - 📦 BACKFILL: SPY is missing 378 minutes of data.
+2026-04-01 22:17:26,240 - src.data_pipeline - INFO - 📦 BACKFILL: QQQ is missing 378 minutes of data.
+2026-04-01 22:17:26,242 - src.data_pipeline - INFO - 📦 BACKFILL: IWM is missing 378 minutes of data.
+2026-04-01 22:17:26,243 - src.data_pipeline - INFO - 📦 BACKFILL: DIA is missing 378 minutes of data.
+2026-04-01 22:17:26,245 - src.data_pipeline - INFO - 📦 BACKFILL: XLK is missing 378 minutes of data.
+2026-04-01 22:17:26,247 - src.data_pipeline - INFO - 📦 BACKFILL: XLF is missing 378 minutes of data.
+2026-04-01 22:17:26,249 - src.data_pipeline - INFO - 📦 BACKFILL: GC=F is missing 16 minutes of data.
+2026-04-01 22:17:26,252 - src.data_pipeline - INFO - 📦 BACKFILL: NQ=F is missing 16 minutes of data.
+2026-04-01 22:17:26,255 - src.data_pipeline - INFO - 📦 BACKFILL: AAPL is missing 378 minutes of data.
+2026-04-01 22:17:26,256 - src.data_pipeline - INFO - 📦 BACKFILL: MSFT is missing 378 minutes of data.
+2026-04-01 22:17:26,258 - src.data_pipeline - INFO - 📦 BACKFILL: GOOGL is missing 378 minutes of data.
+2026-04-01 22:17:26,260 - src.data_pipeline - INFO - 📦 BACKFILL: AMZN is missing 378 minutes of data.
+2026-04-01 22:17:26,262 - src.data_pipeline - INFO - 📦 BACKFILL: NVDA is missing 378 minutes of data.
+2026-04-01 22:17:26,263 - src.data_pipeline - INFO - 📦 BACKFILL: META is missing 378 minutes of data.
+2026-04-01 22:17:26,266 - src.data_pipeline - INFO - 📦 BACKFILL: TSLA is missing 378 minutes of data.
+2026-04-01 22:17:26,267 - src.data_pipeline - INFO - 📦 BACKFILL: AMD is missing 378 minutes of data.
+2026-04-01 22:17:26,270 - src.data_pipeline - INFO - 📦 BACKFILL: AVGO is missing 378 minutes of data.
+2026-04-01 22:17:26,271 - src.data_pipeline - INFO - 📦 BACKFILL: SMCI is missing 378 minutes of data.
+2026-04-01 22:17:26,273 - src.data_pipeline - INFO - 📦 BACKFILL: ARM is missing 378 minutes of data.
+2026-04-01 22:17:26,274 - src.data_pipeline - INFO - 📦 BACKFILL: MU is missing 378 minutes of data.
+2026-04-01 22:17:26,276 - src.data_pipeline - INFO - 📦 BACKFILL: PLTR is missing 378 minutes of data.
+2026-04-01 22:17:26,278 - src.data_pipeline - INFO - 📦 BACKFILL: COIN is missing 378 minutes of data.
+2026-04-01 22:17:26,281 - src.data_pipeline - INFO - 📦 BACKFILL: MSTR is missing 378 minutes of data.
+2026-04-01 22:17:26,284 - src.data_pipeline - INFO - 📦 BACKFILL: JPM is missing 378 minutes of data.
+2026-04-01 22:17:26,286 - src.data_pipeline - INFO - 📦 BACKFILL: GS is missing 378 minutes of data.
+2026-04-01 22:17:26,303 - src.data_pipeline - INFO - 📦 BACKFILL: V is missing 378 minutes of data.
+2026-04-01 22:17:26,378 - src.data_pipeline - INFO - 📦 BACKFILL: MA is missing 378 minutes of data.
+2026-04-01 22:17:26,410 - src.data_pipeline - INFO - 📦 BACKFILL: WMT is missing 378 minutes of data.
+2026-04-01 22:17:26,417 - src.data_pipeline - INFO - 📦 BACKFILL: COST is missing 378 minutes of data.
+2026-04-01 22:17:26,423 - src.data_pipeline - INFO - 📦 BACKFILL: NFLX is missing 378 minutes of data.
+2026-04-01 22:17:26,992 - src.dms - INFO - Telegram message sent: 🟢 <b>Dead Man Switch Monitor Started</b>
+
+Started ...
+2026-04-01 22:17:27,012 - __main__ - INFO - ✓ Telegram notification sent
+2026-04-01 22:17:27,014 - src.dms - INFO - Monitor received cancellation signal
+2026-04-01 22:17:27,016 - __main__ - INFO - Background task 'dhatu_oracle' cancelled.
+2026-04-01 22:17:27,019 - __main__ - INFO - Background task 'data_pipeline' cancelled.
+2026-04-01 22:17:27,021 - src.dms - INFO - Dead Man Switch Monitor stopped
+2026-04-01 22:17:27,021 - __main__ - INFO - Background task 'dms' cancelled.
+2026-04-01 22:17:27,403 - __main__ - ERROR - Fatal error: Config.__init__() got an unexpected keyword argument 'install_signal_handlers'
+Traceback (most recent call last):
+  File "C:\Users\talpa\Desktop\System_Beta\TradingSystem\src\main.py", line 1179, in <module>
+    asyncio.run(s.startup())
+  File "C:\Users\talpa\AppData\Local\Programs\Python\Python311\Lib\asyncio\runners.py", line 190, in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+  File "C:\Users\talpa\AppData\Local\Programs\Python\Python311\Lib\asyncio\runners.py", line 118, in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\talpa\AppData\Local\Programs\Python\Python311\Lib\asyncio\base_events.py", line 654, in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+  File "C:\Users\talpa\Desktop\System_Beta\TradingSystem\src\main.py", line 947, in startup
+    await self._start_background_tasks()
+  File "C:\Users\talpa\Desktop\System_Beta\TradingSystem\src\main.py", line 902, in _start_background_tasks
+    started = await self.api_server.start()
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\talpa\Desktop\System_Beta\TradingSystem\src\api_server.py", line 267, in start
+    config = uvicorn.Config(
+             ^^^^^^^^^^^^^^^
+TypeError: Config.__init__() got an unexpected keyword argument 'install_signal_handlers'
+2026-04-01 22:17:27,406 - __main__ - INFO - 
+============================================================
+2026-04-01 22:17:27,407 - __main__ - INFO - Trading System V3.0 - Shutting Down
+2026-04-01 22:17:27,407 - __main__ - INFO - ============================================================
+2026-04-01 22:17:27,946 - __main__ - INFO - ✓ Telegram notification sent
+2026-04-01 22:17:27,946 - __main__ - INFO - Stopping DMS...
+2026-04-01 22:17:27,947 - src.dms - INFO - Stop requested for Dead Man Switch Monitor
+2026-04-01 22:17:27,947 - __main__ - INFO - Stopping Data Pipeline...
+2026-04-01 22:17:27,947 - src.data_pipeline - INFO - Data pipeline shutdown requested.
+2026-04-01 22:17:27,948 - __main__ - INFO - Disconnecting IBKR...
+2026-04-01 22:17:27,949 - __main__ - INFO - Disconnecting MT5...
+2026-04-01 22:17:27,949 - __main__ - INFO - Closing database...
+2026-04-01 22:17:27,963 - __main__ - INFO - ============================================================
+2026-04-01 22:17:27,963 - __main__ - INFO - ✓ Shutdown complete
+2026-04-01 22:17:27,963 - __main__ - INFO - ============================================================
