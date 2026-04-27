@@ -1,0 +1,22 @@
+﻿Account: $10,000  Max Investable (80%): $8,000
+Cash Reserve: 20% = $2,000
+
+GS    : shares=9  pos_value=$7,722  guard=Γ£à OK
+MA    : shares=16  pos_value=$7,808  guard=Γ£à OK
+SPY   : shares=14  pos_value=$7,700  guard=Γ£à OK
+python : POSITION CAP: Reduced shares to 9 
+(80% of $10,000 = max $8,000)
+At line:1 char:1
++ python tmp/test_sizing.py 2>&1 | Out-File 
+tmp/sizing_out.txt -Encodin ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (P 
+   OSITION CAP: R...0 = max $8,000):String) [  
+  ], RemoteException
+    + FullyQualifiedErrorId : NativeCommandErr 
+   or
+ 
+POSITION CAP: Reduced shares to 16 (80% of 
+$10,000 = max $8,000)
+POSITION CAP: Reduced shares to 14 (80% of 
+$10,000 = max $8,000)

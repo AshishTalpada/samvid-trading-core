@@ -1,0 +1,14 @@
+128: self.db_path = Path("data/trading.db")
+132: self.db_conn: Optional[sqlite3.Connection] = None
+254: conn = sqlite3.connect(
+255: self.db_path,
+260: self.db_conn = conn
+302: db = self.db_conn
+530: db = self.db_conn
+639: db = self.db_conn
+700: db = self.db_conn
+729: db_path=str(self.db_path),
+791: db_conn=self.db_conn,
+998: db = self.db_conn
+1031: db = self.db_conn
+1140: db = self.db_conn
