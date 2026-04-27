@@ -1,9 +1,0 @@
-﻿Now local: 2026-04-01 09:58:50.162444
-Now pd.Timestamp.now(): 2026-04-01 09:58:50.162673
-
-AAPL    : raw_max=2026-04-01T09:58:00-04:00  naive=2026-04-01 09:58:00  age=0.8min  [OK]  rows=200
-MSFT    : raw_max=2026-04-01T09:58:00-04:00  naive=2026-04-01 09:58:00  age=0.8min  [OK]  rows=200
-GOOGL   : raw_max=2026-04-01T09:58:00-04:00  naive=2026-04-01 09:58:00  age=0.8min  [OK]  rows=200
-AMZN    : raw_max=2026-04-01T09:58:00-04:00  naive=2026-04-01 09:58:00  age=0.8min  [OK]  rows=200
-GS      : raw_max=2026-04-01T09:58:00-04:00  naive=2026-04-01 09:58:00  age=0.8min  [OK]  rows=200
-MA      : raw_max=2026-04-01T09:58:00-04:00  naive=2026-04-01 09:58:00  age=0.8min  [OK]  rows=200
