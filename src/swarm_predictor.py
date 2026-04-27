@@ -2,7 +2,7 @@
 import os
 
 # -----------------------------------------------------------------------------
-# ABSOLUTE TELEMETRY SUPPRESSION (Samvid v1.0-beta-beta HARDCORE)
+# ABSOLUTE TELEMETRY SUPPRESSION (Samvid v1.0-beta-beta-beta HARDCORE)
 # MUST BE SET BEFORE ANY IMPORTS THAT MIGHT TRIGGER CHROMA/POSTHOG
 # -----------------------------------------------------------------------------
 os.environ["ANONYMIZED_TELEMETRY"] = "False"
@@ -25,14 +25,14 @@ trading system can continue operating without it.
 import asyncio  # pyre-ignore[21]
 import logging  # pyre-ignore[21]
 import os
-import json
 from dataclasses import dataclass, field  # pyre-ignore[21]
 from datetime import datetime, timedelta, timezone  # pyre-ignore[21]
-from vault import Vault  # pyre-ignore[21]
 from enum import Enum  # pyre-ignore[21]
 from typing import Any, Dict  # pyre-ignore[21]
 
 import httpx  # pyre-ignore[21]
+
+from vault import Vault  # pyre-ignore[21]
 
 logger = logging.getLogger(__name__)
 
@@ -68,7 +68,7 @@ class SwarmConsensus:
 
     @property
     def is_fresh(self) -> bool:
-        """True only if generated within the staleness window (Samvid v1.0-beta-beta: TZ Safety)."""
+        """True only if generated within the staleness window (Samvid v1.0-beta-beta-beta: TZ Safety)."""
         # Ensure parity: both must be naive or same-aware
         now = datetime.now(timezone.utc)
         gen = self.generated_at
@@ -85,24 +85,24 @@ class SwarmConsensus:
         if entry_side.lower() == "short" and self.bias == SwarmBias.BULLISH:
             return True
         return False
- 
+
     def get_confidence_modifier(self, entry_side: str = "long") -> float:
         """
-        Position-size modifier based on swarm alignment with trade direction (Samvid v1.0-beta-beta Fixed).
-        
+        Position-size modifier based on swarm alignment with trade direction (Samvid v1.0-beta-beta-beta Fixed).
+
         Args:
             entry_side: 'long' or 'short'
-            
+
         Returns:
             Modifier > 1.0 if aligned, < 1.0 if contrary, 1.0 if neutral/low-conf.
         """
         if self.confidence < 0.40 or self.bias == SwarmBias.NEUTRAL:
             return 1.0
-            
+
         # Check alignment
         is_aligned = (entry_side.lower() == "long" and self.bias == SwarmBias.BULLISH) or \
                      (entry_side.lower() == "short" and self.bias == SwarmBias.BEARISH)
-                     
+
         if is_aligned:
             # Scale UP: 1.0 to 1.15
             return 1.0 + (self.confidence - 0.40) * 0.25
@@ -125,20 +125,20 @@ class ChromaDeepMemory:
     ) -> None:
         import chromadb
         from chromadb.config import Settings
-        
+
         # GAP-183 FIX: Singleton Client to prevent memory/file-handle leaks
         if ChromaDeepMemory._client_instance is None:
             try:
                 ChromaDeepMemory._client_instance = chromadb.PersistentClient(
                     path=db_dir, settings=Settings(allow_reset=True, anonymized_telemetry=False)
                 )
-                logger.info(f"✓ Chroma Persistence Online (Samvid v1.0-beta-beta Memory System) at {db_dir}")
+                logger.info(f"✓ Chroma Persistence Online (Samvid v1.0-beta-beta-beta Memory System) at {db_dir}")
             except Exception as e:
                 logger.warning(f"Chroma: PersistentClient failed ({e}). Falling back to Ephemeral.")
                 ChromaDeepMemory._client_instance = chromadb.EphemeralClient(
                     settings=Settings(allow_reset=True, anonymized_telemetry=False)
                 )
-        
+
         self.client = ChromaDeepMemory._client_instance
 
         try:
@@ -151,14 +151,14 @@ class ChromaDeepMemory:
 
         self.collection = self.client.get_or_create_collection(collection_name, embedding_function=fast_ef)
         try:
-            count = int(self.collection.count())  # ChromaDB v1.0-beta+ returns int directly
+            count = int(self.collection.count())  # ChromaDB v1.0-beta-beta+ returns int directly
             logger.info(f"ChromaDB Memory Active: {count} memories in '{collection_name}'")
         except Exception:
             logger.info(f"ChromaDB Memory Active: collection '{collection_name}' ready")
 
     async def search_memory(self, market_narrative: str, limit: int = 5) -> tuple[str, float]:
         """
-        Samvid v1.0-beta-beta: Wisdom Retrieval & Compaction.
+        Samvid v1.0-beta-beta-beta: Wisdom Retrieval & Compaction.
         Finds similar regimes AND compacts them into distilled wisdom tokens.
         """
         if not self.collection:
@@ -176,7 +176,7 @@ class ChromaDeepMemory:
             # If we find highly similar memories, compact them into a single truth token
             docs = results["documents"][0]
             metas = results["metadatas"][0]
-            
+
             compacted_truth = await self._compact_memories(docs, metas)
             if compacted_truth:
                 logger.info("🧠 [Memory]: Highly relevant Wisdom Token compacted.")
@@ -210,10 +210,10 @@ class ChromaDeepMemory:
     async def _compact_memories(self, documents: list[str], metadatas: list[dict]) -> str | None:
         """GAP-68: Compaction logic that preserves reasoning ('Why') and signals ('What')."""
         if len(documents) < 3: return None
-        
+
         # Heuristic: Combine the top 3 similar memories into a high-density alpha rule
         combined = "\n".join([f"- {d}" for d in documents[:3]])
-        # Note: In a production SE-11 system, we'd use an LLM here. 
+        # Note: In a production SE-11 system, we'd use an LLM here.
         # For now, we return a structured synthesis to preserve the 'Why'.
         return f"SYNTHESIZED WISDOM (n=3):\n{combined}\nREGIME_STABILITY: High"
 
@@ -253,8 +253,9 @@ class SwarmPredictor:
 
     def is_market_active(self) -> bool:
         """Checks if the US market is currently in high-liquidity session."""
-        import pytz
         from datetime import datetime
+
+        import pytz
         tz = pytz.timezone('US/Eastern')
         now = datetime.now(tz)
         if now.weekday() >= 5: return False
@@ -272,9 +273,9 @@ class SwarmPredictor:
         self._cache_minutes = cache_minutes
         self._available: bool = False
         self._memory = ChromaDeepMemory()
-        self._memory_queue: asyncio.Queue = asyncio.Queue(maxsize=100)  # Samvid v1.0-beta-beta: Bounded Buffer
+        self._memory_queue: asyncio.Queue = asyncio.Queue(maxsize=100)  # Samvid v1.0-beta-beta-beta: Bounded Buffer
         self._memory_loop: asyncio.Task | None = None
-        
+
         # 2. SEEDS: Check for Local vs Cloud reasoning
 
         use_local_str = Vault.get("USE_LOCAL_LLM", "true")
@@ -287,7 +288,7 @@ class SwarmPredictor:
             urls_str = Vault.get("OLLAMA_URLS", "http://localhost:11434/v1")
             self._ollama_urls = [u.strip() for u in urls_str.split(",") if u.strip()]
             self._url_index = 0
-            
+
             # Adjusted for GTX 1050 (4GB) VRAM Isolation
             self._model_fast = Vault.get("OLLAMA_MODEL_FAST", "qwen2.5:1.5b") or "qwen2.5:1.5b"
             self._model_heavy = Vault.get("OLLAMA_MODEL_HEAVY", "phi3:mini") or "phi3:mini"
@@ -297,12 +298,12 @@ class SwarmPredictor:
             self._available = True
             self._model_fast = "gpt-4o-mini"
             self._model_heavy = "gpt-4o"
-            logger.info(f"✓ Native Swarm Intelligence initialized (OpenAI API bound)")
+            logger.info("✓ Native Swarm Intelligence initialized (OpenAI API bound)")
         else:
             logger.warning(
                 "No Intelligence Provider Found (Set USE_LOCAL_LLM=true or OPENAI_API_KEY)"
             )
-            
+
         # Start the Background Memory Harvester (Safe for non-async tests)
         try:
             self._memory_loop = asyncio.create_task(self._process_memory_queue())
@@ -310,7 +311,7 @@ class SwarmPredictor:
             self._memory_loop = None
 
     def stop(self) -> None:
-        """Gracefully stop background tasks (Samvid v1.0-beta-beta Cleanup)."""
+        """Gracefully stop background tasks (Samvid v1.0-beta-beta-beta Cleanup)."""
         if self._memory_loop and not self._memory_loop.done():
             self._memory_loop.cancel()
             logger.info("✓ SwarmPredictor: Background tasks terminated.")
@@ -355,8 +356,7 @@ class SwarmPredictor:
             report = report.get("summary", report.get("text", str(report)))
         report_lower = str(report).lower()
 
-        import re
-        # Samvid v1.0-beta-beta GAP-78: Negation-Aware Sentiment Discovery
+        # Samvid v1.0-beta-beta-beta GAP-78: Negation-Aware Sentiment Discovery
         # Prevents "not bullish" from being counted as a bullish signal.
         def _is_negated(word: str, text: str) -> bool:
             # Look back 25 characters for negation markers
@@ -371,7 +371,7 @@ class SwarmPredictor:
         for w in bullish_words:
             if w in report_lower and not _is_negated(w, report_lower):
                 bull_score += 1
-        
+
         bear_score = 0
         for w in bearish_words:
             if w in report_lower and not _is_negated(w, report_lower):
@@ -415,7 +415,7 @@ class SwarmPredictor:
 
     async def get_market_forecast(self, symbol: str, context: Dict[str, Any], effort: str = "medium") -> SwarmConsensus:
         """
-        Unified Swarm Prediction (Samvid v1.0-beta-beta).
+        Unified Swarm Prediction (Samvid v1.0-beta-beta-beta).
         Combines SFI Flash-Inference, Advisor Logic, and Teammate Spawning.
         """
         if not self._available:
@@ -447,7 +447,7 @@ class SwarmPredictor:
         # 3. FULL DEBATE QUORUM (Claude-Ported Logic)
         briefing = self._advisor_briefing(context)
         persona_types = self._spawn_teammates(effort)
-        
+
         # Inject long-term memory into briefing if available
         if deep_memory_str:
             briefing += f"\n\n[HISTORICAL_CONTEXT]\n{deep_memory_str[:500]}"
@@ -457,11 +457,11 @@ class SwarmPredictor:
 
         bull_weight = sum(w for b, w in votes if b == SwarmBias.BULLISH)
         bear_weight = sum(w for b, w in votes if b == SwarmBias.BEARISH)
-        
+
         final_bias = SwarmBias.NEUTRAL
         if bull_weight > bear_weight: final_bias = SwarmBias.BULLISH
         elif bear_weight > bull_weight: final_bias = SwarmBias.BEARISH
-        
+
         total_vote_weight = bull_weight + bear_weight
         confidence = (max(bull_weight, bear_weight) / (total_vote_weight + 1e-10)) if total_vote_weight > 0 else 0.5
 
@@ -473,9 +473,9 @@ class SwarmPredictor:
             generated_at=datetime.now(timezone.utc),
             symbol=symbol
         )
-        
+
         self._last_consensus = consensus
-        
+
         # 4. Async Memory Commitment
         if confidence > 0.70:
             try:
@@ -488,7 +488,7 @@ class SwarmPredictor:
             except Exception: pass
 
         return consensus
- 
+
     def _advisor_briefing(self, context: dict) -> str:
         """Constructs a high-level narrative briefing for the Swarm Agents."""
         symbol = context.get("symbol", "the asset")
@@ -512,24 +512,24 @@ class SwarmPredictor:
     async def _simulate_teammate_inference(self, persona: str, context: dict, briefing: str) -> tuple:
         """GAP-66: Real LLM-driven persona logic (replacing hardcoded mocks)."""
         prompt = f"As a {persona}, analyze {context.get('symbol')} given: {context.get('pattern')}. Brief: {briefing}. End with: BIAS: [BULLISH/BEARISH/NEUTRAL]"
-        
+
         # We use the fast model for individual agents
         opinion = await self._prompt_agent(persona, f"You are a professional {persona} in a hedge fund.", prompt)
-        
+
         bias = SwarmBias.NEUTRAL
         if "BULLISH" in opinion.upper(): bias = SwarmBias.BULLISH
         elif "BEARISH" in opinion.upper(): bias = SwarmBias.BEARISH
-        
+
         # Dynamic weight based on persona relevance to the current VIX
         weight = 0.8
         vix = float(context.get("vix", 20))
         if persona == "RiskOfficer" and vix > 25: weight = 1.2 # Risk officer has more say in high vol
-        
+
         return bias, weight
 
     async def evaluate_proposal(self, context: Dict[str, Any]) -> Dict[str, Any]:
         """
-        Standardized consensus evaluation for Samvid v1.0-beta-beta.
+        Standardized consensus evaluation for Samvid v1.0-beta-beta-beta.
         Provides the Swarm Intelligence vote based on a 5-agent debate.
         """
         symbol = context.get("symbol", "UNKNOWN")
@@ -576,10 +576,10 @@ class SwarmPredictor:
                     timeout=httpx.Timeout(connect=15.0, read=180.0, write=20.0, pool=10.0),
                 )
             client = self._openai_client
-            
+
             from thermal_guard import ThermalGuard
             options = await ThermalGuard.get_handshake_options(is_critical=is_critical)
-            
+
             kwargs = {
                 "model": self._model_fast,
                 "messages": [
@@ -599,7 +599,7 @@ class SwarmPredictor:
             # GAP-138: Respect the VRAM safety semaphore
             async with self._prompt_semaphore:
                 resp = await client.chat.completions.create(**kwargs)
-            
+
             content = resp.choices[0].message.content if resp and resp.choices else None
             return content or "No opinion."
         except (httpx.ConnectTimeout, httpx.ReadTimeout) as e:
@@ -611,8 +611,10 @@ class SwarmPredictor:
     async def _synthesize_consensus(self, symbol: str, debate: str, persona_count: int = 5, is_critical: bool = True) -> SwarmConsensus:
         """The Chief Strategist reviews the agent outputs and returns structured consensus."""
         try:
-            import openai
             import json
+
+            import openai
+
             from thermal_guard import ThermalGuard
 
             if self._openai_client is None:
@@ -623,11 +625,10 @@ class SwarmPredictor:
                     base_url=base_url,
                     timeout=httpx.Timeout(connect=15.0, read=180.0, write=20.0, pool=10.0),
                 )
-            
+
             client = self._openai_client
-            from thermal_guard import ThermalGuard
             options = await ThermalGuard.get_handshake_options(is_critical=is_critical)
-            
+
             kwargs = {
                 "model": self._model_heavy,
                 "messages": [
@@ -694,7 +695,7 @@ class SwarmPredictor:
             parts.append("\n<NEWS_DATA>")
             injection_flags = ["ignore all ", "system override", "new instructions", "you are now", "forget everything"]
             for h in ctx["news"][:3]:
-                # GAP-70 FIX: Prompt Injection Sterilization (Samvid v1.0-beta-beta)
+                # GAP-70 FIX: Prompt Injection Sterilization (Samvid v1.0-beta-beta-beta)
                 safe_h = str(h)
                 for flag in injection_flags:
                     safe_h = safe_h.lower().replace(flag, "[REDACTED]")
@@ -724,7 +725,7 @@ class SwarmPredictor:
             try:
                 mem = await self._memory_queue.get()
                 # Use sub-second 'idle' spacing to prevent VRAM spikes
-                await asyncio.sleep(2.0) 
+                await asyncio.sleep(2.0)
                 await self._memory.store_memory(
                     symbol=mem["symbol"],
                     debate_summary=mem["summary"],

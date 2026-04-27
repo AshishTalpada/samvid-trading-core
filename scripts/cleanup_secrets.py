@@ -6,8 +6,8 @@ from pathlib import Path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "src")))
 
 try:
-    from vault import Vault
     from database_security import Vault as VaultSec
+    from vault import Vault
 except ImportError:
     print("Error: Could not import Vault. Run from project root.")
     sys.exit(1)
@@ -15,27 +15,27 @@ except ImportError:
 def cleanup():
     print("🛡️ SOVEREIGN SECRET CLEANUP (GAP-76/77)")
     print("======================================")
-    
+
     # 1. Check for sensitive files
     root = Path(".")
     targets = [".env", ".env.bak", ".env.old", "secrets.json"]
-    
+
     found = []
     for t in targets:
         p = root / t
         if p.exists():
             found.append(p)
-            
+
     if not found:
         print("✅ No plaintext secret files found in root.")
     else:
         print(f"⚠️ Found {len(found)} plaintext secret files.")
         for p in found:
             print(f"  - {p}")
-            
+
         print("\nVerifying secrets are in Vault before deletion...")
         # (This is a simplified check - in a real system we'd parse .env)
-        
+
         confirm = input("\nHave you manually verified all secrets are in Windows Vault? (yes/no): ")
         if confirm.lower() == "yes":
             for p in found:
@@ -55,7 +55,7 @@ def cleanup():
         print(f"  ❌ .env still detectable at {dot_env}")
     else:
         print("  ✅ .env eliminated from detection path.")
-        
+
     print("\nCleanup Complete.")
 
 if __name__ == "__main__":

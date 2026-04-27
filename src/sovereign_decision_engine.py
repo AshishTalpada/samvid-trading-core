@@ -1,16 +1,16 @@
 """
-src/sovereign_decision_engine.py - The Singular Decision Point (Samvid v1.0-beta-beta)
+src/sovereign_decision_engine.py - The Singular Decision Point (Samvid v1.0-beta-beta-beta)
 ==========================================================================
 This is the ONLY engine authorized to resolve agent outputs into an EXECUTE signal.
 It enforces a 'Strict Quorum' of 7 agents and provides an immutable audit trace.
 """
 
 import asyncio
-import time
 import logging
-from datetime import datetime
-from dateutil import parser as dtparser
+import time
 from typing import Any, Dict, List, Optional
+
+from dateutil import parser as dtparser
 
 try:
     from intelligence_bus import SharedIntelligenceBus
@@ -73,13 +73,12 @@ class SovereignDecisionEngine:
         no_votes = 0
         abstain_votes = 0
         total_confidence = 0.0
-        vetos = []
 
         # Mapping for easier access
         output_map = {out["agent"]: out for out in agent_outputs}
 
         for agent, out in output_map.items():
-            # Runtime Type Integrity Check (Samvid v1.0-beta-beta: Added ABSTAIN support - GAP-06)
+            # Runtime Type Integrity Check (Samvid v1.0-beta-beta-beta: Added ABSTAIN support - GAP-06)
             vote = out.get("vote")
             if vote not in ["YES", "NO", "ABSTAIN"]:
                 return await self._reject(f"Data Mismatch: Agent '{agent}' returned invalid vote '{vote}'.")
@@ -100,7 +99,7 @@ class SovereignDecisionEngine:
                         logger.warning(f"DecisionEngine: Agent '{agent}' too slow (drift={drift_sec:.2f}s). Excluding from quorum.")
                         continue # Skip this agent, don't reject the whole cycle
                 except Exception:
-                    pass 
+                    pass
 
             # Processing Vote
             if vote == "YES":
@@ -120,7 +119,7 @@ class SovereignDecisionEngine:
         avg_confidence = total_confidence / len(self.required_agents) if len(self.required_agents) > 0 else 0.0
 
         # --- PHASE 4: QUORUM LOGIC IMPLEMENTATION (Triangulation Protocol) ---
-        
+
         # 1. HARD VETO CHECK (Risk First)
         if output_map.get("Risk_Guard", {}).get("vote") == "NO":
              return await self._final_report(
@@ -142,13 +141,13 @@ class SovereignDecisionEngine:
 
         # 2. Quorum Threshold Check — regime-aware
         regime = context.get("regime", "UNKNOWN")
-        
+
         # Enforce Safe-Mode 90% Threshold if active
         if context.get("safe_mode_active"):
             required_threshold = 0.50
             actual_threshold = yes_votes / len(self.required_agents)
             is_probe = context.get("is_probe", False)
-            
+
             if (actual_threshold >= required_threshold) and (avg_confidence > 0.70 or is_probe):
                  logger.info(f"🏛️ SAFE-MODE SUCCESS: High-Fidelity Quorum achieved ({actual_threshold:.2%})")
                  return await self._final_report(
@@ -168,11 +167,11 @@ class SovereignDecisionEngine:
             # GAP-14 FIX: Percentage-based Quorum (60% of active voters)
             # This ensures we have a real majority even if many agents abstain.
             is_probe = context.get("is_probe", False)
-            
+
             min_required = 4 if regime in ("CHOPPY", "VOLATILE") else 5
             # Ensure at least 60% of active voters say YES
             vote_ratio = (yes_votes / active_voters) if active_voters > 0 else 0
-            
+
             # --- SOVEREIGN PROBE BYPASS ---
             # If it's a probe, we pass if any agent responded YES (wiring test).
             # Otherwise, enforce strict quorum.
@@ -200,13 +199,13 @@ class SovereignDecisionEngine:
                     votes=agent_outputs
                 )
 
-        # --- BREAKTHROUGH: STOP-RUN SHIELD (Samvid v1.0-beta-beta Phantasm) ---
+        # --- BREAKTHROUGH: STOP-RUN SHIELD (Samvid v1.0-beta-beta-beta Phantasm) ---
         # If Agent D detects 'Edge Crowding' (M-05), we apply 'Ghost Expansion'.
         d_out = output_map.get("Agent_D", {})
         if d_out.get("metadata", {}).get("edge_crowded", False):
             logger.warning(f"🏛️ STOP-RUN SHIELD: Edge Crowding detected for {context.get('symbol', 'UNKNOWN')}. Applying Ghost Expansion (Wider Stop / Smaller Size).")
             # Metadata tags for Agent C to handle the expansion
-            context["execution_mode"] = "GHOST_EXPANSION" 
+            context["execution_mode"] = "GHOST_EXPANSION"
             context["stop_multiplier"] = 1.35 # 35% wider to breathe through the flush
             context["size_multiplier"] = 0.75 # 25% smaller to maintain risk parity
 

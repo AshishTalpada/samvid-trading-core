@@ -26,7 +26,7 @@ class ExitDecision:
 
 
 class ExitIntelligence:
-    """Cost-Aware High-RR Exit Engine (Sovereign v1.0-beta)"""
+    """Cost-Aware High-RR Exit Engine (Sovereign v1.0-beta-beta)"""
 
     def __init__(self, config: dict | None = None) -> None:
         self.config = config or {}
@@ -57,11 +57,11 @@ class ExitIntelligence:
         if qty == 0:
             return ExitDecision(action=ExitAction.HOLD, priority=0, reason="Zero quantity position detected")
 
-        # --- GAP-38: Dhatu-Adaptive Multiples (Samvid v1.0-beta-beta) ---
+        # --- GAP-38: Dhatu-Adaptive Multiples (Samvid v1.0-beta-beta-beta) ---
         partial_r_target = 1.5
         trail_activation_r = 1.0
         trail_tightness = 0.5 # R-distance
-        
+
         if dhatu_state == "Chala":
             # Volatile: Take partials early, trail tight
             partial_r_target = 1.0
@@ -99,7 +99,7 @@ class ExitIntelligence:
         mfe_r = position.get("mfe_r", 0.0)
         take_profit = position.get("take_profit", 0.0)
         runner_active = position.get("runner_active", False)
-        
+
         # --- SUB-PRIORITY 2.1: Hard Take Profit ---
         if side == "long" and take_profit > 0 and current_price >= take_profit:
             return ExitDecision(action=ExitAction.EXIT, priority=2, reason=f"Target Hit: ${take_profit}")

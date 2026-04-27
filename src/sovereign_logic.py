@@ -1,9 +1,10 @@
-import logging
 import json
+import logging
 import os
 from datetime import datetime, timezone
-import pytz
 from typing import Any, Dict
+
+import pytz
 
 from config import COMMISSION_PER_ROUND_TRIP, STARTING_CAPITAL_CAD
 
@@ -11,7 +12,7 @@ logger = logging.getLogger(__name__)
 
 class SovereignLogicEngine:
     """
-    The Single Source of Truth for the 500-Ability Sovereign Mind (v1.0-beta-beta).
+    The Single Source of Truth for the 500-Ability Sovereign Mind (v1.0-beta-beta-beta).
     Acts as a logical dispatcher and executor for the capability registry.
     """
 
@@ -38,7 +39,7 @@ class SovereignLogicEngine:
                             "prowess": 1.0,
                             "last_sync": datetime.now().isoformat()
                         }
-            logger.info(f"SovereignLogicEngine: 500 Abilities synchronized and active.")
+            logger.info("SovereignLogicEngine: 500 Abilities synchronized and active.")
         except Exception as e:
             logger.error(f"Logic Engine initialization failure: {e}")
 
@@ -82,7 +83,7 @@ class SovereignLogicEngine:
         # Strip trailing ID suffixes like _152 or _Node_001
         import re
         base_name = re.sub(r'(_Node)?(_\d+)?$', '', node_name).lower()
-        
+
         _base_dispatch = {
             "hedge": self._logic_152_hedge,
             "drawdown": self._logic_154_drawdown_breaker,
@@ -99,13 +100,13 @@ class SovereignLogicEngine:
             "blackswan": self._logic_166_blackswan,
             "optimism": self._logic_452_optimism,
         }
-        
+
         for key, func in _base_dispatch.items():
             if key in base_name:
                 return func(context)
 
         # --- BUG #17 FIX: Hallucination Protection ---
-        # Remaining nodes: active in cognition, not yet deep-coded. 
+        # Remaining nodes: active in cognition, not yet deep-coded.
         # Return impact 0.0 to prevent blind SUCCESS state.
         return {"status": "PURE_COGNITION", "node": node["name"], "mode": "DORMANT", "impact": 0.0}
 
@@ -119,7 +120,7 @@ class SovereignLogicEngine:
         # BUG #20 FIX: Dynamically read commission from Vault
         commission = float(Vault.get("COMMISSION_PER_ROUND_TRIP", str(COMMISSION_PER_ROUND_TRIP)))
         account_value = ctx.get("account_value", STARTING_CAPITAL_CAD)
-        
+
         q = 1.0 - win_prob
         kelly_f = (win_prob * rr - q) / rr
         final_sizing = max(0, kelly_f * 0.2)
@@ -132,12 +133,12 @@ class SovereignLogicEngine:
         """Regime Prediction — handles Abhava (crisis) states (Bug #19 FIX)."""
         dhatu = ctx.get("dhatu", "Sthiti")
         regime = ctx.get("regime", "UNKNOWN")
-        
+
         # BUG #19 FIX: Ensure Abhava crisis overrides any bullish bias
         if dhatu == "Abhava":
             logger.warning("🏛️ Logic #104: ABHAVA Crisis Override — enforcing Defensive regime.")
             return {"predicted_regime": "VOLATILE", "bias": "BEARISH", "confidence": 0.95}
-            
+
         if regime == "BULLISH":
             return {"predicted_regime": "BULLISH", "bias": "NEUTRAL", "confidence": 0.70}
         return {"predicted_regime": regime, "bias": "NEUTRAL", "confidence": 0.50}
@@ -175,7 +176,7 @@ class SovereignLogicEngine:
 
     def _logic_155_slippage(self, ctx: Dict[str, Any]) -> Dict[str, Any]:
         """Spread and Friction Viability Audit."""
-        symbol = ctx.get("symbol", "")
+        ctx.get("symbol", "")
         # Dummy spread proxy (0.02% of entry)
         entry = ctx.get("entry", 1.0)
         target = ctx.get("target", 1.05)
@@ -187,7 +188,7 @@ class SovereignLogicEngine:
 
     def _logic_166_blackswan(self, ctx: Dict[str, Any]) -> Dict[str, Any]:
         """
-        Black-Swan Veto — triggers on catastrophic news keywords (Samvid v1.0-beta-beta).
+        Black-Swan Veto — triggers on catastrophic news keywords (Samvid v1.0-beta-beta-beta).
         Remediated GAP-17: Now handles basic negation and context check.
         """
         headline = ctx.get("headline", "").lower()
@@ -196,7 +197,7 @@ class SovereignLogicEngine:
 
         triggers = ["war", "nuclear", "crash", "halt", "bankruptcy", "pandemic", "recession"]
         negations = ["no", "not", "avoid", "low", "unlikely", "false"]
-        
+
         # Check for triggers
         found_trigger = next((t for t in triggers if t in headline), None)
         if found_trigger:
@@ -212,7 +213,7 @@ class SovereignLogicEngine:
 
             # GAP-18 CONTEXT: If trigger is found and NOT negated, it constitutes a structural risk
             return {"veto": True, "reason": f"Black-Swan keyword in headline: '{found_trigger}' (Context: {headline[:40]})"}
-        
+
         return {"veto": False}
 
     def _logic_15_hft_footprint(self, ctx: Dict[str, Any]) -> Dict[str, Any]:
@@ -221,10 +222,10 @@ class SovereignLogicEngine:
         ask = ctx.get("ask", 0.0)
         vol = ctx.get("volume", 0.0)
         if bid <= 0 or ask <= 0: return {"status": "INCONCLUSIVE"}
-        
+
         spread = abs(ask - bid)
         if spread == 0: return {"status": "MAX_TENSION", "signal": "BUY_PRESSURE"}
-        
+
         # TENSION = VOLUME / SPREAD^2
         tension = vol / (spread ** 2) if spread >0 else 1000
         if tension > 5000:
@@ -245,7 +246,7 @@ class SovereignLogicEngine:
         et_tz = pytz.timezone("US/Eastern")
         now_et = datetime.now(timezone.utc).astimezone(et_tz)
         hour = ctx.get("hour", now_et.hour)
-        
+
         if 9 <= hour < 10:    # Opening volatility
             return {"session": "OPEN", "risk_mult": 0.7, "note": "Reduce size at open"}
         elif 11 <= hour < 13: # Lunch lull
@@ -290,7 +291,7 @@ class SovereignLogicEngine:
         """Hedge Node 152: Dynamic Risk Neutralization."""
         exposure = ctx.get("total_exposure", 0.0)
         volatility = ctx.get("volatility_index", 20.0)
-        
+
         if exposure > 50000 and volatility > 30:
             return {"action": "HEDGE", "instrument": "SH", "size_pct": 0.15, "reason": "High exposure/volatility balance."}
         return {"action": "NONE"}

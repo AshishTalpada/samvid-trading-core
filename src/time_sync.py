@@ -1,8 +1,8 @@
+import asyncio
+import logging
 import socket
 import struct
 import time
-import logging
-import asyncio
 from datetime import datetime, timezone
 
 logger = logging.getLogger(__name__)
@@ -13,10 +13,10 @@ class TimeSync:
     Synchronizes system clock with global NTP pool to prevent stale signal execution.
     """
     NTP_SERVERS = [
-        "pool.ntp.org", 
-        "time.google.com", 
-        "time.nist.gov", 
-        "time.cloudflare.com", 
+        "pool.ntp.org",
+        "time.google.com",
+        "time.nist.gov",
+        "time.cloudflare.com",
         "time.windows.com"
     ]
     _offset = 0.0 # system_time + offset = ntp_time
@@ -24,7 +24,7 @@ class TimeSync:
 
     @classmethod
     async def sync(cls):
-        """Asynchronously determine the NTP offset (Samvid v1.0-beta-beta Hardened)."""
+        """Asynchronously determine the NTP offset (Samvid v1.0-beta-beta-beta Hardened)."""
         for server in cls.NTP_SERVERS:
             try:
                 # GAP-64 FIX: Asynchronous DNS resolution to prevent executor hang
@@ -40,8 +40,8 @@ class TimeSync:
                 return True
             except Exception as e:
                 logger.warning(f"Failed to sync with {server}: {e}")
-        
-        # --- GAP-11/62/137: HTTP FALLBACK PRECISION (Samvid v1.0-beta-beta) ---
+
+        # --- GAP-11/62/137: HTTP FALLBACK PRECISION (Samvid v1.0-beta-beta-beta) ---
         try:
             from session_manager import SovereignSession
             session = await SovereignSession.get_session()
@@ -57,18 +57,18 @@ class TimeSync:
                             if parsed_date:
                                 return email.utils.mktime_tz(parsed_date)
                             return None
-                        
+
                         ntp_ts = await asyncio.to_thread(_parse_date, date_str)
                         if ntp_ts:
                             latency = (t1 - t0) / 2.0
                             # GAP-137 FIX: HTTP precision is 1s, so we assume the server timestamp
                             # is at the start of the second. Adding 0.5s reduces mean error.
-                            cls._offset = (ntp_ts + 0.5) - (t1 - latency) 
+                            cls._offset = (ntp_ts + 0.5) - (t1 - latency)
                             logger.info(f"✅ Clock Synchronized via HTTP Fallback. Offset: {cls._offset:.4f}s (Latency Adj: {latency:.4f}s)")
                             return True
         except Exception as e:
             logger.warning(f"HTTP Time fallback failed: {e}")
-        
+
         logger.error("❌ NTP Sync Failed across all protocols. Using local system clock (Risky).")
         return False
 
@@ -79,7 +79,7 @@ class TimeSync:
             return
         cls._is_periodic_running = True
         logger.info(f"TimeSync: Background drift correction active (Interval: {interval_hours}h).")
-        
+
         while cls._is_periodic_running:
             await asyncio.sleep(interval_hours * 3600)
             await cls.sync()
@@ -91,10 +91,10 @@ class TimeSync:
         # First byte is 0x1B (LI=0, VN=3, Mode=3 client)
         packet = bytearray(48)
         packet[0] = 0x1B
-        
+
         # Use a thread since socket.sendto/recvfrom are blocking
         loop = asyncio.get_event_loop()
-        
+
         def _exchange():
             with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
                 s.settimeout(5.0)
@@ -104,14 +104,14 @@ class TimeSync:
                 # Receive response
                 data, _ = s.recvfrom(48)
                 recv_time = time.time()
-                
+
                 # Extract transmit timestamp (bytes 40-48)
                 # Format is 32-bit seconds since 1900, 32-bit fraction
                 unpacked = struct.unpack("!12I", data)
                 ntp_seconds = unpacked[10] - 2208988800 # Convert to Unix epoch
                 ntp_fraction = unpacked[11] / (2**32)
                 ntp_time = ntp_seconds + ntp_fraction
-                
+
                 # Round trip delay calculation (simplified)
                 # t0 = send_time, t3 = recv_time, t2 = ntp_time
                 # offset = ((t1-t0) + (t2-t3)) / 2

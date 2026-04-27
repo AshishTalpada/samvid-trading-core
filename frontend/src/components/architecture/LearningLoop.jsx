@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 
-/** 🧬 Agent D Self-Evolution Loop v1.0-beta — 2×2 card grid with stats panel */
+/** 🧬 Agent D Self-Evolution Loop v1.0-beta-beta — 2×2 card grid with stats panel */
 
 const LOOP_NODES = [
   { id: 'brain',    icon: '🧠', color: '#00ff88', label: 'Brain Core',    desc: 'Neural Engine', position: 'top-left' },

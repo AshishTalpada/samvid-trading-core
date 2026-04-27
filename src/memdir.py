@@ -8,7 +8,7 @@ logger = logging.getLogger(__name__)
 
 class MemoryManager:
     """
-    Samvid v1.0-beta-beta Memory Directory System.
+    Samvid v1.0-beta-beta-beta Memory Directory System.
     Inspired by Claude-Code's 'memdir' and 'CLAUDE.md' patterns.
     Provides persistent 'Trading Directives' and 'Session Memory' for the Twin-Minds.
     """
@@ -27,7 +27,7 @@ class MemoryManager:
             self.session_memory_path,
             "# .trading.md — Session Context\n\n- System Status: INITIALIZING\n",
         )
-        
+
         # GAP-73: Enforce RO protection on startup
         self.protect_prime_directive()
 
@@ -88,7 +88,7 @@ class MemoryManager:
         # GAP-71: Apply strict truncation (5k chars each) to prevent identity thinning
         if len(directive) > 5000:
             directive = directive[:4900] + "\n... [TRUNCATED DUE TO BLOAT] ..."
-        
+
         if len(session) > 5000:
             session = "... [TRUNCATED] ...\n" + session[-4900:] # Keep the latest session context
 

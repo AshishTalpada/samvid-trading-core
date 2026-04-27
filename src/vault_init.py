@@ -1,5 +1,5 @@
-import sys
 import os
+import sys
 from pathlib import Path
 
 # Add src to sys.path to import Vault
@@ -12,6 +12,7 @@ except ImportError:
 
 import getpass
 import json
+
 
 def check_vault_service():
     """GAP-123 FIX: Verify keyring backend is available."""
@@ -26,7 +27,7 @@ def initialize_vault():
     check_vault_service()
     print("\n🛡️  SOVEREIGN VAULT INITIALIZATION (Hardened)")
     print("-" * 50)
-    
+
     # Essential keys without default values to avoid leaks
     SENSITIVE_KEYS = [
         "EXEC_SECRET",
@@ -50,7 +51,7 @@ def initialize_vault():
         "MT5_PASSWORD",
         "MT5_SERVER"
     ]
-    
+
     # GAP-124: Support Batch Mode via JSON file
     if "--batch" in sys.argv:
         batch_idx = sys.argv.index("--batch") + 1
@@ -81,7 +82,7 @@ def initialize_vault():
              if choice != 'y':
                  continue
              prompt = f"Enter NEW value for {key}"
-        
+
         # GAP-121 FIX: Use getpass to avoid leaking keys to terminal history
         val = getpass.getpass(f"{prompt}: ").strip()
         if val:

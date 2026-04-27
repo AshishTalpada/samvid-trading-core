@@ -8,7 +8,7 @@ import EvolutionaryIntelligence from '../EvolutionaryIntelligence';
 import { GlassPanel, SectionHeader, DataRow } from '../ui/SovereignUI';
 import { fmt } from '../SharedUI';
 
-/** 📊 Analytics Panel (Right Sidebar - v1.0-beta) */
+/** 📊 Analytics Panel (Right Sidebar - v1.0-beta-beta) */
 
 export default function RightAnalyticsPanel({ oracle = {}, gap = {}, brain = {} }) {
   const agentD = brain.agents?.agent_d || {};
@@ -79,7 +79,7 @@ export default function RightAnalyticsPanel({ oracle = {}, gap = {}, brain = {} 
       <GlassPanel style={{ borderLeft: '2px solid var(--violet)' }}>
         <SectionHeader title={`${agentB.label || 'Agent B'} — Classifier`} icon="🔮" sub={agentB.status ?? 'ACTIVE'} />
         <div style={{ padding: '8px', paddingTop: 0 }}>
-          <DataRow label="Classifier"   value={agentB.classifier ?? 'DhatuClassifier v1.0-beta'} color="violet" />
+          <DataRow label="Classifier"   value={agentB.classifier ?? 'DhatuClassifier v1.0-beta-beta'} color="violet" />
           <DataRow label="Risk Mod"     value={(() => { const m = Number(agentB.modifier); return isNaN(m) ? '---' : `${(m > 1 ? m : m * 100).toFixed(0)}%`; })()} color="amber" />
           <DataRow label="Oracle Freeze" value={agentB.freeze ? 'YES — FROZEN' : 'NO'}   color={agentB.freeze ? 'red' : 'emerald'} />
         </div>
@@ -110,7 +110,7 @@ export default function RightAnalyticsPanel({ oracle = {}, gap = {}, brain = {} 
           Institutional High-Frequency Dashboard
         </span>
         <span style={{ fontSize: '0.6rem', fontWeight: 900, color: 'var(--mid)', fontFamily: 'Outfit, sans-serif', letterSpacing: '-0.02em' }}>
-          SINGULARITY MATRIX · v1.0-beta
+          SINGULARITY MATRIX · v1.0-beta-beta
         </span>
       </div>
 

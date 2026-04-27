@@ -35,7 +35,7 @@ def test_drawdown_ladder_yellow_breach(ladder) -> None:
 
 
 def test_drawdown_ladder_red_breach(ladder) -> None:
-    """Test transition to RED at 25% drawdown. Trading is now ALLOWED but at 10% size (Samvid v1.0-beta-beta)."""
+    """Test transition to RED at 25% drawdown. Trading is now ALLOWED but at 10% size (Samvid v1.0-beta-beta-beta)."""
     # IBKR RED starts at 25% (75k)
     level = ladder.update(74000.0)
     assert level == DrawdownLevel.RED

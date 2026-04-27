@@ -4,9 +4,9 @@ import logging
 import os
 from datetime import datetime, timedelta  # pyre-ignore[21]
 from datetime import time as dt_time
-import numpy as np
 
 import MetaTrader5 as mt5  # pyre-ignore[21]
+import numpy as np
 
 logger = logging.getLogger(__name__)
 
@@ -39,16 +39,16 @@ class MT5Connection:
 
     async def connect(self, login: int, pw: str, server: str, path: str = "") -> bool:
         """Connect to MT5 trading server with login credentials. (GAP-33/203 Hardening)"""
-        import time as _time
         import asyncio as _asyncio
+        import time as _time
         self._login = login
         self._pw = pw
         self._server = server
         self._last_init_time = _time.time()
-        
+
         # GAP-203 FIX: Attempt to start terminal if path is provided
         success = await _asyncio.to_thread(mt5.initialize, path=path, server=server, login=login, password=pw)
-        
+
         if not success and not path:
             # Try to find path autonomously if first attempt failed
             found_path = Vault.get("MT5_PATH")
@@ -59,10 +59,10 @@ class MT5Connection:
                     potential_exe = os.path.join(effective_path, "terminal64.exe")
                     if os.path.exists(potential_exe):
                         effective_path = potential_exe
-                
+
                 logger.info(f"MT5: First init failed. Retrying with resolved path: {effective_path}")
                 success = await _asyncio.to_thread(mt5.initialize, path=effective_path, server=server, login=login, password=pw)
-        
+
         return success
 
     def sync_state(self, login: int, pw: str, server: str) -> None:
@@ -82,11 +82,11 @@ class MT5Connection:
     def place_order(self, sym: str, dir: str, vol: float, sl: float, tp: float) -> int:
         """Place an order on MT5 platform."""
         # =====================================================================
-        # Samvid v1.0-beta-beta HARDENED LOCK: Synchronized with Sovereign Panic Protocols
+        # Samvid v1.0-beta-beta-beta HARDENED LOCK: Synchronized with Sovereign Panic Protocols
         # =====================================================================
         AUTHORIZED_CALLERS = {
-            "sovereign_decision_engine", 
-            "_place_mt5_order", 
+            "sovereign_decision_engine",
+            "_place_mt5_order",
             "initiate_trade_lifecycle",
             "flat_all_positions",
             "_emergency_flatten",
@@ -100,13 +100,13 @@ class MT5Connection:
             # Try one more level up if it's an async wrapper
             caller_frame = caller_frame.f_back if caller_frame else None
             caller_name = caller_frame.f_code.co_name if caller_frame else "unknown"
-        
+
         # Bug 36 FIX: Whitelist Signature Guard
         # We now verify the module name AND the function name to prevent local spoofing.
         caller_module = caller_frame.f_globals.get("__name__", "unknown")
-        
+
         AUTHORIZED_MODULES = {"brain", "sovereign_decision_engine", "trading_system", "agent_c_ibkr"}
-        
+
         if caller_name not in AUTHORIZED_CALLERS or (caller_module not in AUTHORIZED_MODULES and not caller_module.startswith("src.")):
             logger.critical(f"UNAUTHORIZED EXECUTION ATTEMPT! Caller '{caller_module}.{caller_name}' bypassed Sovereign Engine! REJECTING ORDER.")
             return 0
@@ -193,14 +193,14 @@ class MT5Connection:
         positions = mt5.positions_get()
         if not positions:
             return {}
-        
+
         result = {}
         for pos in positions:
             # Polarity: Buy is positive, Sell is negative
             qty = pos.volume
             if pos.type == mt5.POSITION_TYPE_SELL:
                 qty = -qty
-            
+
             # Aggregate if multiple positions exist for the same symbol
             result[pos.symbol] = result.get(pos.symbol, 0.0) + qty
         return result
@@ -208,11 +208,11 @@ class MT5Connection:
 
 class FTMOComplianceLayer:
     # ═══════════════════════════════════════════════════════════════════
-    # Samvid v1.0-beta-beta Standard Challenge Settings
+    # Samvid v1.0-beta-beta-beta Standard Challenge Settings
     # CRITICAL: These MUST match src/config.py exactly
     # Any divergence = FTMO challenge failure
     # ═══════════════════════════════════════════════════════════════════
-    # Samvid v1.0-beta-beta Standard Challenge Settings (Synchronized with src.config)
+    # Samvid v1.0-beta-beta-beta Standard Challenge Settings (Synchronized with src.config)
     DAILY_LIMIT: float = FTMO_DAILY_LIMIT
     DRAWDOWN_LIMIT: float = FTMO_DRAWDOWN_LIMIT
     MAX_TRADES: int = MAX_TRADES_PER_DAY
@@ -243,7 +243,7 @@ class FTMOComplianceLayer:
         # Prague is CET/CEST (UTC+1/UTC+2)
         utc_now = datetime.now(_timezone.utc)
         # simplistic CET check
-        prague_now = utc_now + timedelta(hours=1) 
+        prague_now = utc_now + timedelta(hours=1)
         if prague_now.time() >= dt_time(23, 59):
             # Code to perform any reset logic needed
             pass
@@ -264,22 +264,22 @@ class MT5PositionSizer:
         Matches PositionSizingChain signature.
         """
         # 1. Resolve Risk Amount (Default 1% of account if not provided)
-        # In brain.py _state_scanning, it doesn't pass risk_amount directly, 
+        # In brain.py _state_scanning, it doesn't pass risk_amount directly,
         # so we fetch balance here.
         account = self._conn.get_account_info() if hasattr(self, '_conn') else mt5.account_info()._asdict() if mt5.account_info() else {}
         balance = account.get("balance", 500.0)
-        
+
         # Risk 1% by default, or use a provided modifier
         risk_pct = kwargs.get("risk_pct", 0.01)
         risk_amount = balance * risk_pct
-        
+
         lots = self.calculate_lots(risk_amount, entry_price, stop_price, symbol)
-        
+
         return {
             "shares": lots,
             "step8_shares": lots, # Coordinator compatibility
             "lots": lots,
-            "proposed_value": lots * entry_price, 
+            "proposed_value": lots * entry_price,
             "position_value": lots * entry_price, # Coordinator compatibility
             "risk_dollars": risk_amount if lots > 0 else 0,
             "steps": {"final": risk_amount}
@@ -287,10 +287,10 @@ class MT5PositionSizer:
 
     def calculate_lots(self, risk_amount: float, entry_price: float, stop_price: float, symbol: str) -> float:
         """Calculate the lot size for a trade based on risk management.
-        Institutional Single Order Routing (Sovereign v1.0-beta).
+        Institutional Single Order Routing (Sovereign v1.0-beta-beta).
         """
         # =====================================================================
-        # Samvid v1.0-beta-beta HARDENED LOCK: Expanded authorized callers
+        # Samvid v1.0-beta-beta-beta HARDENED LOCK: Expanded authorized callers
         # =====================================================================
         AUTHORIZED_CALLERS = {
             "_place_mt5_order",
@@ -306,7 +306,7 @@ class MT5PositionSizer:
              # Try one more level up if it's an async wrapper
              caller_frame = caller_frame.f_back if caller_frame else None
              caller_name = caller_frame.f_code.co_name if caller_frame else "unknown"
-        
+
         if caller_name not in AUTHORIZED_CALLERS:
              logger.critical(f"UNAUTHORIZED EXECUTION ATTEMPT! Caller '{caller_name}' bypassed Sovereign Engine! REJECTING SIZING.")
              return 0.0
@@ -321,29 +321,29 @@ class MT5PositionSizer:
         if dist < tick_info.point:
             logger.warning(f"Sizer: Distance {dist} too small for {symbol}")
             return 0.0
-        
+
         # Risk per Lot = (Distance / TickSize) * TickValue
         # This works correctly for 5-digit forex, gold, and indices.
         tick_size = tick_info.trade_tick_size if tick_info.trade_tick_size > 0 else tick_info.point
         risk_per_lot = (dist / tick_size) * tick_info.trade_tick_value
-        
+
         if risk_per_lot <= 0:
             logger.warning(f"Sizer: Zero risk_per_lot for {symbol}")
             return 0.0
-            
+
         lots = risk_amount / risk_per_lot
-        
+
         # Step 2: Respect Broker Constraints
         min_lot = tick_info.volume_min
         max_lot = tick_info.volume_max
         step_lot = tick_info.volume_step
-        
+
         # Normailize units
         lots = round(lots / step_lot) * step_lot
-        
+
         # Bound lots
         lots = max(min_lot, min(max_lot, lots))
-        
+
         # GAP-228 FIX: Integer lot enforcement for specific assets (Indices/Commodities)
         # If step_lot is 1.0, ensure we return a pure integer to avoid '0.0 lots' errors on some brokers.
         if step_lot >= 1.0:

@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 
 class KnowledgeIngestor:
     """
-    Samvid v1.0-beta-beta Knowledge Ingestor (Agent L Auxiliary).
+    Samvid v1.0-beta-beta-beta Knowledge Ingestor (Agent L Auxiliary).
     Hardened for safe recursive harvesting and secret redaction (GAP-77-80).
     """
 
@@ -27,13 +27,13 @@ class KnowledgeIngestor:
         escaped = [re.escape(s) for s in secrets if len(s) > 3]
         if not escaped:
             return None
-            
+
         # GAP-186: Support for redacting entire Markdown links if they contain a secret in the URL
         # Pattern: [any text](url_containing_secret) -> [REDACTED]
         patterns = list(escaped)
         for s in escaped:
              patterns.append(rf'\[[^\]]*\]\([^\)]*{s}[^\)]*\)')
-             
+
         return re.compile("|".join(patterns))
 
     async def ingest_directory(self, path: str, extensions: list[str] | None = None, max_depth: int = 5) -> None:
@@ -41,7 +41,7 @@ class KnowledgeIngestor:
         # GAP-78: Expanded default extensions
         if extensions is None:
             extensions = [".md", ".txt", ".json", ".log"]
-            
+
         logger.info(f"Ingestor: Harvesting intelligence from {path}...")
 
         if not os.path.exists(path):
@@ -58,7 +58,7 @@ class KnowledgeIngestor:
     async def _recursive_ingest(self, current_path: str, extensions: list[str], max_depth: int, current_depth: int):
         """GAP-77: Safe recursive crawler with depth and cycle protection."""
         if current_depth > max_depth: return
-        
+
         real_path = os.path.realpath(current_path)
         if real_path in self.visited_paths: return
         self.visited_paths.add(real_path)
@@ -90,7 +90,7 @@ class KnowledgeIngestor:
                 for i in range(0, len(content), chunk_size - overlap):
                     chunk = content[i:i + chunk_size]
                     if len(chunk) < 50: continue # Skip tiny fragments
-                    
+
                     await self.memory.store_memory(
                         symbol="BRAIN_EVOLUTION",
                         debate_summary=f"SOURCE: {os.path.basename(full_path)} [Part {i//(chunk_size-overlap)+1}]\nCONTENT: {chunk}",
@@ -98,7 +98,7 @@ class KnowledgeIngestor:
                         confidence=0.85
                     )
                     self.ingested_count += 1
-                
+
                 logger.debug(f"Ingestor: Absorbed {os.path.basename(full_path)} into Matrix DNA ({self.ingested_count} chunks).")
         except Exception as e:
             logger.error(f"Ingestor: Failed to read {full_path}: {e}")

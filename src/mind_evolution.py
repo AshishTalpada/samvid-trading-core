@@ -3,7 +3,6 @@ import json
 import logging
 import os
 import sqlite3
-import time
 from typing import Any
 
 from config import PROJECT_PATH
@@ -25,7 +24,7 @@ class MindEvolution:
         self.peak_equity = 0.0
         self.drawdown_limit = 0.10  # 10% hard floor
         self.historical_memory: list[dict] = []
-        
+
         self.db_path = os.path.join(PROJECT_PATH, "data", "trading.db")
         os.makedirs(os.path.dirname(self.db_path), exist_ok=True)
 
@@ -78,22 +77,22 @@ class MindEvolution:
         """
         while self.is_running:
             try:
-                # ── WISDOM AUDIT (Samvid v1.0-beta-beta) ──
+                # ── WISDOM AUDIT (Samvid v1.0-beta-beta-beta) ──
                 db_path = os.path.join(PROJECT_PATH, "data", "trading.db")
                 conn = sqlite3.connect(db_path, timeout=60)
                 conn.execute("PRAGMA journal_mode=WAL;")
                 conn.execute("PRAGMA busy_timeout = 60000;")
-                cursor = conn.cursor()
+                conn.cursor()
                 wisdom_path = os.path.join(PROJECT_PATH, "data/wisdom.json")
                 if os.path.exists(wisdom_path):
                     with open(wisdom_path, "r") as f:
                         wisdom = json.load(f)
-                    
+
                     # If entropy is high, force a threshold tightening
                     if wisdom.get("entropy_state") == "HIGH ENTROPY":
                         logger.warning("🚨 [Evolution]: High System Entropy detected. Tightening Catalysts.")
                         await self._tool_evolve_strategy("config_tightening", {"expected_profit_factor": 2.5})
-                
+
                 await asyncio.sleep(3600 * 4) # Audit every 4 hours
             except Exception as e:
                 logger.error(f"MindEvolution: Refinement error: {e}")
@@ -109,10 +108,10 @@ class MindEvolution:
                 if current_equity > self.peak_equity:
                     old_peak = self.peak_equity
                     self.peak_equity = current_equity
-                    
+
                     # GAP-261 FIX: Persist High Water Mark to survive restarts
                     await self._persist_peak(current_equity)
-                    
+
                     await self.bridge.broadcast(
                         "evolution",
                         f"NEW PEAK REACHED: ${current_equity:.2f} (Old: ${old_peak:.2f}). Locking in delta.",
@@ -127,7 +126,7 @@ class MindEvolution:
     async def _process_strategic_dialogue(self) -> None:
         """
         Negotiates new trading rules between the minds.
-        Samvid v1.0-beta-beta: Listens for failure patterns and triggers evolution.
+        Samvid v1.0-beta-beta-beta: Listens for failure patterns and triggers evolution.
         """
         while self.is_running:
             try:
@@ -148,18 +147,18 @@ class MindEvolution:
     async def _tool_evolve_strategy(self, strategy_id: str, params: dict) -> dict[str, Any]:
         """Master mutation tool. Permanently alters the organism's DNA (Config)."""
         logger.warning(f"MindEvolution: EVOLVING strategy {strategy_id}...")
-        
+
         # Call Healer (Architect) to apply the genetic patch
         mutation_result = await self.bridge.call_tool(
-            "heal", 
+            "heal",
             issue=f"Strategic Mutation: {strategy_id}",
             suggestion=json.dumps(params)
         )
-        
+
         if mutation_result.get("success"):
             logger.info(f"MindEvolution: Strategy {strategy_id} EVOLVED successfully.")
             return {"success": True, "mutation": "V9.0_SLIPPAGE_PROTECTION", "status": "LIVE"}
-        
+
         return {"success": False, "error": mutation_result.get("error", "Unknown mutation error")}
 
     async def _tool_report_peak(self) -> dict[str, Any]:
@@ -177,12 +176,12 @@ class MindEvolution:
 
             equity = float(result.get("equity", 0.0))
             unrealized_pnl = float(result.get("unrealized_pnl", 0.0))
-            
+
             # GAP-45 FIX: 15% 'Panic Discount' on unrealized profit (HFT safety)
             net_liq = equity
             if unrealized_pnl > 0:
                 net_liq -= (unrealized_pnl * 0.15)
-                
+
             return net_liq
         except Exception as e:
             logger.error(f"MindEvolution: Error in real equity fetch: {e}")
@@ -203,7 +202,7 @@ class MindEvolution:
 
     async def _tool_housekeeping(self) -> dict[str, Any]:
         """Performs background cleanup of stale dialogue and telemetry logs."""
-        logger.info("MindEvolution: Performing background housekeeping (v1.0-beta-beta)...")
+        logger.info("MindEvolution: Performing background housekeeping (v1.0-beta-beta-beta)...")
         return {"status": "SUCCESS", "cleanup": "STALE_LOG_ROTATED"}
 
     async def _tool_update_knowledge(self, knowledge_item: str, source: str) -> dict[str, Any]:

@@ -1,8 +1,9 @@
-import sqlite3
-import json
 import asyncio
-import httpx
+import json
+import sqlite3
 import time
+
+import httpx
 
 OLLAMA_URL = "http://localhost:11434/api/generate"
 MODEL_NAME = "qwen2.5-gpu"
@@ -37,8 +38,8 @@ async def train_local_agents_from_11m_database():
         conn = sqlite3.connect('data/sovereign_intelligence_75y.db')
         c = conn.cursor()
         c.execute("""
-            SELECT 
-                pattern_type, 
+            SELECT
+                pattern_type,
                 COUNT(*) as occurrence_count,
                 AVG(micro_intensity) as avg_intensity,
                 AVG(survival_score) as true_win_rate
@@ -54,17 +55,17 @@ async def train_local_agents_from_11m_database():
         return
 
     print(f"▶ Successfully compressed 11,000,000 rows into {len(compressed_clusters)} Mathematical Master Clusters.")
-    
+
     cognitive_rules = []
     memory_path = "data/llm_distilled_cognition.json"
-    
+
     async with httpx.AsyncClient() as client:
         for idx, cluster in enumerate(compressed_clusters, 1):
             pattern_name, count, avg_intensity, win_rate = cluster
-            print(f"\n======================================")
+            print("\n======================================")
             print(f"💀 COGNITIVE BATCH {idx}/{len(compressed_clusters)}")
             print(f"▶ Vector: {pattern_name} | Events Analyzed: {count:,} | True Win Rate: {win_rate:.2%}")
-            
+
             prompt = (
                 "You are the Sovereign Quantum Engine. I am feeding you the mathematically compressed "
                 f"results of {count:,} historical market anomalies over 75 years.\\n"
@@ -78,13 +79,13 @@ async def train_local_agents_from_11m_database():
             rule = await prompt_local_llm(client, prompt)
             formatted_rule = f"[DB CLUSTER {idx}: {pattern_name}] {rule}"
             print(f"▶ Concluded Rule: {rule}")
-            
+
             cognitive_rules.append(formatted_rule)
             with open(memory_path, "w", encoding="utf-8") as f:
                 json.dump(cognitive_rules, f, indent=4)
-                
+
             time.sleep(1)
-            
+
     print("\n✅✅✅ 11M-ROW EXPERT LLM FUNNEL TRAINING COMPLETE ✅✅✅")
 
 if __name__ == "__main__":

@@ -1,5 +1,5 @@
 """
-Samvid v1.0-beta-beta — Phase 1 Runner
+Samvid v1.0-beta-beta-beta — Phase 1 Runner
 Integrates Bayesian Oracle + Quant Consensus into live system
 AND runs the walk-forward backtest to validate edge.
 
@@ -11,10 +11,10 @@ Usage:
   python src/phase1_runner.py live
 """
 from __future__ import annotations
+
 import asyncio
 import logging
 import sys
-import numpy as np
 
 logger = logging.getLogger(__name__)
 
@@ -30,7 +30,8 @@ RUN_LOCK = asyncio.Lock()
 
 async def _check_data_integrity(db_path: str, symbol: str = "SPY") -> int:
     """GAP-118 FIX: Synchronous SQLite execution wrapped in a thread."""
-    import sqlite3, os
+    import os
+    import sqlite3
     if not os.path.exists(db_path):
         return 0
     try:
@@ -45,7 +46,9 @@ async def _check_data_integrity(db_path: str, symbol: str = "SPY") -> int:
     except Exception:
         return 0
 
-async def run_backtest(db_path: str = "trading.db", symbols: list[str] = ["SPY", "QQQ", "IWM"]) -> None:
+async def run_backtest(db_path: str = "trading.db", symbols: list[str] = None) -> None:
+    if symbols is None:
+        symbols = ["SPY", "QQQ", "IWM"]
     async with RUN_LOCK: # GAP-61 FIX: Serialize access to shared DB state
         from backtest_engine import run_phase1_validation
         from data_pipeline import DataPipeline
@@ -55,7 +58,7 @@ async def run_backtest(db_path: str = "trading.db", symbols: list[str] = ["SPY",
         count = await asyncio.to_thread(_check_data_integrity, db_path, symbols[0])
         # GAP-149 FIX: Lowering floor to 200 to accommodate newer instruments/mock data
         has_data = count >= 200
-        
+
         if not has_data:
             print(f"\n⚠️  Insufficient data in DB ({count} bars). Running data pipeline to backfill {symbols}...")
             pipeline = DataPipeline()
@@ -70,12 +73,12 @@ async def run_backtest(db_path: str = "trading.db", symbols: list[str] = ["SPY",
             db_path=db_path,
             symbols=symbols,
         )
-        
+
         # GAP-194 FIX: Enforce validation result
         if not success:
             logger.error("Phase1: Backtest Validation FAILED. Deployment aborted.")
             sys.exit(1)
-        
+
         logger.info("Phase1: Backtest Validation PASSED. Ready for deployment.")
 
 
@@ -83,7 +86,7 @@ async def run_backtest(db_path: str = "trading.db", symbols: list[str] = ["SPY",
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
-    
+
     if len(sys.argv) < 2:
         print("Usage: python src/phase1_runner.py [backtest|live] [db_path] [symbol1,symbol2,...]")
         sys.exit(1)

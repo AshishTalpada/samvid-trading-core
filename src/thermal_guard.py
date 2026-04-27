@@ -1,6 +1,6 @@
-import subprocess
-import logging
 import asyncio
+import logging
+import subprocess
 import time
 from typing import Dict
 
@@ -8,10 +8,10 @@ logger = logging.getLogger(__name__)
 
 class ThermalGuard:
     """
-    Sovereign Resource Management (Samvid v1.0-beta-beta Hardened).
+    Sovereign Resource Management (Samvid v1.0-beta-beta-beta Hardened).
     Optimized for Laptop Hardware (Thermal + RAM Safety).
     """
-    
+
     _cache_temp = 40.0
     _cache_ram = 50.0
     _last_check = 0.0
@@ -25,7 +25,7 @@ class ThermalGuard:
         # GAP-163 FIX: Check for nvidia-smi existence before calling
         if ThermalGuard._smi_available is False:
             return 40.0
-            
+
         try:
             import shutil
             if ThermalGuard._smi_available is None:
@@ -41,7 +41,7 @@ class ThermalGuard:
                 encoding="utf-8",
                 timeout=1.5,
                 check=True
-            ) 
+            )
             return float(res.stdout.strip())
         except subprocess.CalledProcessError as e:
             # GAP-210 FIX: Explicitly log exit code and stderr
@@ -75,17 +75,17 @@ class ThermalGuard:
                 cls._cache_temp = await asyncio.to_thread(cls.get_gpu_temp)
                 cls._cache_ram = await asyncio.to_thread(cls.get_ram_usage)
                 cls._last_check = now
-        
+
         temp = cls._cache_temp
         ram = cls._cache_ram
-        
-        # ── RESOURCE REGIMES (Samvid v1.0-beta-beta Laptop Optimized) ──
-        
+
+        # ── RESOURCE REGIMES (Samvid v1.0-beta-beta-beta Laptop Optimized) ──
+
         # 1. SURVIVAL: Total fallback for hardware safety
         if temp >= 82.0 or ram >= 92.0:
              logger.critical(f"🚨 RESOURCE SURVIVAL (Temp: {temp}°C, RAM: {ram}%): Safety Limit HIT. Minimal CPU mode.")
              return {"num_gpu": 0, "num_thread": 1, "keep_alive": 10}
-        
+
         # 2. STRESS: Significant throttling
         if temp >= 78.0 or ram >= 85.0:
              logger.warning(f"⚠️ RESOURCE STRESS (Temp: {temp}°C, RAM: {ram}%): Throttling LLMs.")

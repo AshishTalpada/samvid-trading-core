@@ -1,13 +1,14 @@
 import logging
 import threading
-from typing import Optional, List
+from typing import List, Optional
+
 from chromadb import Documents, EmbeddingFunction, Embeddings
 
 logger = logging.getLogger(__name__)
 
 class SharedEmbeddingEngine:
     """
-    Samvid v1.0-beta-beta: Singleton Embedding Engine.
+    Samvid v1.0-beta-beta-beta: Singleton Embedding Engine.
     Hardened for concurrent VRAM access and batch processing (GAP-73/75/76).
     """
     _instance: Optional['SharedEmbeddingEngine'] = None
@@ -23,12 +24,13 @@ class SharedEmbeddingEngine:
         if self._model is None:
             try:
                 import importlib
+
                 from vault import Vault
                 fastembed = importlib.import_module("fastembed")
                 TextEmbedding = fastembed.TextEmbedding
-                
+
                 # GAP-206 FIX: swappable model from Vault
-                model_name = Vault.get("EMBEDDING_MODEL", "BAAI/bge-small-en-v1.0-beta")
+                model_name = Vault.get("EMBEDDING_MODEL", "BAAI/bge-small-en-v1.0-beta-beta")
                 self._model = TextEmbedding(model_name)
                 logger.info(f"✓ SharedEmbeddingEngine: {model_name} loaded into memory.")
             except Exception as e:
@@ -58,7 +60,7 @@ class SharedEmbeddingEngine:
                     batch_gen = model.embed(batch)
                     batch_list = [[float(val) for val in vec] for vec in batch_gen]
                     all_embeddings.extend(batch_list)
-                
+
                 return all_embeddings
             except Exception as e:
                 # GAP-76: Hardening failure notification

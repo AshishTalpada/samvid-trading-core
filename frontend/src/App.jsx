@@ -5,7 +5,7 @@ import Dashboard from './Dashboard';
 
 async function generateHmacToken(secret) {
   const enc = new TextEncoder();
-  // v1.0-beta: Use 60s windows to reduce drift collision sensitivity, or implement multi-window attempt
+  // v1.0-beta-beta: Use 60s windows to reduce drift collision sensitivity, or implement multi-window attempt
   const ts = Math.floor(Date.now() / 1000 / 30);
   const key = await window.crypto.subtle.importKey(
     "raw", enc.encode(secret), { name: "HMAC", hash: "SHA-256" },
@@ -106,7 +106,7 @@ export default function App() {
     if (ev.type === 'full_state' && logs.length > 0) return;
 
     setLogs(prev => {
-      // v1.0-beta: Check for duplicate events by ID to prevent flicker
+      // v1.0-beta-beta: Check for duplicate events by ID to prevent flicker
       if (prev.find(l => l.id === ev.id)) return prev;
       
       return [{
