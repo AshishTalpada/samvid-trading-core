@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 
 class KnowledgeIngestor:
     """
-    Samvid v1.0-beta-beta-beta Knowledge Ingestor (Agent L Auxiliary).
+    Samvid v1.0-beta Knowledge Ingestor (Agent L Auxiliary).
     Hardened for safe recursive harvesting and secret redaction (GAP-77-80).
     """
 

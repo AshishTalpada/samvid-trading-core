@@ -31,7 +31,7 @@ class SovereignTask:
         self.end_time = None
         self.output_file = f"data/tasks/{self.id}.log"
 
-        # ── AGENTIC DIAGNOSTICS (Samvid v1.0-beta-beta-beta) ──
+        # ── AGENTIC DIAGNOSTICS (Samvid v1.0-beta) ──
         self.baseline_state = {}     # Snapshot at creation
         self.delta_metrics = {}      # Tracks shifts
         self.reflection_log = []     # Post-mortem notes
@@ -70,7 +70,7 @@ class SovereignTask:
         self.log(f"TASK_FINALIZED: State set to {final_state}.")
 
     def log(self, message: str):
-        # 1. Persistent File Log (Samvid v1.0-beta-beta-beta: Non-blocking optimization)
+        # 1. Persistent File Log (Samvid v1.0-beta: Non-blocking optimization)
         try:
             with open(self.output_file, "a", encoding="utf-8") as f:
                 from datetime import timezone as _timezone
@@ -79,7 +79,7 @@ class SovereignTask:
         except Exception as e:
             logger.error(f"Task {self.id}: Log write failed: {e}")
 
-        # 2. Real-time Terminal Log (Samvid v1.0-beta-beta-beta Visibility)
+        # 2. Real-time Terminal Log (Samvid v1.0-beta Visibility)
         logger.info(f"Task {self.id}: {message}")
 
     def save(self):
@@ -122,7 +122,7 @@ class SovereignTask:
         }
 
 class TaskManager:
-    """Orchestrates the lifecycle of Sovereign Tasks (Samvid v1.0-beta-beta-beta Hardened)."""
+    """Orchestrates the lifecycle of Sovereign Tasks (Samvid v1.0-beta Hardened)."""
     def __init__(self, registry_path: str = "data/active_tasks.json"):
         self.registry_path = registry_path
         self.tasks: Dict[str, SovereignTask] = {}

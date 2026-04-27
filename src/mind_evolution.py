@@ -77,7 +77,7 @@ class MindEvolution:
         """
         while self.is_running:
             try:
-                # ── WISDOM AUDIT (Samvid v1.0-beta-beta-beta) ──
+                # ── WISDOM AUDIT (Samvid v1.0-beta) ──
                 db_path = os.path.join(PROJECT_PATH, "data", "trading.db")
                 conn = sqlite3.connect(db_path, timeout=60)
                 conn.execute("PRAGMA journal_mode=WAL;")
@@ -126,7 +126,7 @@ class MindEvolution:
     async def _process_strategic_dialogue(self) -> None:
         """
         Negotiates new trading rules between the minds.
-        Samvid v1.0-beta-beta-beta: Listens for failure patterns and triggers evolution.
+        Samvid v1.0-beta: Listens for failure patterns and triggers evolution.
         """
         while self.is_running:
             try:
@@ -202,7 +202,7 @@ class MindEvolution:
 
     async def _tool_housekeeping(self) -> dict[str, Any]:
         """Performs background cleanup of stale dialogue and telemetry logs."""
-        logger.info("MindEvolution: Performing background housekeeping (v1.0-beta-beta-beta)...")
+        logger.info("MindEvolution: Performing background housekeeping (v1.0-beta)...")
         return {"status": "SUCCESS", "cleanup": "STALE_LOG_ROTATED"}
 
     async def _tool_update_knowledge(self, knowledge_item: str, source: str) -> dict[str, Any]:

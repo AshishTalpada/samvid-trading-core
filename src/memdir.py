@@ -8,7 +8,7 @@ logger = logging.getLogger(__name__)
 
 class MemoryManager:
     """
-    Samvid v1.0-beta-beta-beta Memory Directory System.
+    Samvid v1.0-beta Memory Directory System.
     Inspired by Claude-Code's 'memdir' and 'CLAUDE.md' patterns.
     Provides persistent 'Trading Directives' and 'Session Memory' for the Twin-Minds.
     """
