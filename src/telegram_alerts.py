@@ -19,10 +19,10 @@ _shared_session: aiohttp.ClientSession | None = None
 
 async def send_telegram_alert(message: str) -> None:
     """
-    Sends a Telegram alert with Elite Signal Sterilization (SETO V12.5).
+    Sends a Telegram alert with Elite Signal Sterilization (Samvid v1.0-beta-beta).
     Blocks routine pattern noise and 'Phantom' calls.
     """
-    # ── ELITE SIGNAL GATE (Sovereign Sterilization V22.4) ──
+    # ── ELITE SIGNAL GATE (Sovereign Sterilization v1.0-beta) ──
     # GAP-50 FIX: Allow critical system state transitions and errors
     allowed_prefixes = [
         "[EXECUTION]", "🚨", "⚠️", "🚀", "🛑", "🔴", "🟢", "🟢", "⚪", "📢", "☣️",
@@ -44,7 +44,7 @@ async def send_telegram_alert(message: str) -> None:
     async with _alert_lock:
         now = asyncio.get_event_loop().time()
         
-        # --- GAP-174: Global Rate Limiting (SETO V22.9) ---
+        # --- GAP-174: Global Rate Limiting (Samvid v1.0-beta-beta) ---
         global _last_sent_times
         # Prune times outside the window
         _last_sent_times = [t for t in _last_sent_times if now - t < _rate_limit_window]
@@ -93,7 +93,7 @@ async def send_telegram_alert(message: str) -> None:
     proxy = Vault.get("TELEGRAM_PROXY")
 
     # GAP-51 FIX: Exponential Retry for critical delivery
-    # SETO V22.6: Use ONE session for all retries to prevent TCP/memory leak
+    # Samvid v1.0-beta-beta: Use ONE session for all retries to prevent TCP/memory leak
     max_retries = 3
     base_delay = 2
 

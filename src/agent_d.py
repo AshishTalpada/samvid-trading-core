@@ -19,8 +19,8 @@ Critical rules enforced:
 - F9: Partial exits defined per pattern — BullFlag, H&S, FallingWedge, etc.
 - F10: Resolution windows start at 2× theoretical, calibrate after 30 trades
 - P-01: Entropy monitor detects system decay — triggers urgent maintenance
-- SETO V9.0: Bayesian priors integrated for cold-start stall bypass
-- SETO V11.0: LiveRecursiveEvolution (Recursive Back-Prop) Active
+- Samvid v1.0-beta-beta: Bayesian priors integrated for cold-start stall bypass
+- Samvid v1.0-beta-beta: LiveRecursiveEvolution (Recursive Back-Prop) Active
 """
 
 from __future__ import annotations  # pyre-ignore[21]
@@ -38,7 +38,7 @@ from typing import Any, Dict  # pyre-ignore[21]
 
 class LiveRecursiveEvolution:
     """
-    Sovereign V12.0 Stable Evolution Engine.
+    Sovereign v1.0-beta Stable Evolution Engine.
     GAP-43 FIX: Implements 'Learning Inertia' to prevent Luck-Based Weight Drift.
     Ensures that as pattern maturity (n_count) grows, individual noisy outcomes
     have diminishing impact on the core belief system.
@@ -54,7 +54,7 @@ class LiveRecursiveEvolution:
         # outcome: 1=WIN, -1=LOSS, 0=BE
         if pnl > 0.0001: outcome = 1.0
         elif pnl < -0.0001: outcome = -1.0
-        else: return # Break-even doesn't shift the weight state (SETO V22.1)
+        else: return # Break-even doesn't shift the weight state (Samvid v1.0-beta-beta)
 
         if not (self.atlas and getattr(self.atlas, "atlas_data", {})):
             return
@@ -63,7 +63,7 @@ class LiveRecursiveEvolution:
         n_count = len(patterns)
         if n_count == 0: return
 
-        # --- LEARNING INERTIA (SETO V12.0) ---
+        # --- LEARNING INERTIA (Samvid v1.0-beta-beta) ---
         # As n increases, the impact of 1 trade (alpha) decreases.
         # Base alpha 0.4 (40% impact for 1st trade) -> alpha 0.01 (1% impact for 400th trade)
         base_alpha = 0.4
@@ -87,7 +87,7 @@ class LiveRecursiveEvolution:
             recency_decay = 1.0 / (1.0 + (i / 50.0))
             current_multiplier = 1.0 + (alpha * outcome * recency_decay)
             
-            # CAP: min 0.1, max 3.0 (Sovereign V22.1)
+            # CAP: min 0.1, max 3.0 (Sovereign v1.0-beta)
             new_weight = data[1] * current_multiplier
             data[1] = min(3.0, max(0.1, new_weight))
             patterns[idx] = tuple(data)
@@ -417,7 +417,7 @@ class SystemEntropyMonitor:
         signals.append(regime_accuracy)
 
         # Combined entropy score: negative = decaying, positive = thriving
-        # SETO V21.40: Empty list safety guard
+        # Samvid v1.0-beta-beta: Empty list safety guard
         if not signals:
             return "LOW"
         entropy = sum(signals) / len(signals)
@@ -462,7 +462,7 @@ class ExpectancyData:
     data_rating: str = "INSUFFICIENT"
 
     def __post_init__(self):
-        # SETO V21.40: Safety floor on denominator to prevent division-by-zero explosions
+        # Samvid v1.0-beta-beta: Safety floor on denominator to prevent division-by-zero explosions
         if self.weighted_n > 0.0001:
             self.win_rate = self.weighted_wins / self.weighted_n
             self.avg_r = self.weighted_r / self.weighted_n
@@ -479,7 +479,7 @@ class ConditionalExpectancyMatrix:
     Builds a matrix of expected win rates conditioned on:
     pattern × regime × session
 
-    SETO V9.0: Bayesian Warm-Start.
+    Samvid v1.0-beta-beta: Bayesian Warm-Start.
     Activates from trade #1 by using historical priors.
     As live trades increase, the prior's influence decays.
     """
@@ -545,7 +545,7 @@ class ConditionalExpectancyMatrix:
     ) -> dict[str, ExpectancyData]:
         """
         Build or update the expectancy matrix while minimizing RAM.
-        SETO V21.40: Supports streaming iterators and incremental updates.
+        Samvid v1.0-beta-beta: Supports streaming iterators and incremental updates.
         """
         self.activated = True
         
@@ -665,7 +665,7 @@ class ConditionalExpectancyMatrix:
         key = f"{pattern}|{regime}|{session}"
         data = self.matrix.get(key)
 
-        # SETO V21.40: Session-Blindness Guard
+        # Samvid v1.0-beta-beta: Session-Blindness Guard
         # If no session-specific data exists, fallback to RTH (the wisdom anchor)
         if data is None and session != "RTH":
             fallback_key = f"{pattern}|{regime}|RTH"
@@ -740,7 +740,7 @@ class PartialExitRules:
  
         fn = rules.get(pattern_upper, self._default_exits)
         
-        # SETO V21.40: Directional Parity (F9-Short Fix)
+        # Samvid v1.0-beta-beta: Directional Parity (F9-Short Fix)
         # We pass a Directional Multiplier (1 for LONG, -1 for SHORT)
         # to ensure exits project correctly in price space.
         mult = -1.0 if direction.upper() == "SHORT" else 1.0
@@ -1190,7 +1190,7 @@ class CalibrationPipeline:
 def run_after_trade(trade_result: dict, n_total: int, n_wins: int, recent_trades: list[dict]) -> dict:
     """
     Run Agent D's learning cycle after every completed trade.
-    Optimized for RAM (SETO V21.40).
+    Optimized for RAM (Samvid v1.0-beta-beta).
 
     Args:
         trade_result: The completed trade
@@ -1314,7 +1314,7 @@ class LiveLearningEngine:
             _lld_logger.warning(f"LiveLearningEngine: cannot ensure table: {e}")
 
     def _load_history(self) -> None:
-        """Load historical trade metrics from SQLite without bloating RAM (SETO V21.40)."""
+        """Load historical trade metrics from SQLite without bloating RAM (Samvid v1.0-beta-beta)."""
         try:
             conn = _sqlite3.connect(self.db_path, timeout=60)
             conn.execute("PRAGMA journal_mode=WAL;")
@@ -1477,7 +1477,7 @@ class LiveLearningEngine:
         if not is_dirty and (n % 10 == 0 or n < 10):
             await self._publish_calibration()
 
-        # --- EVOLUTIONARY CHECKPOINT (SETO V22.3) ---
+        # --- EVOLUTIONARY CHECKPOINT (Samvid v1.0-beta-beta) ---
         # Persist dynamic priors after EVERY trade to ensure 100% learning durability.
         # This prevents 'Amnesia' if the system crashes between the 50-trade cycles.
         if self._matrix.activated and not is_dirty:
@@ -1629,7 +1629,7 @@ class LiveLearningEngine:
 
     def evaluate_proposal(self, pattern_name: str, regime: str, session: str = "RTH") -> Dict[str, Any]:
         """
-        Standardized consensus evaluation for SETO V8.7.
+        Standardized consensus evaluation for Samvid v1.0-beta-beta.
         Provides Agent D's vote based on historical performance data.
         """
         win_rate = self.get_win_rate(pattern_name, regime, session)

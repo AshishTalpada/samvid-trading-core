@@ -1,5 +1,5 @@
 """
-src/sovereign_decision_engine.py - The Singular Decision Point (SETO V8.7)
+src/sovereign_decision_engine.py - The Singular Decision Point (Samvid v1.0-beta-beta)
 ==========================================================================
 This is the ONLY engine authorized to resolve agent outputs into an EXECUTE signal.
 It enforces a 'Strict Quorum' of 7 agents and provides an immutable audit trace.
@@ -79,7 +79,7 @@ class SovereignDecisionEngine:
         output_map = {out["agent"]: out for out in agent_outputs}
 
         for agent, out in output_map.items():
-            # Runtime Type Integrity Check (SETO V22.0: Added ABSTAIN support - GAP-06)
+            # Runtime Type Integrity Check (Samvid v1.0-beta-beta: Added ABSTAIN support - GAP-06)
             vote = out.get("vote")
             if vote not in ["YES", "NO", "ABSTAIN"]:
                 return await self._reject(f"Data Mismatch: Agent '{agent}' returned invalid vote '{vote}'.")
@@ -200,7 +200,7 @@ class SovereignDecisionEngine:
                     votes=agent_outputs
                 )
 
-        # --- BREAKTHROUGH: STOP-RUN SHIELD (SETO V11.0 Phantasm) ---
+        # --- BREAKTHROUGH: STOP-RUN SHIELD (Samvid v1.0-beta-beta Phantasm) ---
         # If Agent D detects 'Edge Crowding' (M-05), we apply 'Ghost Expansion'.
         d_out = output_map.get("Agent_D", {})
         if d_out.get("metadata", {}).get("edge_crowded", False):

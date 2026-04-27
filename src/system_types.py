@@ -27,7 +27,7 @@ class TradePhase(Enum):
 @dataclass
 class Position:
     """
-    Sovereign Position-State Entity (SETO V8.0 Hardening).
+    Sovereign Position-State Entity (Samvid v1.0-beta-beta Hardening).
     Decoupled from Brain/Coordinator to prevent circular imports.
     """
 
@@ -52,7 +52,7 @@ class Position:
     sl_pct: float = 0.01
     tp_pct: float = 0.02
 
-    # --- TRUE COST TRACKING (SETO V8.0) ---
+    # --- TRUE COST TRACKING (Samvid v1.0-beta-beta) ---
     shares_remaining: float = 0.0
     commission_cost: float = 0.0
     slippage_cost: float = 0.0
@@ -61,11 +61,11 @@ class Position:
     mfe: float = 0.0
     mae: float = 0.0
     runner_active: bool = False
-    # --- REAL-TIME STATE (SETO V21.40) ---
+    # --- REAL-TIME STATE (Samvid v1.0-beta-beta) ---
     unrealized_pnl: float = 0.0
     current_price: float = 0.0
     
-    db_id: int = 0 # Persistent DB RowID for precision tracking (SETO V21.22)
+    db_id: int = 0 # Persistent DB RowID for precision tracking (Samvid v1.0-beta-beta)
 
     status: str = "OPEN"
     task_id: str = "N/A"

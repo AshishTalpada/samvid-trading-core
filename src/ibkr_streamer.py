@@ -45,13 +45,13 @@ class IBKRStreamer:
         self.qdb_adapter = qdb_adapter
         self.is_running = False
         self._loop_count = 0
-        self.dropped_ticks = 0 # SETO V22.4 GAP-35 Tracker
+        self.dropped_ticks = 0 # Samvid v1.0-beta-beta GAP-35 Tracker
 
         # Persistent Async Stream for QuestDB ILP
         self._qdb_writer: asyncio.StreamWriter | None = None
         self._qdb_lock = asyncio.Lock()
         
-        # ── TASK CONSOLIDATION (SETO V22.2) ──
+        # ── TASK CONSOLIDATION (Samvid v1.0-beta-beta) ──
         # GAP-45 FIX: Increased queue size to 5000 to handle peak volatility bursts.
         self._bus_queue: asyncio.Queue = asyncio.Queue(maxsize=5000)
         self._publisher_task: asyncio.Task | None = None
@@ -80,7 +80,7 @@ class IBKRStreamer:
              logger.info("IBKRStreamer: QuestDB ingestion DISABLED in config.")
 
 
-        # 2. Connect to IBKR (SETO V10.0: Hardened Retry Logic)
+        # 2. Connect to IBKR (Samvid v1.0-beta-beta: Hardened Retry Logic)
         max_attempts = 5
         for attempt in range(max_attempts):
             for host in ["localhost", "127.0.0.1", "::1"]:
@@ -105,7 +105,7 @@ class IBKRStreamer:
         logger.error("IBKRStreamer: All connection attempts failed. Ticks will be missing for this session.")
 
     async def _qdb_drain_worker(self) -> None:
-        """Background worker to periodically drain the QuestDB buffer (SETO V21.40)."""
+        """Background worker to periodically drain the QuestDB buffer (Samvid v1.0-beta-beta)."""
         while self.is_running:
             try:
                 if self._qdb_writer and not self._qdb_writer.is_closing():
@@ -120,7 +120,7 @@ class IBKRStreamer:
 
     async def _bus_publisher(self) -> None:
         """
-        Sovereign Publisher (SETO V22.2): Single worker task to process tikcs.
+        Sovereign Publisher (Samvid v1.0-beta-beta): Single worker task to process tikcs.
         Ensures the system memory footprint stays CONSTANT despite 100Hz tick volume.
         """
         logger.info("IBKRStreamer: Sovereign Publisher worker started.")
@@ -188,7 +188,7 @@ class IBKRStreamer:
             # Tags must be escaped: spaces, commas, and equals signs.
             safe_symbol = str(symbol).replace(",", "\\,").replace(" ", "\\ ").replace("=", "\\=")
 
-            # ── SOVEREIGN FAST-PATH (V21.40) ──
+            # ── SOVEREIGN FAST-PATH (v1.0-beta-beta) ──
             if self.qdb_adapter and self.qdb_adapter.enabled:
                  self.qdb_adapter.log_tick(symbol, target_price, last_size or 0)
             elif self._qdb_writer and not self._qdb_writer.is_closing():
@@ -200,7 +200,7 @@ class IBKRStreamer:
                 except Exception:
                     pass
             
-            # ── CONSOLIDATED BUS PUBLICATION (SETO V22.2) ──
+            # ── CONSOLIDATED BUS PUBLICATION (Samvid v1.0-beta-beta) ──
             if self.bus is not None:
                 try:
                     self._bus_queue.put_nowait({

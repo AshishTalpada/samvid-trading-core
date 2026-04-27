@@ -98,7 +98,7 @@ class QuestDBAdapter:
                 # Batch processing
                 batch = []
 
-                # --- AEGIS FIX (SETO V21.40): Deadlock Reconnect ---
+                # --- AEGIS FIX (Samvid v1.0-beta-beta): Deadlock Reconnect ---
                 # We NO LONGER wait forever at queue.get(). 
                 # We use a timeout so the reconnection logic at the top of the loop can trigger
                 # even when the system is quiet (no trades/signals).
@@ -119,7 +119,7 @@ class QuestDBAdapter:
                 if sock is not None:
                     try:
                         payload = "\n".join(batch) + "\n"
-                        # SETO V21.50 / GAP-82: Use Dedicated Executor instead of default pool
+                        # Samvid v1.0-beta-beta / GAP-82: Use Dedicated Executor instead of default pool
                         loop = asyncio.get_running_loop()
                         await loop.run_in_executor(self._executor, sock.sendall, payload.encode())
                         
@@ -210,7 +210,7 @@ class QuestDBAdapter:
 
         # Prepare ILP string
         # table,tags fields timestamp
-        # SETO V21.40: Synchronized UTC Ticks
+        # Samvid v1.0-beta-beta: Synchronized UTC Ticks
         from datetime import datetime, timezone
         ts = int(datetime.now(timezone.utc).timestamp() * 1e9)
         safe_symbol = str(symbol).replace(",", "\\,").replace(" ", "\\ ").replace("=", "\\=")
@@ -425,7 +425,7 @@ class QuestDBAdapter:
 
                 # In QuestDB, we can drop partitions string-formatted as 'YYYY-MM-DD'
                 # Generate a list of dates older than `days_to_keep`
-                # SETO V21.40: UTC-safe pruning
+                # Samvid v1.0-beta-beta: UTC-safe pruning
                 for i in range(days_to_keep, days_to_keep + 14):
                     stale_date = (pd.Timestamp.now(tz="UTC") - pd.Timedelta(days=i)).strftime("%Y-%m-%d")
 

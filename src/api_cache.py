@@ -48,7 +48,7 @@ class TTLCache:
         self._cleanup_task = asyncio.create_task(self._cleanup_loop())
 
     async def _cleanup_loop(self) -> None:
-        """Background loop to periodically prune stale entries (SETO V22.1)."""
+        """Background loop to periodically prune stale entries (Samvid v1.0-beta-beta)."""
         while self._is_running:
             try:
                 await asyncio.sleep(60) # Scavenge every minute

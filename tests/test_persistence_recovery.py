@@ -9,7 +9,7 @@ import pytest
 from src.brain import TradingBrain
 from src.dhatu_oracle import DhatuOracle
 
-# SETO V8.0 PERSISTENCE AUDIT (Agent S)
+# Samvid v1.0-beta-beta PERSISTENCE AUDIT (Agent S)
 # Verifies that the system correctly restores its state from the database.
 
 

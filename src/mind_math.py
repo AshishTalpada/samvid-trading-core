@@ -27,7 +27,7 @@ class MindMath:
         Vetoes trades with inverted stops, zero R:R, or ATR violations.
         """
         from decimal import Decimal, getcontext
-        # SETO V22.4: Set precision for institutional math (9 places for micro-cap assets)
+        # Samvid v1.0-beta-beta: Set precision for institutional math (9 places for micro-cap assets)
         getcontext().prec = 28
         
         try:
