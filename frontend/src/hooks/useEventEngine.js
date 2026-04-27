@@ -22,7 +22,7 @@ const EVENT_TO_NODES = {
 };
 
 /**
- * useEventEngine V3.0 — Activity tracking for all architectural visualization.
+ * useEventEngine v1.0-beta — Activity tracking for all architectural visualization.
  * Indexes by both event type AND semantic node name so every component's
  * activityMap lookups resolve to a real timestamp.
  */
