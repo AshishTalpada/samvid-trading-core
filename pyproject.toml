@@ -1,3 +1,31 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "samvid-trading-core"
+version = "1.0.0"
+description = "Sovereign Agentic Trading Mesh"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "fastapi",
+    "uvicorn",
+    "asyncio",
+    "pandas",
+    "polars",
+    "numpy",
+    "yfinance",
+    "httpx",
+    "python-dotenv",
+    "ib-insync",
+    "MetaTrader5",
+    "keyring",
+    "ruff",
+    "mypy",
+    "pytest"
+]
+
 [tool.pytest.ini_options]
 minversion = "8.0"
 testpaths = ["tests"]
@@ -26,5 +54,3 @@ show_error_codes = true
 ignore_missing_imports = true
 files = "src"
 exclude = "(venv|\\.venv|data|logs|outputs)"
-
-# Consolidate Pyright config into pyrightconfig.json
