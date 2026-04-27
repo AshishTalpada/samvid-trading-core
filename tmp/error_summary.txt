@@ -1,4 +1,0 @@
-Top errors/warnings (last 5000 lines):
-[  65x] ERROR - Error in TradingBrain main loop: 'TradingBrain' object has no attribute 'state'
-[   2x] WARNING - FORCED_PAPER_MODE is active — real trading is disabled.
-[   1x] WARNING - Background task 'data_pipeline' finished unexpectedly without error.
