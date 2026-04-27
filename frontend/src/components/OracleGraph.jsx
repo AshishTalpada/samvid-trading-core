@@ -128,7 +128,7 @@ function SignalNode({ node, accent, dhatu }) {
       transition={{ type: 'spring', stiffness: 280, damping: 22, delay: 0.05 }}>
       <defs>
         <filter id={`ng-${node.id}`}>
-          {/* V3.1: Performance optimization — Using fixed-step blur to prevent SVG repaint storms on every tick */}
+          {/* v1.0-beta: Performance optimization — Using fixed-step blur to prevent SVG repaint storms on every tick */}
           <feGaussianBlur stdDeviation={node.isCenter ? "4" : "2"} result="blur" />
           <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
         </filter>
@@ -325,7 +325,7 @@ const OracleGraph = ({ data }) => {
         fontSize: '0.52rem', fontFamily: 'monospace', color: '#1e293b',
         padding: '4px 10px', letterSpacing: '0.08em', textTransform: 'uppercase'
       }}>
-        Dhatu_Graph_Engine_V3.0 // Multi-Layer_Synthesis // {dhatu ?? 'NEUTRAL'}
+        Dhatu_Graph_Engine_v1.0-beta // Multi-Layer_Synthesis // {dhatu ?? 'NEUTRAL'}
       </div>
     </div>
   );

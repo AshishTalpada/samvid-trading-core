@@ -8,7 +8,7 @@ import SovereignArchitecture from '../architecture/SovereignArchitecture';
 import QuorumMatrix from '../QuorumMatrix';
 import { GlassPanel, SectionHeader, StatusBadge } from '../ui/SovereignUI';
 
-/** 🔭 Tactical Observatory V13.7 — Center Core */
+/** 🔭 Tactical Observatory v1.0-beta — Center Core */
 
 const SYMBOLS = ['SPY', 'QQQ', 'IWM'];
 

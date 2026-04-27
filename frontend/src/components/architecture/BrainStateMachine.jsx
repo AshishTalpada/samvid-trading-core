@@ -1,7 +1,7 @@
 import React, { useMemo, useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 
-/** 🧠 SOVEREIGN NEURAL LOOP V4.0 — Vertical stepper, width-independent */
+/** 🧠 SOVEREIGN NEURAL LOOP v1.0-beta — Vertical stepper, width-independent */
 
 const STATES = [
   { id: 'STANDBY',    icon: '⏸️', color: '#8899ac', sub: 'Idle · Awaiting Signal' },
@@ -19,7 +19,7 @@ export default function BrainStateMachine({ brain = {}, activityMap = {} }) {
   const [tick, setTick] = useState(0);
 
   const confidence = useMemo(() => {
-    // V3.1: Strict Telemetry Mapping — No Aesthetic Interpolation
+    // v1.0-beta: Strict Telemetry Mapping — No Aesthetic Interpolation
     if (typeof brain.confidence === 'number') return brain.confidence * 100;
     
     // Fallback logic remains, but simulation jitter removed to prevent risk misinterpretation

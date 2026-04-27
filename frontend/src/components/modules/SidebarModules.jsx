@@ -7,13 +7,13 @@ import { fmtMs } from '../SharedUI';
 const fmtPct = (v, dec = 0) => {
   const n = Number(v);
   if (isNaN(n)) return '0.0';
-  // V3.1: Heuristic inference: If value is small (≤ 2.0), treat as a fraction (e.g. 0.58 -> 58%, 1.1 -> 110%).
+  // v1.0-beta: Heuristic inference: If value is small (≤ 2.0), treat as a fraction (e.g. 0.58 -> 58%, 1.1 -> 110%).
   // If value > 2.0, assume the backend already provided a percentage value.
   const pct = (n >= 0 && n <= 2.0) ? n * 100 : n;
   return pct.toFixed(dec);
 };
 
-/** 🦾 Agentic Nerve Center (Sidebar Modules - V13.6.4 PRO) */
+/** 🦾 Agentic Nerve Center (Sidebar Modules - v1.0-beta) */
 
 export function SidebarHeader({ connected, sysTime, uptime }) {
   return (
@@ -22,7 +22,7 @@ export function SidebarHeader({ connected, sysTime, uptime }) {
         <div className="font-outfit fw-900 c-top" style={{ fontSize: '1.25rem', lineHeight: '1.2', letterSpacing: '-0.03em' }}>SAMVID</div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           <span className="c-cyan fw-900 font-outfit" style={{ fontSize: '1.4rem', letterSpacing: '-0.03em' }}>MATRIX</span>
-          <span className="badge-sovereign c-red" style={{ border: '1px solid rgba(255,43,94,0.4)' }}>V13.6.4 PRO</span>
+          <span className="badge-sovereign c-red" style={{ border: '1px solid rgba(255,43,94,0.4)' }}>v1.0-beta</span>
         </div>
       </div>
 
