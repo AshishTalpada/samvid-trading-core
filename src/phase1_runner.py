@@ -1,5 +1,5 @@
 """
-Samvid v1.0-beta-beta-beta — Phase 1 Runner
+Samvid v1.0-beta — Phase 1 Runner
 Integrates Bayesian Oracle + Quant Consensus into live system
 AND runs the walk-forward backtest to validate edge.
 

@@ -5,7 +5,7 @@ import os
 import time
 
 # =========================================================================
-# SOVEREIGN LATENCY WATCHDOG (Samvid v1.0-beta-beta-beta - CLAUDE SLOW-OP PORT)
+# SOVEREIGN LATENCY WATCHDOG (Samvid v1.0-beta - CLAUDE SLOW-OP PORT)
 # =========================================================================
 
 class LatencyWatchdog:
@@ -44,7 +44,7 @@ from mind_bridge import MindBridge
 logger = logging.getLogger(__name__)
 
 # =============================================================================
-# ANTIGRAVITY-TIER COGNITIVE ENGINE (Samvid v1.0-beta-beta-beta)
+# ANTIGRAVITY-TIER COGNITIVE ENGINE (Samvid v1.0-beta)
 # =============================================================================
 
 def _monte_carlo_outcome_simulation(vix: float, roi: float) -> float:
@@ -92,7 +92,7 @@ def _calculate_epistemic_entropy(ctx: str) -> float:
     return min(1.0, entropy)
 
 # =============================================================================
-# SOVEREIGN ANALYTICAL PROCESSOR (Samvid v1.0-beta-beta-beta)
+# SOVEREIGN ANALYTICAL PROCESSOR (Samvid v1.0-beta)
 # =============================================================================
 
 class SovereignBrain:
@@ -140,7 +140,7 @@ class SovereignBrain:
 
 class MindUltrathink:
     """
-    ULTRATHINK Adaptive Reasoning (Samvid v1.0-beta-beta-beta Sovereign).
+    ULTRATHINK Adaptive Reasoning (Samvid v1.0-beta Sovereign).
     A 500+ line local intelligence system with recursive sub-agent simulation.
     """
 
@@ -176,7 +176,7 @@ class MindUltrathink:
                 logger.error(f"Mind_Ultrathink: Failed to load capabilities: {e}")
 
     # =========================================================================
-    # COORDINATOR SYNTHESIS ENGINE (Samvid v1.0-beta-beta-beta)
+    # COORDINATOR SYNTHESIS ENGINE (Samvid v1.0-beta)
     # =========================================================================
 
     def _synthesize_worker_spec(self, metrics: dict) -> str:
@@ -197,7 +197,7 @@ class MindUltrathink:
         # STEP 1: ADVERSARIAL ASSUMPTION
         if outcome_prob < 0.70: return False
 
-        # STEP 2: INDEPENDENT CHECK (Samvid v1.0-beta-beta-beta)
+        # STEP 2: INDEPENDENT CHECK (Samvid v1.0-beta)
         # Verify that the spec isn't just 'Mismatched Liquidity'
         is_verified = "Mismatched" not in spec and outcome_prob > 0.78
 
@@ -219,7 +219,7 @@ class MindUltrathink:
         return self.STATE_LOCK.locked_ids
 
     # =========================================================================
-    # WISDOM DISTILLATION ENGINE (DREAMER MODE - Samvid v1.0-beta-beta-beta)
+    # WISDOM DISTILLATION ENGINE (DREAMER MODE - Samvid v1.0-beta)
     # =========================================================================
 
     def _distill_wisdom_index(self, results: list[dict] = None):
@@ -292,7 +292,7 @@ class MindUltrathink:
 
     async def start(self) -> None:
         self.is_running = True
-        logger.info("Mind_Ultrathink v1.0-beta-beta (Cognitive Singularity): OLLAMA-FREE Intelligence active.")
+        logger.info("Mind_Ultrathink v1.0-beta (Cognitive Singularity): OLLAMA-FREE Intelligence active.")
 
     async def stop(self) -> None:
         self.is_running = False
@@ -344,7 +344,7 @@ class MindUltrathink:
 
     async def _tool_pause_and_reason(self, task: str, intensity: str = "RAINBOW", temperature: float = 0.4) -> dict[str, Any]:
         """
-        Samvid v1.0-beta-beta-beta: ANTIGRAVITY COGNITIVE ANALYZER.
+        Samvid v1.0-beta: ANTIGRAVITY COGNITIVE ANALYZER.
         GAP-72: Added temperature parameter for cognitive diversity.
         GAP-70: Added proactive token truncation.
         """

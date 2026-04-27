@@ -69,7 +69,7 @@ class DhatuState:
     @property
     def effective_modifier(self) -> float:
         """
-        Calculate effective modifier accounting for freshness decay (Samvid v1.0-beta-beta-beta).
+        Calculate effective modifier accounting for freshness decay (Samvid v1.0-beta).
         Decays towards 1.0 (neutrality) as time passes, rather than towards 0.0.
         Formula: 1.0 + (base_modifier - 1.0) * freshness_score
         """
@@ -159,7 +159,7 @@ class DhatuClassifier:
         # Calculate freshness based on event age
         freshness = self.sutra_freshness_score(hours_since)
 
-        # ── DHATU CLASSIFICATION CHAIN (Samvid v1.0-beta-beta-beta Hardened) ──
+        # ── DHATU CLASSIFICATION CHAIN (Samvid v1.0-beta Hardened) ──
         # ABHAVA detection: tracking what is ABSENT
         # Case A: Price moves significantly without an underlying catalyst (Gap Fade)
         # Case B: Strong catalyst exists but price fails to respond (Exhaustion/Absence of Reaction)
@@ -243,10 +243,10 @@ class DhatuClassifier:
             return 1.0
 
         # Exponential decay: f(t) = e^(-λt) where λ = ln(2)/half_life
-        # Samvid v1.0-beta-beta-beta: Zero-safety guard on halflife
+        # Samvid v1.0-beta: Zero-safety guard on halflife
         h_life = max(0.1, self.sutra_decay_halflife)
 
-        # GAP-26 FIX: If age > 1 hour, accelerate decay significantly (Samvid v1.0-beta-beta-beta)
+        # GAP-26 FIX: If age > 1 hour, accelerate decay significantly (Samvid v1.0-beta)
         if age_hours > 1.0:
              h_life = min(h_life, 2.0) # Force 2h max halflife for old news
 
@@ -357,7 +357,7 @@ class BayesianBeliefTracker:
             }
             likelihood = temp_lik.get(evidence_type, 0.5)
 
-        # 2. Apply Dhatu Scaling (Samvid v1.0-beta-beta-beta)
+        # 2. Apply Dhatu Scaling (Samvid v1.0-beta)
         # In Volatile markets (Chala/Kshaya), we compress likelihoods toward 0.5 (Noise)
         # In Stable markets (Sthira/Samyoga), we expand likelihoods (Signal)
         scaling_factor = 1.0
@@ -421,12 +421,12 @@ class BayesianBeliefTracker:
 
     async def evaluate_proposal(self, context: dict[str, Any]) -> dict[str, Any]:
         """
-        Standardized consensus evaluation for Samvid v1.0-beta-beta-beta.
+        Standardized consensus evaluation for Samvid v1.0-beta.
         Provides Agent B's Bayesian belief vote.
         """
         from datetime import timezone
 
-        # Samvid v1.0-beta-beta-beta: Reset belief for new proposal evaluation to prevent cross-symbol contamination
+        # Samvid v1.0-beta: Reset belief for new proposal evaluation to prevent cross-symbol contamination
         temp_tracker = BayesianBeliefTracker(prior=self._prior)
 
         ohlcv = context.get("ohlcv_df") or context.get("ohlcv_1m")

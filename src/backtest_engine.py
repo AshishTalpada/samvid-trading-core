@@ -1,5 +1,5 @@
 """
-Samvid v1.0-beta-beta-beta — Walk-Forward Backtesting Engine
+Samvid v1.0-beta — Walk-Forward Backtesting Engine
 Validates edge with statistical rigour before deploying capital.
 Run: python -m src.backtest_engine
 """
@@ -114,7 +114,7 @@ async def load_ohlcv_from_db(db_path: str, symbol: str) -> tuple[np.ndarray, np.
         try:
             # Shift blocking I/O to thread pool
             def _load():
-                # Samvid v1.0-beta-beta-beta: AEGIS Stability Protocol for backtest connection
+                # Samvid v1.0-beta: AEGIS Stability Protocol for backtest connection
                 conn = sqlite3.connect(db_path, timeout=60.0)
                 conn.execute("PRAGMA journal_mode=WAL;")
                 cursor = conn.cursor()
@@ -349,7 +349,7 @@ async def run_phase1_validation(db_path: str = "trading.db",
         symbols = ["SPY", "QQQ", "IWM"]
 
     print("\n" + "="*65)
-    print("  Samvid v1.0-beta-beta-beta — PHASE 1: WALK-FORWARD EDGE VALIDATION")
+    print("  Samvid v1.0-beta — PHASE 1: WALK-FORWARD EDGE VALIDATION")
     print("="*65)
 
     all_symbol_results = {}

@@ -29,7 +29,7 @@ class Diagnostic:
 
 class DiagnosticTracker:
     """
-    Samvid v1.0-beta-beta-beta Diagnostic Tracking System.
+    Samvid v1.0-beta Diagnostic Tracking System.
     Inspired by Claude-Code's DiagnosticTrackingService.ts.
     Maintains baselines and detects 'New Bleeding' (regressions).
     """

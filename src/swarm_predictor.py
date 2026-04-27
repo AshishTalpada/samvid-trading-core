@@ -2,7 +2,7 @@
 import os
 
 # -----------------------------------------------------------------------------
-# ABSOLUTE TELEMETRY SUPPRESSION (Samvid v1.0-beta-beta-beta HARDCORE)
+# ABSOLUTE TELEMETRY SUPPRESSION (Samvid v1.0-beta HARDCORE)
 # MUST BE SET BEFORE ANY IMPORTS THAT MIGHT TRIGGER CHROMA/POSTHOG
 # -----------------------------------------------------------------------------
 os.environ["ANONYMIZED_TELEMETRY"] = "False"
@@ -68,7 +68,7 @@ class SwarmConsensus:
 
     @property
     def is_fresh(self) -> bool:
-        """True only if generated within the staleness window (Samvid v1.0-beta-beta-beta: TZ Safety)."""
+        """True only if generated within the staleness window (Samvid v1.0-beta: TZ Safety)."""
         # Ensure parity: both must be naive or same-aware
         now = datetime.now(timezone.utc)
         gen = self.generated_at
@@ -88,7 +88,7 @@ class SwarmConsensus:
 
     def get_confidence_modifier(self, entry_side: str = "long") -> float:
         """
-        Position-size modifier based on swarm alignment with trade direction (Samvid v1.0-beta-beta-beta Fixed).
+        Position-size modifier based on swarm alignment with trade direction (Samvid v1.0-beta Fixed).
 
         Args:
             entry_side: 'long' or 'short'
@@ -132,7 +132,7 @@ class ChromaDeepMemory:
                 ChromaDeepMemory._client_instance = chromadb.PersistentClient(
                     path=db_dir, settings=Settings(allow_reset=True, anonymized_telemetry=False)
                 )
-                logger.info(f"✓ Chroma Persistence Online (Samvid v1.0-beta-beta-beta Memory System) at {db_dir}")
+                logger.info(f"✓ Chroma Persistence Online (Samvid v1.0-beta Memory System) at {db_dir}")
             except Exception as e:
                 logger.warning(f"Chroma: PersistentClient failed ({e}). Falling back to Ephemeral.")
                 ChromaDeepMemory._client_instance = chromadb.EphemeralClient(
@@ -151,14 +151,14 @@ class ChromaDeepMemory:
 
         self.collection = self.client.get_or_create_collection(collection_name, embedding_function=fast_ef)
         try:
-            count = int(self.collection.count())  # ChromaDB v1.0-beta-beta+ returns int directly
+            count = int(self.collection.count())  # ChromaDB v1.0-beta+ returns int directly
             logger.info(f"ChromaDB Memory Active: {count} memories in '{collection_name}'")
         except Exception:
             logger.info(f"ChromaDB Memory Active: collection '{collection_name}' ready")
 
     async def search_memory(self, market_narrative: str, limit: int = 5) -> tuple[str, float]:
         """
-        Samvid v1.0-beta-beta-beta: Wisdom Retrieval & Compaction.
+        Samvid v1.0-beta: Wisdom Retrieval & Compaction.
         Finds similar regimes AND compacts them into distilled wisdom tokens.
         """
         if not self.collection:
@@ -273,7 +273,7 @@ class SwarmPredictor:
         self._cache_minutes = cache_minutes
         self._available: bool = False
         self._memory = ChromaDeepMemory()
-        self._memory_queue: asyncio.Queue = asyncio.Queue(maxsize=100)  # Samvid v1.0-beta-beta-beta: Bounded Buffer
+        self._memory_queue: asyncio.Queue = asyncio.Queue(maxsize=100)  # Samvid v1.0-beta: Bounded Buffer
         self._memory_loop: asyncio.Task | None = None
 
         # 2. SEEDS: Check for Local vs Cloud reasoning
@@ -311,7 +311,7 @@ class SwarmPredictor:
             self._memory_loop = None
 
     def stop(self) -> None:
-        """Gracefully stop background tasks (Samvid v1.0-beta-beta-beta Cleanup)."""
+        """Gracefully stop background tasks (Samvid v1.0-beta Cleanup)."""
         if self._memory_loop and not self._memory_loop.done():
             self._memory_loop.cancel()
             logger.info("✓ SwarmPredictor: Background tasks terminated.")
@@ -356,7 +356,7 @@ class SwarmPredictor:
             report = report.get("summary", report.get("text", str(report)))
         report_lower = str(report).lower()
 
-        # Samvid v1.0-beta-beta-beta GAP-78: Negation-Aware Sentiment Discovery
+        # Samvid v1.0-beta GAP-78: Negation-Aware Sentiment Discovery
         # Prevents "not bullish" from being counted as a bullish signal.
         def _is_negated(word: str, text: str) -> bool:
             # Look back 25 characters for negation markers
@@ -415,7 +415,7 @@ class SwarmPredictor:
 
     async def get_market_forecast(self, symbol: str, context: Dict[str, Any], effort: str = "medium") -> SwarmConsensus:
         """
-        Unified Swarm Prediction (Samvid v1.0-beta-beta-beta).
+        Unified Swarm Prediction (Samvid v1.0-beta).
         Combines SFI Flash-Inference, Advisor Logic, and Teammate Spawning.
         """
         if not self._available:
@@ -529,7 +529,7 @@ class SwarmPredictor:
 
     async def evaluate_proposal(self, context: Dict[str, Any]) -> Dict[str, Any]:
         """
-        Standardized consensus evaluation for Samvid v1.0-beta-beta-beta.
+        Standardized consensus evaluation for Samvid v1.0-beta.
         Provides the Swarm Intelligence vote based on a 5-agent debate.
         """
         symbol = context.get("symbol", "UNKNOWN")
@@ -695,7 +695,7 @@ class SwarmPredictor:
             parts.append("\n<NEWS_DATA>")
             injection_flags = ["ignore all ", "system override", "new instructions", "you are now", "forget everything"]
             for h in ctx["news"][:3]:
-                # GAP-70 FIX: Prompt Injection Sterilization (Samvid v1.0-beta-beta-beta)
+                # GAP-70 FIX: Prompt Injection Sterilization (Samvid v1.0-beta)
                 safe_h = str(h)
                 for flag in injection_flags:
                     safe_h = safe_h.lower().replace(flag, "[REDACTED]")

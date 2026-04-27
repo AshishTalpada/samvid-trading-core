@@ -1,5 +1,5 @@
 """
-Samvid v1.0-beta-beta-beta — Bayesian Oracle
+Samvid v1.0-beta — Bayesian Oracle
 Upgrades DhatuOracle with proper Bayesian regime inference.
 P(regime|evidence) updated on every new data point.
 """
