@@ -1,10 +1,10 @@
-# 🪐 Sovereign Trading System V13.7
+# 🪐 Samvid Trading Core V13.7 (संविद्)
 
 ![License](https://img.shields.io/badge/license-Proprietary-red)
 ![Version](https://img.shields.io/badge/version-13.7-cyan)
-![System](https://img.shields.io/badge/Sovereign-Institutional-blue)
+![System](https://img.shields.io/badge/Samvid-Institutional-blue)
 
-Sovereign is a high-frequency, event-driven autonomous trading engine designed for multi-asset institutional execution. It leverages a mesh of specialized agents to coordinate discovery, vetting, and risk-managed trade execution across IBKR and MT5 backends.
+**Samvid** (Consensus / Shared Intelligence) is a high-frequency, event-driven autonomous trading engine designed for multi-asset institutional execution. It leverages a mesh of specialized agents to coordinate discovery, vetting, and risk-managed trade execution via the **Samvid Quorum Matrix**.
 
 ## 🏗️ Architectural Overview
 
@@ -30,8 +30,8 @@ The system operates on an asynchronous event-bus architecture, synchronizing the
 ### 2. Installation
 ```bash
 # Clone the repository
-git clone https://github.com/[YOUR_USERNAME]/TradingSystem.git
-cd TradingSystem
+git clone https://github.com/[YOUR_USERNAME]/samvid-trading-core.git
+cd samvid-trading-core
 
 # Setup Python environment
 python -m venv venv
