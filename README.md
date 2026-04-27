@@ -1,20 +1,22 @@
-# 🪐 Samvid Trading Core V13.7 (संविद्)
+# 🪐 Samvid Trading Core (संविद्)
 
+[![Build Status](https://img.shields.io/badge/build-passing-brightgreen.svg)](https://github.com/AshishTalpada/samvid-trading-core/actions)
+[![Version](https://img.shields.io/badge/version-1.0.0--beta-cyan.svg)](https://github.com/AshishTalpada/samvid-trading-core)
 [![Python](https://img.shields.io/badge/Python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![React](https://img.shields.io/badge/React-18+-61DAFB.svg)](https://reactjs.org/)
-[![License](https://img.shields.io/badge/license-Proprietary-red)](LICENSE)
-[![Uptime](https://img.shields.io/badge/Status-Institutional-cyan)](https://github.com/AshishTalpada/samvid-trading-core)
 
-**Samvid** (Sanskrit for *Consensus* or *Shared Intelligence*) is a high-performance, event-driven autonomous trading engine. It utilizes a decentralized mesh of specialized agents that collaborate via the **Samvid Quorum Matrix** to execute high-conviction trades with institutional-grade risk management.
+**Status: Active Development | Core Agent Mesh Functional | Dashboard Telemetry Active**
+
+**Samvid** (Sanskrit for *Consensus* or *Shared Intelligence*) is an experimental, event-driven trading engine. It utilizes a decentralized mesh of specialized agents that collaborate via a consensus-based voting model to manage trade discovery, macro-analysis, and risk-managed execution.
 
 ---
 
-## ⚡ Key Highlights
+## ⚡ Technical Highlights
 
-*   **Autonomous Agent Mesh**: A decentralized coordination layer where agents (Pattern Atlas, Belief Tracker, Execution Guard) vote on trade signals.
-*   **Dhatu Macro Oracle**: A unique causation engine that maps relationships between global yields, volatility (VIX), and energy prices to determine market bias.
-*   **Neural Link Telemetry**: Real-time React dashboard with sub-100ms updates via secured WebSockets and HMAC handshakes.
-*   **Safety First Architecture**: Multi-layered protection including Blackswan Freezes, Portfolio Guards, and a hardware-integrated Dead Man Switch (DMS).
+*   **Autonomous Agent Mesh**: A decentralized coordination layer where 11 specialized entities (Pattern Atlas, Belief Tracker, etc.) vote on trade signals via an internal Intelligence Bus.
+*   **Dhatu Macro Oracle**: A causation engine mapping relationships between global yields, volatility (VIX), and energy prices to determine real-time market bias.
+*   **Real-time Telemetry**: High-frequency React dashboard providing sub-100ms updates via secured WebSockets and HMAC-SHA256 handshakes.
+*   **Security Architecture**: OS-level secure vault for credential management (keyring-based) and automated safety protocols including Blackswan freezes.
 
 ---
 
@@ -39,11 +41,10 @@ graph TD
 
 | Layer | Technology |
 | :--- | :--- |
-| **Backend** | Python 3.10+ (Asyncio), FastApi, Uvicorn |
+| **Backend** | Python 3.10+ (Asyncio), FastAPI, Uvicorn |
 | **Frontend** | React 18, Vite, Framer Motion, Lightweight Charts |
-| **Intelligence** | Custom Agent Mesh, Dhatu-Causation Logic |
-| **Persistence** | QuestDB (HFT Ticks), SQLite3 (State & OHLCV) |
-| **Security** | OS-level Vault (keyring), HMAC-SHA256, WebSocket Handshake |
+| **Databases** | QuestDB (Time-series Ticks), SQLite3 (System State) |
+| **Security** | OS Vault (keyring), HMAC-SHA256, WebSocket Handshake |
 
 ---
 
@@ -66,9 +67,9 @@ npm install
 ```
 
 ### 2. Secure Configuration
-Samvid uses an OS-level **Sovereign Vault** for all sensitive credentials. 
+Samvid utilizes local OS-level credential storage. **No API keys are stored in plaintext.**
 ```bash
-python src/vault_init.py
+python vault_setup.py
 ```
 
 ### 3. Execution
@@ -85,18 +86,16 @@ npm run dev
 ## 📂 Project Structure
 
 ```text
-├── src/                    # Backend Core Logic
-│   ├── brain.py            # Central Decision Engine
-│   ├── dhatu_oracle.py     # Macro Causation Logic
-│   ├── api_server.py       # WebSocket/FastAPI Bridge
-│   └── vault.py            # Secure Credential Management
-├── frontend/               # React Intelligence Dashboard
-│   ├── src/components/     # Matrix & Oracle Visualizations
-│   └── src/hooks/          # Real-time Stream Handling
-├── data/                   # Persistent Storage (Git ignored)
+├── src/                    # Backend Core logic & Intelligence Bus
+│   ├── brain.py            # Central Neural Coordinator
+│   ├── dhatu_oracle.py     # Macro Causation state-machine
+│   └── vault.py            # Keyring-based security bridge
+├── frontend/               # React Dashboard (Telemetry & Visualization)
+├── tests/                  # Unit and integration testing suite
+├── data/                   # Persistent storage (Git ignored)
 └── README.md               # Documentation
 ```
 
 ---
 
-**Institutional Disclaimer**: *Samvid is designed for professional execution. Algorithmic trading involves substantial risk of loss. Use responsibly.*
+**Disclaimer**: *This project is for educational and research purposes. Algorithmic trading involves substantial risk of loss. Use responsibly.*
