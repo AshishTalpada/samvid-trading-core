@@ -9,7 +9,7 @@ import DataPipelineFlow from './DataPipelineFlow';
 import LearningLoop from './LearningLoop';
 import CognitiveMindsLayer from './CognitiveMindsLayer';
 
-/** 🪐 SOVEREIGN ARCHITECTURE | v1.0-beta REAL-TIME MIRROR 🪐
+/** 🪐 SOVEREIGN ARCHITECTURE | v1.0-beta-beta REAL-TIME MIRROR 🪐
  *  A unified observatory grid visualizing all core backend cognitive layers.
  */
 

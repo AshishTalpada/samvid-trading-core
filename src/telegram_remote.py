@@ -1,17 +1,17 @@
 import asyncio
 import logging
-import aiohttp
-import json
-import time
 from datetime import datetime
-from vault import Vault  # pyre-ignore[21]
+
+import aiohttp
+
 from intelligence_bus import get_bus  # pyre-ignore[21]
+from vault import Vault  # pyre-ignore[21]
 
 logger = logging.getLogger("telegram_remote")
 
 class TelegramRemote:
     """
-    Sovereign Remote Control (Samvid v1.0-beta-beta).
+    Sovereign Remote Control (Samvid v1.0-beta-beta-beta).
     Enables remote intervention (Panic, Status, Dhatu Override) via Telegram polling.
     Designed for low-overhead operation on hardware-constrained systems.
     """
@@ -27,7 +27,7 @@ class TelegramRemote:
         self.last_auth_time = 0.0
         self._auth_attempts = 0
         self._last_auth_attempt_time = 0.0
-        
+
         # Internal snapshot for /status
         self.current_regime = "UNKNOWN"
         self.current_dhatu = "Sthiti"
@@ -49,12 +49,12 @@ class TelegramRemote:
         logger.info("🏛️ Sovereign Remote: Listening for high-priority commands...")
         self.is_running = True
         self.session = aiohttp.ClientSession()
-        
+
         # Subscribe to bus to maintain an internal "Status Snapshot" for zero-latency replies
         self.bus.on("oracle.state", self._update_dhatu)
         self.bus.on("trade.exit", self._update_stats)
         self.bus.on("notification.telegram", self._handle_broadcast)
-        
+
         asyncio.create_task(self._poll_loop())
 
     async def stop(self):
@@ -70,7 +70,7 @@ class TelegramRemote:
         self.snapshot_time = TimeSync.now().timestamp()
 
     async def _update_stats(self, payload):
-        # We'll rely on the Brain to provide full stats for /status, 
+        # We'll rely on the Brain to provide full stats for /status,
         # but we track the last exit for immediate feedback.
         pass
 
@@ -79,7 +79,7 @@ class TelegramRemote:
         # GAP-215 FIX: Decouple API Endpoint for Proxy/Regional Compliance
         api_base = Vault.get("TELEGRAM_API_URL", "https://api.telegram.org").rstrip("/")
         url = f"{api_base}/bot{self.token}/getUpdates"
-        
+
         # GAP-299: Clear any stuck webhooks before starting poll
         try:
             async with self.session.get(f"{api_base}/bot{self.token}/deleteWebhook") as dw:
@@ -102,7 +102,7 @@ class TelegramRemote:
             except Exception as e:
                 logger.error(f"TelegramRemote Poll Error: {e}")
                 await asyncio.sleep(5)
-            
+
             await asyncio.sleep(1)
 
     async def _handle_update(self, update):
@@ -113,7 +113,7 @@ class TelegramRemote:
 
         text = message.get("text", "")
         sender_chat_id = str(message.get("chat", {}).get("id"))
-        
+
         # AUTH CHECK: Only respond to the authorized chat ID (GAP-220 FIX)
         # Handle case where Vault might return a list of authorized IDs (comma-separated)
         authorized_ids = [cid.strip() for cid in self.chat_id.split(",") if cid.strip()]
@@ -137,7 +137,7 @@ class TelegramRemote:
             if self._auth_attempts >= 5 and (now - self._last_auth_attempt_time) < 300:
                 await self._send_message("❌ <b>LOCKED</b>: Too many failed attempts. Try again in 5 minutes.", sender_chat_id)
                 return
-                
+
             self._last_auth_attempt_time = now
             if args and args[0] == str(self.pin):
                 self.last_auth_time = now
@@ -167,12 +167,12 @@ class TelegramRemote:
         """Ask the bus for current telemetry and reply."""
         await self.bus.publish("command.remote", {"cmd": "status", "ts": datetime.now().isoformat()})
         await asyncio.sleep(0.5)
-        
+
         from time_sync import TimeSync
         now = TimeSync.now().timestamp()
         age = now - self.snapshot_time if self.snapshot_time > 0 else 999
         stale_warning = " ⚠️ STALE" if age > 30 else ""
-        
+
         msg = (
             "🏛️ <b>Sovereign Status</b>\n"
             f"───────────────────\n"
@@ -195,7 +195,7 @@ class TelegramRemote:
         if not args:
             await self._send_message("Usage: `/dhatu [ABHAVA|SHANTI|VRIDDHI]`", chat_id)
             return
-            
+
         target = args[0].upper()
         if target not in ["ABHAVA", "STHITI", "VRIDDHI", "SHANTI"]:
             await self._send_message("❌ Invalid Dhatu target.", chat_id)
@@ -205,7 +205,7 @@ class TelegramRemote:
         await self.bus.publish("command.remote", {"cmd": "dhatu_override", "target": target})
 
     async def _handle_broadcast(self, payload):
-        """Handle incoming broadcast messages from the Brain (Samvid v1.0-beta-beta)."""
+        """Handle incoming broadcast messages from the Brain (Samvid v1.0-beta-beta-beta)."""
         msg = payload.get("message")
         if msg:
             await self._send_message(msg)
@@ -213,7 +213,7 @@ class TelegramRemote:
     async def _send_message(self, text: str, chat_id: str | None = None):
         """Internal helper to reply via Telegram (GAP-220 Hardened)."""
         if not self.session: return
-        
+
         # Priority: explicit chat_id > first authorized ID from Vault
         target_id = chat_id or self.chat_id.split(",")[0].strip()
         if not target_id:

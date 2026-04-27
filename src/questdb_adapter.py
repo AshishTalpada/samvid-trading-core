@@ -1,16 +1,14 @@
 import asyncio
+import concurrent.futures
 import logging
 import socket
 import time
 from typing import Any, Optional
 
-import concurrent.futures
-import re
-
 try:
     import pandas as pd  # pyre-ignore[21]
     import psycopg2  # pyre-ignore[21]
-    from psycopg2 import pool # pyre-ignore[21]
+    from psycopg2 import pool  # pyre-ignore[21]
 
     HAS_PSYCOPG2 = True
 except ImportError:
@@ -52,7 +50,7 @@ class QuestDBAdapter:
         # Retry state for exponential backoff
         self._retry_count: int = 0
         self._retry_delay: float = 5.0
-        
+
         # --- GAP-82 FIX: Dedicated Thread Pool ---
         # We fence QuestDB's blocking I/O into a private pool to prevent engine starvation.
         self._executor = concurrent.futures.ThreadPoolExecutor(max_workers=10, thread_name_prefix="QuestDB_IO")
@@ -98,8 +96,8 @@ class QuestDBAdapter:
                 # Batch processing
                 batch = []
 
-                # --- AEGIS FIX (Samvid v1.0-beta-beta): Deadlock Reconnect ---
-                # We NO LONGER wait forever at queue.get(). 
+                # --- AEGIS FIX (Samvid v1.0-beta-beta-beta): Deadlock Reconnect ---
+                # We NO LONGER wait forever at queue.get().
                 # We use a timeout so the reconnection logic at the top of the loop can trigger
                 # even when the system is quiet (no trades/signals).
                 try:
@@ -119,10 +117,10 @@ class QuestDBAdapter:
                 if sock is not None:
                     try:
                         payload = "\n".join(batch) + "\n"
-                        # Samvid v1.0-beta-beta / GAP-82: Use Dedicated Executor instead of default pool
+                        # Samvid v1.0-beta-beta-beta / GAP-82: Use Dedicated Executor instead of default pool
                         loop = asyncio.get_running_loop()
                         await loop.run_in_executor(self._executor, sock.sendall, payload.encode())
-                        
+
                         # Reset backoff on success
                         if self._retry_count > 0:
                             logger.info("QuestDB: Reconnected successfully.")
@@ -155,13 +153,13 @@ class QuestDBAdapter:
                 if self._retry_count == 0:
                     logger.warning("QuestDB: Connection lost — entering backoff retry.")
                 self._retry_count += 1
-                
+
                 # GAP-229 FIX: Enter simulated mode after 3 consecutive failures to avoid blocking
                 if self._retry_count >= 3 and not self.is_simulated:
                     logger.warning("QuestDB: Persistent connection failure. Switching to SIMULATED mode.")
                     self.is_simulated = True
                     self._next_reconnect_attempt = _time.monotonic() + 300.0 # Try again in 5 mins
-                
+
                 # Exponential backoff capped at 120s
                 self._retry_delay = min(self._retry_delay * 2, 120.0)
                 await asyncio.sleep(self._retry_delay)
@@ -179,7 +177,7 @@ class QuestDBAdapter:
                 await loop.run_in_executor(self._executor, sock.connect, (self.host, self.ilp_port))
                 sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
                 self.is_active = True
-                
+
                 # Initialize PG Pool if possible
                 if HAS_PSYCOPG2 and self._pg_pool is None:
                     try:
@@ -210,7 +208,7 @@ class QuestDBAdapter:
 
         # Prepare ILP string
         # table,tags fields timestamp
-        # Samvid v1.0-beta-beta: Synchronized UTC Ticks
+        # Samvid v1.0-beta-beta-beta: Synchronized UTC Ticks
         from datetime import datetime, timezone
         ts = int(datetime.now(timezone.utc).timestamp() * 1e9)
         safe_symbol = str(symbol).replace(",", "\\,").replace(" ", "\\ ").replace("=", "\\=")
@@ -248,7 +246,7 @@ class QuestDBAdapter:
         from datetime import datetime, timezone
         ts = int(datetime.now(timezone.utc).timestamp() * 1e9)
         safe_symbol = str(symbol).replace(",", "\\,").replace(" ", "\\ ").replace("=", "\\=")
-        
+
         # ILP Format: table,tags fields timestamp
         line = f"ticks,symbol={safe_symbol} price={price},size={size} {ts}"
         try:
@@ -277,25 +275,25 @@ class QuestDBAdapter:
             # GAP-49/53 FIX: Vectorized ILP Encoding (Significant CPU saving)
             safe_symbol = str(symbol).replace(",", "\\,").replace(" ", "\\ ").replace("=", "\\=")
             safe_tf = str(timeframe).replace(",", "\\,").replace(" ", "\\ ").replace("=", "\\=")
-            
+
             # Polars implementation (Ultra-Fast)
             if hasattr(df, "with_columns"):
                 import polars as pl
                 # Vectorize the string construction in Polars C++ core
                 # GAP-52: Direct integer timestamp math to prevent float drift
                 ilp_df = df.with_columns([
-                    (pl.lit("ohlcv,symbol=") + pl.lit(safe_symbol) + pl.lit(",timeframe=") + pl.lit(safe_tf) + 
-                     pl.lit(" open=") + pl.col("open").cast(pl.String) + 
-                     pl.lit(",high=") + pl.col("high").cast(pl.String) + 
-                     pl.lit(",low=") + pl.col("low").cast(pl.String) + 
-                     pl.lit(",close=") + pl.col("close").cast(pl.String) + 
+                    (pl.lit("ohlcv,symbol=") + pl.lit(safe_symbol) + pl.lit(",timeframe=") + pl.lit(safe_tf) +
+                     pl.lit(" open=") + pl.col("open").cast(pl.String) +
+                     pl.lit(",high=") + pl.col("high").cast(pl.String) +
+                     pl.lit(",low=") + pl.col("low").cast(pl.String) +
+                     pl.lit(",close=") + pl.col("close").cast(pl.String) +
                      pl.lit(",volume=") + pl.col("volume").cast(pl.Int64).cast(pl.String) + pl.lit("i ") +
                      (pl.col("timestamp").cast(pl.Int64)).cast(pl.String)).alias("ilp_line")
                 ])
                 lines = ilp_df["ilp_line"].to_list()
                 for line in lines:
                     self._queue.put_nowait(line)
-            else: 
+            else:
                 # Pandas fallback (Manual but safe)
                 for row in df.itertuples():
                     ts_val = getattr(row, "timestamp", getattr(row, "Date", getattr(row, "Datetime", time.time())))
@@ -344,7 +342,7 @@ class QuestDBAdapter:
                 else:
                     conn_str = f"host={self.host} port={self.pg_port} user={self.user} password={self.password} dbname=qdb connect_timeout=3"
                     conn = psycopg2.connect(conn_str)
-                
+
                 query = """
                     SELECT timestamp, open, high, low, close, volume
                     FROM ohlcv
@@ -377,7 +375,7 @@ class QuestDBAdapter:
         """GAP-229 FIX: Fetch the absolute latest tick price for a symbol."""
         if not self.enabled or self.is_simulated or not HAS_PSYCOPG2:
             return None
-            
+
         def _sync_fetch():
             conn = None
             try:
@@ -386,7 +384,7 @@ class QuestDBAdapter:
                 else:
                     conn_str = f"host={self.host} port={self.pg_port} user={self.user} password={self.password} dbname=qdb connect_timeout=3"
                     conn = psycopg2.connect(conn_str)
-                
+
                 # Use LATEST ON for performance in QuestDB
                 query = "SELECT price FROM ticks WHERE symbol = %s LATEST ON timestamp"
                 cursor = conn.cursor()
@@ -425,7 +423,7 @@ class QuestDBAdapter:
 
                 # In QuestDB, we can drop partitions string-formatted as 'YYYY-MM-DD'
                 # Generate a list of dates older than `days_to_keep`
-                # Samvid v1.0-beta-beta: UTC-safe pruning
+                # Samvid v1.0-beta-beta-beta: UTC-safe pruning
                 for i in range(days_to_keep, days_to_keep + 14):
                     stale_date = (pd.Timestamp.now(tz="UTC") - pd.Timedelta(days=i)).strftime("%Y-%m-%d")
 
@@ -460,7 +458,7 @@ class QuestDBAdapter:
         """Sovereign Shutdown: Idempotent resource release (GAP-51 Hardened)."""
         self.enabled = False
         self._started = False
-        
+
         # 1. Cancel background worker
         worker = self._worker_task
         if worker is not None:
@@ -470,7 +468,7 @@ class QuestDBAdapter:
             except asyncio.CancelledError:
                 pass
             self._worker_task = None
-            
+
         # 2. Close ILP Socket
         sock = self._sock
         if sock is not None:
@@ -479,7 +477,7 @@ class QuestDBAdapter:
             except Exception:
                 pass
             self._sock = None
-        
+
         # 3. Shutdown PG Pool and Executor
         if self._pg_pool:
             try:
@@ -499,5 +497,5 @@ class QuestDBAdapter:
             except Exception:
                 pass
             self._executor = None
-        
+
         self.is_active = False

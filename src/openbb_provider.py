@@ -23,7 +23,7 @@ from vault import Vault  # pyre-ignore[21]
 logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
-# Safe OpenBB import — DEFERRED until initialization (Samvid v1.0-beta-beta)
+# Safe OpenBB import — DEFERRED until initialization (Samvid v1.0-beta-beta-beta)
 # Previously loaded at module scope, consuming 500+ MB of RAM and taking
 # minutes to import. Now lazy-loaded only when initialize() is called.
 # ---------------------------------------------------------------------------
@@ -110,7 +110,7 @@ class OpenBBProvider:
 
     async def _ensure_obb(self) -> bool:
         """
-        Samvid v1.0-beta-beta: Non-blocking lazy loader for the OpenBB SDK.
+        Samvid v1.0-beta-beta-beta: Non-blocking lazy loader for the OpenBB SDK.
         All fetch methods call this instead of checking `is_available` directly.
         The 5-minute OpenBB import is run in a thread pool, so it never blocks
         the event loop. After first successful load the result is cached globally.
@@ -142,12 +142,12 @@ class OpenBBProvider:
                 logger.error(f"OpenBB Loader Error: {e}")
                 _OPENBB_AVAILABLE = False
                 return False
-        # One-time Credential Sync after first successful load (Samvid v1.0-beta-beta)
+        # One-time Credential Sync after first successful load (Samvid v1.0-beta-beta-beta)
         try:
             from vault import Vault
             pat = Vault.get("OPENBB_PAT")
 
-            # Samvid v1.0-beta-beta: Activate PAT if available (Prioritize Hub Sync)
+            # Samvid v1.0-beta-beta-beta: Activate PAT if available (Prioritize Hub Sync)
             # This enables 'Active PAT' mode requested by the user.
             if pat:
                 try:
@@ -297,7 +297,7 @@ class OpenBBProvider:
 
             # GAP-21: Input Validation - Cap period_days to prevent calculation lag
             if period_days > 100:
-                logger.warning(f"RSI/Technical period {period_days} too high, capping at 100 to prevent lag (Samvid v1.0-beta-beta).")
+                logger.warning(f"RSI/Technical period {period_days} too high, capping at 100 to prevent lag (Samvid v1.0-beta-beta-beta).")
                 period_days = 100
 
             start = (datetime.now() - timedelta(days=period_days)).strftime("%Y-%m-%d")

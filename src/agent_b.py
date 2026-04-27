@@ -69,7 +69,7 @@ class DhatuState:
     @property
     def effective_modifier(self) -> float:
         """
-        Calculate effective modifier accounting for freshness decay (Samvid v1.0-beta-beta).
+        Calculate effective modifier accounting for freshness decay (Samvid v1.0-beta-beta-beta).
         Decays towards 1.0 (neutrality) as time passes, rather than towards 0.0.
         Formula: 1.0 + (base_modifier - 1.0) * freshness_score
         """
@@ -159,7 +159,7 @@ class DhatuClassifier:
         # Calculate freshness based on event age
         freshness = self.sutra_freshness_score(hours_since)
 
-        # ── DHATU CLASSIFICATION CHAIN (Samvid v1.0-beta-beta Hardened) ──
+        # ── DHATU CLASSIFICATION CHAIN (Samvid v1.0-beta-beta-beta Hardened) ──
         # ABHAVA detection: tracking what is ABSENT
         # Case A: Price moves significantly without an underlying catalyst (Gap Fade)
         # Case B: Strong catalyst exists but price fails to respond (Exhaustion/Absence of Reaction)
@@ -169,7 +169,7 @@ class DhatuClassifier:
         if is_abhava:
             state_name = "Abhava"
             confidence = min(0.90, 0.6 + abs(price_change) * 5)
- 
+
         # Samyoga: Multiple factors aligning (Growth + Volume + RSI cushion)
         elif (
             price_change > self.VRIDDHI_MOMENTUM_THRESHOLD
@@ -178,34 +178,34 @@ class DhatuClassifier:
         ):
             state_name = "Samyoga"
             confidence = min(0.85, 0.5 + price_change * 10 + (volume_ratio - 1) * 0.2)
- 
+
         # Viyoga: Price/volume divergence (The Sovereign Divergence)
         elif (price_change > 0.01 and volume_ratio < 0.7) or (
             price_change < -0.01 and volume_ratio > 1.5
         ):
             state_name = "Viyoga"
             confidence = 0.65
- 
+
         # Vriddhi: Growth (with 10% Hysteresis override)
         elif price_change > (self.VRIDDHI_MOMENTUM_THRESHOLD * 0.9):
             state_name = "Vriddhi"
             confidence = min(0.80, 0.5 + price_change * 15)
- 
+
         # Kshaya: Decay (with 10% Hysteresis override)
         elif price_change < (self.KSHAYA_MOMENTUM_THRESHOLD * 0.9):
             state_name = "Kshaya"
             confidence = min(0.80, 0.5 + abs(price_change) * 15)
- 
+
         # Chala: High volatility (The Sovereign Chaos)
         elif volatility > (self.VOLATILITY_HIGH_THRESHOLD * 0.9):
             state_name = "Chala"
             confidence = min(0.75, 0.5 + volatility * 10)
- 
+
         # Sthira: Low volatility (The Sovereign Stillness)
         elif volatility < (self.VOLATILITY_LOW_THRESHOLD * 1.1):
             state_name = "Sthira"
             confidence = min(0.80, 0.6 + (self.VOLATILITY_LOW_THRESHOLD - volatility) * 50)
- 
+
         else:
             state_name = "Sthiti"
             confidence = 0.50
@@ -243,28 +243,28 @@ class DhatuClassifier:
             return 1.0
 
         # Exponential decay: f(t) = e^(-λt) where λ = ln(2)/half_life
-        # Samvid v1.0-beta-beta: Zero-safety guard on halflife
+        # Samvid v1.0-beta-beta-beta: Zero-safety guard on halflife
         h_life = max(0.1, self.sutra_decay_halflife)
-        
-        # GAP-26 FIX: If age > 1 hour, accelerate decay significantly (Samvid v1.0-beta-beta)
+
+        # GAP-26 FIX: If age > 1 hour, accelerate decay significantly (Samvid v1.0-beta-beta-beta)
         if age_hours > 1.0:
              h_life = min(h_life, 2.0) # Force 2h max halflife for old news
-             
+
         decay_constant = math.log(2) / h_life
         freshness = math.exp(-decay_constant * age_hours)
- 
+
         # Floor at 0.05 - even old sutras retain minimal relevance
         return max(0.05, freshness)
 
     def dhatu_modifier(self, base: float, freshness: float) -> float:
         """
-        Calculate Dhatu modifier per F18-Hardened: 
+        Calculate Dhatu modifier per F18-Hardened:
         Decays towards 1.0 (neutrality) rather than 0.0.
-        
+
         Args:
             base: Base modifier for the state (from STATE_BASE_MODIFIERS)
             freshness: Current freshness score (0.0-1.0)
- 
+
         Returns:
             Effective modifier after freshness adjustment
         """
@@ -357,7 +357,7 @@ class BayesianBeliefTracker:
             }
             likelihood = temp_lik.get(evidence_type, 0.5)
 
-        # 2. Apply Dhatu Scaling (Samvid v1.0-beta-beta)
+        # 2. Apply Dhatu Scaling (Samvid v1.0-beta-beta-beta)
         # In Volatile markets (Chala/Kshaya), we compress likelihoods toward 0.5 (Noise)
         # In Stable markets (Sthira/Samyoga), we expand likelihoods (Signal)
         scaling_factor = 1.0
@@ -365,7 +365,7 @@ class BayesianBeliefTracker:
             scaling_factor = 0.7  # Compress by 30%
         elif dhatu_state in ("Sthira", "Samyoga", "Vriddhi"):
             scaling_factor = 1.2  # Expand by 20%
-        
+
         # P(E|H) = 0.5 + (BaseLikelihood - 0.5) * Scaling
         likelihood = 0.5 + (likelihood - 0.5) * scaling_factor
         likelihood = max(0.1, min(0.9, likelihood))
@@ -421,15 +421,14 @@ class BayesianBeliefTracker:
 
     async def evaluate_proposal(self, context: dict[str, Any]) -> dict[str, Any]:
         """
-        Standardized consensus evaluation for Samvid v1.0-beta-beta.
+        Standardized consensus evaluation for Samvid v1.0-beta-beta-beta.
         Provides Agent B's Bayesian belief vote.
         """
-        import polars as pl
         from datetime import timezone
-        
-        # Samvid v1.0-beta-beta: Reset belief for new proposal evaluation to prevent cross-symbol contamination
+
+        # Samvid v1.0-beta-beta-beta: Reset belief for new proposal evaluation to prevent cross-symbol contamination
         temp_tracker = BayesianBeliefTracker(prior=self._prior)
-        
+
         ohlcv = context.get("ohlcv_df") or context.get("ohlcv_1m")
         if ohlcv is not None and len(ohlcv) >= 5:
             try:
@@ -437,17 +436,17 @@ class BayesianBeliefTracker:
                 last_close = float(ohlcv["close"][-1])
                 prev_close = float(ohlcv["close"][-2])
                 price_change = (last_close - prev_close) / (prev_close + 1e-10)
-                
+
                 # Volatility (20-bar range)
                 h20 = float(ohlcv["high"][-20:].max())
                 l20 = float(ohlcv["low"][-20:].min())
                 volatility = (h20 - l20) / (last_close + 1e-10)
-                
+
                 # Volume Ratio
                 avg_vol = float(ohlcv["volume"][-20:].mean())
                 curr_vol = float(ohlcv["volume"][-1])
                 vol_ratio = curr_vol / (avg_vol + 1e-10)
-                
+
                 # 2. Dhatu Classification
                 # Note: We use local instances to keep evaluate_proposal pure and stateless
                 classifier = DhatuClassifier()
@@ -457,19 +456,19 @@ class BayesianBeliefTracker:
                     "volume_ratio": vol_ratio,
                     "has_catalyst": True # Default assumption for proposal vetting
                 })
-                
+
                 # 3. Evidence Updates
                 is_long = context.get("is_long", True)
                 direction_match = (is_long and price_change > 0) or (not is_long and price_change < 0)
-                
+
                 if direction_match:
                     temp_tracker.update("price_toward_small", dhatu_state=state.name)
                 else:
                     temp_tracker.update("price_against_small", dhatu_state=state.name)
-                
+
                 if vol_ratio > 1.2:
                     temp_tracker.update("volume_confirming", dhatu_state=state.name)
-                
+
                 # 4. ABHAVA Integration
                 # Convert last 5 bars to history list for detector
                 history = []
@@ -481,15 +480,15 @@ class BayesianBeliefTracker:
                         "volume_ratio": float(ohlcv["volume"][i]) / (avg_vol + 1e-10),
                         "has_catalyst": True
                     })
-                
+
                 abhava_det = ABHAVADetector()
                 is_abhava = abhava_det.detect(history)
-                
+
                 belief = temp_tracker.current_belief
                 if is_abhava and state.name == "Abhava":
                     # Critical Veto: Significant absence detected
                     belief = min(belief, 0.45)
-                
+
                 vote = "YES" if belief >= 0.5 else "NO"
                 return {
                     "agent": "Agent_B",
@@ -704,7 +703,7 @@ class InformationDecayModel:
         # GAP-26 FIX: If age > 1 hour, accelerate decay significantly
         if age_hours > 1.0:
              effective_halflife = min(effective_halflife, 2.0) # Force 2h max halflife for old news
-        
+
         decay_constant = math.log(2) / effective_halflife
 
         # Exponential decay

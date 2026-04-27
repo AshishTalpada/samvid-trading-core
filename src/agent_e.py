@@ -1,6 +1,6 @@
 # pyre-ignore-all-errors[21]
 """
-src/agent_e.py - Sector Correlation Guard (v1.0-beta-beta)
+src/agent_e.py - Sector Correlation Guard (v1.0-beta-beta-beta)
 ==============================================
 Prevents portfolio over-exposure to a single market sector.
 Implements rule: Max 30% allocation per sector.
@@ -16,10 +16,10 @@ class CorrelationGuard:
     def __init__(self, max_sector_exposure: float = 0.30) -> None:
         self.max_sector_exposure = max_sector_exposure
         self.persist_path = "data/sector_map.json"
-        
+
         # Base Institutional Sector Map (GAP-42 Expansion)
         self.sector_map = {
-            "AAPL": "TECH", "MSFT": "TECH", "GOOGL": "TECH", "NVDA": "TECH", 
+            "AAPL": "TECH", "MSFT": "TECH", "GOOGL": "TECH", "NVDA": "TECH",
             "AMD": "TECH", "AVGO": "TECH", "SMCI": "TECH", "ARM": "TECH",
             "PLTR": "TECH", "ADBE": "TECH", "NFLX": "CONSUMER",
             "JPM": "FINANCE", "GS": "FINANCE", "V": "FINANCE", "MA": "FINANCE",
@@ -49,7 +49,7 @@ class CorrelationGuard:
         import os
         try:
             os.makedirs(os.path.dirname(self.persist_path), exist_ok=True)
-            # Only save the non-default ones to keep it clean? 
+            # Only save the non-default ones to keep it clean?
             # Or just save everything. Everything is safer.
             with open(self.persist_path, "w") as f:
                 json.dump(self.sector_map, f, indent=4)
@@ -61,18 +61,19 @@ class CorrelationGuard:
         s = symbol.upper()
         if s in self.sector_map:
             return self.sector_map[s]
-            
+
         try:
             import asyncio
+
             import yfinance as yf
-            
+
             def _fetch_yf():
                 ticker = yf.Ticker(s)
                 # GAP-43: Enhanced Discovery for OTC/New symbols
                 info = ticker.info
                 if not info: return None
                 return info.get("sector") or info.get("industry") or "OTHER"
-            
+
             sector = await asyncio.to_thread(_fetch_yf)
             if sector:
                  sector = sector.upper().replace(" ", "_")
@@ -82,7 +83,7 @@ class CorrelationGuard:
                  return sector
         except Exception as e:
             logger.debug(f"Dynamic sector discovery failed for {s}: {e}")
-            
+
         return "OTHER"
 
     async def check_exposure(
@@ -171,7 +172,7 @@ class CorrelationGuard:
 
     async def evaluate_proposal(self, context: Dict[str, Any], agent_name: str = "Agent_E") -> Dict[str, Any]:
         """
-        Standardized consensus evaluation for Samvid v1.0-beta-beta.
+        Standardized consensus evaluation for Samvid v1.0-beta-beta-beta.
         Provides Agent E's correlation-based vote.
         """
 
@@ -199,12 +200,12 @@ class CorrelationGuard:
                  p_qty = pos.get("qty", 0) if isinstance(pos, dict) else getattr(pos, "qty", 0)
                  if (await self.get_sector(p_sym)) == target_sector:
                      sector_value += float(p_price) * float(p_qty)
-             
+
              exposure_pct = float(sector_value + new_value) / float(account_value or 1)
              limit = min(self.max_sector_exposure, 0.30)
              if exposure_pct > (limit * 0.8): # Above 24% exposure
                  confidence = 0.65 # Thin ice
-        
+
         reason = f"Sector: {target_sector} | "
         if is_safe:
             reason += "Exposure within limits."

@@ -7,7 +7,7 @@ logger = logging.getLogger(__name__)
 
 class ApexExoskeleton:
     """
-    The Apex Exoskeleton (Samvid v1.0-beta-beta Cognitive Wrapper).
+    The Apex Exoskeleton (Samvid v1.0-beta-beta-beta Cognitive Wrapper).
     Wraps the Sovereign Core with hardware-optimized resilience layers.
     Handles: Cortex Cache, Parallel CPU Tiering, and Dictatorship of Talent.
     """
@@ -28,7 +28,7 @@ class ApexExoskeleton:
 
         if price_delta < 0.0005 and age < 60:
             logger.info(f"Apex Exoskeleton: 🧠 CORTEX HIT for {symbol}. Price stable ({price_delta:.4%}).")
-            
+
             # GAP-207 FIX: Update Dashboard via Bus
             if hasattr(self.brain, "bus"):
                 self.brain.bus.publish("apex.telemetry", {
@@ -38,7 +38,7 @@ class ApexExoskeleton:
                     "age": age,
                     "timestamp": datetime.now().isoformat()
                 })
-                
+
             return cache
         return None
 
@@ -62,16 +62,16 @@ class ApexExoskeleton:
             try:
                 # Direct call to standardized consensus (Alpha Brain Integration)
                 vote = self.brain.live_learner.evaluate_proposal(pattern.name, self.brain.current_regime)
-                
+
                 # --- IMPERIAL GUARD: Internal Stats VETO ---
                 learned = getattr(self.brain, "_learned_win_rates", {})
                 regime_key = f"{pattern.name}:{self.brain.current_regime}"
                 learned_wr = learned.get(regime_key) or learned.get(pattern.name)
-                
+
                 if learned_wr is not None and isinstance(learned_wr, float) and learned_wr < 0.40:
                      vote["vote"] = "NO"
                      vote["reason"] = f"🛑 IMPERIAL VETO: Internal WR too low ({learned_wr:.2%})"
-                     
+
                      # GAP-207 FIX: Dashboard Sync
                      if hasattr(self.brain, "bus"):
                          self.brain.bus.publish("apex.telemetry", {
@@ -81,7 +81,7 @@ class ApexExoskeleton:
                              "win_rate": learned_wr,
                              "timestamp": timestamp
                          })
-                
+
                 vote["timestamp"] = timestamp
                 return vote
             except Exception as e:
@@ -114,14 +114,14 @@ class ApexExoskeleton:
 
         async def _poll_safe(name, func):
             try:
-                # Samvid v1.0-beta-beta: Smart Dispatcher (Sync -> Thread | Async -> Native)
+                # Samvid v1.0-beta-beta-beta: Smart Dispatcher (Sync -> Thread | Async -> Native)
                 if asyncio.iscoroutinefunction(func):
                      res = await func()
                 else:
                     res = await asyncio.to_thread(func)
                     if asyncio.iscoroutine(res) or hasattr(res, "__await__"):
                         res = await res
-                
+
                 # --- IDENTITY INJECTION ---
                 if isinstance(res, dict):
                     res["agent"] = name
@@ -136,12 +136,12 @@ class ApexExoskeleton:
     def evaluate_dictatorship(self, tier1_votes: List[Dict[str, Any]], timestamp: str) -> Optional[List[Dict[str, Any]]]:
         """Zone A: The Dictatorship of Talent (Agent D Bypass)."""
         agent_d_res = next((v for v in tier1_votes if v["agent"] == "Agent_D"), None)
-        
-        # Samvid v1.0-beta-beta: Raised threshold to 99% to prevent intelligence bypassing.
+
+        # Samvid v1.0-beta-beta-beta: Raised threshold to 99% to prevent intelligence bypassing.
         # This force the Quorum to wait for the GPU Agents (Oracle/Swarm) in almost all scenarios.
         if agent_d_res and agent_d_res["vote"] == "YES" and agent_d_res.get("confidence", 0) >= 0.99:
             logger.info(f"Apex Exoskeleton: 👑 EMERGENCY DICTATORSHIP TRIGGERED by Agent D ({agent_d_res['confidence']:.2%}).")
-            
+
             # Synthetic Signal Generation for GPU agents
             return [
                 {"agent": "Dhatu_Oracle", "vote": "YES", "confidence": 0.8, "reason": "Exoskeleton Fast-Path", "timestamp": timestamp},

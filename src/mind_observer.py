@@ -1,6 +1,5 @@
 import asyncio
 import logging
-import time
 from typing import Any
 
 from mind_bridge import MindBridge
@@ -34,7 +33,7 @@ class MindObserver:
         self._task = asyncio.create_task(self._run_observation_loop())
 
     def stop(self) -> None:
-        """Gracefully stop the Observation Mind (Samvid v1.0-beta-beta)."""
+        """Gracefully stop the Observation Mind (Samvid v1.0-beta-beta-beta)."""
         self.is_running = False
         if self._task and not self._task.done():
             self._task.cancel()
@@ -107,14 +106,14 @@ class MindObserver:
         """Scans the local database for staleness or 'Dirty Data' (GAP-254)."""
         if not self.qdb or not self.qdb.enabled:
              return {"status": "OFFLINE", "reason": "QuestDB not active"}
-             
-        from data_pipeline import DataPipeline
+
         import pandas as pd
+
         from time_sync import TimeSync
-        
+
         stale_symbols = []
         now_ts = TimeSync.now().timestamp()
-        
+
         # Optimized Pulse Check: Monitor Top 5 Core Indices
         core_symbols = ["SPY", "QQQ", "IWM", "DIA", "XLK"]
         for symbol in core_symbols:
@@ -130,7 +129,7 @@ class MindObserver:
             except Exception as e:
                 logger.debug(f"MindObserver: Pulse check failed for {symbol}: {e}")
                 continue
-                
+
         status = "DIRTY" if stale_symbols else "CLEAN"
         return {
             "stale_count": len(stale_symbols),

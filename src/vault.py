@@ -3,7 +3,6 @@ import logging  # pyre-ignore[21]
 import os  # pyre-ignore[21]
 
 import keyring  # pyre-ignore[21]
-from dotenv import load_dotenv  # pyre-ignore[21]
 
 logger = logging.getLogger(__name__)
 
@@ -61,7 +60,7 @@ class Vault:
     @staticmethod
     def get(key: str, default: str | None = None) -> str | None:
         """
-        Retrieve a secret (Samvid v1.0-beta-beta Universal String-Shield).
+        Retrieve a secret (Samvid v1.0-beta-beta-beta Universal String-Shield).
         Ensures the return value is projects-wide safe for SDKs and lengths.
         """
         # 0. Check Cache First (GAP-81)

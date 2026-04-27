@@ -2,7 +2,9 @@ import io
 import os
 import sys
 from pathlib import Path
+
 from vault import Vault  # pyre-ignore[21]
+
 try:
     import zstandard  # type: ignore # pyre-ignore[21]
 except ImportError:
@@ -33,23 +35,22 @@ if _src not in sys.path:
 # -- High-Performance Event Loop Configuration (Moved to main block for GAP-191) --
 import asyncio
 import asyncio.subprocess
-import aiohttp
 import logging
-from logging.handlers import RotatingFileHandler
 import sqlite3
 import time
-from concurrent.futures import ThreadPoolExecutor
+
+# --- Python 3.10+ / 3.14 eventkit compatibility (Moved to main block for GAP-191) ---
+from collections.abc import Callable, Coroutine
+from datetime import datetime, timezone  # pyre-ignore[21]
+from logging.handlers import RotatingFileHandler
+from typing import TYPE_CHECKING, Any
+
+import aiohttp
 
 from mind_bridge import MindBridge
 from mind_system import MindSystem
 from session_restorer import SessionRestorer
 from time_sync import TimeSync
-
-# --- Python 3.10+ / 3.14 eventkit compatibility (Moved to main block for GAP-191) ---
-
-from collections.abc import Callable, Coroutine
-from datetime import datetime, timezone  # pyre-ignore[21]
-from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from ib_insync import IB  # pyre-ignore[21]
@@ -72,16 +73,15 @@ from config import (  # pyre-ignore[21]
     QUESTDB_USER,
     TRADING_MODE,
 )
-from ibkr_streamer import IBKRStreamer  
-from intelligence_bus import get_bus  
-from questdb_adapter import QuestDBAdapter  
-from vault import Vault  
-from telegram_remote import get_remote 
+from ibkr_streamer import IBKRStreamer
+from intelligence_bus import get_bus
+from questdb_adapter import QuestDBAdapter
+from telegram_remote import get_remote
 
 
 class SovereignFormatter(logging.Formatter):
     """
-    Sovereign Intelligence Formatter (v1.0-beta-beta).
+    Sovereign Intelligence Formatter (v1.0-beta-beta-beta).
     Combines Unicode-safe stream handling with mandatory secret redaction (GAP-82).
     """
     def __init__(self, fmt=None, datefmt=None, secrets=None):
@@ -99,11 +99,11 @@ class SovereignFormatter(logging.Formatter):
         try:
             # First, format using standard logic
             msg = super().format(record)
-            
+
             # Second, Apply Redaction
             if self._pattern:
                 msg = self._pattern.sub("[REDACTED]", msg)
-            
+
             # GAP-202 FIX: Only strip Unicode for non-UTF8 terminals, NOT for file logs
             # We detect this by checking if the handler being used is a StreamHandler to stdout/stderr
             # But since format() doesn't know the handler, we rely on a cleaner check.
@@ -122,8 +122,8 @@ root_logger.setLevel(logging.INFO)
 
 # File handler with rotation
 file_handler = RotatingFileHandler(
-    "logs/trading_system.log", 
-    encoding="utf-8", 
+    "logs/trading_system.log",
+    encoding="utf-8",
     maxBytes=15 * 1024 * 1024,  # Expanded to 15MB
     backupCount=7
 )
@@ -136,7 +136,7 @@ stream_handler.setFormatter(formatter)
 root_logger.addHandler(file_handler)
 root_logger.addHandler(stream_handler)
 
-# GAP-172 FIX: Suppress noisy third-party libraries (Samvid v1.0-beta-beta Cleanup)
+# GAP-172 FIX: Suppress noisy third-party libraries (Samvid v1.0-beta-beta-beta Cleanup)
 logging.getLogger("urllib3").setLevel(logging.WARNING)
 logging.getLogger("uvicorn.access").setLevel(logging.WARNING)
 logging.getLogger("uvicorn.error").setLevel(logging.INFO)
@@ -162,7 +162,7 @@ logging.getLogger("data_pipeline").setLevel(logging.INFO)
 logging.getLogger("mind_bridge").setLevel(logging.WARNING)
 logging.getLogger("questdb_adapter").setLevel(logging.WARNING)
 
-# Samvid v1.0-beta-beta Silence Filter: Capture and discard broken chromadb telemetry logs
+# Samvid v1.0-beta-beta-beta Silence Filter: Capture and discard broken chromadb telemetry logs
 class TelemetryFilter(logging.Filter):
     def filter(self, record):
         msg = record.getMessage()
@@ -177,7 +177,7 @@ logger = logging.getLogger(__name__)
 
 
 class StartupProfiler:
-    """Institutional-grade startup profiling (Samvid v1.0-beta-beta)."""
+    """Institutional-grade startup profiling (Samvid v1.0-beta-beta-beta)."""
 
     def __init__(self) -> None:
         self._marks = {}
@@ -251,7 +251,7 @@ class TradingSystem:
             os.remove(test_file)
         except (IOError, OSError) as e:
             logger.critical(f"🛑 CRITICAL: Project path is NOT writable ({_root}). Error: {e}")
-            raise RuntimeError(f"Sovereign Initialization Failed: No write access to PROJECT_PATH.")
+            raise RuntimeError("Sovereign Initialization Failed: No write access to PROJECT_PATH.")
 
         # Ensure directories exist
         Path("data").mkdir(exist_ok=True)
@@ -281,13 +281,13 @@ class TradingSystem:
         self._mt5_failure_count = 0 # Track sequential MT5 heartbeat failures
 
         self.background_tasks: dict[str, asyncio.Task[None]] = {}
-        self.db_lock = asyncio.Lock() # Samvid v1.0-beta-beta: Sovereign SQL serialization
-        self._shutdown_event = asyncio.Event() 
-        self._hft_pulse_queue: Any = None 
-        
+        self.db_lock = asyncio.Lock() # Samvid v1.0-beta-beta-beta: Sovereign SQL serialization
+        self._shutdown_event = asyncio.Event()
+        self._hft_pulse_queue: Any = None
+
         self._last_tick_time = time.monotonic()
         self._recalibration_in_progress = False
-        
+
         # --- BUG #3 FIX: Signal Leak Protection ---
         # Handle termination signals cleanly in the main event loop
         if sys.platform != "win32": # Windows uses signal.default_int_handler in main()
@@ -312,7 +312,7 @@ class TradingSystem:
                 try:
                     with open(pid_file, "r") as f:
                         old_pid = int(f.read().strip())
-                    
+
                     if old_pid != current_pid and psutil.pid_exists(old_pid):
                         proc = psutil.Process(old_pid)
                         if "python" in proc.name().lower():
@@ -380,12 +380,12 @@ class TradingSystem:
         logger.info(
             f"✅ Matrix Progressive Init Complete in {self.profiler._marks.get('SYSTEM_SCENT_CAPTURED', 0) * 1000:.2f}ms"
         )
-        
+
         # Launch health-Pulse Monitor
         self._aegis_task = asyncio.create_task(self._run_aegis_watchdog())
-        # Launch Persistence Sentinel (Samvid v1.0-beta-beta)
+        # Launch Persistence Sentinel (Samvid v1.0-beta-beta-beta)
         self._sentinel_task = asyncio.create_task(self._run_persistence_sentinel())
-        
+
         # GAP-230 FIX: Performance Metrics Task
         self._perf_task = asyncio.create_task(self._run_performance_monitor())
 
@@ -496,8 +496,8 @@ class TradingSystem:
                 # GAP-214 FIX: Offload blocking SQLite initialization to thread
                 def _sync_init():
                     conn = sqlite3.connect(
-                        self.db_path, 
-                        timeout=60.0, 
+                        self.db_path,
+                        timeout=60.0,
                         detect_types=sqlite3.PARSE_DECLTYPES,
                         check_same_thread=False
                     )
@@ -531,7 +531,7 @@ class TradingSystem:
                 cursor = self.db_conn.cursor()
                 cursor.execute("SELECT name FROM sqlite_master WHERE type='table'")
                 tables = [row[0] for row in cursor.fetchall()]
-                
+
                 # --- GAP-283: Schema Migration (Self-Healing) ---
                 if 'positions' in tables:
                     cursor.execute("PRAGMA table_info(positions)")
@@ -590,37 +590,37 @@ class TradingSystem:
 
             CREATE TABLE IF NOT EXISTS trades (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-                timestamp TEXT NOT NULL, 
-                instrument TEXT, 
-                direction TEXT, 
+                timestamp TEXT NOT NULL,
+                instrument TEXT,
+                direction TEXT,
                 pattern TEXT,
-                regime TEXT, 
-                session TEXT DEFAULT 'RTH', 
-                entry_price REAL, 
+                regime TEXT,
+                session TEXT DEFAULT 'RTH',
+                entry_price REAL,
                 stop_price REAL,
-                target_price REAL, 
-                exit_price REAL, 
-                shares REAL, 
+                target_price REAL,
+                exit_price REAL,
+                shares REAL,
                 risk_amount REAL,
-                r_r_ratio REAL, 
-                outcome TEXT, 
-                pnl_dollars REAL, 
+                r_r_ratio REAL,
+                outcome TEXT,
+                pnl_dollars REAL,
                 r_multiple REAL,
-                hold_hours REAL, 
-                catalyst_score REAL, 
+                hold_hours REAL,
+                catalyst_score REAL,
                 dhatu_state TEXT,
-                belief_at_entry REAL, 
+                belief_at_entry REAL,
                 belief_at_exit REAL,
-                broker TEXT, 
+                broker TEXT,
                 account_id TEXT DEFAULT 'UNKNOWN',
-                trading_mode TEXT DEFAULT 'paper', 
+                trading_mode TEXT DEFAULT 'paper',
                 notes TEXT,
-                commission REAL DEFAULT 0.0, 
-                slippage REAL DEFAULT 0.0, 
-                net_pnl REAL DEFAULT 0.0, 
-                mfe REAL DEFAULT 0.0, 
-                mae REAL DEFAULT 0.0, 
-                intel_snapshot TEXT, 
+                commission REAL DEFAULT 0.0,
+                slippage REAL DEFAULT 0.0,
+                net_pnl REAL DEFAULT 0.0,
+                mfe REAL DEFAULT 0.0,
+                mae REAL DEFAULT 0.0,
+                intel_snapshot TEXT,
                 unrealized_pnl REAL DEFAULT 0.0
             );
 
@@ -678,7 +678,7 @@ class TradingSystem:
         return False
 
     async def connect_ibkr(self) -> bool | None:
-        """Connect to Interactive Brokers TWS/Gateway (Sovereign Serialized Probe v1.0-beta)"""
+        """Connect to Interactive Brokers TWS/Gateway (Sovereign Serialized Probe v1.0-beta-beta)"""
         if not hasattr(self, "_ibkr_lock"):
             self._ibkr_lock = asyncio.Lock()
 
@@ -763,9 +763,9 @@ class TradingSystem:
                 if accounts:
                     client.wrapper.accounts = accounts
                     logger.info(f"Using account: {accounts[0]}")
-                
+
                 # --- GAP-290: Enable Delayed Market Data Fallback ---
-                # This ensures the system can at least see delayed prices if 
+                # This ensures the system can at least see delayed prices if
                 # no live subscriptions are present (Prevents 10168 errors).
                 client.reqMarketDataType(3)
                 logger.info("✓ IBKR Market Data: Type 3 (Delayed) enabled as fallback.")
@@ -870,7 +870,7 @@ class TradingSystem:
                 logger.info(f"  Name: {account_info.name}")
 
                 self.mt5_client = mt5
-                
+
                 # --- GAP-299: Sync connection state to Brain ---
                 if hasattr(self, "trading_brain") and self.trading_brain and hasattr(self.trading_brain, "mt5_conn"):
                     try:
@@ -1020,7 +1020,7 @@ class TradingSystem:
                 timeout=300,
                 ibkr_client=self.ibkr_client,
                 mt5_client=self.mt5_client,
-                ibkr_port=self.ibkr_port,  # Samvid v1.0-beta-beta Port Alignment
+                ibkr_port=self.ibkr_port,  # Samvid v1.0-beta-beta-beta Port Alignment
                 bus=self.bus,             # Audit Fix [P2]: Bridge DMS to shared bus
             )
 
@@ -1061,7 +1061,7 @@ class TradingSystem:
 
             brain = self.trading_brain
             if brain:
-                # v1.0-beta: Logic natively integrated (GAP-60)
+                # v1.0-beta-beta: Logic natively integrated (GAP-60)
                 # Start brain in supervised background task
                 self._start_supervised_task("trading_brain", brain.run)
 
@@ -1090,7 +1090,7 @@ class TradingSystem:
             )
             self.dhatu_oracle = oracle
             self._start_supervised_task("dhatu_oracle", oracle.run_continuous)
-            # v1.0-beta: Logic natively integrated (GAP-60)
+            # v1.0-beta-beta: Logic natively integrated (GAP-60)
             logger.info("✅ Dhatu Oracle started (15-minute global synthesis cycle)")
             return True
         except ImportError as e:
@@ -1102,7 +1102,7 @@ class TradingSystem:
 
     async def send_telegram_notification(self, message: str) -> bool:
         """
-        Sends a Telegram notification with Elite Signal Sterilization (Samvid v1.0-beta-beta).
+        Sends a Telegram notification with Elite Signal Sterilization (Samvid v1.0-beta-beta-beta).
         Discards routine signal noise captured by the main loop or background tasks.
         """
         # ── ELITE SIGNAL GATE (Sovereign Sterilization) ──
@@ -1110,7 +1110,7 @@ class TradingSystem:
             "[EXECUTION]", "🚨", "⚠️", "🚀", "🛑", "🟢", "🔴", "⚪", "📢", "☣️",
             "SYSTEM CRITICAL", "TRADE FULLY CLOSED", "DAILY WRAP-UP"
         ]
-        
+
         msg_upper = message.upper()
         if not any(prefix.upper() in msg_upper for prefix in allowed_prefixes):
             logger.debug(f"Sterilization: Suppressing non-elite main notification: {message[:50]}...")
@@ -1134,10 +1134,10 @@ class TradingSystem:
                 "text": redacted_message,
                 "parse_mode": "HTML"
             }
-            
+
             if not hasattr(self, "_telegram_session") or self._telegram_session is None or self._telegram_session.closed:
                 self._telegram_session = aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=10.0))
-            
+
             async with self._telegram_session.post(url, json=payload) as resp:
                 if resp.status == 200:
                     logger.info("✅ Telegram notification sent")
@@ -1180,7 +1180,7 @@ class TradingSystem:
             logger.info(f"API Server skipped (already active on port {_p})")
 
     async def startup(self) -> None:
-        """Main startup sequence (Sovereign Parallel v1.0-beta)"""
+        """Main startup sequence (Sovereign Parallel v1.0-beta-beta)"""
         # ── PHASE 0: RISK SANCTITY (GAP-86) ──
         from risk_invariants import RiskInvariants
         if not RiskInvariants.verify_config():
@@ -1188,7 +1188,7 @@ class TradingSystem:
             raise RuntimeError("Critical Risk Invariants Corrupted.")
 
         logger.info("=" * 60)
-        logger.info("Trading System v1.0-beta - Starting Up (Asynchronous Matrix)")
+        logger.info("Trading System v1.0-beta-beta - Starting Up (Asynchronous Matrix)")
         logger.info("=" * 60)
 
         start_time = datetime.now(timezone.utc)
@@ -1219,7 +1219,7 @@ class TradingSystem:
 
             # 2. Start Critical Infrastructure synchronously/awaited
             await self.start_dms()
-            # Step 4: Starting Trading Brain & Remote Command Hub (Samvid v1.0-beta-beta Zero-Block)
+            # Step 4: Starting Trading Brain & Remote Command Hub (Samvid v1.0-beta-beta-beta Zero-Block)
             logger.info("\n[4/10] Starting Trading Brain (Standby Mode)...")
             await self.start_trading_brain()
 
@@ -1227,7 +1227,7 @@ class TradingSystem:
             if self.telegram_remote:
                 logger.info("🏛️ Sovereign Remote: Activating Command listener...")
                 await self.telegram_remote.start()
-            
+
             # Start the data pipeline in the background
             await self.start_data_pipeline()
 
@@ -1282,7 +1282,7 @@ class TradingSystem:
             logger.info("\n[10/10] Sending startup notification...")
             (datetime.now(timezone.utc) - start_time).total_seconds()
 
-            # Step 10: Dynamic Status Generation (Sovereign v1.0-beta)
+            # Step 10: Dynamic Status Generation (Sovereign v1.0-beta-beta)
             ibkr_status = self._get_status_icon("ibkr")
             mt5_status = self._get_status_icon("mt5")
             self._get_status_icon("qdb")
@@ -1311,7 +1311,7 @@ class TradingSystem:
                     await asyncio.sleep(5)
                     await self.trading_brain.bus.publish("mind.dialogue", {
                         "sender": "architect",
-                        "content": "Sovereign Matrix awakening. Synchronizing with Samvid v1.0-beta-beta Global Bus. Initializing diagnostic pre-flight checks.",
+                        "content": "Sovereign Matrix awakening. Synchronizing with Samvid v1.0-beta-beta-beta Global Bus. Initializing diagnostic pre-flight checks.",
                         "metadata": {"type": "STATUS"}
                     })
                     await asyncio.sleep(3)
@@ -1395,8 +1395,7 @@ class TradingSystem:
             pass
 
         try:
-            # Heartbeat & Telemetry loop (Samvid v1.0-beta-beta)
-            import aiohttp
+            # Heartbeat & Telemetry loop (Samvid v1.0-beta-beta-beta)
             while self.is_running:
                 await asyncio.sleep(60)  # Pulse every 60 seconds
 
@@ -1439,13 +1438,13 @@ class TradingSystem:
                     except Exception as e:
                         logger.debug(f"Telemetry: Phone Home failed (non-fatal): {e}")
 
-                # Samvid v1.0-beta-beta GAP-35: Report Cache Saturation (Dropped Ticks)
+                # Samvid v1.0-beta-beta-beta GAP-35: Report Cache Saturation (Dropped Ticks)
                 if hasattr(self, "hft_streamer") and self.hft_streamer:
                     drops = self.hft_streamer.dropped_ticks
                     if drops > 0:
                          logger.warning(f"Sovereign Monitor: {drops} ticks DROPPED during current session. Bus Saturation detected.")
 
-                # --- PERIODIC CHECKPOINT (Samvid v1.0-beta-beta Sovereign) ---
+                # --- PERIODIC CHECKPOINT (Samvid v1.0-beta-beta-beta Sovereign) ---
                 # Checkpoint every 5 minutes (300s) to protect against local crashes
                 if not hasattr(self, "_last_freeze_time"): self._last_freeze_time = 0
                 now = time.time()
@@ -1526,7 +1525,7 @@ class TradingSystem:
     async def shutdown(self) -> None:
         """Graceful shutdown sequence"""
         logger.info("\n" + "=" * 60)
-        logger.info("Trading System v1.0-beta - Shutting Down")
+        logger.info("Trading System v1.0-beta-beta - Shutting Down")
         logger.info("=" * 60)
 
         try:
@@ -1537,7 +1536,7 @@ class TradingSystem:
                 try:
                     cursor = self.db_conn.cursor()
                     today_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-                    # Query plaintext pnl_dollars (Samvid v1.0-beta-beta: Direct learning-safe access)
+                    # Query plaintext pnl_dollars (Samvid v1.0-beta-beta-beta: Direct learning-safe access)
                     cursor.execute(
                         "SELECT pnl_dollars FROM trades WHERE timestamp LIKE ?", (f"{today_str}%",)
                     )
@@ -1593,7 +1592,7 @@ class TradingSystem:
                     await self.data_pipeline.stop()
                 except Exception as e:
                     logger.error(f"Shutdown: Data Pipeline stop failed: {e}")
-            
+
             # 4. CANCEL BACKGROUND TASKS
             to_cancel = []
             for name, task in list(self.background_tasks.items()):
@@ -1608,7 +1607,7 @@ class TradingSystem:
                     logger.warning("Shutdown: Task cancellation timed out after 10s. Forcing exit.")
             self.background_tasks.clear()
 
-            # 4.5. CLOSE SHARED HTTP SESSIONS (Samvid v1.0-beta-beta: Memory Leak Fix)
+            # 4.5. CLOSE SHARED HTTP SESSIONS (Samvid v1.0-beta-beta-beta: Memory Leak Fix)
             if hasattr(self, '_telegram_session') and self._telegram_session and not self._telegram_session.closed:
                 await self._telegram_session.close()
                 self._telegram_session = None
@@ -1659,7 +1658,7 @@ class TradingSystem:
             logger.info("=" * 60)
             logger.info("✅ Shutdown complete")
             logger.info("=" * 60)
-            
+
             # 8. Final Log Shutdown
             logging.shutdown()
             self.is_running = False
@@ -1682,7 +1681,7 @@ class TradingSystem:
         try:
             with open(pid_file, "r") as f:
                 w_pid = int(f.read().strip())
-            
+
             if psutil.pid_exists(w_pid):
                 logger.info(f"✅ Watchdog Verified (PID: {w_pid})")
             else:
@@ -1692,21 +1691,21 @@ class TradingSystem:
 
     async def _run_aegis_watchdog(self) -> None:
         """
-        Samvid v1.0-beta-beta Aegis Watchdog:
+        Samvid v1.0-beta-beta-beta Aegis Watchdog:
         Monitors the physical layer heart rate and triggers autonomous repair.
         """
         logger.info("Watchdog: Aegis Stability Protocol Active.")
         while not self._shutdown_event.is_set():
             try:
                 await asyncio.sleep(60)
-                
+
                 # Check Ingestion Health (Delta since last HFT tick)
                 drift = time.monotonic() - self._last_tick_time
-                
+
                 # If we haven't seen a tick in 5 minutes, we are likely 'Blinded'
                 if drift > 300 and not self._recalibration_in_progress:
                     logger.warning(f"Watchdog: Data Starvation Detected (Drift: {drift:.2f}s). Initiating Autonomous Recovery...")
-                
+
                 # GAP-222 FIX: MT5 Heartbeat Check (Standardized Aware Pulse)
                 if hasattr(self, "mt5_client") and self.mt5_client:
                     try:
@@ -1730,7 +1729,7 @@ class TradingSystem:
                             self._mt5_failure_count = 0 # Reset on success
                     except Exception as e:
                         logger.error(f"Watchdog: MT5 Heartbeat error: {e}")
-                
+
                 self._last_tick_time = time.monotonic() # Reset timer for health baseline
             except Exception as e:
                 logger.error(f"Watchdog Error (Aegis): {e}")
@@ -1740,7 +1739,7 @@ class TradingSystem:
 
     async def _run_hft_pulse_worker(self) -> None:
         """
-        Sovereign HFT Pulse Worker (Samvid v1.0-beta-beta).
+        Sovereign HFT Pulse Worker (Samvid v1.0-beta-beta-beta).
         Single background worker to process 100Hz ticks WITHOUT spawning new tasks.
         """
         logger.info("Main: HFT Pulse Worker started.")
@@ -1759,10 +1758,10 @@ class TradingSystem:
         """Sovereign Pulse Handler: Routes 10ms ticks to the Brain with zero-skip safety."""
         self._last_tick_time = time.monotonic()
 
-        # PILLAR 12: Real-time Brain Sync (Samvid v1.0-beta-beta Optimized)
+        # PILLAR 12: Real-time Brain Sync (Samvid v1.0-beta-beta-beta Optimized)
         if hasattr(self, "trading_brain") and self.trading_brain:
             try:
-                # Samvid v1.0-beta-beta: Reduced event-loop churn.
+                # Samvid v1.0-beta-beta-beta: Reduced event-loop churn.
                 # BrainBusListener handles the heavy lifting via on_tick.
                 # Here we only monitor for Watchdog purposes.
                 pass
@@ -1779,7 +1778,7 @@ class TradingSystem:
                 cpu = psutil.cpu_percent()
                 ram = psutil.virtual_memory().percent
                 logger.info(f"📈 METRICS: CPU: {cpu}% | RAM: {ram}% | State: {self.trading_brain.state.name if hasattr(self, 'trading_brain') else 'INIT'}")
-                
+
                 # Log to QuestDB if available
                 if hasattr(self, "questdb") and self.questdb and self.questdb.is_active:
                     self.questdb.log_event("system_metrics", {"cpu": cpu, "ram": ram})
@@ -1789,17 +1788,17 @@ class TradingSystem:
 
 
     async def _run_persistence_sentinel(self) -> None:
-        """Background task that maintains database health and triggers long-term learning (Samvid v1.0-beta-beta)."""
+        """Background task that maintains database health and triggers long-term learning (Samvid v1.0-beta-beta-beta)."""
         logger.info("Sentinel: Persistence Grooming Task ACTIVE (Interval: 24h).")
         self._sentinel_running = False
-        
+
         while True:
             try:
                 # ── SOVEREIGN COOL-DOWN ──
                 # Reduced from 30s pulses (which caused hardware resets) to 24-hour cycles.
                 # Deep training should only occur when the system is not actively in an HFT session.
                 await asyncio.sleep(86400) # 24 Hours
-                
+
                 if self._sentinel_running:
                     logger.debug("Sentinel: Deep Training Cycle already in progress. Skipping.")
                     continue
@@ -1817,7 +1816,7 @@ class TradingSystem:
                             shutil.rmtree(miro_logs)
                             os.makedirs(miro_logs)
                             logger.info("Sentinel: Purged legacy MiroFish temp logs.")
-                        
+
                         # GAP-157 FIX: Purge orphaned .tmp files in the main logs directory
                         logs_dir = "logs"
                         if os.path.exists(logs_dir):
@@ -1834,27 +1833,28 @@ class TradingSystem:
 
                 def _optimize_and_train():
                     try:
+                        import os
                         import subprocess
                         import sys
-                        import os
+
                         import psutil
-                        
-                        # ANTI-STACKING GUARD: Hardware Safety (Samvid v1.0-beta-beta)
+
+                        # ANTI-STACKING GUARD: Hardware Safety (Samvid v1.0-beta-beta-beta)
                         ram_pct = psutil.virtual_memory().percent
                         if ram_pct > 75.0:
                             logger.warning(f"Sentinel: RAM at {ram_pct:.1f}% is TOO HIGH for deep training. Postponing cycle.")
                             return True
-                        
+
                         # Check if the hardcore trainer is already running
                         script_name = "hardcore_75y_hyper_fidelity_trainer.py"
                         for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
                             if proc.info['cmdline'] and any(script_name in arg for arg in proc.info['cmdline']):
                                 logger.warning(f"Sentinel: {script_name} is already alive (PID {proc.info['pid']}). Aborting new spawn.")
                                 return True
-                        
+
                         script_path = os.path.join("scripts", script_name)
                         subprocess.Popen([sys.executable, script_path])
-                        
+
                         conn = sqlite3.connect(self.db_path)
                         conn.execute("PRAGMA journal_mode=WAL;")
                         conn.execute("VACUUM")
@@ -1866,7 +1866,7 @@ class TradingSystem:
                         return False
                     finally:
                         self._sentinel_running = False
-                
+
                 success = await asyncio.to_thread(_optimize_and_train)
                 if success:
                     logger.info("Sentinel: Deep Training Pulse & DB Integrity: 100%.")
@@ -1880,7 +1880,7 @@ class TradingSystem:
         """Final Aesthetit Polish: Displays a terminal-grade dashboard of active Minds."""
         banner = (
             "\n" + "╔" + "═" * 78 + "╗\n"
-            "║" + "  🌌  THE SOVEREIGN SINGULARITY MATRIX (Samvid v1.0-beta-beta)  ".center(78) + "║\n"
+            "║" + "  🌌  THE SOVEREIGN SINGULARITY MATRIX (Samvid v1.0-beta-beta-beta)  ".center(78) + "║\n"
             "╠" + "═" * 78 + "╣\n"
             "║" + f"  STATUS:   ACTIVE  |  MODE:     {self.mode.upper().center(10)}  |  TICK:  100Hz (0.01s)  ".center(78) + "║\n"
             "╠" + "═" * 38 + "╦" + "═" * 39 + "╣\n"
@@ -1905,7 +1905,7 @@ async def main() -> None:
     try:
         # Step 0: Sovereign Handshake (9.99 Parallel Init)
         await s.async_init()
-        
+
         # GAP-216 FIX: Registry Backup (Automatic Safeguard)
         try:
             import shutil
@@ -1930,7 +1930,7 @@ async def main() -> None:
     except Exception as e:
         logger.error(f"FATAL MATRIX FAILURE: {e}", exc_info=True)
     finally:
-        # Step 7: Final Unified Cleanup Handshake (Samvid v1.0-beta-beta)
+        # Step 7: Final Unified Cleanup Handshake (Samvid v1.0-beta-beta-beta)
         await s.shutdown()
 
 
@@ -1954,8 +1954,8 @@ if __name__ == "__main__":
         import asyncio
         asyncio.set_event_loop(asyncio.new_event_loop())
     # Force UTF-8 encoding for Windows (resolves 'mojibake' in logs)
-    import sys
     import os
+    import sys
     if sys.platform.startswith("win"):
         import io
         try:
@@ -1964,13 +1964,14 @@ if __name__ == "__main__":
         except Exception:
             pass # Fallback for environments where buffer is not available
 
-    # --- SOVEREIGN GHOST KEY PROTOCOL (v1.0-beta-beta) ---
+    # --- SOVEREIGN GHOST KEY PROTOCOL (v1.0-beta-beta-beta) ---
     # Memory-Only Key Injection to retain 100% IQ with zero disk-print.
     import getpass
+
     from vault import Vault
-    # AVOID TTY HANG (Samvid v1.0-beta-beta): Skip if input is not a TTY or explicitly requested quiet
+    # AVOID TTY HANG (Samvid v1.0-beta-beta-beta): Skip if input is not a TTY or explicitly requested quiet
     is_tty = sys.stdin.isatty() and sys.stdout.isatty()
-    
+
     if not str(Vault.get("DEEPSEEK_API_KEY", "")).strip() and is_tty:
         print("\n" + "═"*78)
         print("🏛️  SOVEREIGN GHOST KEY: Apex Auditor (671B IQ) is currently INACTIVE.")
@@ -1987,7 +1988,7 @@ if __name__ == "__main__":
     elif not is_tty and not str(Vault.get("DEEPSEEK_API_KEY", "")).strip():
         logger.info("Sovereign: Non-TTY environment detected. Skipping interactive key injection.")
 
-    # --- Samvid v1.0-beta-beta: WINDOWS CTRL+C FREEZE FIX ---
+    # --- Samvid v1.0-beta-beta-beta: WINDOWS CTRL+C FREEZE FIX ---
     import signal
     try:
         # Force default INT handler to bypass winloop swallowing Ctrl+C
@@ -1995,10 +1996,10 @@ if __name__ == "__main__":
     except Exception:
         pass
 
-    # --- Samvid v1.0-beta-beta: ROBUST LOOP MANAGEMENT ---
+    # --- Samvid v1.0-beta-beta-beta: ROBUST LOOP MANAGEMENT ---
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
-    
+
     try:
         loop.run_until_complete(main())
     except (KeyboardInterrupt, SystemExit):
@@ -2009,30 +2010,30 @@ if __name__ == "__main__":
         try:
             # GAP-205 FIX: Graceful Shutdown of pending tasks
             pending = [t for t in asyncio.all_tasks(loop) if not t.done()]
-            
+
             if pending:
                 logger.info(f"Shutting down {len(pending)} active tasks...")
                 for task in pending:
                     task.cancel()
-                
+
                 # Drain the loop with a 5s hard timeout
                 try:
-                    # Samvid v1.0-beta-beta: Use wait() with timeout to avoid hanging on stuck handles
+                    # Samvid v1.0-beta-beta-beta: Use wait() with timeout to avoid hanging on stuck handles
                     loop.run_until_complete(asyncio.wait(pending, timeout=5.0))
                 except (KeyboardInterrupt, asyncio.TimeoutError):
                     logger.warning("Shutdown: Timeout or double Ctrl+C detected. Force closing loop.")
                 except Exception as e:
                     logger.debug(f"Shutdown: Loop drain exception: {e}")
-            
-            # --- FINAL WINLOOP STABILIZER (Samvid v1.0-beta-beta) ---
+
+            # --- FINAL WINLOOP STABILIZER (Samvid v1.0-beta-beta-beta) ---
             # Ensure all handles are closed before loop.close() to prevent UVHandle warnings
             try:
                 loop.run_until_complete(loop.shutdown_asyncgens())
             except Exception: pass
-            
+
             loop.close()
         except Exception as e:
             print(f"Shutdown Error: {e}")
-        
+
         print("[SOVEREIGN] Shutdown Complete.")
         sys.exit(0)

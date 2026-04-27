@@ -3,8 +3,8 @@ import logging
 import random
 import sqlite3
 from datetime import datetime
-from unittest.mock import AsyncMock, MagicMock
 from typing import ClassVar
+from unittest.mock import AsyncMock, MagicMock
 
 from src.agent_a import PatternResult
 from src.brain import TradingBrain

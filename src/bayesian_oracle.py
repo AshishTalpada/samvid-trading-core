@@ -1,13 +1,15 @@
 """
-Samvid v1.0-beta-beta — Bayesian Oracle
+Samvid v1.0-beta-beta-beta — Bayesian Oracle
 Upgrades DhatuOracle with proper Bayesian regime inference.
 P(regime|evidence) updated on every new data point.
 """
 from __future__ import annotations
+
 import logging
-import numpy as np
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Optional
+
+import numpy as np
 
 logger = logging.getLogger(__name__)
 
@@ -70,7 +72,7 @@ class BayesianOracle:
         evidence = self._extract_evidence(prices, volumes, vix)
         if not evidence:
             return self.current_state or self._get_initial_state()
-            
+
         posteriors = self._bayes_update(evidence)
 
         # MAP estimate
@@ -122,16 +124,16 @@ class BayesianOracle:
         for ev in evidence:
             if ev not in LIKELIHOODS:
                 continue
-            likelihoods = dict(zip(REGIMES, LIKELIHOODS[ev]))
+            likelihoods = dict(zip(REGIMES, LIKELIHOODS[ev], strict=False))
             # Unnormalized update
             unnorm = {r: posteriors[r] * likelihoods[r] for r in REGIMES}
-            
+
             # GAP-140 FIX: Zero-safety guard to prevent Bayesian collapse (hallucination)
             total = sum(unnorm.values())
             if total < 1e-15:
                 # If all likelihoods are zero, don't update this step
                 continue
-                
+
             posteriors = {r: unnorm[r] / total for r in REGIMES}
 
         return posteriors

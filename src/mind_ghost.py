@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 
 class MindGhost:
     """
-    Agent J: The Ghost Monitor (Samvid v1.0-beta-beta).
+    Agent J: The Ghost Monitor (Samvid v1.0-beta-beta-beta).
     Focuses on 'Sub-Second UI/API Auditing' and 'Ghost State Monitoring'.
     Inspired by Claude-Code's tmuxSocket.ts and terminalPanel.ts.
     Detects when a service (like IBKR) is 'Hanging' but hasn't 'Crashed'.
@@ -22,10 +22,10 @@ class MindGhost:
         self.is_running = False
         self.latency_threshold_ms = 500  # 500ms threshold for 'Hanging'
         self.last_api_heartbeat = time.time()
-        self.startup_time = time.time()  # For grace period (Samvid v1.0-beta-beta Extended)
+        self.startup_time = time.time()  # For grace period (Samvid v1.0-beta-beta-beta Extended)
         self.ghost_mirror: dict[str, Any] = {}  # Internal 'Mirror' of service states
 
-        # --- Samvid v1.0-beta-beta PILLAR 4: EXPONENTIAL BACKOFF (Agent J) ---
+        # --- Samvid v1.0-beta-beta-beta PILLAR 4: EXPONENTIAL BACKOFF (Agent J) ---
         self.retry_counts: dict[str, int] = {}
         self.backoff_base = 2.0
         # Track when next probe is allowed per service (exponential backoff)
@@ -35,9 +35,9 @@ class MindGhost:
     async def start(self) -> None:
         """Launch the Ghost Monitor."""
         self.is_running = True
-        logger.info("MindGhost (Agent J): Ghost Monitoring active (Samvid v1.0-beta-beta).")
+        logger.info("MindGhost (Agent J): Ghost Monitoring active (Samvid v1.0-beta-beta-beta).")
         task = asyncio.create_task(self._ghost_audit_loop())
-        
+
         # GAP-167: Supervisor Monitoring (Heartbeat)
         def _ghost_dead_callback(t: asyncio.Task) -> None:
             if self.is_running: # If it wasn't a clean stop
@@ -45,7 +45,7 @@ class MindGhost:
                     if t.cancelled():
                         # Just a shutdown, no need to log as critical
                         return
-                    
+
                     err = t.exception()
                     msg = f"🚨 <b>CRITICAL</b>: MindGhost (Agent J) has CRASHED! {err}"
                 except (asyncio.CancelledError, Exception) as e:
@@ -53,11 +53,11 @@ class MindGhost:
                     if isinstance(e, asyncio.CancelledError):
                         return
                     msg = "🚨 <b>CRITICAL</b>: MindGhost (Agent J) has STOPPED UNEXPECTEDLY!"
-                
+
                 logger.critical(msg)
                 asyncio.create_task(self.bridge.broadcast(
-                    "ghost", 
-                    msg, 
+                    "ghost",
+                    msg,
                     {"alert": "TELEGRAM", "urgency": "FATAL"}
                 ))
 
@@ -70,12 +70,12 @@ class MindGhost:
             try:
                 current_time = TimeSync.now().timestamp()
 
-                # Samvid v1.0-beta-beta: 120-second Grace Period on startup (Allows for slow IBKR handshakes)
+                # Samvid v1.0-beta-beta-beta: 120-second Grace Period on startup (Allows for slow IBKR handshakes)
                 if current_time - self.startup_time < 120:
                     await asyncio.sleep(1.0)
                     continue
 
-                # 1. Handshake Verification (Samvid v1.0-beta-beta Bus-Driven)
+                # 1. Handshake Verification (Samvid v1.0-beta-beta-beta Bus-Driven)
                 # If we're still waiting for a handshake, check if the system heartbeats are active
                 if self.last_api_heartbeat <= self.startup_time:
                     # If we catch a bus event or a mirror update, sync the heartbeat
@@ -83,7 +83,7 @@ class MindGhost:
                         self.last_api_heartbeat = current_time
                         logger.info("MindGhost: Handshake confirmed via Global Matrix. Audit mode ENGAGED.")
 
-                # 2. API Heartbeat Audit (Samvid v1.0-beta-beta Adaptive Patience)
+                # 2. API Heartbeat Audit (Samvid v1.0-beta-beta-beta Adaptive Patience)
                 if self.last_api_heartbeat > self.startup_time:
                     # GAP-38 FIX: Increased timeout to 60s (from 30s) to allow for heavy vetting cycles
                     if current_time - self.last_api_heartbeat > 60.0:
@@ -102,12 +102,12 @@ class MindGhost:
                     # GAP-264 FIX: Tick-gate to prevent double-probing within the same second
                     if getattr(self, "_last_probe_tick", 0) != int(current_time):
                         self._last_probe_tick = int(current_time)
-                        
+
                         for service, port in [("IBKR", 7497)]:
                             next_ok = self._probe_next_allowed.get(service, 0)
                             if current_time < next_ok:
                                 continue  # still in backoff window
-                            
+
                             # GAP-264 FIX: Offload blocking socket I/O to thread
                             if not await asyncio.to_thread(self._probe_port, port):
                                 fail_count = self.ghost_mirror.get(f"{service}_probe_fail", 0) + 1

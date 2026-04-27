@@ -47,7 +47,7 @@ export default function EvolutionaryIntelligence({ evolution = {} }) {
                   UPD: {(() => {
                     const lu = data.last_updated;
                     if (!lu || typeof lu !== 'string') return '---';
-                    // v1.0-beta: Robust time extraction
+                    // v1.0-beta-beta: Robust time extraction
                     const parts = lu.split('T');
                     if (parts.length < 2) return lu.slice(-8); // Fallback to last 8 chars if not ISO
                     return parts[1].split('.')[0];

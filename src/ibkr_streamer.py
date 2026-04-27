@@ -9,7 +9,7 @@ into QuestDB via the InfluxDB Line Protocol (ILP).
 import asyncio
 import logging
 from datetime import datetime, timezone
-from typing import TYPE_CHECKING, Optional, Any
+from typing import TYPE_CHECKING, Any, Optional
 
 if TYPE_CHECKING:
     from intelligence_bus import SharedIntelligenceBus
@@ -45,13 +45,13 @@ class IBKRStreamer:
         self.qdb_adapter = qdb_adapter
         self.is_running = False
         self._loop_count = 0
-        self.dropped_ticks = 0 # Samvid v1.0-beta-beta GAP-35 Tracker
+        self.dropped_ticks = 0 # Samvid v1.0-beta-beta-beta GAP-35 Tracker
 
         # Persistent Async Stream for QuestDB ILP
         self._qdb_writer: asyncio.StreamWriter | None = None
         self._qdb_lock = asyncio.Lock()
-        
-        # ── TASK CONSOLIDATION (Samvid v1.0-beta-beta) ──
+
+        # ── TASK CONSOLIDATION (Samvid v1.0-beta-beta-beta) ──
         # GAP-45 FIX: Increased queue size to 5000 to handle peak volatility bursts.
         self._bus_queue: asyncio.Queue = asyncio.Queue(maxsize=5000)
         self._publisher_task: asyncio.Task | None = None
@@ -68,7 +68,7 @@ class IBKRStreamer:
                 logger.info(
                     f"IBKRStreamer: Connected to QuestDB ILP at {self.qdb_host}:{self.qdb_ilp_port}"
                 )
-            except (ConnectionRefusedError, OSError) as e:
+            except (ConnectionRefusedError, OSError):
                 logger.info(
                     f"IBKRStreamer: QuestDB Service not detected at {self.qdb_host}. Ticks will log to console/bus only."
                 )
@@ -80,7 +80,7 @@ class IBKRStreamer:
              logger.info("IBKRStreamer: QuestDB ingestion DISABLED in config.")
 
 
-        # 2. Connect to IBKR (Samvid v1.0-beta-beta: Hardened Retry Logic)
+        # 2. Connect to IBKR (Samvid v1.0-beta-beta-beta: Hardened Retry Logic)
         max_attempts = 5
         for attempt in range(max_attempts):
             for host in ["localhost", "127.0.0.1", "::1"]:
@@ -88,10 +88,10 @@ class IBKRStreamer:
                     await self.ib.connectAsync(host, self.port, clientId=self.client_id)
                     self.ib.errorEvent += self._on_error # GAP-179: Register Error Handler
                     self.ib.disconnectedEvent += self._on_disconnect # GAP-48: Register Disconnect Handler
-                    
+
                     # GAP-290: Enable Delayed Market Data Fallback
                     self.ib.reqMarketDataType(3)
-                    
+
                     logger.info(f"IBKRStreamer: Connected to TWS at {host}:{self.port} (Delayed Data Active)")
                     return
                 except Exception as e:
@@ -105,7 +105,7 @@ class IBKRStreamer:
         logger.error("IBKRStreamer: All connection attempts failed. Ticks will be missing for this session.")
 
     async def _qdb_drain_worker(self) -> None:
-        """Background worker to periodically drain the QuestDB buffer (Samvid v1.0-beta-beta)."""
+        """Background worker to periodically drain the QuestDB buffer (Samvid v1.0-beta-beta-beta)."""
         while self.is_running:
             try:
                 if self._qdb_writer and not self._qdb_writer.is_closing():
@@ -120,7 +120,7 @@ class IBKRStreamer:
 
     async def _bus_publisher(self) -> None:
         """
-        Sovereign Publisher (Samvid v1.0-beta-beta): Single worker task to process tikcs.
+        Sovereign Publisher (Samvid v1.0-beta-beta-beta): Single worker task to process tikcs.
         Ensures the system memory footprint stays CONSTANT despite 100Hz tick volume.
         """
         logger.info("IBKRStreamer: Sovereign Publisher worker started.")
@@ -144,12 +144,12 @@ class IBKRStreamer:
 
         for ticker in tickers:
             symbol = ticker.contract.symbol
-            
+
             # --- GAP-36: Liquidity Sentinel ---
             bid = float(ticker.bid) if ticker.bid > 0 else 0.0
             ask = float(ticker.ask) if ticker.ask > 0 else 0.0
             last_p = float(ticker.last) if ticker.last > 0 else 0.0
-            
+
             # --- GAP-32 FIX: Cold Cache Protection ---
             # Reject ticks that are older than 500ms to prevent trading on 'Cold' price data.
             if ticker.time:
@@ -157,19 +157,19 @@ class IBKRStreamer:
                 if ticker_age > 0.5:
                     logger.debug(f"IBKR: {symbol} tick stale ({ticker_age:.2f}s). Skipping.")
                     continue
-            
+
             # 1. Spread Check: Reject hallucinations in low liquidity (GAP-36 Hardening)
             if bid > 0 and ask > 0:
                 # GAP-36 FIX: Hallucination Veto for Bid > Ask
                 if bid > ask:
                     logger.warning(f"⚠️ HALLUCINATION VETO: {symbol} Bid (${bid}) > Ask (${ask}). Broken broker state. Skipping.")
                     continue
-                
+
                 spread_pct = (ask - bid) / bid
                 if spread_pct > 0.05:
                     logger.warning(f"⚠️ LIQUIDITY VETO: {symbol} spread too wide ({spread_pct:.1%}). Hallucination rejected.")
                     continue
-            
+
             # 2. Price Discovery: Favor 'last', then 'bid/ask mean' if spread is tight
             target_price = last_p
             if target_price <= 0:
@@ -178,7 +178,7 @@ class IBKRStreamer:
                 else:
                     # Final fallback to marketPrice() only if it's not None
                     target_price = float(ticker.marketPrice()) if ticker.marketPrice() > 0 else 0.0
-            
+
             if target_price <= 0:
                 continue
 
@@ -188,7 +188,7 @@ class IBKRStreamer:
             # Tags must be escaped: spaces, commas, and equals signs.
             safe_symbol = str(symbol).replace(",", "\\,").replace(" ", "\\ ").replace("=", "\\=")
 
-            # ── SOVEREIGN FAST-PATH (v1.0-beta-beta) ──
+            # ── SOVEREIGN FAST-PATH (v1.0-beta-beta-beta) ──
             if self.qdb_adapter and self.qdb_adapter.enabled:
                  self.qdb_adapter.log_tick(symbol, target_price, last_size or 0)
             elif self._qdb_writer and not self._qdb_writer.is_closing():
@@ -199,8 +199,8 @@ class IBKRStreamer:
                     self._qdb_writer.write(line.encode())
                 except Exception:
                     pass
-            
-            # ── CONSOLIDATED BUS PUBLICATION (Samvid v1.0-beta-beta) ──
+
+            # ── CONSOLIDATED BUS PUBLICATION (Samvid v1.0-beta-beta-beta) ──
             if self.bus is not None:
                 try:
                     self._bus_queue.put_nowait({
@@ -233,11 +233,11 @@ class IBKRStreamer:
         if errorCode in (2104, 2106, 2158, 2157, 10167, 10168, 10089):
              logger.debug(f"IBKRStreamer [INFO]: {errorCode} - {errorString}")
              return
-             
+
         if errorCode >= 2100 and errorCode <= 2110:
              logger.debug(f"IBKRStreamer [INFO]: {errorCode} - {errorString}")
              return
-             
+
         logger.error(f"IBKRStreamer [CRITICAL ERROR]: {reqId} {errorCode} {errorString}")
 
     def _on_disconnect(self) -> None:
@@ -257,7 +257,7 @@ class IBKRStreamer:
                         self._qdb_writer.close()
                         self._qdb_writer = None
                     await self.connect()
-                    
+
                     if not self.ib.isConnected():
                         logger.warning("IBKRStreamer: Handshake failed. Retrying in 10s...")
                         await asyncio.sleep(10)
@@ -299,7 +299,7 @@ class IBKRStreamer:
                 while self.is_running and self.ib.isConnected():
                     await asyncio.sleep(1.0)
                     self._loop_count += 1
-                    
+
                     # GAP-46: Stale data monitor
                     # If market is open and we haven't seen a tick in 180s, something is wrong.
                     seconds_since_tick = (datetime.now(timezone.utc) - self._last_tick_time).total_seconds()

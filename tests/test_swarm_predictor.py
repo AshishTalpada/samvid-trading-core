@@ -52,7 +52,7 @@ def test_should_block_entry_bullish_vs_short() -> None:
 
 def test_should_not_block_low_confidence() -> None:
     """Low confidence swarm should never block entries."""
-    from src.swarm_predictor import SwarmBias, SwarmConsensus # type: ignore
+    from src.swarm_predictor import SwarmBias, SwarmConsensus  # type: ignore
 
     c = SwarmConsensus(bias=SwarmBias.BEARISH, confidence=0.50)
     assert c.should_block_entry("long") is False
@@ -61,7 +61,7 @@ def test_should_not_block_low_confidence() -> None:
 
 def test_confidence_modifier_neutral() -> None:
     """NEUTRAL bias should return 1.0 modifier (no effect)."""
-    from src.swarm_predictor import SwarmBias, SwarmConsensus # type: ignore
+    from src.swarm_predictor import SwarmBias, SwarmConsensus  # type: ignore
 
     c = SwarmConsensus(bias=SwarmBias.NEUTRAL, confidence=0.80)
     assert c.get_confidence_modifier() == 1.0
@@ -69,7 +69,7 @@ def test_confidence_modifier_neutral() -> None:
 
 def test_confidence_modifier_high_confidence() -> None:
     """High-confidence aligned bias should return > 1.0 modifier."""
-    from src.swarm_predictor import SwarmBias, SwarmConsensus # type: ignore
+    from src.swarm_predictor import SwarmBias, SwarmConsensus  # type: ignore
 
     c = SwarmConsensus(bias=SwarmBias.BULLISH, confidence=0.90)
     modifier = c.get_confidence_modifier()
@@ -79,7 +79,7 @@ def test_confidence_modifier_high_confidence() -> None:
 
 def test_confidence_modifier_low_confidence() -> None:
     """Low-confidence should return 1.0 modifier (no effect)."""
-    from src.swarm_predictor import SwarmBias, SwarmConsensus # type: ignore
+    from src.swarm_predictor import SwarmBias, SwarmConsensus  # type: ignore
 
     c = SwarmConsensus(bias=SwarmBias.BULLISH, confidence=0.30)
     assert c.get_confidence_modifier() == 1.0
@@ -113,7 +113,7 @@ def test_predictor_initializes() -> None:
 
 def test_predictor_custom_url() -> None:
     """SwarmPredictor should accept custom API URL."""
-    from src.swarm_predictor import SwarmPredictor # type: ignore
+    from src.swarm_predictor import SwarmPredictor  # type: ignore
 
     p = SwarmPredictor(api_url="http://example.com:9000")
     assert "example.com" in p._api_url
@@ -150,7 +150,7 @@ async def test_forecast_returns_neutral_when_unavailable(ticker) -> None:
 @pytest.mark.asyncio
 async def test_get_consensus_returns_neutral_initially() -> None:
     """get_swarm_consensus should return NEUTRAL when no prediction computed."""
-    from src.swarm_predictor import SwarmBias, SwarmPredictor # type: ignore
+    from src.swarm_predictor import SwarmBias, SwarmPredictor  # type: ignore
 
     p = SwarmPredictor()
     result = await p.get_swarm_consensus()
@@ -162,7 +162,7 @@ async def test_get_consensus_returns_neutral_initially() -> None:
 
 def test_parse_bullish_prediction() -> None:
     """_parse_prediction should detect BULLISH from report text."""
-    from src.swarm_predictor import SwarmBias, SwarmPredictor # type: ignore
+    from src.swarm_predictor import SwarmBias, SwarmPredictor  # type: ignore
 
     p = SwarmPredictor()
     data = {
@@ -179,7 +179,7 @@ def test_parse_bullish_prediction() -> None:
 
 def test_parse_bearish_prediction() -> None:
     """_parse_prediction should detect BEARISH from report text."""
-    from src.swarm_predictor import SwarmBias, SwarmPredictor # type: ignore
+    from src.swarm_predictor import SwarmBias, SwarmPredictor  # type: ignore
 
     p = SwarmPredictor()
     data = {
@@ -195,7 +195,7 @@ def test_parse_bearish_prediction() -> None:
 
 def test_parse_neutral_prediction() -> None:
     """_parse_prediction should return NEUTRAL for ambiguous text."""
-    from src.swarm_predictor import SwarmBias, SwarmPredictor # type: ignore
+    from src.swarm_predictor import SwarmBias, SwarmPredictor  # type: ignore
 
     p = SwarmPredictor()
     data = {
@@ -210,7 +210,7 @@ def test_parse_neutral_prediction() -> None:
 
 def test_parse_dict_report() -> None:
     """_parse_prediction should handle dict-format reports."""
-    from src.swarm_predictor import SwarmBias, SwarmPredictor # type: ignore
+    from src.swarm_predictor import SwarmBias, SwarmPredictor  # type: ignore
 
     p = SwarmPredictor()
     data = {
@@ -226,7 +226,7 @@ def test_parse_dict_report() -> None:
 
 def test_confidence_clamping() -> None:
     """Confidence should be clamped to [0.0, 1.0]."""
-    from src.swarm_predictor import SwarmPredictor # type: ignore
+    from src.swarm_predictor import SwarmPredictor  # type: ignore
 
     p = SwarmPredictor()
     data = {"report": "test", "confidence": 1.5}
@@ -240,7 +240,7 @@ def test_confidence_clamping() -> None:
 
 def test_neutral_consensus_helper() -> None:
     """_neutral_consensus should return a NEUTRAL SwarmConsensus."""
-    from src.swarm_predictor import SwarmBias, SwarmPredictor # type: ignore
+    from src.swarm_predictor import SwarmBias, SwarmPredictor  # type: ignore
 
     c = SwarmPredictor._neutral_consensus("Test reason")
     assert c.bias == SwarmBias.NEUTRAL

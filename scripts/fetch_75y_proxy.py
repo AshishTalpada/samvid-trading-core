@@ -1,8 +1,8 @@
-import yfinance as yf
-import pandas as pd
-import sqlite3
 import logging
-from datetime import datetime
+import sqlite3
+
+import pandas as pd
+import yfinance as yf
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("HistoryFetcher")
@@ -19,11 +19,11 @@ def fetch_75y():
 
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
-    
+
     for symbol, proxy_name in tickers.items():
         print(f"  ▶ Downloading {symbol} ({proxy_name})...")
         df = yf.download(symbol, start="1950-01-01", end="2026-04-12", interval="1d")
-        
+
         if df.empty:
             print(f"  ⚠️ No data for {symbol}")
             continue
@@ -39,15 +39,15 @@ def fetch_75y():
             if h <= l:
                 h = max(o, c, h) + 0.01
                 l = min(o, c, l) - 0.01
-                
+
             records.append((
-                proxy_name, 
+                proxy_name,
                 ts.strftime("%Y-%m-%d %H:%M:%S"),
                 o, h, l, c,
                 float(row['volume']),
                 "1d"
             ))
-            
+
         cursor.executemany("INSERT OR IGNORE INTO ohlcv VALUES (?,?,?,?,?,?,?,?)", records)
         conn.commit()
         print(f"  ✅ Ingested {len(records)} days of {proxy_name}.")

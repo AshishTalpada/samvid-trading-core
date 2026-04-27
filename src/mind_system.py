@@ -1,11 +1,10 @@
 import asyncio
 import logging
 import os
-import subprocess
 from typing import Any
-from vault import Vault  # pyre-ignore[21]
 
 from mind_bridge import MindBridge
+from vault import Vault  # pyre-ignore[21]
 
 logger = logging.getLogger(__name__)
 
@@ -22,7 +21,7 @@ class MindSystem:
         self.is_running = False
         self.lock = asyncio.Lock() # GAP-61 FIX: Serialized System Control
 
-        # 1. THE CERTIFIED COMMAND ALLOWLIST (Samvid v1.0-beta-beta Safety Gate)
+        # 1. THE CERTIFIED COMMAND ALLOWLIST (Samvid v1.0-beta-beta-beta Safety Gate)
         # We only allow these specific, hardcoded operations.
         self.CERTIFIED_COMMANDS = {
             "RESTART_IBKR": [
@@ -117,7 +116,7 @@ class MindSystem:
 
             # 2. Filesystem Shallow-Scent (Fallback)
             if not found_paths_info:
-                # --- MT5 Scent-Blocker (v1.0-beta-beta) ---
+                # --- MT5 Scent-Blocker (v1.0-beta-beta-beta) ---
                 if name.lower() == "mt5":
                     _ml = Vault.get("MT5_LOGIN")
                     if not _ml or "YOUR_MT5" in str(_ml).upper() or str(_ml).lower() == "none":
@@ -157,8 +156,8 @@ class MindSystem:
                                     break
                             if dirpath.count(os.sep) - root.count(os.sep) > 3:
                                 break
-                
-                # GAP-59 & GAP-66 FIX: Anti-Hijacking and Binary Trust Scent (Samvid v1.0-beta-beta)
+
+                # GAP-59 & GAP-66 FIX: Anti-Hijacking and Binary Trust Scent (Samvid v1.0-beta-beta-beta)
                 trusted_zones = [r.lower() for r in common_roots if r]
                 for p in found_raw:
                     p_lower = p.lower()
@@ -171,7 +170,7 @@ class MindSystem:
                         is_sane = "questdb" in p_lower
                     else:
                         is_sane = True
-                    
+
                     is_in_trusted_zone = any(p_lower.startswith(z) for z in trusted_zones if z)
                     if is_sane:
                         found_paths_info.append({"path": p, "trusted": is_in_trusted_zone})
@@ -215,7 +214,7 @@ class MindSystem:
         cpu = await asyncio.to_thread(psutil.cpu_percent)
         vmem = await asyncio.to_thread(psutil.virtual_memory)
         mem = vmem.percent
-        
+
         return {
             "cpu_percent": cpu,
             "memory_percent": mem,
@@ -235,7 +234,7 @@ class MindSystem:
             logger.warning(f"MindSystem: CRITICAL SERVICE REBOOT: {service_name}...")
             cmds = self.CERTIFIED_COMMANDS[service_name]
 
-            # RE-CALCULATE COMMANDS FOR IBKR if interface is specified in Vault (Samvid v1.0-beta-beta Patch)
+            # RE-CALCULATE COMMANDS FOR IBKR if interface is specified in Vault (Samvid v1.0-beta-beta-beta Patch)
             from vault import Vault
             interface = Vault.get("IBKR_INTERFACE", "gateway").lower()
             if service_name == "RESTART_IBKR":
@@ -245,7 +244,7 @@ class MindSystem:
                 start_cmd = f"start {target_exe}"
                 if verified_path and os.path.exists(str(verified_path)):
                      start_cmd = f'start "" "{verified_path}"'
-                
+
                 cmds = [
                     "taskkill /F /IM TWS.exe /IM ibgateway.exe /T /FI \"STATUS eq NOT RESPONDING\"",
                     start_cmd,
