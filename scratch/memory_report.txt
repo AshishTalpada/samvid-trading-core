@@ -1,8 +1,0 @@
-=== SOVEREIGN MEMORY DIAGNOSTIC ===
-[01:11:47] RSS=    24.8 MB | VMS=    15.5 MB | BASELINE — before any project imports
-[01:11:47] RSS=    24.9 MB | VMS=    15.5 MB | --- PHASE 1: IMPORT COSTS ---
-[01:11:50] RSS=    49.9 MB | VMS=   262.8 MB | After import numpy
-[01:12:02] RSS=   123.8 MB | VMS=   327.0 MB | After import pandas
-[01:12:08] RSS=   155.3 MB | VMS=   388.9 MB | After import polars
-[01:12:15] RSS=   182.5 MB | VMS=   414.8 MB | After import aiohttp
-[01:12:18] RSS=   190.5 MB | VMS=   422.4 MB | chromadb not available
