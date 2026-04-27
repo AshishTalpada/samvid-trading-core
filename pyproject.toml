@@ -46,7 +46,10 @@ ignore = [
     "B017", # Asserting blind exceptions (used in tests)
     "F401", # Unused imports (sometimes intentional for re-exports)
     "E402", # Module level import not at top (common in research)
-    "F841", # Local variable is assigned to but never used
+    "F841", # Local variable is assigned to but never used,
+        "E702", # Multiple statements on one line (semicolon)
+            "B023", # Function definition does not bind loop variable
+                "B007", # Loop control variable not used
 ]
 
 [tool.mypy]
