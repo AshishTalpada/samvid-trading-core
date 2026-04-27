@@ -18,7 +18,7 @@ All notable changes to the **Samvid Trading Core** will be documented in this fi
 ---
 
 ### [Historical Versions (Pre-GitHub)]
-*Versions V1.0 through V13.6 were developed as private research iterations.*
+*Versions v1.0-beta through v1.0-beta were developed as private research iterations.*
 
 ## [13.6.0]
 - Refined Quorum Matrix consensus logic.
