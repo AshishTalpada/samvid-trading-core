@@ -74,17 +74,17 @@ class SharedIntelligenceBus:
         # topic → list of async callbacks (spawned as tasks on publish)
         self._callbacks: dict[str, list[Callable]] = {}
         # id(handler) -> (Queue, Task) to prevent task-bombing (GAP-14 FIX)
-        # Using a regular dict + weakref.finalize to ensure clean task cancellation (Samvid v1.0-beta-beta-beta)
+        # Using a regular dict + weakref.finalize to ensure clean task cancellation (Samvid v1.0-beta)
         self._callback_workers: dict[int, tuple[Any, asyncio.Task]] = {}
         self._relay_queues: list[asyncio.PriorityQueue] = []
         self._publish_count: int = 0
-        self._tie_breaker: int = 0  # Tie-breaker for PriorityQueue comparison (Samvid v1.0-beta-beta-beta FIX)
+        self._tie_breaker: int = 0  # Tie-breaker for PriorityQueue comparison (Samvid v1.0-beta FIX)
 
-        # Concurrency Control for Publishing (Samvid v1.0-beta-beta-beta)
+        # Concurrency Control for Publishing (Samvid v1.0-beta)
         self._pending_publish_tasks = set()
         self._max_publish_tasks = 50
 
-        # Samvid v1.0-beta-beta-beta: Canonical Priority Map (0=Urgent, 10=Normal, 20=Low)
+        # Samvid v1.0-beta: Canonical Priority Map (0=Urgent, 10=Normal, 20=Low)
         self.TOPIC_PRIORITIES = {
             "oracle.freeze": 0,    # Hard Stop (Abhava)
             "trade.exit": 1,      # Portfolio preservation
@@ -110,7 +110,7 @@ class SharedIntelligenceBus:
         """
         async def get(self) -> Any:
             priority_tuple = await super().get()
-            # Samvid v1.0-beta-beta-beta: Priority tuple is now (priority, count, ts, payload)
+            # Samvid v1.0-beta: Priority tuple is now (priority, count, ts, payload)
             if isinstance(priority_tuple, tuple) and len(priority_tuple) == 4:
                 return priority_tuple[3]
             # Backward compatibility for (priority, ts, payload)
@@ -172,7 +172,7 @@ class SharedIntelligenceBus:
             worker = asyncio.create_task(self._handler_worker(ref, q))
             self._callback_workers[h_id] = (q, worker)
 
-            # Samvid v1.0-beta-beta-beta: Ensure task is cancelled when handler is GC'd
+            # Samvid v1.0-beta: Ensure task is cancelled when handler is GC'd
             def _cleanup_worker(task: asyncio.Task, bus_ref: weakref.ReferenceType, hid: int):
                 task.cancel()
                 target_bus = bus_ref()
@@ -210,7 +210,7 @@ class SharedIntelligenceBus:
         # 3. Prune Callback Workers...
         # We periodically check if any of our keys are instance methods whose 'self' is dead
         # Note: dict keys keep the handler alive! This is a known risk.
-        # Samvid v1.0-beta-beta-beta: We rely on 'off()' being called or process restart.
+        # Samvid v1.0-beta: We rely on 'off()' being called or process restart.
         # For full safety, we'd need a WeakKeyDictionary for _callback_workers.
 
     async def _handler_worker(self, handler_ref: Any, q: asyncio.PriorityQueue) -> None:
@@ -219,7 +219,7 @@ class SharedIntelligenceBus:
             try:
                 payload = await q.get()
 
-                # Samvid v1.0-beta-beta-beta: Resolve handler from weakref to break memory cycle
+                # Samvid v1.0-beta: Resolve handler from weakref to break memory cycle
                 handler = handler_ref() if isinstance(handler_ref, (weakref.WeakMethod, weakref.ReferenceType)) else handler_ref
 
                 if handler is None:
@@ -314,7 +314,7 @@ class SharedIntelligenceBus:
         if self._publish_count % 1000 == 0:
             self._prune_dead_references()
 
-        # Task-Bombing Protection (Samvid v1.0-beta-beta-beta):
+        # Task-Bombing Protection (Samvid v1.0-beta):
         # Check concurrency before spawning a delivery task
         if len(self._pending_publish_tasks) >= self._max_publish_tasks:
             # Low-priority drop to preserve event loop health
@@ -352,11 +352,11 @@ class SharedIntelligenceBus:
 
     async def start_socket_relay(self, host: str = "127.0.0.1", port: int = 5570) -> None:
         """
-        Samvid v1.0-beta-beta-beta Distributed Intelligence Relay.
+        Samvid v1.0-beta Distributed Intelligence Relay.
         Opens a TCP socket to mirror in-process events to external observers
         and receive external intelligence injections.
         """
-        logger.info(f"BUS: Starting Node Relay on {host}:{port} (Samvid v1.0-beta-beta-beta Matrix)...")
+        logger.info(f"BUS: Starting Node Relay on {host}:{port} (Samvid v1.0-beta Matrix)...")
 
         try:
             server = await asyncio.start_server(self._handle_node_connection, host, port)

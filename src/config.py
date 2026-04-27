@@ -3,7 +3,7 @@ from pathlib import Path
 
 from vault import Vault  # pyre-ignore[21]
 
-# Project Path — Semantic Resolution (Samvid v1.0-beta-beta-beta Upgrade)
+# Project Path — Semantic Resolution (Samvid v1.0-beta Upgrade)
 PROJECT_PATH = Path(__file__).resolve().parent.parent
 DATA_DIR = PROJECT_PATH / "data"
 LOG_DIR = PROJECT_PATH / "logs"
@@ -17,7 +17,7 @@ IS_WIN = sys.platform == "win32"
 DEFAULT_IBKR_PATH = Path("C:/Jts") if IS_WIN else Path("/opt/ibgateway")
 TWS_PATH = Vault.get("TWS_PATH", str(DEFAULT_IBKR_PATH))
 
-# Trading System v1.0-beta-beta - System Constants
+# Trading System v1.0-beta - System Constants
 # ═══════════════════════════════════════════════════════════════════
 # SECURITY NOTICE: These constants define hard risk limits.
 # Do NOT modify FTMO limits without compliance review.
@@ -39,7 +39,7 @@ BELIEF_CAP = 0.90  # F17: min(0.90, posterior)
 VIX_INTRADAY_THRESHOLD = 0.15  # F11
 CORRELATION_THRESHOLD = 0.7  # F13
 
-# FTMO Limits / HFT Scaling Limits (Samvid v1.0-beta-beta-beta Institutional Standards)
+# FTMO Limits / HFT Scaling Limits (Samvid v1.0-beta Institutional Standards)
 # ═══════════════════════════════════════════════════════════════════
 # CRITICAL: These are HARD LIMITS enforced at the compliance layer.
 # DO NOT MODIFY without updating agent_c_mt5.py FTMOComplianceLayer
@@ -146,12 +146,12 @@ DMS_TIMEOUT_SECONDS = 600 # 10 minutes
 DMS_MAX_RETRY_BLIPS = 3   # Number of blips allowed before panic
 IBKR_MAX_RECONNECT_ATTEMPTS = 5
 
-# --- GAP-198: SCANNER FREQUENCY (Samvid v1.0-beta-beta-beta) ---
+# --- GAP-198: SCANNER FREQUENCY (Samvid v1.0-beta) ---
 DATA_INGESTION_INTERVAL = int(Vault.get("DATA_INGESTION_INTERVAL", "40"))
 DATA_MAINTENANCE_INTERVAL = int(Vault.get("DATA_MAINTENANCE_INTERVAL", "300"))
 BRAIN_SCAN_INTERVAL = float(Vault.get("BRAIN_SCAN_INTERVAL", "0.05"))
 
-# QuestDB (Samvid v1.0-beta-beta-beta: Fast Fallback Configuration)
+# QuestDB (Samvid v1.0-beta: Fast Fallback Configuration)
 QUESTDB_ENABLED = True  # Activated after successful installation
 QUESTDB_HOST = "localhost"
 QUESTDB_PORT = 9009  # ILP (Influx Line Protocol over TCP)
@@ -159,7 +159,7 @@ QUESTDB_PG_PORT = 8812  # psycopg2 queries for brain OHLCV reads
 QUESTDB_USER = Vault.get("QUESTDB_USER", "admin")
 QUESTDB_PASSWORD = Vault.get("QUESTDB_PASSWORD", "quest")
 QUESTDB_CONNECT_TIMEOUT_SEC = 15.0  # Increased to 15s to resolve failover timeouts
-# --- GAP-177: CONFIG VALIDATION (Samvid v1.0-beta-beta-beta) ---
+# --- GAP-177: CONFIG VALIDATION (Samvid v1.0-beta) ---
 def _validate_config():
     """Ensure critical constants are sane before startup."""
     import logging

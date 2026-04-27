@@ -1,6 +1,6 @@
 # pyre-ignore-all-errors[21]
 """
-src/agent_c_ibkr.py - Agent C IBKR Sovereign Execution Mind (Imperial v1.0-beta-beta)
+src/agent_c_ibkr.py - Agent C IBKR Sovereign Execution Mind (Imperial v1.0-beta)
 
 Handles:
 - 8-Step Neural Position Sizing Chain (Institutional Standard)
@@ -61,14 +61,14 @@ class BrokerErrorProtocol:
 
 class IBKRConnection:
     """
-    Sovereign v1.0-beta-beta Connection Mind.
+    Sovereign v1.0-beta Connection Mind.
     Handles Fault-Tolerant Broker Handshakes and FA-Routing.
     """
 
     def __init__(self, ib_client=None) -> None:
         self.ib = ib_client if ib_client is not None else IB()
         self._last_heartbeat = datetime.now()
-        self._last_trade_time = datetime.fromtimestamp(0) # 15-Minute Discipline Lock (Samvid v1.0-beta-beta-beta)
+        self._last_trade_time = datetime.fromtimestamp(0) # 15-Minute Discipline Lock (Samvid v1.0-beta)
         self._positions_cache = {}
         self._account_summary = {}
         self.is_reconnecting = False
@@ -89,7 +89,7 @@ class IBKRConnection:
     # --- GAP-03 FIX: HMAC Execution Authorization ---
     def generate_exec_token(self, symbol: str) -> str:
         """Generate a time-limited HMAC token for order authorization."""
-        # Samvid v1.0-beta-beta-beta: High-precision windowing (30-second slots)
+        # Samvid v1.0-beta: High-precision windowing (30-second slots)
         current_ts = int(time.time()) // 30
         message = f"{symbol}:{current_ts}"
         return hmac.new(self._exec_secret.encode(), message.encode(), hashlib.sha256).hexdigest()
@@ -125,7 +125,7 @@ class IBKRConnection:
         return 0 < time_to_close < 300 # 5 minute buffer
 
     def validate_order_pre_flight(self, symbol: str, direction: str, shares: int, price: float, account_id: str = None) -> tuple[bool, str]:
-        """Institutional Pre-Flight Armor (v1.0-beta-beta-beta)."""
+        """Institutional Pre-Flight Armor (v1.0-beta)."""
         try:
             # 1. Account Alignment
             from config import IBKR_ACCOUNT_ID
@@ -181,7 +181,7 @@ class IBKRConnection:
             except AttributeError:
                 logger.debug(f"IBKRConnection: Event '{event_name}' not available on client.")
 
-        # --- CACHE SHIELD (Samvid v1.0-beta-beta-beta) ---
+        # --- CACHE SHIELD (Samvid v1.0-beta) ---
         # Note: ib_insync handles account subscriptions automatically on connect.
         # Manual reqAccountSummary is not required and causes argument errors.
 
@@ -220,7 +220,7 @@ class IBKRConnection:
         logger.debug(f"IBKR: Order {trade.order.orderId} status: {status}")
 
         # GAP-29 FIX: Persistent tracking for Submitted and Partially Filled orders
-        # This ensures they aren't 'lost' during volatility spikes (Samvid v1.0-beta-beta-beta).
+        # This ensures they aren't 'lost' during volatility spikes (Samvid v1.0-beta).
         if status in ("Submitted", "PreSubmitted", "PartiallyFilled"):
             if not hasattr(self, "_order_persistence"):
                 self._order_persistence = {}
@@ -253,7 +253,7 @@ class IBKRConnection:
                 "last_update": time.time()
             }
 
-        # --- SOVEREIGN SHIELD: FAILURE FEEDBACK (v1.0-beta-beta-beta) ---
+        # --- SOVEREIGN SHIELD: FAILURE FEEDBACK (v1.0-beta) ---
         if status in ['Cancelled', 'Inactive'] and trade.contract.symbol:
             # If we were trying to SELL (Exit), increment failure count in brain
             brain = getattr(self, 'brain', None)
@@ -263,13 +263,13 @@ class IBKRConnection:
                 brain._exit_failure_counts[symbol] = current_fails + 1
                 logger.error(f"🛡️ SHIELD: Exit failure detected for {symbol}. Total Strikes: {current_fails + 1}")
 
-                # --- v1.0-beta-beta: AUTONOMOUS POST-MORTEM (Zero-Sync) ---
+                # --- v1.0-beta: AUTONOMOUS POST-MORTEM (Zero-Sync) ---
                 reason = str(trade.log[-1].message) if trade.log else 'UNKNOWN REASON'
                 def _write_post_mortem():
                     try:
                         import os
                         import sqlite3
-                        # Samvid v1.0-beta-beta-beta: Harmonized DB Pathing
+                        # Samvid v1.0-beta: Harmonized DB Pathing
                         db_path = os.path.join('data', 'trading.db')
                         if not os.path.exists('data'): os.makedirs('data')
                         conn = sqlite3.connect(db_path, timeout=60.0)
@@ -433,7 +433,7 @@ class IBKRConnection:
 
     async def warm_up_contracts(self, symbols: list[str]) -> None:
         """
-        Samvid v1.0-beta-beta-beta Neural Warmup.
+        Samvid v1.0-beta Neural Warmup.
         Pre-qualifies contracts into the local cache to achieve < 50ms order firing.
         """
         if not self.is_connected:
@@ -511,7 +511,7 @@ class IBKRConnection:
             logger.critical(f"UNAUTHORIZED EXECUTION ATTEMPT for {symbol}! Invalid or missing exec_token. REJECTING ORDER.")
             return []
 
-        # ── DISCIPLINE THROTTLE (Samvid v1.0-beta-beta-beta HFT-Optimized) ──
+        # ── DISCIPLINE THROTTLE (Samvid v1.0-beta HFT-Optimized) ──
         # Reduced from 30s to 1s to allow Scalping/HFT while preventing API flooding
         wait_seconds = (datetime.now() - self._last_trade_time).total_seconds()
         if wait_seconds < 1.0:
@@ -564,7 +564,7 @@ class IBKRConnection:
                 parent.transmit = False
                 parent.overridePercentageConstraints = True
 
-                # 2. Stop Loss Order (Samvid v1.0-beta-beta-beta / GAP-51 HARDENING)
+                # 2. Stop Loss Order (Samvid v1.0-beta / GAP-51 HARDENING)
                 # Replaced Stop-Market with Stop-Limit ('Recovery Limit')
                 # A 2% buffer ensures fill in fast markets while capping slippage at a tolerable level.
                 opp_direction = "SELL" if direction == "BUY" else "BUY"
@@ -583,7 +583,7 @@ class IBKRConnection:
                 tp_order.overridePercentageConstraints = True
 
                 ids = []
-                # --- TARGETED ACCOUNT SELECTION (Samvid v1.0-beta-beta-beta Fix) ---
+                # --- TARGETED ACCOUNT SELECTION (Samvid v1.0-beta Fix) ---
                 # Resolve the 'Multi-Account Pillage' issue where empty IBKR_ACCOUNT_ID
                 # could lead to unintended execution on multiple accounts.
                 from config import IBKR_ACCOUNT_ID
@@ -604,7 +604,7 @@ class IBKRConnection:
                     p_entry.orderId = self.ib.client.getReqId()
                     p_entry.transmit = False
 
-                    # Samvid v1.0-beta-beta-beta Protective Stop-Limit (Recovery Path)
+                    # Samvid v1.0-beta Protective Stop-Limit (Recovery Path)
                     sl_buff = 0.02
                     sl_lmt = self.round_to_tick(sl * (1 - sl_buff)) if opp_direction == "SELL" else self.round_to_tick(sl * (1 + sl_buff))
                     sl_o = StopLimitOrder(opp_direction, shares, sl_lmt, sl)
@@ -660,7 +660,7 @@ class IBKRConnection:
         **kwargs
     ) -> int | None:
         """
-        Institutional Single Order Routing (Sovereign v1.0-beta-beta).
+        Institutional Single Order Routing (Sovereign v1.0-beta).
         """
         # =========================================================================
         # GAP-03 FIX: HMAC Token Verification (replaces frame inspection)
@@ -673,7 +673,7 @@ class IBKRConnection:
             )
             return None
 
-        # Samvid v1.0-beta-beta-beta: Throttled to 1s
+        # Samvid v1.0-beta: Throttled to 1s
         wait_seconds = (datetime.now() - self._last_trade_time).total_seconds()
         if wait_seconds < 1.0:
             logger.warning(f"🏛️ DISCIPLINE THROTTLE: Order for {symbol} suppressed.")
@@ -696,7 +696,7 @@ class IBKRConnection:
 
                 if "=F" in symbol:
                     root = symbol.split("=")[0].upper()
-                    # Samvid v1.0-beta-beta-beta: Comprehensive Exchange Mapping
+                    # Samvid v1.0-beta: Comprehensive Exchange Mapping
                     if root in ("NQ", "MNQ", "ES", "MES", "RTY", "M2K"):
                         exchange = "GLOBEX"
                     elif root in ("YM", "MYM"):
@@ -721,7 +721,7 @@ class IBKRConnection:
                 warm_id = await self._execute_via_warm_slot(symbol, direction, shares, limit_price)
                 if warm_id: return warm_id
 
-                # --- TARGETED ACCOUNT SELECTION (Samvid v1.0-beta-beta-beta Fix) ---
+                # --- TARGETED ACCOUNT SELECTION (Samvid v1.0-beta Fix) ---
                 from config import IBKR_ACCOUNT_ID
                 target_acc = IBKR_ACCOUNT_ID.strip()
 
@@ -736,7 +736,7 @@ class IBKRConnection:
 
                 for i, acc in enumerate(target_accounts):
                     if urgency == "HIGH" or order_type == "MKT":
-                        # --- SOVEREIGN SHIELD (Samvid v1.0-beta-beta-beta / GAP-51 FIX) ---
+                        # --- SOVEREIGN SHIELD (Samvid v1.0-beta / GAP-51 FIX) ---
                         # Replaced MarketOrder with 'Aggressive Limit' to prevent flash-crash slippage.
                         # We use a 1.5% buffer for entries and exits; if it doesn't fill, we prefer a miss over a ruinous price.
                         buffer = 0.015
@@ -760,7 +760,7 @@ class IBKRConnection:
                     trade = self.ib.placeOrder(contract, o)
                     if i == 0:
                         primary_id = trade.order.orderId
-                        # --- DUAL-STREAM AUDIT (Samvid v1.0-beta-beta-beta Sovereign) ---
+                        # --- DUAL-STREAM AUDIT (Samvid v1.0-beta Sovereign) ---
                         asyncio.create_task(self._audit_execution(trade, symbol, shares))
 
                 self._last_trade_time = datetime.now() # Update Discipline Lock
@@ -812,7 +812,7 @@ class IBKRConnection:
 
     async def _audit_execution(self, trade: Any, symbol: str, shares: int) -> None:
         """
-        Institutional Persistent Audit (v1.0-beta-beta-beta).
+        Institutional Persistent Audit (v1.0-beta).
         Polls the portfolio every 10s for 60s to ensure Reality Alignment.
         Prevents false-positive shutdowns caused by IBKR sync latency.
         """
@@ -865,7 +865,7 @@ class IBKRConnection:
 
 
 # =============================================================================
-# INSTITUTIONAL 8-STEP SIZING CHAIN (IMPERIAL v1.0-beta-beta)
+# INSTITUTIONAL 8-STEP SIZING CHAIN (IMPERIAL v1.0-beta)
 # =============================================================================
 
 
@@ -885,7 +885,7 @@ class PositionSizingChain:
         instrument = kwargs.get("instrument", "UNKNOWN")
         from risk_invariants import RiskInvariants
 
-        # --- SOVEREIGN REALITY ALIGNED HAIRCUT (v1.0-beta-beta-beta) ---
+        # --- SOVEREIGN REALITY ALIGNED HAIRCUT (v1.0-beta) ---
         # GAP-45: Applying a 1% safety haircut to the raw balance
         # Optimistic suicide is prevented by assuming slightly less capital than we think we have.
         _raw_nav = kwargs.get('account_value', balance)
@@ -926,7 +926,7 @@ class PositionSizingChain:
         # GAP-299: RISK_PER_TRADE_PCT is now expected in fractional form (0.005 for 0.5%)
         self_risk_limit = balance * RISK_PER_TRADE_PCT if RISK_PER_TRADE_PCT > 0 else balance * 0.01
 
-        # --- SOVEREIGN FRACTIONAL KELLY (Samvid v1.0-beta-beta-beta) ---
+        # --- SOVEREIGN FRACTIONAL KELLY (Samvid v1.0-beta) ---
         # If Kelly says 0, but the Quorum approved, force a small experimental 'Mini-Risk'
         # GAP-299: For small accounts, ensure risk is at least $2.00 to cover commissions
         min_viable_risk = 2.0 if balance < 1000 else balance * 0.001
@@ -942,7 +942,7 @@ class PositionSizingChain:
         # Step 8: Discrete Share Quantization
         price = kwargs.get("entry_price", 1.0)
         stop = kwargs.get("stop_price", price * 0.99)
-        spread = kwargs.get("spread", 0.0) # Samvid v1.0-beta-beta-beta: Reality Alignment
+        spread = kwargs.get("spread", 0.0) # Samvid v1.0-beta: Reality Alignment
 
         # --- GAP-49 FIX: Spread and Slip Friction ---
         # Real risk per share must include the spread we cross to enter.
@@ -960,7 +960,7 @@ class PositionSizingChain:
                  # We don't return 0 here yet, Phase 7 might still approve if high win_prob.
 
         if risk_per_share < (price * 0.0001):
-            # SOVEREIGN ZERO-RISK GUARD (Samvid v1.0-beta-beta-beta / GAP-49 HARDENING)
+            # SOVEREIGN ZERO-RISK GUARD (Samvid v1.0-beta / GAP-49 HARDENING)
             # If risk is too tight (< 0.01% of price), the geometry is invalid for HFT.
             logger.error(f"Sizer: [GEOMETRY_VETO] {instrument} risk (${risk_per_share:.4f}) is too tight for price ${price:.2f}. Rejecting.")
             return {"shares": 0, "risk_dollars": 0, "proposed_value": 0, "steps": {}}

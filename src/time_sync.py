@@ -24,7 +24,7 @@ class TimeSync:
 
     @classmethod
     async def sync(cls):
-        """Asynchronously determine the NTP offset (Samvid v1.0-beta-beta-beta Hardened)."""
+        """Asynchronously determine the NTP offset (Samvid v1.0-beta Hardened)."""
         for server in cls.NTP_SERVERS:
             try:
                 # GAP-64 FIX: Asynchronous DNS resolution to prevent executor hang
@@ -41,7 +41,7 @@ class TimeSync:
             except Exception as e:
                 logger.warning(f"Failed to sync with {server}: {e}")
 
-        # --- GAP-11/62/137: HTTP FALLBACK PRECISION (Samvid v1.0-beta-beta-beta) ---
+        # --- GAP-11/62/137: HTTP FALLBACK PRECISION (Samvid v1.0-beta) ---
         try:
             from session_manager import SovereignSession
             session = await SovereignSession.get_session()

@@ -20,7 +20,7 @@ from telegram_alerts import send_telegram_alert
 
 logger = logging.getLogger(__name__)
 
-# Samvid v1.0-beta-beta-beta SINGULARITY PILARS
+# Samvid v1.0-beta SINGULARITY PILARS
 CONCURRENCY_LIMIT = 3
 # NOTE: asyncio.Semaphore is created lazily inside the class to avoid
 # attaching to the wrong event loop when imported at module level.
@@ -28,7 +28,7 @@ CONCURRENCY_LIMIT = 3
 
 class TradingCoordinator:
     """
-    Samvid v1.0-beta-beta-beta 'Sovereign' Trade Coordinator (Agent M).
+    Samvid v1.0-beta 'Sovereign' Trade Coordinator (Agent M).
     Equipped with Concurrent Task-Graphing (Pillar 3), Adaptive Thinking (Pillar 5),
     and Autonomy Skill Permissioning (Pillar 6).
     """
@@ -45,16 +45,16 @@ class TradingCoordinator:
     def __init__(self, bridge: "MindBridge", brain: "TradingBrain") -> None:
         self.bridge = bridge
         self.brain = brain
-        self._pending_vets = set()  # Samvid v1.0-beta-beta-beta Idempotency Guard
+        self._pending_vets = set()  # Samvid v1.0-beta Idempotency Guard
         self.exoskeleton = ApexExoskeleton(brain)
         self._semaphore: asyncio.Semaphore | None = None  # Lazy-init to bind to running loop
 
     async def initiate_trade_lifecycle(self, symbol: str, proposal: dict[str, Any], is_probe: bool = False) -> bool | None:
-        """Starts the multi-phase vetting of a trade proposal (v1.0-beta-beta Sovereign Quorum)."""
+        """Starts the multi-phase vetting of a trade proposal (v1.0-beta Sovereign Quorum)."""
         symbol = symbol.upper()
         task = proposal.get("task")
 
-        # --- LIVE QUORUM STREAM (Samvid v1.0-beta-beta-beta Start) ---
+        # --- LIVE QUORUM STREAM (Samvid v1.0-beta Start) ---
         if self.brain.bus:
             await self.brain.bus.publish("consensus.update", {
                 "symbol": symbol,
@@ -144,7 +144,7 @@ class TradingCoordinator:
                 self._semaphore = asyncio.Semaphore(CONCURRENCY_LIMIT)
             async with self._semaphore:
 
-                # ── PILLAR 4: NEURAL DISPATCHER (Samvid v1.0-beta-beta-beta) ──
+                # ── PILLAR 4: NEURAL DISPATCHER (Samvid v1.0-beta) ──
                 async def _poll_safe(name, func):
                     """Imperial Dispatcher (Sync -> Thread | Async -> Native)"""
                     try:
@@ -166,7 +166,7 @@ class TradingCoordinator:
                 proposal_id = str(uuid.uuid4())[:8]
                 if task: task.log(f"QUORUM_INIT: Starting 7-Agent Sovereign Audit for {symbol}.")
 
-                # --- LIVE QUORUM STREAM (Samvid v1.0-beta-beta-beta) ---
+                # --- LIVE QUORUM STREAM (Samvid v1.0-beta) ---
                 if self.brain.bus:
                     await self.brain.bus.publish("consensus.update", {
                         "symbol": symbol,
@@ -190,7 +190,7 @@ class TradingCoordinator:
                 account_value = await self.brain.get_safe_buying_power("ibkr")
                 pattern = proposal["pattern"]
 
-                # Samvid v1.0-beta-beta-beta: Use machine-learned 'lambda' for sizing (the Sovereign Alpha)
+                # Samvid v1.0-beta: Use machine-learned 'lambda' for sizing (the Sovereign Alpha)
                 alpha_val = proposal.get("lambda", pattern.confidence / 100.0)
 
                 # ── PILLAR 2: DATA HYDRATION ──
@@ -265,7 +265,7 @@ class TradingCoordinator:
                     "commission": max(COMMISSION_PER_ROUND_TRIP, (shares or 1) * 0.01)
                 }
 
-                # ── PHASE 0: DETERMINISTIC MATH VETO (Samvid v1.0-beta-beta-beta Sovereign) ──
+                # ── PHASE 0: DETERMINISTIC MATH VETO (Samvid v1.0-beta Sovereign) ──
                 # Probes use synthetic geometry — skip data-quality vetoes for wiring tests
                 if not is_probe:
                     math_val = await self.brain.mind_math._tool_validate_geometry(
@@ -279,7 +279,7 @@ class TradingCoordinator:
                         logger.warning(f"Coordinator [{proposal_id}] 🛑 MATH VETO: {math_val['reason']}")
                         return False
 
-                # ── PHASE 0.5: QUANT CONSENSUS VETO (Samvid v1.0-beta-beta-beta Imperial) ──
+                # ── PHASE 0.5: QUANT CONSENSUS VETO (Samvid v1.0-beta Imperial) ──
                 try:
                     if not is_probe:
                         ohlcv_data = await self.brain._fetch_ohlcv(symbol)
@@ -297,7 +297,7 @@ class TradingCoordinator:
                 except Exception as qe:
                     logger.warning(f"Coordinator: QuantGate logic error: {qe}")
 
-                # ── PHASE 0: MARGIN & LIQUIDITY SHIELD (Samvid v1.0-beta-beta-beta) ──
+                # ── PHASE 0: MARGIN & LIQUIDITY SHIELD (Samvid v1.0-beta) ──
                 if self.brain.mode != "paper":
                     try:
                         cushion = await self.brain.get_ibkr_cushion()
@@ -623,7 +623,7 @@ class TradingCoordinator:
                 order_side = "BUY" if is_long else "SELL"
                 urgency = "HIGH" if self.brain.current_regime in ["VOLATILE", "TRENDING"] else "LOW"
 
-                # ── BROKER ROUTING (Samvid v1.0-beta-beta-beta APEX) ──
+                # ── BROKER ROUTING (Samvid v1.0-beta APEX) ──
                 if self.brain.active_broker == "MAINTENANCE":
                      if task: task.log("MAINTENANCE_VETO: Market rollover detected. Aborting.")
                      logger.warning(f"Coordinator [{proposal_id}] 🛡️ MAINTENANCE STAND-DOWN: Market rollover in progress. Order skipped.")
@@ -768,7 +768,7 @@ class TradingCoordinator:
             logger.error(f"Coordinator Error inside Sovereign Lifecycle: {e}", exc_info=True)
             return False
         finally:
-            # --- v1.0-beta-beta FIX: Use discard() to avoid KeyError if already removed ---
+            # --- v1.0-beta FIX: Use discard() to avoid KeyError if already removed ---
             self._pending_vets.discard(symbol)
             # Add to a local 'cooldown' in the brain to prevent the scanner from re-submitting for 30s
             if hasattr(self.brain, "_vetting_cooldowns"):

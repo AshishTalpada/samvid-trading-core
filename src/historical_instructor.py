@@ -7,7 +7,7 @@ logger = logging.getLogger(__name__)
 
 class HistoricalInstructor:
     """
-    Samvid v1.0-beta-beta-beta Sovereign Instructor.
+    Samvid v1.0-beta Sovereign Instructor.
     Validates century-scale models using the backtest engine.
     """
     def __init__(self):
