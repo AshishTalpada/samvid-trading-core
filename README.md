@@ -30,7 +30,7 @@ The system operates on an asynchronous event-bus architecture, synchronizing the
 ### 2. Installation
 ```bash
 # Clone the repository
-git clone https://github.com/[YOUR_USERNAME]/samvid-trading-core.git
+git clone https://github.com/AshishTalpada/samvid-trading-core.git
 cd samvid-trading-core
 
 # Setup Python environment
