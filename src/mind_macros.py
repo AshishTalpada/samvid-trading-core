@@ -3,7 +3,7 @@ from typing import Final
 
 logger = logging.getLogger(__name__)
 
-# --- MACRO HUB: THE SIGNED GUARDRAILS (Samvid v1.0-beta-beta-beta) ---
+# --- MACRO HUB: THE SIGNED GUARDRAILS (Samvid v1.0-beta) ---
 # These are 'Hardcoded System Truths' that even the Masters Mind cannot bypass.
 # Inspired by src/shims/macro.ts and path hijacking protection.
 
@@ -65,7 +65,7 @@ class MindMacros:
         """
         limit = MindMacros.ABSOLUTE_MAX_LOSS_PERCENT
 
-        # Crypto-Specific Tolerance (Sovereign v1.0-beta-beta)
+        # Crypto-Specific Tolerance (Sovereign v1.0-beta)
         if any(crypto in symbol.upper() for crypto in ["BTC", "ETH", "SOL", "COIN"]):
             limit = 5.0 # Allow up to 5% for high-ATR assets
 
