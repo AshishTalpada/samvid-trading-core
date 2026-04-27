@@ -1,39 +1,41 @@
 # 🪐 Samvid Trading Core (संविद्)
 
-[![Build Status](https://img.shields.io/badge/build-passing-brightgreen.svg)](https://github.com/AshishTalpada/samvid-trading-core/actions)
-[![Version](https://img.shields.io/badge/version-1.0.0--beta-cyan.svg)](https://github.com/AshishTalpada/samvid-trading-core)
+[![Build Status](https://github.com/AshishTalpada/samvid-trading-core/actions/workflows/main.yml/badge.svg)](https://github.com/AshishTalpada/samvid-trading-core/actions)
+[![Version](https://img.shields.io/badge/version-1.0.0--beta-cyan.svg)](https://github.com/AshishTalpada/samvid-trading-core/blob/main/CHANGELOG.md)
 [![Python](https://img.shields.io/badge/Python-3.10+-blue.svg)](https://www.python.org/downloads/)
-[![React](https://img.shields.io/badge/React-18+-61DAFB.svg)](https://reactjs.org/)
+[![Linter](https://img.shields.io/badge/linting-ruff-black.svg)](https://github.com/astral-sh/ruff)
 
 **Status: Active Development | Core Agent Mesh Functional | Dashboard Telemetry Active**
+
+**Samvid** (Sanskrit for *Consensus* or *Shared Intelligence*) is an experimental, event-driven trading engine. It utilizes a decentralized mesh of specialized agents that collaborate via a consensus-based voting model to manage trade discovery, macro-analysis, and execution.
 
 ---
 
 ## 🖼️ Visualizing the Mesh
 
-### Institutional Intelligence Dashboard
+### Intelligence Dashboard (Real-time Telemetry)
 ![Dashboard](docs/images/dashboard.png)
 
-### Dhatu Macro-Causation Oracle
+### Dhatu Macro-Causation Oracle (State Synthesis)
 ![Oracle](docs/images/oracle.png)
 
 ---
 
-**Samvid** (Sanskrit for *Consensus* or *Shared Intelligence*) is an experimental, event-driven trading engine. It utilizes a decentralized mesh of specialized agents that collaborate via a consensus-based voting model to manage trade discovery, macro-analysis, and risk-managed execution.
-
+## 🧠 Why I Built This
+Samvid was born from a fascination with **Collective Intelligence** and **Macro-Causation**. Traditional trading bots often rely on isolated indicators; I wanted to build a system where execution is the result of a "Committee of Experts" (Agents) reaching a majority consensus. The naming follows Sanskrit philosophical concepts: **Dhatu** (the fundamental elements of market movement) and **Samvid** (the shared knowledge required for high-conviction action).
 
 ---
 
 ## ⚡ Technical Highlights
 
 *   **Autonomous Agent Mesh**: A decentralized coordination layer where 11 specialized entities (Pattern Atlas, Belief Tracker, etc.) vote on trade signals via an internal Intelligence Bus.
-*   **Dhatu Macro Oracle**: A causation engine mapping relationships between global yields, volatility (VIX), and energy prices to determine real-time market bias.
+*   **Dhatu Macro Oracle**: A causation engine mapping global yields, volatility (VIX), and energy prices into a 5-state state-machine (Vriddhi, Kshaya, etc.).
 *   **Real-time Telemetry**: High-frequency React dashboard providing sub-100ms updates via secured WebSockets and HMAC-SHA256 handshakes.
-*   **Security Architecture**: OS-level secure vault for credential management (keyring-based) and automated safety protocols including Blackswan freezes.
+*   **Security Architecture**: OS-level secure vault for credential management (keyring-based) with a "Zero-Keys" plaintext policy.
 
 ---
 
-## 🏗️ Technical Architecture
+## 🏗️ Architecture & Data Flow
 
 ```mermaid
 graph TD
@@ -69,45 +71,25 @@ graph TD
 git clone https://github.com/AshishTalpada/samvid-trading-core.git
 cd samvid-trading-core
 
-# Setup Python Environment
-python -m venv venv
-source venv/bin/activate  # Windows: venv\Scripts\activate
-pip install -r requirements.txt
-
-# Setup Dashboard
-cd frontend
-npm install
+# Quick Setup via Makefile
+make setup
 ```
 
-### 2. Secure Configuration
-Samvid utilizes local OS-level credential storage. **No API keys are stored in plaintext.**
+### 2. Execution
 ```bash
-python vault_setup.py
-```
+# Spin up infrastructure (QuestDB)
+make docker-up
 
-### 3. Execution
-```bash
-# Start Backend
-python src/main.py
-
-# Start Frontend (in /frontend)
-npm run dev
+# Start the full stack
+make dev
 ```
 
 ---
 
-## 📂 Project Structure
-
-```text
-├── src/                    # Backend Core logic & Intelligence Bus
-│   ├── brain.py            # Central Neural Coordinator
-│   ├── dhatu_oracle.py     # Macro Causation state-machine
-│   └── vault.py            # Keyring-based security bridge
-├── frontend/               # React Dashboard (Telemetry & Visualization)
-├── tests/                  # Unit and integration testing suite
-├── data/                   # Persistent storage (Git ignored)
-└── README.md               # Documentation
-```
+## 🛡️ Limitations & Roadmap
+*   **Current State**: The system is currently in **Paper-Trading mode**. Live execution modules for IBKR/MT5 are implemented but undergoing safety audits.
+*   **Backtesting**: A high-fidelity backtesting engine leveraging QuestDB's time-series capabilities is in the development roadmap.
+*   **ML Integration**: Future versions aim to replace heuristic-based agent voting with a trained reinforcement learning meta-agent.
 
 ---
 
