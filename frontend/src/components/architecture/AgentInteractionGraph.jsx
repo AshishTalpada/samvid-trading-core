@@ -1,7 +1,7 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 
-/** 🤖 MULTI-AGENT NETWORK V4.0 | LIVE OBSERVATORY COMPONENT 🤖
+/** 🤖 MULTI-AGENT NETWORK v1.0-beta | LIVE OBSERVATORY COMPONENT 🤖
  *  A high-fidelity mesh visualizing agent cross-talk and consensus logic.
  */
 
@@ -126,7 +126,7 @@ export default function AgentInteractionGraph({ brain = {}, eventQueue = [], act
   const agentList = useMemo(() => {
     const entries = Object.entries(rawAgents);
     return entries.map(([id, data], i) => {
-      // V3.1: Division-by-zero guard
+      // v1.0-beta: Division-by-zero guard
       const len = entries.length || 1; 
       const angle = (i / len) * 2 * Math.PI - Math.PI / 2;
       const R = 135;
@@ -154,7 +154,7 @@ export default function AgentInteractionGraph({ brain = {}, eventQueue = [], act
           <span style={{ fontSize: '18px' }}>🤖</span>
           <div>
             <div style={{ fontSize: '0.8rem', fontWeight: 900, color: '#fff', fontFamily: 'Outfit', textTransform: 'uppercase', letterSpacing: '0.12em' }}>
-              Multi-Agent Mesh <span style={{ color: 'var(--cyan)' }}>V4.0 LIVE</span>
+              Multi-Agent Mesh <span style={{ color: 'var(--cyan)' }}>v1.0-beta</span>
             </div>
             <div style={{ fontSize: '0.6rem', color: 'var(--dim)', fontFamily: 'JetBrains Mono' }}>
               {agentList.length} NEURAL TERMINALS ONLINE

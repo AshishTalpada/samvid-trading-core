@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 
-/** 🧠 SOVEREIGN COGNITIVE MATRIX V2.6 | REAL-TIME MIND LAYER */
+/** 🧠 SOVEREIGN COGNITIVE MATRIX v1.0-beta | REAL-TIME MIND LAYER */
 
 const MINDS_CONFIG = [
   { id: 'architect',  label: 'Architect',  desc: 'Neural Topology Engine',        color: '#00e5ff', icon: '💎' },
@@ -49,7 +49,7 @@ export default function QuantumMinds({ minds = {}, activityMap = {}, eventQueue 
           </div>
           <span className="fw-900 uppercase c-top font-outfit" style={{ fontSize: '0.6rem', letterSpacing: '0.12em' }}>Sovereign Cognitive Matrix</span>
         </div>
-        <span className="font-mono c-violet fw-900" style={{ fontSize: '0.5rem', letterSpacing: '-0.02em' }}>V13.6 ALPHA-7</span>
+        <span className="font-mono c-violet fw-900" style={{ fontSize: '0.5rem', letterSpacing: '-0.02em' }}>v1.0-beta</span>
       </div>
 
       {/* Mind rows */}

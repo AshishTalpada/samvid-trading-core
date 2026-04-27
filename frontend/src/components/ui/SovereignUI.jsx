@@ -1,7 +1,7 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 
-/** 🧩 Standard UI Design System Components (SETO V13.6.4 - Institutional Grade) */
+/** 🧩 Standard UI Design System Components (Samvid v1.0-beta-beta - Institutional Grade) */
 
 export function GlassPanel({ children, className = '', depth = 'base', style = {} }) {
   const depthClass = depth === 'hi' ? 'glass-panel-hi' : '';

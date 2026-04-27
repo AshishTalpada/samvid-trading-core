@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 
-/** 🏛️ SOVEREIGN QUORUM MATRIX V5.0 | HIGH-RESOLUTION LIVE COMPONENT
+/** 🏛️ SOVEREIGN QUORUM MATRIX v1.0-beta | HIGH-RESOLUTION LIVE COMPONENT
  *  Hard-wired to WebSocket consensus stream with dynamic scaling.
  */
 
@@ -198,7 +198,7 @@ export default function QuorumMatrix({ eventQueue = [], activityMap = {}, brain 
         <div style={{ display: 'flex', gap: '15px', alignItems: 'center' }}>
            <span style={{ fontSize: '0.65rem', color: 'var(--dim)', fontWeight: 800, fontFamily: 'JetBrains Mono', textTransform: 'uppercase' }}>{decision}</span>
            <div style={{ width: 1, height: 14, background: 'rgba(255,255,255,0.1)' }} />
-           <span style={{ fontSize: '0.65rem', color: 'var(--cyan)', fontWeight: 900, fontFamily: 'JetBrains Mono' }}>V5.0 LIVE</span>
+           <span style={{ fontSize: '0.65rem', color: 'var(--cyan)', fontWeight: 900, fontFamily: 'JetBrains Mono' }}>v1.0-beta</span>
         </div>
       </div>
 
