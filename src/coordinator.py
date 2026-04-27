@@ -727,7 +727,6 @@ class TradingCoordinator:
                  logger.info(f"Coordinator [{proposal_id}] 🛡️ VETO: {symbol} rejected by decision engine. Reason: {reason}")
 
                  # GAP-241 FIX: Alert User on Veto
-                 from telegram_alerts import send_telegram_alert
                  await send_telegram_alert(
                      f"🛡️ *VETO: {symbol}*\n"
                      f"Reason: {reason}\n"
