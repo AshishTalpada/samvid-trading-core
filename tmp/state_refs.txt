@@ -1,0 +1,17 @@
+32: from src.agent_c_ibkr import IBKRConnection, PositionSizingChain, VIXProtocol, CorrelationCascade, BlackSwanProtocol, PortfolioGuard # pyre-ignore[21]
+428: self.portfolio_guard = PortfolioGuard()
+533: if self.state == TradingState.STANDBY:
+535: elif self.state == TradingState.SCANNING:
+540: elif self.state == TradingState.ANALYZING:
+542: elif self.state == TradingState.POSITIONED:
+544: self.state = TradingState.SCANNING
+546: elif self.state == TradingState.EXIT:
+709: self.state = TradingState.SCANNING
+748: self.state = TradingState.STANDBY
+844: self.state = TradingState.ANALYZING
+975: # Final guard: enforce the non-negotiable 20% cash reserve (Agent C Portfolio Guard)
+978: if not self.portfolio_guard.enforce_cash_reserve(account_value, positions_value + pos_value):
+1094: self.state = TradingState.SCANNING
+1186: self.state = TradingState.SCANNING
+1200: self.state = TradingState.SCANNING
+1223: self.state = TradingState.STANDBY
