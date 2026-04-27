@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { motion } from 'framer-motion';
 
-/** 🪐 SOVEREIGN NEURAL TOPOLOGY V4.0 | LIVE AGENT REAL-TIME COMPONENT 🪐
+/** 🪐 SOVEREIGN NEURAL TOPOLOGY v1.0-beta | LIVE AGENT REAL-TIME COMPONENT 🪐
  *  A unified observatory grid visualizing all core backend cognitive layers.
  */
 
@@ -181,7 +181,7 @@ export default function SystemFlowchart({ brain = {}, health = {}, activityMap =
     ], LAYER_CFG[1].y, VB_W);
 
     const pipNode    = [{ id: 'pipeline', label: 'DATA PIPELINE', icon: '🔄', color: '#d4a5ff', x: VB_W / 2, y: LAYER_CFG[2].y }];
-    const busNode    = [{ id: 'intel_bus', label: 'INTELLIGENCE BUS · SETO V8.5', icon: '⚡', color: '#ffffff', x: VB_W / 2, y: LAYER_CFG[3].y, isCore: true }];
+    const busNode    = [{ id: 'intel_bus', label: 'INTELLIGENCE BUS · Samvid v1.0-beta-beta', icon: '⚡', color: '#ffffff', x: VB_W / 2, y: LAYER_CFG[3].y, isCore: true }];
     
     const agKeys = Object.keys(agents).sort();
     const agNodes = row(agKeys.length > 0
@@ -253,7 +253,7 @@ export default function SystemFlowchart({ brain = {}, health = {}, activityMap =
       <div style={{ padding: '12px 20px', borderBottom: '1px solid rgba(255,255,255,0.06)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(0,0,0,0.3)' }}>
         <div>
           <div style={{ fontSize: '0.8rem', fontWeight: 900, color: '#fff', fontFamily: 'Outfit', letterSpacing: '0.15em', textTransform: 'uppercase' }}>
-            🛸 Neural Topology Mirror <span style={{ color: 'var(--cyan)', opacity: 0.8 }}>V4.0 LIVE</span>
+            🛸 Neural Topology Mirror <span style={{ color: 'var(--cyan)', opacity: 0.8 }}>v1.0-beta</span>
           </div>
           {latestCon && (now - (latestCon.timestamp || 0) < 5000) && (
             <motion.div initial={{ opacity: 0, y: -5 }} animate={{ opacity: 1, y: 0 }}

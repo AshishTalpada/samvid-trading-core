@@ -1,11 +1,11 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 
 /**
- * useSystemStream V3.0 - The SETO Global Event Engine
+ * useSystemStream v1.0-beta - The SETO Global Event Engine
  * High-performance event routing, queueing (up to 500 events),
  * and batched state synchronization for real-time cognitive visualization.
  *
- * V3 changes: individual event types (oracle.state, system.state, candle.batch,
+ * v1.0-beta changes: individual event types (oracle.state, system.state, candle.batch,
  * calibration.update, consensus.update, trade.*) now update the relevant
  * slice of state so all components stay live between full_state syncs.
  */
@@ -17,7 +17,7 @@ export function useSystemStream(url) {
   const wsRef = useRef(null);
   const reconnectRef = useRef(null);
 
-  // High-performance mutable storage for batching — V3.1: Immutable deep-cloning
+  // High-performance mutable storage for batching — v1.0-beta: Immutable deep-cloning
   const batchState = useRef({ brain: null, health: null, oracle: null, market: null, event: null, ticks: null, activityMap: null });
   const localQueue = useRef([]);
   const MAX_QUEUE_SIZE = 5000; // Increased for HFT bursts
@@ -48,7 +48,7 @@ export function useSystemStream(url) {
     // 2. Sync Event Queue (Batch UI commits)
     if (localQueue.current.length > 0) {
       setEventQueue(prev => {
-        // V3.1: Sequential append with size cap
+        // v1.0-beta: Sequential append with size cap
         const next = [...localQueue.current, ...prev].slice(0, MAX_QUEUE_SIZE);
         localQueue.current = [];
         return next;
@@ -64,7 +64,7 @@ export function useSystemStream(url) {
   const connect = useCallback(() => {
     if (!url || url.includes('null')) return;
     
-    // V3.1: Dynamic Port discovery fallback
+    // v1.0-beta: Dynamic Port discovery fallback
     let finalUrl = url;
     if (url.includes(':8000') && window.location.port && window.location.port !== '3000') {
        // If we are on a custom port, assume backend shifted too (Development/Tunneling)
@@ -169,7 +169,7 @@ export function useSystemStream(url) {
               const merged = { ...(batchState.current.market || {}) };
               Object.entries(candleMap).forEach(([sym, bars]) => {
                 if (Array.isArray(bars) && bars.length > 0) {
-                   // V3.1: Merge by time to prevent overwriting history with deltas
+                   // v1.0-beta: Merge by time to prevent overwriting history with deltas
                    const existing = merged[sym] || [];
                    const combined = [...existing];
                    bars.forEach(nb => {

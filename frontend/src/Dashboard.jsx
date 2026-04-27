@@ -23,7 +23,7 @@ class PanelBoundary extends React.Component {
   }
 }
 
-/** 🪐 SOVEREIGN DASHBOARD | V13.7 PRO
+/** 🪐 SOVEREIGN DASHBOARD | v1.0-beta
  *  Three-column institutional command center.
  */
 
@@ -37,7 +37,7 @@ const COMPONENT_COLORS = {
   ONLINE: 'emerald', OFFLINE: 'red', STANDBY: 'amber',
 };
 
-// ── Health Components Bar (V3.1 Memoized) ──
+// ── Health Components Bar (v1.0-beta Memoized) ──
 const HealthBar = React.memo(({ components = {}, health = {} }) => (
   <GlassPanel style={{ padding: '8px 16px' }}>
     <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
