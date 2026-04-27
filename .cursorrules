@@ -1,0 +1,126 @@
+# ═══════════════════════════════════════════════════════════════════
+# CURSOR AI RULES — Unified Trading System V3.0
+# Cursor reads this automatically — AI routing is invisible to you
+# Updated: March 2026 — latest model strings
+# ═══════════════════════════════════════════════════════════════════
+
+## PROJECT
+Unified Trading System V3.0
+Dual-track: MT5/FTMO prop firm + IBKR Canada RRSP
+Owner: Waterloo, Ontario, Canada
+Goal: $500 CAD → $15K–30K/month in 36 months
+Documentation: EVERYTHING_FINAL.md (16,552 lines)
+
+## MODEL ROUTING — USE EXACTLY THESE MODELS
+
+### claude-opus-4-6 — USE FOR:
+- ANY Dhatu framework logic (15 types, sutra freshness, ABHAVA)
+- Bayesian belief tracker implementation (M-02, F8, F17)
+- Shannon entropy / signal entropy (M-01)
+- CatalystScorer — F3 order of operations (most critical)
+- Architecture decisions, cross-agent dependencies
+- Reading + reasoning about full documentation
+- Brain coordinator, state machine, IPC design
+- Anything requiring 200K context (full codebase review)
+
+### claude-sonnet-4-6 — USE FOR:
+- Pattern detection (bull flag, H&S, falling wedge, oversold bounce, sector sympathy)
+- MultiTimeframeAligner, EscapeVelocityClassifier
+- Integration layer (main.py, wiring agents together)
+- Writing + running tests
+- Code review of other agents' outputs
+- Refactoring, documentation, README updates
+- Quick questions about the codebase
+
+### gpt-5.4 — USE FOR:
+- Kelly criterion + Half-Kelly sizing (M-03)
+- Fat-tail risk adjustments (M-07, all instrument multipliers)
+- F6 8-step position sizing chain (ALL 8 steps required)
+- Instrument volume thresholds (F5, all 8 instruments)
+- FTMO compliance rules (4%/8%/2trades/Best Day Rule)
+- VIX intraday protocol (F11)
+- Correlation cascade defense (F13)
+- Black Swan protocol (F14)
+- Any precise financial calculation with strict numerical rules
+- IBKR ib_insync connection + execution
+- MT5 MetaTrader5 API connection + execution
+
+### gemini-3.1-pro-preview — USE FOR:
+- Regime classifier (BULL/BEAR/VOLATILE/CHOPPY/TRENDING)
+- Statistical significance gate (M-04, n-based ratings)
+- Edge crowding detector (M-05, Nash equilibrium)
+- System entropy monitor (P-01, thermodynamic decay)
+- Conditional expectancy matrix (activates at n≥200)
+- Partial exit rules per pattern (F9)
+- Resolution window calibration (F10)
+- Walk-forward validation
+- Weekly/monthly calibration pipeline
+- Queries needing real-time market context
+
+## FILE OWNERSHIP — DO NOT CROSS-CONTAMINATE
+
+| File                    | Owner (AI)             |
+|-------------------------|------------------------|
+| src/agent_a.py          | claude-sonnet-4-6      |
+| src/agent_b.py          | claude-opus-4-6        |
+| src/agent_c_ibkr.py     | gpt-5.4                |
+| src/agent_c_mt5.py      | gpt-5.4                |
+| src/agent_d.py          | gemini-3.1-pro-preview |
+| src/brain.py            | claude-opus-4-6        |
+| src/exit_intelligence.py| claude-opus-4-6        |
+| src/dms.py              | claude-sonnet-4-6      |
+| src/main.py             | claude-sonnet-4-6      |
+| src/data_pipeline.py    | claude-sonnet-4-6      |
+| src/config.py           | claude-opus-4-6        |
+| tests/                  | claude-sonnet-4-6      |
+
+## NON-NEGOTIABLE RULES — ENFORCE IN EVERY RESPONSE
+
+1. F3 CATALYST ORDER (NEVER change this):
+   base → modifiers → decay → dhatu×freshness → escape → compare
+
+2. F6 SIZING CHAIN (ALL 8 steps, IN ORDER):
+   Kelly → cap 4% → cash account ×0.80 → gap risk →
+   chaos time → fat tail → session/force → final shares
+
+3. F17: belief = min(0.90, bayesian_posterior)  # HARD CAP
+
+4. F18: dhatu_modifier = base_modifier × freshness_score
+
+5. FTMO LIMITS (hard-coded, never from config):
+   daily_limit = 0.04      # NOT 0.05
+   drawdown_limit = 0.08   # NOT 0.10
+   max_trades = 2          # Per day
+   best_day_rule: today ≤ (2/3) × sum(other_profitable_days)
+
+6. M-04 GATE: ConditionalExpectancyMatrix INACTIVE until n≥200 trades
+   Agent D CANNOT make adaptations on INSUFFICIENT or PRELIMINARY data
+
+7. Belief EXIT threshold = 0.35 (never override)
+8. 20% cash reserve = enforced (never override)
+9. TRADING_MODE=paper enforced until all validations pass
+
+## CURSOR AGENT MODE PROMPTS
+
+### When fixing Agent B (Dhatu):
+"Acting as Agent B. Read src/agent_b.py and the Dhatu sections of
+EVERYTHING_FINAL.md. [describe the issue]. Maintain F3 order exactly.
+Reference principle numbers in comments. Use claude-opus-4-6."
+
+### When fixing Agent C (Risk):
+"Acting as Agent C. Read src/agent_c_ibkr.py or src/agent_c_mt5.py.
+[describe the issue]. All 8 F6 steps must remain in order.
+FTMO limits: 4%/8%/2trades. Use gpt-5.4."
+
+### When adding a new pattern:
+"Acting as Agent A. Add [pattern name] to src/agent_a.py.
+Follow the PatternResult dataclass structure. Include:
+chaos decay lambda, volume threshold check, entropy modifier.
+FTMO budget check before returning result. Use claude-sonnet-4-6."
+
+## COST GUIDANCE (approximate per task)
+- claude-opus-4-6:       ~$0.05–0.20 per complex task
+- claude-sonnet-4-6:     ~$0.01–0.05 per task
+- gpt-5.4:               ~$0.03–0.15 per task
+- gemini-3.1-pro-preview: ~$0.02–0.08 per task
+- Full build total:       ~$5–15 CAD

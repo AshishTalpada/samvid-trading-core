@@ -1,0 +1,4 @@
+Requirement already satisfied: ib_insync in .\venv\Lib\site-packages (0.9.86)
+Requirement already satisfied: eventkit in .\venv\Lib\site-packages (from ib_insync) (1.0.3)
+Requirement already satisfied: nest-asyncio in .\venv\Lib\site-packages (from ib_insync) (1.6.0)
+Requirement already satisfied: numpy in .\venv\Lib\site-packages (from eventkit->ib_insync) (2.4.3)

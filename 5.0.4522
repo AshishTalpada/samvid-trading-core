@@ -1,0 +1,2 @@
+Requirement already satisfied: MetaTrader5 in .\venv\Lib\site-packages (5.0.5640)
+Requirement already satisfied: numpy>=1.7 in .\venv\Lib\site-packages (from MetaTrader5) (2.4.3)

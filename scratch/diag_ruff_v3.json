@@ -1,0 +1,561 @@
+﻿[
+  {
+    "cell": null,
+    "code": "E402",
+    "end_location": {
+      "column": 77,
+      "row": 11
+    },
+    "filename": "C:\\Users\\talpa\\Desktop\\System_Beta\\TradingSystem\\src\\agent_c_mt5.py",
+    "fix": null,
+    "location": {
+      "column": 1,
+      "row": 11
+    },
+    "message": "Module level import not at top of file",
+    "noqa_row": 11,
+    "url": "https://docs.astral.sh/ruff/rules/module-import-not-at-top-of-file"
+  },
+  {
+    "cell": null,
+    "code": "E402",
+    "end_location": {
+      "column": 27,
+      "row": 1140
+    },
+    "filename": "C:\\Users\\talpa\\Desktop\\System_Beta\\TradingSystem\\src\\agent_d.py",
+    "fix": null,
+    "location": {
+      "column": 1,
+      "row": 1140
+    },
+    "message": "Module level import not at top of file",
+    "noqa_row": 1140,
+    "url": "https://docs.astral.sh/ruff/rules/module-import-not-at-top-of-file"
+  },
+  {
+    "cell": null,
+    "code": "E402",
+    "end_location": {
+      "column": 27,
+      "row": 1141
+    },
+    "filename": "C:\\Users\\talpa\\Desktop\\System_Beta\\TradingSystem\\src\\agent_d.py",
+    "fix": null,
+    "location": {
+      "column": 1,
+      "row": 1141
+    },
+    "message": "Module level import not at top of file",
+    "noqa_row": 1141,
+    "url": "https://docs.astral.sh/ruff/rules/module-import-not-at-top-of-file"
+  },
+  {
+    "cell": null,
+    "code": "E402",
+    "end_location": {
+      "column": 27,
+      "row": 1142
+    },
+    "filename": "C:\\Users\\talpa\\Desktop\\System_Beta\\TradingSystem\\src\\agent_d.py",
+    "fix": null,
+    "location": {
+      "column": 1,
+      "row": 1142
+    },
+    "message": "Module level import not at top of file",
+    "noqa_row": 1142,
+    "url": "https://docs.astral.sh/ruff/rules/module-import-not-at-top-of-file"
+  },
+  {
+    "cell": null,
+    "code": "E402",
+    "end_location": {
+      "column": 48,
+      "row": 1143
+    },
+    "filename": "C:\\Users\\talpa\\Desktop\\System_Beta\\TradingSystem\\src\\agent_d.py",
+    "fix": null,
+    "location": {
+      "column": 1,
+      "row": 1143
+    },
+    "message": "Module level import not at top of file",
+    "noqa_row": 1143,
+    "url": "https://docs.astral.sh/ruff/rules/module-import-not-at-top-of-file"
+  },
+  {
+    "cell": null,
+    "code": "E701",
+    "end_location": {
+      "column": 26,
+      "row": 143
+    },
+    "filename": "C:\\Users\\talpa\\Desktop\\System_Beta\\TradingSystem\\src\\exit_intelligence.py",
+    "fix": null,
+    "location": {
+      "column": 25,
+      "row": 143
+    },
+    "message": "Multiple statements on one line (colon)",
+    "noqa_row": 143,
+    "url": "https://docs.astral.sh/ruff/rules/multiple-statements-on-one-line-colon"
+  },
+  {
+    "cell": null,
+    "code": "E701",
+    "end_location": {
+      "column": 31,
+      "row": 153
+    },
+    "filename": "C:\\Users\\talpa\\Desktop\\System_Beta\\TradingSystem\\src\\exit_intelligence.py",
+    "fix": null,
+    "location": {
+      "column": 30,
+      "row": 153
+    },
+    "message": "Multiple statements on one line (colon)",
+    "noqa_row": 153,
+    "url": "https://docs.astral.sh/ruff/rules/multiple-statements-on-one-line-colon"
+  },
+  {
+    "cell": null,
+    "code": "E701",
+    "end_location": {
+      "column": 28,
+      "row": 168
+    },
+    "filename": "C:\\Users\\talpa\\Desktop\\System_Beta\\TradingSystem\\src\\exit_intelligence.py",
+    "fix": null,
+    "location": {
+      "column": 27,
+      "row": 168
+    },
+    "message": "Multiple statements on one line (colon)",
+    "noqa_row": 168,
+    "url": "https://docs.astral.sh/ruff/rules/multiple-statements-on-one-line-colon"
+  },
+  {
+    "cell": null,
+    "code": "E402",
+    "end_location": {
+      "column": 15,
+      "row": 35
+    },
+    "filename": "C:\\Users\\talpa\\Desktop\\System_Beta\\TradingSystem\\src\\main.py",
+    "fix": null,
+    "location": {
+      "column": 1,
+      "row": 35
+    },
+    "message": "Module level import not at top of file",
+    "noqa_row": 35,
+    "url": "https://docs.astral.sh/ruff/rules/module-import-not-at-top-of-file"
+  },
+  {
+    "cell": null,
+    "code": "E402",
+    "end_location": {
+      "column": 26,
+      "row": 36
+    },
+    "filename": "C:\\Users\\talpa\\Desktop\\System_Beta\\TradingSystem\\src\\main.py",
+    "fix": null,
+    "location": {
+      "column": 1,
+      "row": 36
+    },
+    "message": "Module level import not at top of file",
+    "noqa_row": 36,
+    "url": "https://docs.astral.sh/ruff/rules/module-import-not-at-top-of-file"
+  },
+  {
+    "cell": null,
+    "code": "E402",
+    "end_location": {
+      "column": 15,
+      "row": 37
+    },
+    "filename": "C:\\Users\\talpa\\Desktop\\System_Beta\\TradingSystem\\src\\main.py",
+    "fix": null,
+    "location": {
+      "column": 1,
+      "row": 37
+    },
+    "message": "Module level import not at top of file",
+    "noqa_row": 37,
+    "url": "https://docs.astral.sh/ruff/rules/module-import-not-at-top-of-file"
+  },
+  {
+    "cell": null,
+    "code": "E402",
+    "end_location": {
+      "column": 15,
+      "row": 38
+    },
+    "filename": "C:\\Users\\talpa\\Desktop\\System_Beta\\TradingSystem\\src\\main.py",
+    "fix": null,
+    "location": {
+      "column": 1,
+      "row": 38
+    },
+    "message": "Module level import not at top of file",
+    "noqa_row": 38,
+    "url": "https://docs.astral.sh/ruff/rules/module-import-not-at-top-of-file"
+  },
+  {
+    "cell": null,
+    "code": "E402",
+    "end_location": {
+      "column": 12,
+      "row": 39
+    },
+    "filename": "C:\\Users\\talpa\\Desktop\\System_Beta\\TradingSystem\\src\\main.py",
+    "fix": null,
+    "location": {
+      "column": 1,
+      "row": 39
+    },
+    "message": "Module level import not at top of file",
+    "noqa_row": 39,
+    "url": "https://docs.astral.sh/ruff/rules/module-import-not-at-top-of-file"
+  },
+  {
+    "cell": null,
+    "code": "E402",
+    "end_location": {
+      "column": 50,
+      "row": 40
+    },
+    "filename": "C:\\Users\\talpa\\Desktop\\System_Beta\\TradingSystem\\src\\main.py",
+    "fix": null,
+    "location": {
+      "column": 1,
+      "row": 40
+    },
+    "message": "Module level import not at top of file",
+    "noqa_row": 40,
+    "url": "https://docs.astral.sh/ruff/rules/module-import-not-at-top-of-file"
+  },
+  {
+    "cell": null,
+    "code": "E402",
+    "end_location": {
+      "column": 35,
+      "row": 42
+    },
+    "filename": "C:\\Users\\talpa\\Desktop\\System_Beta\\TradingSystem\\src\\main.py",
+    "fix": null,
+    "location": {
+      "column": 1,
+      "row": 42
+    },
+    "message": "Module level import not at top of file",
+    "noqa_row": 42,
+    "url": "https://docs.astral.sh/ruff/rules/module-import-not-at-top-of-file"
+  },
+  {
+    "cell": null,
+    "code": "E402",
+    "end_location": {
+      "column": 35,
+      "row": 43
+    },
+    "filename": "C:\\Users\\talpa\\Desktop\\System_Beta\\TradingSystem\\src\\main.py",
+    "fix": null,
+    "location": {
+      "column": 1,
+      "row": 43
+    },
+    "message": "Module level import not at top of file",
+    "noqa_row": 43,
+    "url": "https://docs.astral.sh/ruff/rules/module-import-not-at-top-of-file"
+  },
+  {
+    "cell": null,
+    "code": "E402",
+    "end_location": {
+      "column": 45,
+      "row": 44
+    },
+    "filename": "C:\\Users\\talpa\\Desktop\\System_Beta\\TradingSystem\\src\\main.py",
+    "fix": null,
+    "location": {
+      "column": 1,
+      "row": 44
+    },
+    "message": "Module level import not at top of file",
+    "noqa_row": 44,
+    "url": "https://docs.astral.sh/ruff/rules/module-import-not-at-top-of-file"
+  },
+  {
+    "cell": null,
+    "code": "E402",
+    "end_location": {
+      "column": 48,
+      "row": 56
+    },
+    "filename": "C:\\Users\\talpa\\Desktop\\System_Beta\\TradingSystem\\src\\main.py",
+    "fix": null,
+    "location": {
+      "column": 1,
+      "row": 56
+    },
+    "message": "Module level import not at top of file",
+    "noqa_row": 56,
+    "url": "https://docs.astral.sh/ruff/rules/module-import-not-at-top-of-file"
+  },
+  {
+    "cell": null,
+    "code": "E402",
+    "end_location": {
+      "column": 30,
+      "row": 57
+    },
+    "filename": "C:\\Users\\talpa\\Desktop\\System_Beta\\TradingSystem\\src\\main.py",
+    "fix": null,
+    "location": {
+      "column": 1,
+      "row": 57
+    },
+    "message": "Module level import not at top of file",
+    "noqa_row": 57,
+    "url": "https://docs.astral.sh/ruff/rules/module-import-not-at-top-of-file"
+  },
+  {
+    "cell": null,
+    "code": "E402",
+    "end_location": {
+      "column": 38,
+      "row": 58
+    },
+    "filename": "C:\\Users\\talpa\\Desktop\\System_Beta\\TradingSystem\\src\\main.py",
+    "fix": null,
+    "location": {
+      "column": 1,
+      "row": 58
+    },
+    "message": "Module level import not at top of file",
+    "noqa_row": 58,
+    "url": "https://docs.astral.sh/ruff/rules/module-import-not-at-top-of-file"
+  },
+  {
+    "cell": null,
+    "code": "E402",
+    "end_location": {
+      "column": 33,
+      "row": 67
+    },
+    "filename": "C:\\Users\\talpa\\Desktop\\System_Beta\\TradingSystem\\src\\main.py",
+    "fix": null,
+    "location": {
+      "column": 1,
+      "row": 67
+    },
+    "message": "Module level import not at top of file",
+    "noqa_row": 67,
+    "url": "https://docs.astral.sh/ruff/rules/module-import-not-at-top-of-file"
+  },
+  {
+    "cell": null,
+    "code": "I001",
+    "end_location": {
+      "column": 24,
+      "row": 84
+    },
+    "filename": "C:\\Users\\talpa\\Desktop\\System_Beta\\TradingSystem\\src\\main.py",
+    "fix": {
+      "applicability": "safe",
+      "edits": [
+        {
+          "content": "from ib_insync import IB, IBC  # pyre-ignore[21]\r\n\r\nfrom api_server import APIServer  # pyre-ignore[21]\r\nfrom config import (  # pyre-ignore[21]\r\n    FORCED_PAPER_MODE,\r\n    QUESTDB_CONNECT_TIMEOUT_SEC,\r\n    QUESTDB_ENABLED,\r\n    QUESTDB_HOST,\r\n    QUESTDB_PASSWORD,\r\n    QUESTDB_PG_PORT,\r\n    QUESTDB_PORT,\r\n    QUESTDB_USER,\r\n    TRADING_MODE,\r\n)\r\nfrom ibkr_streamer import IBKRStreamer  # pyre-ignore[21]\r\nfrom intelligence_bus import get_bus  # pyre-ignore[21]\r\nfrom ollama_manager import OllamaManager  # pyre-ignore[21]\r\nfrom questdb_adapter import QuestDBAdapter  # pyre-ignore[21]\r\nfrom vault import Vault  # pyre-ignore[21]\r\n\r\n\r\n",
+          "end_location": {
+            "column": 1,
+            "row": 87
+          },
+          "location": {
+            "column": 1,
+            "row": 67
+          }
+        }
+      ],
+      "message": "Organize imports"
+    },
+    "location": {
+      "column": 1,
+      "row": 67
+    },
+    "message": "Import block is un-sorted or un-formatted",
+    "noqa_row": 67,
+    "url": "https://docs.astral.sh/ruff/rules/unsorted-imports"
+  },
+  {
+    "cell": null,
+    "code": "E402",
+    "end_location": {
+      "column": 2,
+      "row": 78
+    },
+    "filename": "C:\\Users\\talpa\\Desktop\\System_Beta\\TradingSystem\\src\\main.py",
+    "fix": null,
+    "location": {
+      "column": 1,
+      "row": 68
+    },
+    "message": "Module level import not at top of file",
+    "noqa_row": 68,
+    "url": "https://docs.astral.sh/ruff/rules/module-import-not-at-top-of-file"
+  },
+  {
+    "cell": null,
+    "code": "E402",
+    "end_location": {
+      "column": 39,
+      "row": 79
+    },
+    "filename": "C:\\Users\\talpa\\Desktop\\System_Beta\\TradingSystem\\src\\main.py",
+    "fix": null,
+    "location": {
+      "column": 1,
+      "row": 79
+    },
+    "message": "Module level import not at top of file",
+    "noqa_row": 79,
+    "url": "https://docs.astral.sh/ruff/rules/module-import-not-at-top-of-file"
+  },
+  {
+    "cell": null,
+    "code": "E402",
+    "end_location": {
+      "column": 30,
+      "row": 80
+    },
+    "filename": "C:\\Users\\talpa\\Desktop\\System_Beta\\TradingSystem\\src\\main.py",
+    "fix": null,
+    "location": {
+      "column": 1,
+      "row": 80
+    },
+    "message": "Module level import not at top of file",
+    "noqa_row": 80,
+    "url": "https://docs.astral.sh/ruff/rules/module-import-not-at-top-of-file"
+  },
+  {
+    "cell": null,
+    "code": "F401",
+    "end_location": {
+      "column": 30,
+      "row": 80
+    },
+    "filename": "C:\\Users\\talpa\\Desktop\\System_Beta\\TradingSystem\\src\\main.py",
+    "fix": {
+      "applicability": "safe",
+      "edits": [
+        {
+          "content": "from ib_insync import IB",
+          "end_location": {
+            "column": 30,
+            "row": 80
+          },
+          "location": {
+            "column": 1,
+            "row": 80
+          }
+        }
+      ],
+      "message": "Remove unused import: `ib_insync.IBC`"
+    },
+    "location": {
+      "column": 27,
+      "row": 80
+    },
+    "message": "`ib_insync.IBC` imported but unused",
+    "noqa_row": 80,
+    "url": "https://docs.astral.sh/ruff/rules/unused-import"
+  },
+  {
+    "cell": null,
+    "code": "E402",
+    "end_location": {
+      "column": 37,
+      "row": 81
+    },
+    "filename": "C:\\Users\\talpa\\Desktop\\System_Beta\\TradingSystem\\src\\main.py",
+    "fix": null,
+    "location": {
+      "column": 1,
+      "row": 81
+    },
+    "message": "Module level import not at top of file",
+    "noqa_row": 81,
+    "url": "https://docs.astral.sh/ruff/rules/module-import-not-at-top-of-file"
+  },
+  {
+    "cell": null,
+    "code": "E402",
+    "end_location": {
+      "column": 41,
+      "row": 82
+    },
+    "filename": "C:\\Users\\talpa\\Desktop\\System_Beta\\TradingSystem\\src\\main.py",
+    "fix": null,
+    "location": {
+      "column": 1,
+      "row": 82
+    },
+    "message": "Module level import not at top of file",
+    "noqa_row": 82,
+    "url": "https://docs.astral.sh/ruff/rules/module-import-not-at-top-of-file"
+  },
+  {
+    "cell": null,
+    "code": "E402",
+    "end_location": {
+      "column": 43,
+      "row": 83
+    },
+    "filename": "C:\\Users\\talpa\\Desktop\\System_Beta\\TradingSystem\\src\\main.py",
+    "fix": null,
+    "location": {
+      "column": 1,
+      "row": 83
+    },
+    "message": "Module level import not at top of file",
+    "noqa_row": 83,
+    "url": "https://docs.astral.sh/ruff/rules/module-import-not-at-top-of-file"
+  },
+  {
+    "cell": null,
+    "code": "E402",
+    "end_location": {
+      "column": 24,
+      "row": 84
+    },
+    "filename": "C:\\Users\\talpa\\Desktop\\System_Beta\\TradingSystem\\src\\main.py",
+    "fix": null,
+    "location": {
+      "column": 1,
+      "row": 84
+    },
+    "message": "Module level import not at top of file",
+    "noqa_row": 84,
+    "url": "https://docs.astral.sh/ruff/rules/module-import-not-at-top-of-file"
+  },
+  {
+    "cell": null,
+    "code": "E722",
+    "end_location": {
+      "column": 23,
+      "row": 750
+    },
+    "filename": "C:\\Users\\talpa\\Desktop\\System_Beta\\TradingSystem\\src\\main.py",
+    "fix": null,
+    "location": {
+      "column": 17,
+      "row": 750
+    },
+    "message": "Do not use bare `except`",
+    "noqa_row": 750,
+    "url": "https://docs.astral.sh/ruff/rules/bare-except"
+  }
+]
