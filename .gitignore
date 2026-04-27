@@ -37,7 +37,9 @@ scratch/
 /*.xml
 /*.bat
 !/README.md
+!/CHANGELOG.md
 !/package.json
+
 !/package-lock.json
 !/.env.example
 
