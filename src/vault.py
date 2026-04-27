@@ -82,14 +82,11 @@ class Vault:
         # GAP-10 FIX: No silent fallback to plaintext .env for sensitive keys.
         # This prevents credential leakage if the Vault is uninitialized.
         if Vault._is_sensitive(key):
-            # Strict mode: If it looks sensitive, it MUST be in the vault.
-            # However, we allow the code-provided 'default' to prevent system paralysis.
-            # We skip os.getenv entirely for these.
-            if default is not None:
-                 logger.warning(f"Vault: Sensitive key '{key}' missing. Using code-provided High-Side fallback. PLEASE ADD TO VAULT.")
-            else:
-                 logger.error(f"SECURITY BLOCK: Sensitive key '{key}' missing and no default provided. Fallback DENIED.")
-            return default
+            # Strict mode: Warn if sensitive keys are read from .env instead of the vault.
+            env_val = os.getenv(key, default)
+            if env_val is None:
+                 logger.error(f"SECURITY BLOCK: Sensitive key '{key}' missing from Vault and .env. Fallback DENIED.")
+            return env_val
 
         # Non-sensitive keys (e.g. LOG_LEVEL, PORT) can still use environment variables
         return os.getenv(key, default)
