@@ -33,13 +33,28 @@ scratch/
 /*.json
 /*.temp
 /*.tmp
+/*.html
+/*.xml
+/*.bat
 !/README.md
 !/package.json
 !/package-lock.json
+!/.env.example
 
 # Version artifacts / Junk files
 =
 [0-9]*.[0-9]*
+.python-version
+.cursor*
+.pre-commit*
+nuitka-*
+tmp/
+temp/
+outputs/
+scratch/
+questdb/
+questdb_data/
+
 
 # Frontend
 frontend/node_modules/
