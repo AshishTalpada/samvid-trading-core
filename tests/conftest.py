@@ -6,7 +6,7 @@ import sys
 import os
 from pathlib import Path
 
-# -- SETO V15.0: Cognitive Path Alignment --
+# -- Samvid v1.0-beta-beta: Cognitive Path Alignment --
 # Ensure 'src' is in sys.path so tests can import modules directly
 _root = Path(__file__).resolve().parent.parent
 _src = _root / "src"

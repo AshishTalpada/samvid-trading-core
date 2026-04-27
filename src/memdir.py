@@ -8,7 +8,7 @@ logger = logging.getLogger(__name__)
 
 class MemoryManager:
     """
-    SETO V4.0 Memory Directory System.
+    Samvid v1.0-beta-beta Memory Directory System.
     Inspired by Claude-Code's 'memdir' and 'CLAUDE.md' patterns.
     Provides persistent 'Trading Directives' and 'Session Memory' for the Twin-Minds.
     """

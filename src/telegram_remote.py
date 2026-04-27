@@ -11,7 +11,7 @@ logger = logging.getLogger("telegram_remote")
 
 class TelegramRemote:
     """
-    Sovereign Remote Control (SETO V22.4).
+    Sovereign Remote Control (Samvid v1.0-beta-beta).
     Enables remote intervention (Panic, Status, Dhatu Override) via Telegram polling.
     Designed for low-overhead operation on hardware-constrained systems.
     """
@@ -205,7 +205,7 @@ class TelegramRemote:
         await self.bus.publish("command.remote", {"cmd": "dhatu_override", "target": target})
 
     async def _handle_broadcast(self, payload):
-        """Handle incoming broadcast messages from the Brain (SETO V22.5)."""
+        """Handle incoming broadcast messages from the Brain (Samvid v1.0-beta-beta)."""
         msg = payload.get("message")
         if msg:
             await self._send_message(msg)

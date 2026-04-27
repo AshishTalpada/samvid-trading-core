@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 
 class MindGhost:
     """
-    Agent J: The Ghost Monitor (SETO V7.0).
+    Agent J: The Ghost Monitor (Samvid v1.0-beta-beta).
     Focuses on 'Sub-Second UI/API Auditing' and 'Ghost State Monitoring'.
     Inspired by Claude-Code's tmuxSocket.ts and terminalPanel.ts.
     Detects when a service (like IBKR) is 'Hanging' but hasn't 'Crashed'.
@@ -22,10 +22,10 @@ class MindGhost:
         self.is_running = False
         self.latency_threshold_ms = 500  # 500ms threshold for 'Hanging'
         self.last_api_heartbeat = time.time()
-        self.startup_time = time.time()  # For grace period (SETO V8.0 Extended)
+        self.startup_time = time.time()  # For grace period (Samvid v1.0-beta-beta Extended)
         self.ghost_mirror: dict[str, Any] = {}  # Internal 'Mirror' of service states
 
-        # --- SETO V8.0 PILLAR 4: EXPONENTIAL BACKOFF (Agent J) ---
+        # --- Samvid v1.0-beta-beta PILLAR 4: EXPONENTIAL BACKOFF (Agent J) ---
         self.retry_counts: dict[str, int] = {}
         self.backoff_base = 2.0
         # Track when next probe is allowed per service (exponential backoff)
@@ -35,7 +35,7 @@ class MindGhost:
     async def start(self) -> None:
         """Launch the Ghost Monitor."""
         self.is_running = True
-        logger.info("MindGhost (Agent J): Ghost Monitoring active (SETO V7.0).")
+        logger.info("MindGhost (Agent J): Ghost Monitoring active (Samvid v1.0-beta-beta).")
         task = asyncio.create_task(self._ghost_audit_loop())
         
         # GAP-167: Supervisor Monitoring (Heartbeat)
@@ -70,12 +70,12 @@ class MindGhost:
             try:
                 current_time = TimeSync.now().timestamp()
 
-                # SETO V8.0: 120-second Grace Period on startup (Allows for slow IBKR handshakes)
+                # Samvid v1.0-beta-beta: 120-second Grace Period on startup (Allows for slow IBKR handshakes)
                 if current_time - self.startup_time < 120:
                     await asyncio.sleep(1.0)
                     continue
 
-                # 1. Handshake Verification (SETO V9.99 Bus-Driven)
+                # 1. Handshake Verification (Samvid v1.0-beta-beta Bus-Driven)
                 # If we're still waiting for a handshake, check if the system heartbeats are active
                 if self.last_api_heartbeat <= self.startup_time:
                     # If we catch a bus event or a mirror update, sync the heartbeat
@@ -83,7 +83,7 @@ class MindGhost:
                         self.last_api_heartbeat = current_time
                         logger.info("MindGhost: Handshake confirmed via Global Matrix. Audit mode ENGAGED.")
 
-                # 2. API Heartbeat Audit (SETO V9.99 Adaptive Patience)
+                # 2. API Heartbeat Audit (Samvid v1.0-beta-beta Adaptive Patience)
                 if self.last_api_heartbeat > self.startup_time:
                     # GAP-38 FIX: Increased timeout to 60s (from 30s) to allow for heavy vetting cycles
                     if current_time - self.last_api_heartbeat > 60.0:

@@ -66,5 +66,5 @@ async def test_standby_to_scanning_transition(brain) -> None:
     assert budget.generated_at is not None
     assert budget.regime == "BULL"
     assert budget.max_trades == 20
-    assert budget.min_catalyst == 55  # SETO V8.0 Aggressive Bull Bias
+    assert budget.min_catalyst == 55  # Samvid v1.0-beta-beta Aggressive Bull Bias
     assert budget.max_risk_per_trade_pct == 0.02

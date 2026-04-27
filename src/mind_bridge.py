@@ -36,14 +36,14 @@ class DialogueMessage:
 
 class MindBridge:
     """
-    The Nervous System (Bridge) for the SETO V4.0 Architecture.
+    The Nervous System (Bridge) for the Samvid v1.0-beta-beta Architecture.
     Inspired by Claude-Code's MCP Client and SharedIntelligenceBus.
     Provides a communication layer for the 'Trading Mind' and the 'Healing Mind'.
     """
 
     def __init__(self, bus=None, initial_context: str | None = None) -> None:
         self.bus = bus
-        self.initial_context = initial_context  # SETO V8.0 Wisdom Seed
+        self.initial_context = initial_context  # Samvid v1.0-beta-beta Wisdom Seed
         self.dialogue_history: list[DialogueMessage] = []
         self.tools: dict[str, Callable] = {}
         self._lock: asyncio.Lock | None = None  # Lazy-init: created on first async use
@@ -58,7 +58,7 @@ class MindBridge:
             "experiment": asyncio.Queue(maxsize=100),
         }
 
-        # --- NEW: TEAMMATE MAILBOX (SETO V5.0) ---
+        # --- NEW: TEAMMATE MAILBOX (Samvid v1.0-beta-beta) ---
         self.teammate_mailbox: list[DialogueMessage] = []  # Persistent context
         self.call_telemetry: list[dict] = []  # Audit log for tools
 
@@ -68,7 +68,7 @@ class MindBridge:
         logger.info(f"MindBridge: Tool '{name}' registered.")
 
     async def broadcast(self, sender: str, content: str, metadata: dict | None = None) -> None:
-        """Broadcast a message between the minds (Wrapped in SETO V14.6 Encoding Shield)."""
+        """Broadcast a message between the minds (Wrapped in Samvid v1.0-beta-beta Encoding Shield)."""
         safe_content = str(content)
         msg = DialogueMessage(sender=sender, content=safe_content, metadata=metadata or {})
         if self._lock is None:

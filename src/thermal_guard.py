@@ -8,7 +8,7 @@ logger = logging.getLogger(__name__)
 
 class ThermalGuard:
     """
-    Sovereign Resource Management (SETO V21.23 Hardened).
+    Sovereign Resource Management (Samvid v1.0-beta-beta Hardened).
     Optimized for Laptop Hardware (Thermal + RAM Safety).
     """
     
@@ -79,7 +79,7 @@ class ThermalGuard:
         temp = cls._cache_temp
         ram = cls._cache_ram
         
-        # ── RESOURCE REGIMES (SETO V21.23 Laptop Optimized) ──
+        # ── RESOURCE REGIMES (Samvid v1.0-beta-beta Laptop Optimized) ──
         
         # 1. SURVIVAL: Total fallback for hardware safety
         if temp >= 82.0 or ram >= 92.0:

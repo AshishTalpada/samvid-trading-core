@@ -1,6 +1,6 @@
 # pyre-ignore-all-errors[21]
 """
-src/dms.py - Dead Man Switch Monitor (V3.0)
+src/dms.py - Dead Man Switch Monitor (v1.0-beta-beta)
 
 Monitors system health and flattens all positions if the trading system
 goes unresponsive. Uses Telegram for alerts and IB Gateway + MT5 for
@@ -8,7 +8,7 @@ emergency position flattening.
 
 Implements:
 - GAP-06: Emergency flatten logic via IBKR and MT5
-- V2.1 DMS: Agent C alive check → 5-min grace → flatten
+- v1.0-beta DMS: Agent C alive check → 5-min grace → flatten
 - Heartbeat monitoring with 30s check intervals
 - Hourly status reports via Telegram
 """
@@ -47,7 +47,7 @@ class DMSMonitor:
         bus: Optional["SharedIntelligenceBus"] = None,
     ) -> None:
         self.bus = bus
-        # SETO V8.0 Support: Secure fallback to Vault
+        # Samvid v1.0-beta-beta Support: Secure fallback to Vault
         if not bot_token or bot_token == "YOUR_BOT_TOKEN_HERE":
             bot_token = Vault.get("TELEGRAM_BOT_TOKEN", "")
         if not chat_id or chat_id == "YOUR_CHAT_ID_HERE":
@@ -55,7 +55,7 @@ class DMSMonitor:
 
         self.bot_token = bot_token
         self.chat_id = chat_id
-        self.ibkr_port = ibkr_port  # SETO V8.0 Port Injection
+        self.ibkr_port = ibkr_port  # Samvid v1.0-beta-beta Port Injection
         self.timeout = timeout  # Configurable; default 300s from constructor
         self.max_retries = 2
         self.retry_count = 0
@@ -77,7 +77,7 @@ class DMSMonitor:
         self.ibkr_client = ibkr_client
         self.mt5_client = mt5_client
 
-        # V2.1: Grace period before flatten (Agent C alive check)
+        # v1.0-beta: Grace period before flatten (Agent C alive check)
         self.grace_period = 15  # 15 seconds (down from 30s) (GAP-85)
         self.timeout_detected_at: datetime | None = None
 
@@ -108,7 +108,7 @@ class DMSMonitor:
         payload = {"chat_id": self.chat_id, "text": message, "parse_mode": "HTML"}
 
         try:
-            # SETO V21.38: Telegram Timeout Hardening (30s)
+            # Samvid v1.0-beta-beta: Telegram Timeout Hardening (30s)
             timeout = aiohttp.ClientTimeout(total=30.0)
             async with session.post(url, json=payload, timeout=timeout) as response:
                 if response.status == 200:
@@ -150,7 +150,7 @@ class DMSMonitor:
                 stale_agents.append(f"{agent} ({int(time_since_hb)}s)")
 
         if stale_agents:
-            # V2.5: Differentiate between connection blips and actual crashes
+            # v1.0-beta: Differentiate between connection blips and actual crashes
             self.retry_count += 1
             if self.retry_count < self.max_retries:
                 logger.warning(f"DMS: Ghost drift detected in {stale_agents} ({self.retry_count}/{self.max_retries}).")
@@ -168,7 +168,7 @@ class DMSMonitor:
                 await self.send_emergency_alert(stale_agents)
                 self.alert_sent = True
 
-            # V2.1: Wait grace period, then execute flatten
+            # v1.0-beta: Wait grace period, then execute flatten
             grace_elapsed = (current_time - timeout_at).total_seconds()
             if grace_elapsed >= self.grace_period and not self.flatten_executed:
                 logger.critical(f"DMS: Panic threshold reached for {stale_agents} — executing emergency flatten!")
@@ -301,7 +301,7 @@ class DMSMonitor:
         if self.mt5_client:
             try:
 
-                # V2.1: Retry with 60s intervals (up to 3 attempts)
+                # v1.0-beta: Retry with 60s intervals (up to 3 attempts)
                 for attempt in range(3):
                     positions = await asyncio.to_thread(mt5.positions_get)
                     if positions is None:

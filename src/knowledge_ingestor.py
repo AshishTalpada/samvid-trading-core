@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 
 class KnowledgeIngestor:
     """
-    SETO V7.1 Knowledge Ingestor (Agent L Auxiliary).
+    Samvid v1.0-beta-beta Knowledge Ingestor (Agent L Auxiliary).
     Hardened for safe recursive harvesting and secret redaction (GAP-77-80).
     """
 
