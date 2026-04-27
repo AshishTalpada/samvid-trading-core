@@ -1,0 +1,546 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Trading System V3.0 — Your Setup Plan</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Syne:wght@400;600;700;800&display=swap');
+:root {
+  --bg:#06090f; --s1:#0b1018; --s2:#0f1822; --border:#1a2535;
+  --border2:#243448; --cyan:#00e5ff; --purple:#a855f7;
+  --green:#22c55e; --amber:#f59e0b; --red:#ef4444; --orange:#f97316;
+  --text:#dde6f0; --muted:#5a7a99;
+}
+*{margin:0;padding:0;box-sizing:border-box;}
+body{background:var(--bg);color:var(--text);font-family:'Syne',sans-serif;min-height:100vh;}
+body::before{content:'';position:fixed;inset:0;
+  background:linear-gradient(rgba(0,229,255,.02) 1px,transparent 1px),
+             linear-gradient(90deg,rgba(0,229,255,.02) 1px,transparent 1px);
+  background-size:44px 44px;pointer-events:none;z-index:0;}
+.wrap{max-width:900px;margin:0 auto;padding:0 20px 80px;position:relative;z-index:1;}
+
+/* HEADER */
+header{padding:48px 0 36px;text-align:center;}
+.badge{display:inline-flex;align-items:center;gap:8px;
+  background:rgba(0,229,255,.07);border:1px solid rgba(0,229,255,.18);
+  border-radius:100px;padding:5px 16px;font-family:'JetBrains Mono',monospace;
+  font-size:11px;color:var(--cyan);letter-spacing:.08em;text-transform:uppercase;margin-bottom:16px;}
+h1{font-size:clamp(24px,4vw,44px);font-weight:800;letter-spacing:-.02em;margin-bottom:10px;}
+h1 em{font-style:normal;color:var(--red);}
+h1 strong{font-style:normal;color:var(--green);}
+.sub{color:var(--muted);font-size:14px;max-width:580px;margin:0 auto;line-height:1.7;}
+
+/* BLOCKER CARDS */
+.blockers{margin:32px 0;}
+.section-label{font-family:'JetBrains Mono',monospace;font-size:11px;
+  color:var(--muted);text-transform:uppercase;letter-spacing:.1em;
+  margin-bottom:12px;display:flex;align-items:center;gap:10px;}
+.section-label::after{content:'';flex:1;height:1px;background:var(--border);}
+
+.blocker{border-radius:12px;overflow:hidden;margin-bottom:12px;}
+.blocker-hdr{display:flex;align-items:center;gap:14px;padding:16px 20px;cursor:pointer;}
+.blocker.critical .blocker-hdr{background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.3);}
+.blocker.warning  .blocker-hdr{background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.25);}
+.blocker.info     .blocker-hdr{background:rgba(0,229,255,.06);border:1px solid rgba(0,229,255,.18);}
+.blocker.good     .blocker-hdr{background:rgba(34,197,94,.07);border:1px solid rgba(34,197,94,.2);}
+.blocker-icon{font-size:22px;flex-shrink:0;}
+.blocker-text{flex:1;}
+.blocker-title{font-size:15px;font-weight:700;margin-bottom:3px;}
+.blocker.critical .blocker-title{color:var(--red);}
+.blocker.warning  .blocker-title{color:var(--amber);}
+.blocker.info     .blocker-title{color:var(--cyan);}
+.blocker.good     .blocker-title{color:var(--green);}
+.blocker-desc{font-size:13px;color:var(--muted);}
+.blocker-tag{font-family:'JetBrains Mono',monospace;font-size:10px;
+  padding:3px 10px;border-radius:100px;white-space:nowrap;flex-shrink:0;}
+.tag-blocker{background:rgba(239,68,68,.15);color:var(--red);border:1px solid rgba(239,68,68,.3);}
+.tag-fix{background:rgba(245,158,11,.12);color:var(--amber);border:1px solid rgba(245,158,11,.25);}
+.tag-ok{background:rgba(34,197,94,.1);color:var(--green);border:1px solid rgba(34,197,94,.25);}
+.tag-info{background:rgba(0,229,255,.08);color:var(--cyan);border:1px solid rgba(0,229,255,.2);}
+.chev{color:var(--muted);font-size:14px;transition:transform .3s;flex-shrink:0;}
+.blocker.open .chev{transform:rotate(180deg);}
+
+.blocker-body{display:none;padding:20px;border:1px solid var(--border2);border-top:none;border-radius:0 0 12px 12px;background:var(--s1);}
+.blocker.open .blocker-body{display:block;}
+
+/* Fix steps */
+.fix-steps{list-style:none;display:flex;flex-direction:column;gap:8px;margin-top:8px;}
+.fix-steps li{display:flex;gap:10px;align-items:flex-start;font-size:14px;line-height:1.6;}
+.step-n{font-family:'JetBrains Mono',monospace;font-size:10px;
+  background:rgba(0,229,255,.1);border:1px solid rgba(0,229,255,.2);
+  color:var(--cyan);border-radius:4px;padding:2px 7px;flex-shrink:0;margin-top:2px;}
+.cmd{background:#040810;border:1px solid var(--border2);border-radius:6px;
+  padding:8px 14px;font-family:'JetBrains Mono',monospace;font-size:12px;
+  color:var(--cyan);margin:8px 0;display:block;overflow-x:auto;}
+.note{font-size:13px;color:var(--muted);line-height:1.6;margin-top:8px;}
+.note strong{color:var(--text);}
+
+/* SUMMARY TABLE */
+.summary-table{width:100%;border-collapse:collapse;margin:16px 0;font-size:13px;}
+.summary-table th{text-align:left;padding:10px 14px;background:var(--s2);
+  font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--muted);
+  text-transform:uppercase;letter-spacing:.07em;border-bottom:1px solid var(--border2);}
+.summary-table td{padding:10px 14px;border-bottom:1px solid var(--border);}
+.summary-table td:first-child{color:var(--muted);font-family:'JetBrains Mono',monospace;font-size:12px;}
+.v-yes{color:var(--green);} .v-no{color:var(--red);} .v-fix{color:var(--amber);}
+
+/* ACTION PLAN */
+.action-plan{margin-top:40px;}
+.action-item{display:flex;gap:16px;align-items:flex-start;
+  background:var(--s1);border:1px solid var(--border);border-radius:12px;
+  padding:18px 20px;margin-bottom:10px;cursor:pointer;transition:border-color .2s;}
+.action-item:hover{border-color:var(--border2);}
+.action-item.done-item{border-color:rgba(34,197,94,.35);}
+.action-num{font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:700;
+  color:var(--cyan);background:rgba(0,229,255,.08);border:1px solid rgba(0,229,255,.2);
+  border-radius:6px;padding:6px 12px;flex-shrink:0;white-space:nowrap;}
+.action-item.done-item .action-num{background:var(--green);border-color:var(--green);color:#000;}
+.action-content{flex:1;}
+.action-title{font-size:15px;font-weight:700;margin-bottom:4px;}
+.action-meta{font-size:13px;color:var(--muted);line-height:1.5;}
+.action-tags{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px;}
+.a-tag{font-family:'JetBrains Mono',monospace;font-size:10px;padding:2px 8px;
+  border-radius:4px;border:1px solid;}
+.at-blocker{color:var(--red);  border-color:rgba(239,68,68,.3);  background:rgba(239,68,68,.06);}
+.at-before{color:var(--amber); border-color:rgba(245,158,11,.3); background:rgba(245,158,11,.06);}
+.at-ready{color:var(--green);  border-color:rgba(34,197,94,.3);  background:rgba(34,197,94,.06);}
+.at-later{color:var(--muted);  border-color:var(--border2);}
+.done-toggle{font-size:11px;font-weight:600;padding:4px 12px;border-radius:6px;
+  background:rgba(34,197,94,.1);border:1px solid rgba(34,197,94,.3);color:var(--green);
+  cursor:pointer;flex-shrink:0;margin-top:2px;transition:all .2s;}
+.done-toggle:hover{background:rgba(34,197,94,.2);}
+.action-item.done-item .done-toggle{background:var(--green);border-color:var(--green);color:#000;}
+
+/* PROGRESS */
+.prog-wrap{background:var(--s1);border:1px solid var(--border);border-radius:10px;
+  padding:14px 20px;display:flex;align-items:center;gap:14px;
+  margin:24px 0;position:sticky;top:8px;z-index:50;backdrop-filter:blur(12px);}
+.prog-label{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--cyan);white-space:nowrap;}
+.prog-track{flex:1;height:5px;background:var(--s2);border-radius:100px;overflow:hidden;}
+.prog-fill{height:100%;background:linear-gradient(90deg,var(--cyan),var(--green));
+  border-radius:100px;transition:width .3s;width:0%;}
+.prog-count{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--muted);white-space:nowrap;}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <div class="badge">Ashishkumar · Waterloo, Ontario · March 2026</div>
+  <h1>Your Setup Plan<br><em>3 Blockers</em> → <strong>Then Build</strong></h1>
+  <p class="sub">Questionnaire analysed. Here's exactly what needs fixing before the system can build, what's already good, and your step-by-step action plan.</p>
+</header>
+
+<!-- PROGRESS -->
+<div class="prog-wrap">
+  <span class="prog-label">READY TO BUILD</span>
+  <div class="prog-track"><div class="prog-fill" id="pf"></div></div>
+  <span class="prog-count" id="pc">0 / 12 actions</span>
+</div>
+
+<!-- BLOCKERS -->
+<div class="blockers">
+  <div class="section-label">🚫 Must Fix Before Anything Else</div>
+
+  <!-- BLOCKER 1: Python 3.14 -->
+  <div class="blocker critical" id="b1">
+    <div class="blocker-hdr" onclick="tog('b1')">
+      <div class="blocker-icon">🐍</div>
+      <div class="blocker-text">
+        <div class="blocker-title">Python 3.14.3 — Incompatible Version</div>
+        <div class="blocker-desc">You have 3.14.3. CrewAI + trading packages require 3.10, 3.11, or 3.12.</div>
+      </div>
+      <span class="blocker-tag tag-blocker">BLOCKER 1</span>
+      <span class="chev">▼</span>
+    </div>
+    <div class="blocker-body">
+      <ul class="fix-steps">
+        <li><span class="step-n">1</span>Open PowerShell <strong>as Administrator</strong></li>
+        <li><span class="step-n">2</span>Install pyenv for Windows:
+          <code class="cmd">winget install pyenv-win.pyenv-win</code>
+        </li>
+        <li><span class="step-n">3</span>Close PowerShell. Open a <strong>new normal PowerShell</strong> (not admin)</li>
+        <li><span class="step-n">4</span>Install Python 3.11.9:
+          <code class="cmd">pyenv install 3.11.9</code>
+          <code class="cmd">pyenv global 3.11.9</code>
+        </li>
+        <li><span class="step-n">5</span>Verify:
+          <code class="cmd">python --version</code>
+          Should say: <strong>Python 3.11.9</strong>
+        </li>
+      </ul>
+      <p class="note"><strong>Why not just install 3.11 from python.org?</strong> You can — go to python.org/downloads, download Python 3.11.9 Windows 64-bit installer, tick "Add to PATH", install. Either method works. pyenv is better long-term because it lets you switch versions easily.</p>
+      <p class="note" style="margin-top:8px;color:var(--amber)">⚠ Do NOT uninstall Python 3.14. Just install 3.11 alongside it — Windows handles multiple versions fine.</p>
+    </div>
+  </div>
+
+  <!-- BLOCKER 2: Project Path -->
+  <div class="blocker critical" id="b2">
+    <div class="blocker-hdr" onclick="tog('b2')">
+      <div class="blocker-icon">📁</div>
+      <div class="blocker-text">
+        <div class="blocker-title">Project Path: C:\WINDOWS\system32 — Dangerous Location</div>
+        <div class="blocker-desc">System folder. Windows restricts writing here — your system will silently fail.</div>
+      </div>
+      <span class="blocker-tag tag-blocker">BLOCKER 2</span>
+      <span class="chev">▼</span>
+    </div>
+    <div class="blocker-body">
+      <ul class="fix-steps">
+        <li><span class="step-n">1</span>Open PowerShell (normal, not admin)</li>
+        <li><span class="step-n">2</span>Create your project folder:
+          <code class="cmd">mkdir C:\TradingSystem</code>
+        </li>
+        <li><span class="step-n">3</span>Navigate to it:
+          <code class="cmd">cd C:\TradingSystem</code>
+        </li>
+        <li><span class="step-n">4</span>Place ALL downloaded files in <strong>C:\TradingSystem\</strong></li>
+        <li><span class="step-n">5</span>In Cursor/VS Code: File → Open Folder → C:\TradingSystem</li>
+      </ul>
+      <p class="note">Your project should live in <strong>C:\TradingSystem</strong> or similar (Documents, Desktop). Never in Windows\, Program Files\, or System32\.</p>
+    </div>
+  </div>
+
+  <!-- BLOCKER 3: No packages installed -->
+  <div class="blocker critical" id="b3">
+    <div class="blocker-hdr" onclick="tog('b3')">
+      <div class="blocker-icon">📦</div>
+      <div class="blocker-text">
+        <div class="blocker-title">Zero Packages Installed — Nothing Will Run</div>
+        <div class="blocker-desc">crewai, anthropic, openai, pandas — all missing. Must install after fixing Python.</div>
+      </div>
+      <span class="blocker-tag tag-blocker">BLOCKER 3</span>
+      <span class="chev">▼</span>
+    </div>
+    <div class="blocker-body">
+      <ul class="fix-steps">
+        <li><span class="step-n">1</span>After fixing Python (Blocker 1), go to C:\TradingSystem:
+          <code class="cmd">cd C:\TradingSystem</code>
+        </li>
+        <li><span class="step-n">2</span>Create virtual environment:
+          <code class="cmd">python -m venv venv</code>
+        </li>
+        <li><span class="step-n">3</span>Activate it (do this every time you open a terminal):
+          <code class="cmd">venv\Scripts\activate</code>
+          You'll see <strong>(venv)</strong> at the start of your prompt.
+        </li>
+        <li><span class="step-n">4</span>Install everything:
+          <code class="cmd">pip install -r requirements.txt</code>
+        </li>
+        <li><span class="step-n">5</span>Or run the setup script which does it for you:
+          <code class="cmd">python setup_windows.py</code>
+        </li>
+      </ul>
+      <p class="note" style="color:var(--amber)">⚠ Always activate the venv before running anything. If you close the terminal, you must re-run <code>venv\Scripts\activate</code>.</p>
+    </div>
+  </div>
+
+  <!-- WARNINGS -->
+  <div class="section-label" style="margin-top:28px">⚠ Important — Fix Before Going Live</div>
+
+  <div class="blocker warning" id="w1">
+    <div class="blocker-hdr" onclick="tog('w1')">
+      <div class="blocker-icon">⚡</div>
+      <div class="blocker-text">
+        <div class="blocker-title">No UPS (Battery Backup) — Power Cut = Open Positions</div>
+        <div class="blocker-desc">You run 24/5. A power cut with open positions could mean catastrophic loss. Not needed for paper trading — required before live.</div>
+      </div>
+      <span class="blocker-tag tag-fix">FIX BEFORE LIVE</span>
+      <span class="chev">▼</span>
+    </div>
+    <div class="blocker-body">
+      <p class="note">A basic UPS (APC BE600M1 or similar) costs ~$60–80 CAD at Best Buy or Canada Computers. It gives you 10–20 minutes of power — enough for the system to safely close all positions and shut down. Your DMS (Telegram on iPhone) handles the alert, but only if your computer is still powered.</p>
+      <p class="note" style="margin-top:8px;">Get one before switching to live trading. For paper mode: not urgent.</p>
+    </div>
+  </div>
+
+  <div class="blocker warning" id="w2">
+    <div class="blocker-hdr" onclick="tog('w2')">
+      <div class="blocker-icon">📱</div>
+      <div class="blocker-text">
+        <div class="blocker-title">DMS on iPhone — Works, but Differently Than Planned</div>
+        <div class="blocker-desc">iOS 16 can't run Python. Your DMS is Telegram-based — system pings your bot, iPhone receives the alert.</div>
+      </div>
+      <span class="blocker-tag tag-fix">ADJUSTED</span>
+      <span class="chev">▼</span>
+    </div>
+    <div class="blocker-body">
+      <p class="note"><strong>How your iPhone DMS works:</strong></p>
+      <ul class="fix-steps" style="margin-top:8px;">
+        <li><span class="step-n">→</span>Trading system on PC sends a heartbeat to Telegram bot every 60 seconds</li>
+        <li><span class="step-n">→</span>If no heartbeat for 5 minutes → Telegram bot sends YOU an alert on iPhone</li>
+        <li><span class="step-n">→</span>You see the alert → manually close positions or PC recovers automatically</li>
+      </ul>
+      <p class="note" style="margin-top:8px;">This is actually simpler than a traditional DMS script. The <code>dms.py</code> file runs on YOUR PC (not iPhone) — it just sends alerts to your Telegram.</p>
+    </div>
+  </div>
+
+  <div class="blocker warning" id="w3">
+    <div class="blocker-hdr" onclick="tog('w3')">
+      <div class="blocker-icon">💰</div>
+      <div class="blocker-text">
+        <div class="blocker-title">IBKR is Regular Margin — Not RRSP</div>
+        <div class="blocker-desc">Any profits are fully taxable as income. Keep records. Consult CRA or accountant before live trading.</div>
+      </div>
+      <span class="blocker-tag tag-fix">NOTE</span>
+      <span class="chev">▼</span>
+    </div>
+    <div class="blocker-body">
+      <p class="note">With a regular margin account, all trading profits are taxable income in Canada. The system config is adjusted — no RRSP-specific logic. For tax purposes: keep a record of every trade (the system's SQLite database does this automatically). Consult an accountant before withdrawing significant profits.</p>
+    </div>
+  </div>
+
+  <div class="blocker warning" id="w4">
+    <div class="blocker-hdr" onclick="tog('w4')">
+      <div class="blocker-icon">🎯</div>
+      <div class="blocker-text">
+        <div class="blocker-title">No Trusted Person Knows About This Project</div>
+        <div class="blocker-desc">Your quit criteria say stop at $3,000 CAD total. Someone should know and hold you accountable.</div>
+      </div>
+      <span class="blocker-tag tag-fix">RECOMMENDED</span>
+      <span class="chev">▼</span>
+    </div>
+    <div class="blocker-body">
+      <p class="note">Your loss history (mixed, 6 months, no stops + overtrading) is exactly why this system was designed. The quit criteria protect you. But they only work if someone else knows them. Tell a friend or family member: "I'm allowed to invest max $3,000 CAD total. If I want to go over that, stop me."</p>
+    </div>
+  </div>
+
+  <!-- GOOD ITEMS -->
+  <div class="section-label" style="margin-top:28px">✅ Already Good</div>
+
+  <div class="blocker good" id="g1">
+    <div class="blocker-hdr" onclick="tog('g1')">
+      <div class="blocker-icon">🔑</div>
+      <div class="blocker-text">
+        <div class="blocker-title">API Keys: Anthropic ✓ Finnhub ✓ Telegram ✓</div>
+        <div class="blocker-desc">3 of 4 required keys confirmed. Still need OpenAI + Google keys.</div>
+      </div>
+      <span class="blocker-tag tag-ok">GOOD</span>
+      <span class="chev">▼</span>
+    </div>
+    <div class="blocker-body">
+      <p class="note"><strong>Still need:</strong> OpenAI API key (platform.openai.com) for GPT-5.4 Thinking and Google API key (aistudio.google.com) for Gemini 3.1 Pro. Both are free to get. Add to .env when ready.</p>
+    </div>
+  </div>
+
+  <div class="blocker good" id="g2">
+    <div class="blocker-hdr" onclick="tog('g2')">
+      <div class="blocker-icon">🏦</div>
+      <div class="blocker-text">
+        <div class="blocker-title">IBKR Open + Paper Trading + IB Gateway ✓</div>
+        <div class="blocker-desc">Account open, paper enabled, gateway installed. Just needs $255 CAD funding.</div>
+      </div>
+      <span class="blocker-tag tag-ok">GOOD</span>
+      <span class="chev">▼</span>
+    </div>
+    <div class="blocker-body">
+      <p class="note">You can start paper trading immediately on IBKR without funding it. Fund it with $255 CAD when you're ready to go live on the IBKR track. The system will use the paper account first regardless.</p>
+    </div>
+  </div>
+
+  <div class="blocker info" id="i1">
+    <div class="blocker-hdr" onclick="tog('i1')">
+      <div class="blocker-icon">📊</div>
+      <div class="blocker-text">
+        <div class="blocker-title">Loss History Encoded as System Learning</div>
+        <div class="blocker-desc">Mixed instruments, 6 months, no stops + overtrading → Agent D learns from this</div>
+      </div>
+      <span class="blocker-tag tag-info">INFO</span>
+      <span class="chev">▼</span>
+    </div>
+    <div class="blocker-body">
+      <p class="note">Your $8,000 loss came from <strong>no stops</strong> and <strong>overtrading</strong>. The system directly addresses both:</p>
+      <ul class="fix-steps" style="margin-top:8px;">
+        <li><span class="step-n">→</span><strong>No stops:</strong> Every trade has a hard stop encoded at entry (Kelly sizing includes stop distance)</li>
+        <li><span class="step-n">→</span><strong>Overtrading:</strong> 2 trades/day maximum (FTMO rule, hard-coded)</li>
+        <li><span class="step-n">→</span><strong>Mixed instruments:</strong> System trades only the 8 approved instruments with instrument-specific risk</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<!-- ACTION PLAN -->
+<div class="action-plan">
+  <div class="section-label">📋 Your Action Plan — In Order</div>
+
+  <div class="action-item" id="a1">
+    <div>
+      <div class="action-num" onclick="doneAction('a1')">01</div>
+    </div>
+    <div class="action-content">
+      <div class="action-title">Fix Python — Install 3.11.9 via pyenv-win</div>
+      <div class="action-meta">PowerShell (Admin) → winget install pyenv-win.pyenv-win → pyenv install 3.11.9 → pyenv global 3.11.9 → verify: python --version</div>
+      <div class="action-tags"><span class="a-tag at-blocker">🚫 Blocker 1</span><span class="a-tag at-blocker">Do First</span></div>
+    </div>
+    <button class="done-toggle" onclick="doneAction('a1')">Mark Done</button>
+  </div>
+
+  <div class="action-item" id="a2">
+    <div><div class="action-num" onclick="doneAction('a2')">02</div></div>
+    <div class="action-content">
+      <div class="action-title">Create C:\TradingSystem and move all files there</div>
+      <div class="action-meta">mkdir C:\TradingSystem → copy all downloaded files → open in VS Code/Cursor</div>
+      <div class="action-tags"><span class="a-tag at-blocker">🚫 Blocker 2</span></div>
+    </div>
+    <button class="done-toggle" onclick="doneAction('a2')">Mark Done</button>
+  </div>
+
+  <div class="action-item" id="a3">
+    <div><div class="action-num" onclick="doneAction('a3')">03</div></div>
+    <div class="action-content">
+      <div class="action-title">Create venv + install packages</div>
+      <div class="action-meta">cd C:\TradingSystem → python -m venv venv → venv\Scripts\activate → python setup_windows.py</div>
+      <div class="action-tags"><span class="a-tag at-blocker">🚫 Blocker 3</span></div>
+    </div>
+    <button class="done-toggle" onclick="doneAction('a3')">Mark Done</button>
+  </div>
+
+  <div class="action-item" id="a4">
+    <div><div class="action-num" onclick="doneAction('a4')">04</div></div>
+    <div class="action-content">
+      <div class="action-title">Get OpenAI + Google API keys</div>
+      <div class="action-meta">platform.openai.com → API Keys → Create key · aistudio.google.com → Get API Key → add both to .env</div>
+      <div class="action-tags"><span class="a-tag at-before">Before Build</span></div>
+    </div>
+    <button class="done-toggle" onclick="doneAction('a4')">Mark Done</button>
+  </div>
+
+  <div class="action-item" id="a5">
+    <div><div class="action-num" onclick="doneAction('a5')">05</div></div>
+    <div class="action-content">
+      <div class="action-title">Create your Telegram bot via @BotFather</div>
+      <div class="action-meta">Telegram → @BotFather → /newbot → copy token → start bot → get chat ID → add both to .env</div>
+      <div class="action-tags"><span class="a-tag at-before">Before Build</span></div>
+    </div>
+    <button class="done-toggle" onclick="doneAction('a5')">Mark Done</button>
+  </div>
+
+  <div class="action-item" id="a6">
+    <div><div class="action-num" onclick="doneAction('a6')">06</div></div>
+    <div class="action-content">
+      <div class="action-title">Copy .env.example → .env and fill in all keys</div>
+      <div class="action-meta">copy .env.example .env → notepad .env → add Anthropic, OpenAI, Google, Finnhub, Telegram keys</div>
+      <div class="action-tags"><span class="a-tag at-before">Before Build</span></div>
+    </div>
+    <button class="done-toggle" onclick="doneAction('a6')">Mark Done</button>
+  </div>
+
+  <div class="action-item" id="a7">
+    <div><div class="action-num" onclick="doneAction('a7')">07</div></div>
+    <div class="action-content">
+      <div class="action-title">Place documentation files in C:\TradingSystem\</div>
+      <div class="action-meta">EVERYTHING_FINAL.md + UNIFIED_V3_WITH_SIMULATION.md must be in the root folder</div>
+      <div class="action-tags"><span class="a-tag at-before">Before Build</span></div>
+    </div>
+    <button class="done-toggle" onclick="doneAction('a7')">Mark Done</button>
+  </div>
+
+  <div class="action-item" id="a8">
+    <div><div class="action-num" onclick="doneAction('a8')">08</div></div>
+    <div class="action-content">
+      <div class="action-title">Run orchestrator — AI builds entire system autonomously</div>
+      <div class="action-meta">cd C:\TradingSystem → venv\Scripts\activate → python orchestrator.py (takes 20–40 min)</div>
+      <div class="action-tags"><span class="a-tag at-ready">✓ Ready to Run</span></div>
+    </div>
+    <button class="done-toggle" onclick="doneAction('a8')">Mark Done</button>
+  </div>
+
+  <div class="action-item" id="a9">
+    <div><div class="action-num" onclick="doneAction('a9')">09</div></div>
+    <div class="action-content">
+      <div class="action-title">Open FTMO free trial ($25,000 Swing Account)</div>
+      <div class="action-meta">ftmo.com → Free Trial → $25,000 → Swing Account → install their MT5 → add login/password/server to .env</div>
+      <div class="action-tags"><span class="a-tag at-ready">Can do now</span></div>
+    </div>
+    <button class="done-toggle" onclick="doneAction('a9')">Mark Done</button>
+  </div>
+
+  <div class="action-item" id="a10">
+    <div><div class="action-num" onclick="doneAction('a10')">10</div></div>
+    <div class="action-content">
+      <div class="action-title">Start paper trading — run python src\main.py</div>
+      <div class="action-meta">First run paper only. System trades, learns, calibrates itself. You watch Telegram alerts.</div>
+      <div class="action-tags"><span class="a-tag at-later">After Build</span></div>
+    </div>
+    <button class="done-toggle" onclick="doneAction('a10')">Mark Done</button>
+  </div>
+
+  <div class="action-item" id="a11">
+    <div><div class="action-num" onclick="doneAction('a11')">11</div></div>
+    <div class="action-content">
+      <div class="action-title">Fund IBKR account with $255 CAD</div>
+      <div class="action-meta">Only after paper trading is running smoothly. Transfer via Wise or EFT. Confirm in IBKR portal.</div>
+      <div class="action-tags"><span class="a-tag at-later">After 50 paper trades</span></div>
+    </div>
+    <button class="done-toggle" onclick="doneAction('a11')">Mark Done</button>
+  </div>
+
+  <div class="action-item" id="a12">
+    <div><div class="action-num" onclick="doneAction('a12')">12</div></div>
+    <div class="action-content">
+      <div class="action-title">Get UPS before going live</div>
+      <div class="action-meta">APC BE600M1 or similar. ~$60–80 CAD. Best Buy / Canada Computers / Amazon.ca</div>
+      <div class="action-tags"><span class="a-tag at-later">Before Live</span></div>
+    </div>
+    <button class="done-toggle" onclick="doneAction('a12')">Mark Done</button>
+  </div>
+
+</div>
+
+<!-- SUMMARY TABLE -->
+<div style="margin-top:40px;">
+  <div class="section-label">📋 Your Questionnaire — Cleaned</div>
+  <table class="summary-table">
+    <tr><th>Field</th><th>Your Answer</th><th>Status</th></tr>
+    <tr><td>OS</td><td>Windows 11 Build 10.0.26200</td><td class="v-yes">✓ Supported</td></tr>
+    <tr><td>Python</td><td>3.14.3</td><td class="v-no">✗ Downgrade to 3.11.9</td></tr>
+    <tr><td>RAM</td><td>15.9 GB / 8 cores</td><td class="v-yes">✓ More than enough</td></tr>
+    <tr><td>Project Path</td><td>C:\WINDOWS\system32</td><td class="v-no">✗ Move to C:\TradingSystem</td></tr>
+    <tr><td>Secondary Machine</td><td>iPhone iOS 16</td><td class="v-fix">→ Telegram-based DMS (adjusted)</td></tr>
+    <tr><td>UPS</td><td>No</td><td class="v-fix">⚠ Get before live trading</td></tr>
+    <tr><td>Git</td><td>2.53.0 (Windows)</td><td class="v-yes">✓ Good</td></tr>
+    <tr><td>Python Level</td><td>Beginner</td><td class="v-yes">✓ Code will be heavily commented</td></tr>
+    <tr><td>IBKR</td><td>Open, paper enabled, gateway installed</td><td class="v-yes">✓ Ready (unfunded)</td></tr>
+    <tr><td>IBKR Type</td><td>Regular margin</td><td class="v-fix">→ Not RRSP — track for CRA tax</td></tr>
+    <tr><td>FTMO</td><td>Not started</td><td class="v-fix">→ Open free trial first</td></tr>
+    <tr><td>MT5</td><td>Not installed</td><td class="v-fix">→ Install after FTMO trial opens</td></tr>
+    <tr><td>Anthropic key</td><td>Yes</td><td class="v-yes">✓</td></tr>
+    <tr><td>Finnhub key</td><td>Yes</td><td class="v-yes">✓</td></tr>
+    <tr><td>Telegram</td><td>Yes (no bot yet)</td><td class="v-fix">→ Create bot via @BotFather</td></tr>
+    <tr><td>Capital</td><td>$500 CAD</td><td class="v-yes">✓ FTMO $245 + IBKR $255</td></tr>
+    <tr><td>FTMO Size</td><td>$25,000</td><td class="v-yes">✓ ~$155 EUR challenge fee</td></tr>
+    <tr><td>Risk/Trade</td><td>1.0%</td><td class="v-yes">✓ Balanced</td></tr>
+    <tr><td>Patterns</td><td>All 16</td><td class="v-yes">✓ Full system</td></tr>
+    <tr><td>F16 Decision</td><td>Option B</td><td class="v-yes">✓ Never override (safe)</td></tr>
+    <tr><td>Dashboard</td><td>Yes</td><td class="v-yes">✓ localhost web dashboard</td></tr>
+    <tr><td>Alerts</td><td>Telegram</td><td class="v-yes">✓ Free + reliable</td></tr>
+    <tr><td>Build Approach</td><td>Complete (B)</td><td class="v-yes">✓ Full system from day one</td></tr>
+    <tr><td>Quit criteria</td><td>200 losses / 2 failures / $3K max</td><td class="v-yes">✓ Encoded in system</td></tr>
+    <tr><td>Trusted person</td><td>No</td><td class="v-fix">⚠ Recommended before live</td></tr>
+  </table>
+</div>
+
+</div>
+<script>
+const TOTAL = 12;
+function tog(id){document.getElementById(id).classList.toggle('open');}
+function doneAction(id){
+  const el=document.getElementById(id);
+  el.classList.toggle('done-item');
+  const n=el.querySelector('.action-num');
+  const btn=el.querySelector('.done-toggle');
+  if(el.classList.contains('done-item')){btn.textContent='✓ Done';}
+  else{btn.textContent='Mark Done';}
+  upd();
+}
+function upd(){
+  const done=document.querySelectorAll('.action-item.done-item').length;
+  document.getElementById('pf').style.width=(done/TOTAL*100)+'%';
+  document.getElementById('pc').textContent=done+' / '+TOTAL+' actions';
+}
+// Open blockers by default
+['b1','b2','b3'].forEach(id=>document.getElementById(id).classList.add('open'));
+</script>
+</body>
+</html>

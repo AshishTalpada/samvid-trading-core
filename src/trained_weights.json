@@ -1,0 +1,18 @@
+{
+  "trained_at": "2026-04-16 (FINAL_FORCE_PATCH)",
+  "factor_weights": {
+    "momentum_1m": 0.0568,
+    "momentum_5d": 0.2072,
+    "mean_reversion": 0.29,
+    "vol_regime": 0.39,
+    "volume_surge": 0.1438
+  },
+  "per_symbol_sharpe": {
+    "SPY": 3.852,
+    "QQQ": 3.051,
+    "IWM": 4.778,
+    "DIA": 4.889,
+    "XLK": 1.818
+  },
+  "version": "V11.2 (Sovereign)"
+}

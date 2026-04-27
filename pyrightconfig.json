@@ -1,0 +1,27 @@
+{
+  "executionEnvironments": [
+    {
+      "root": "."
+    }
+  ],
+  "pythonVersion": "3.11",
+  "pythonPlatform": "Windows",
+  "venvPath": "c:/Users/talpa/Desktop/System_Beta/TradingSystem/",
+  "venv": ".venv",
+  "extraPaths": [
+    ".",
+    "src"
+  ],
+  "include": [
+    "."
+  ],
+  "exclude": [
+    "venv",
+    ".venv",
+    "data",
+    "logs",
+    "outputs"
+  ],
+  "typeCheckingMode": "off",
+  "reportMissingImports": "none"
+}

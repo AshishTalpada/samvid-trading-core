@@ -1,0 +1,88 @@
+{
+  "timestamp": "2026-04-12T20:16:02.463819",
+  "optimised_weights": {
+    "momentum_1m": 0.0568,
+    "momentum_5d": 0.2072,
+    "mean_reversion": 0.2464,
+    "vol_regime": 0.3458,
+    "volume_surge": 0.1438
+  },
+  "results": {
+    "SPY": {
+      "symbol": "SPY",
+      "windows": 78,
+      "total_trades": 388,
+      "win_rate": 0.4691,
+      "profit_factor": 1.616,
+      "sharpe": 3.852,
+      "t_stat": 4.773,
+      "p_value": 0.0,
+      "significant": true,
+      "max_drawdown": -0.3942,
+      "total_pnl_usd": 70.86,
+      "verdict": "\ud83d\ude80 STRONG EDGE \u2014 Deploy with confidence",
+      "best_regime": "SIDEWAYS"
+    },
+    "QQQ": {
+      "symbol": "QQQ",
+      "windows": 63,
+      "total_trades": 369,
+      "win_rate": 0.439,
+      "profit_factor": 1.33,
+      "sharpe": 3.051,
+      "t_stat": 3.688,
+      "p_value": 0.00026,
+      "significant": true,
+      "max_drawdown": -1092.4117,
+      "total_pnl_usd": 34.47,
+      "verdict": "\ud83d\ude80 STRONG EDGE \u2014 Deploy with confidence",
+      "best_regime": "BULL"
+    },
+    "IWM": {
+      "symbol": "IWM",
+      "windows": 60,
+      "total_trades": 358,
+      "win_rate": 0.4888,
+      "profit_factor": 1.871,
+      "sharpe": 4.778,
+      "t_stat": 5.687,
+      "p_value": 0.0,
+      "significant": true,
+      "max_drawdown": -1.4254,
+      "total_pnl_usd": 91.4,
+      "verdict": "\ud83d\ude80 STRONG EDGE \u2014 Deploy with confidence",
+      "best_regime": "SIDEWAYS"
+    },
+    "DIA": {
+      "symbol": "DIA",
+      "windows": 66,
+      "total_trades": 286,
+      "win_rate": 0.4965,
+      "profit_factor": 1.994,
+      "sharpe": 4.889,
+      "t_stat": 5.2,
+      "p_value": 0.0,
+      "significant": true,
+      "max_drawdown": -0.4553,
+      "total_pnl_usd": 91.8,
+      "verdict": "\ud83d\ude80 STRONG EDGE \u2014 Deploy with confidence",
+      "best_regime": "BULL"
+    },
+    "XLK": {
+      "symbol": "XLK",
+      "windows": 63,
+      "total_trades": 363,
+      "win_rate": 0.3967,
+      "profit_factor": 1.206,
+      "sharpe": 1.818,
+      "t_stat": 2.179,
+      "p_value": 0.02995,
+      "significant": true,
+      "max_drawdown": -43.6066,
+      "total_pnl_usd": 19.35,
+      "verdict": "\ud83d\ude80 STRONG EDGE \u2014 Deploy with confidence",
+      "best_regime": "BULL"
+    }
+  },
+  "avg_sharpe": 3.6776000000000004
+}

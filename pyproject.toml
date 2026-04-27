@@ -1,0 +1,28 @@
+[tool.pytest.ini_options]
+minversion = "8.0"
+testpaths = ["tests"]
+addopts = "-q --strict-markers --disable-warnings"
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+exclude = ["venv", ".venv", "data", "logs", "outputs"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "W"]
+ignore = ["E501"]
+
+[tool.mypy]
+python_version = "3.11"
+ignore_missing_imports = true
+check_untyped_defs = false
+warn_redundant_casts = false
+warn_unused_ignores = false
+warn_return_any = false
+follow_imports = "skip"
+files = ["src/agent_b.py", "src/agent_c_mt5.py"]
+exclude = "(venv|\\.venv|data|logs|outputs)"
+
+
+# Consolidate Pyright config into pyrightconfig.json
+

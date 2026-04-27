@@ -1,0 +1,8 @@
+Requirement already satisfied: python-telegram-bot in .\venv\Lib\site-packages (22.7)
+Requirement already satisfied: httpx<0.29,>=0.27 in .\venv\Lib\site-packages (from python-telegram-bot) (0.28.1)
+Requirement already satisfied: anyio in .\venv\Lib\site-packages (from httpx<0.29,>=0.27->python-telegram-bot) (4.12.1)
+Requirement already satisfied: certifi in .\venv\Lib\site-packages (from httpx<0.29,>=0.27->python-telegram-bot) (2026.2.25)
+Requirement already satisfied: httpcore==1.* in .\venv\Lib\site-packages (from httpx<0.29,>=0.27->python-telegram-bot) (1.0.9)
+Requirement already satisfied: idna in .\venv\Lib\site-packages (from httpx<0.29,>=0.27->python-telegram-bot) (3.11)
+Requirement already satisfied: h11>=0.16 in .\venv\Lib\site-packages (from httpcore==1.*->httpx<0.29,>=0.27->python-telegram-bot) (0.16.0)
+Requirement already satisfied: typing_extensions>=4.5 in .\venv\Lib\site-packages (from anyio->httpx<0.29,>=0.27->python-telegram-bot) (4.15.0)
