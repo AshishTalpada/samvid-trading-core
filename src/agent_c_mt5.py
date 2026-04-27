@@ -82,7 +82,7 @@ class MT5Connection:
     def place_order(self, sym: str, dir: str, vol: float, sl: float, tp: float) -> int:
         """Place an order on MT5 platform."""
         # =====================================================================
-        # Samvid v1.0-beta-beta-beta HARDENED LOCK: Synchronized with Sovereign Panic Protocols
+        # Samvid v1.0-beta HARDENED LOCK: Synchronized with Sovereign Panic Protocols
         # =====================================================================
         AUTHORIZED_CALLERS = {
             "sovereign_decision_engine",
@@ -208,11 +208,11 @@ class MT5Connection:
 
 class FTMOComplianceLayer:
     # ═══════════════════════════════════════════════════════════════════
-    # Samvid v1.0-beta-beta-beta Standard Challenge Settings
+    # Samvid v1.0-beta Standard Challenge Settings
     # CRITICAL: These MUST match src/config.py exactly
     # Any divergence = FTMO challenge failure
     # ═══════════════════════════════════════════════════════════════════
-    # Samvid v1.0-beta-beta-beta Standard Challenge Settings (Synchronized with src.config)
+    # Samvid v1.0-beta Standard Challenge Settings (Synchronized with src.config)
     DAILY_LIMIT: float = FTMO_DAILY_LIMIT
     DRAWDOWN_LIMIT: float = FTMO_DRAWDOWN_LIMIT
     MAX_TRADES: int = MAX_TRADES_PER_DAY
@@ -287,10 +287,10 @@ class MT5PositionSizer:
 
     def calculate_lots(self, risk_amount: float, entry_price: float, stop_price: float, symbol: str) -> float:
         """Calculate the lot size for a trade based on risk management.
-        Institutional Single Order Routing (Sovereign v1.0-beta-beta).
+        Institutional Single Order Routing (Sovereign v1.0-beta).
         """
         # =====================================================================
-        # Samvid v1.0-beta-beta-beta HARDENED LOCK: Expanded authorized callers
+        # Samvid v1.0-beta HARDENED LOCK: Expanded authorized callers
         # =====================================================================
         AUTHORIZED_CALLERS = {
             "_place_mt5_order",

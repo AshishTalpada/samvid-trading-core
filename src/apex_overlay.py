@@ -7,7 +7,7 @@ logger = logging.getLogger(__name__)
 
 class ApexExoskeleton:
     """
-    The Apex Exoskeleton (Samvid v1.0-beta-beta-beta Cognitive Wrapper).
+    The Apex Exoskeleton (Samvid v1.0-beta Cognitive Wrapper).
     Wraps the Sovereign Core with hardware-optimized resilience layers.
     Handles: Cortex Cache, Parallel CPU Tiering, and Dictatorship of Talent.
     """
@@ -114,7 +114,7 @@ class ApexExoskeleton:
 
         async def _poll_safe(name, func):
             try:
-                # Samvid v1.0-beta-beta-beta: Smart Dispatcher (Sync -> Thread | Async -> Native)
+                # Samvid v1.0-beta: Smart Dispatcher (Sync -> Thread | Async -> Native)
                 if asyncio.iscoroutinefunction(func):
                      res = await func()
                 else:
@@ -137,7 +137,7 @@ class ApexExoskeleton:
         """Zone A: The Dictatorship of Talent (Agent D Bypass)."""
         agent_d_res = next((v for v in tier1_votes if v["agent"] == "Agent_D"), None)
 
-        # Samvid v1.0-beta-beta-beta: Raised threshold to 99% to prevent intelligence bypassing.
+        # Samvid v1.0-beta: Raised threshold to 99% to prevent intelligence bypassing.
         # This force the Quorum to wait for the GPU Agents (Oracle/Swarm) in almost all scenarios.
         if agent_d_res and agent_d_res["vote"] == "YES" and agent_d_res.get("confidence", 0) >= 0.99:
             logger.info(f"Apex Exoskeleton: 👑 EMERGENCY DICTATORSHIP TRIGGERED by Agent D ({agent_d_res['confidence']:.2%}).")

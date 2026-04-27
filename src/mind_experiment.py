@@ -68,7 +68,7 @@ class MindExperiment:
 
     async def _tool_gate_feature(self, feature_name: str, enabled: bool) -> dict[str, Any]:
         """
-        Gates or enables a feature based on experiment results (Samvid v1.0-beta-beta-beta Evidence-Based).
+        Gates or enables a feature based on experiment results (Samvid v1.0-beta Evidence-Based).
         Ensures AI cannot enable features without recorded shadow performance.
         """
         logger.info(f"MindExperiment: Evaluating GATE request for {feature_name} (ENABLED={enabled})...")
@@ -81,7 +81,7 @@ class MindExperiment:
                 return {"success": False, "error": "Neural Guard: No shadow test evidence found."}
 
             # 2. EVIDENCE CHECK: Retrieve shadow performance from database
-            # In Samvid v1.0-beta-beta-beta, we require at least 5 variants of shadow results with positive expectation
+            # In Samvid v1.0-beta, we require at least 5 variants of shadow results with positive expectation
             try:
                 # Mock performance check - in production this queries QuestDB/SQLite
                 # We enforce that the AI cannot self-enable without performance metadata

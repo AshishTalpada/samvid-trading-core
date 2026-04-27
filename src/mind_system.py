@@ -21,7 +21,7 @@ class MindSystem:
         self.is_running = False
         self.lock = asyncio.Lock() # GAP-61 FIX: Serialized System Control
 
-        # 1. THE CERTIFIED COMMAND ALLOWLIST (Samvid v1.0-beta-beta-beta Safety Gate)
+        # 1. THE CERTIFIED COMMAND ALLOWLIST (Samvid v1.0-beta Safety Gate)
         # We only allow these specific, hardcoded operations.
         self.CERTIFIED_COMMANDS = {
             "RESTART_IBKR": [
@@ -116,7 +116,7 @@ class MindSystem:
 
             # 2. Filesystem Shallow-Scent (Fallback)
             if not found_paths_info:
-                # --- MT5 Scent-Blocker (v1.0-beta-beta-beta) ---
+                # --- MT5 Scent-Blocker (v1.0-beta) ---
                 if name.lower() == "mt5":
                     _ml = Vault.get("MT5_LOGIN")
                     if not _ml or "YOUR_MT5" in str(_ml).upper() or str(_ml).lower() == "none":
@@ -157,7 +157,7 @@ class MindSystem:
                             if dirpath.count(os.sep) - root.count(os.sep) > 3:
                                 break
 
-                # GAP-59 & GAP-66 FIX: Anti-Hijacking and Binary Trust Scent (Samvid v1.0-beta-beta-beta)
+                # GAP-59 & GAP-66 FIX: Anti-Hijacking and Binary Trust Scent (Samvid v1.0-beta)
                 trusted_zones = [r.lower() for r in common_roots if r]
                 for p in found_raw:
                     p_lower = p.lower()
@@ -234,7 +234,7 @@ class MindSystem:
             logger.warning(f"MindSystem: CRITICAL SERVICE REBOOT: {service_name}...")
             cmds = self.CERTIFIED_COMMANDS[service_name]
 
-            # RE-CALCULATE COMMANDS FOR IBKR if interface is specified in Vault (Samvid v1.0-beta-beta-beta Patch)
+            # RE-CALCULATE COMMANDS FOR IBKR if interface is specified in Vault (Samvid v1.0-beta Patch)
             from vault import Vault
             interface = Vault.get("IBKR_INTERFACE", "gateway").lower()
             if service_name == "RESTART_IBKR":
