@@ -4,18 +4,18 @@ src/dhatu_oracle.py - Dhatu Omniscience Global Knowledge Graph
 """
 
 import asyncio
-import numpy as np  # pyre-ignore[21]
 import json
 import logging  # pyre-ignore[21]
+import math
+import os
+import re
 import time
 from dataclasses import dataclass, field  # pyre-ignore[21]
 from datetime import datetime, timedelta  # pyre-ignore[21]
 from typing import TYPE_CHECKING, Any, Dict  # pyre-ignore[21]
 
 import httpx  # pyre-ignore[21]
-import math
-import os
-import re
+import numpy as np  # pyre-ignore[21]
 import websockets
 
 from api_cache import TTLCache  # pyre-ignore[21]
@@ -24,10 +24,9 @@ from telegram_alerts import send_telegram_alert
 
 if TYPE_CHECKING:
     from intelligence_bus import SharedIntelligenceBus  # pyre-ignore[21]
-    from bayesian_oracle import BayesianOracle
 
-from datetime import datetime, timedelta, timezone
-import websockets
+from datetime import timezone
+
 logger = logging.getLogger(__name__)
 
 
@@ -477,40 +476,40 @@ class NewsHarvester:
         """The 'Reading' logic: Uses heuristic scoring and LLM prioritization."""
         impact = 0.0
         sentiment = 0.0
-        
+
         # High-Impact keywords for fast heuristic scoring
         IMPACT_KEYWORDS = {
-            "FED": 0.8, "CPI": 0.7, "FOMC": 0.8, "POWELL": 0.7, 
+            "FED": 0.8, "CPI": 0.7, "FOMC": 0.8, "POWELL": 0.7,
             "HALT": 0.9, "CRASH": 0.9, "WAR": 0.8, "EXPLOSION": 0.8,
             "BREAKING": 0.5, "ALERT": 0.5
         }
-        
+
         for k, score in IMPACT_KEYWORDS.items():
             if k in headline.upper():
                 impact = max(impact, score)
-                
+
         # Simple sentiment heuristic (Temporary until LLM synthesis)
         BULL_WORDS = [
-            "BEAT", "UPGRADE", "RAISE", "POSITIVE", "GROWTH", "WIN", "SURGE", "PROFIT", 
+            "BEAT", "UPGRADE", "RAISE", "POSITIVE", "GROWTH", "WIN", "SURGE", "PROFIT",
             "BULLISH", "SUCCESS", "EXPAND", "BUY", "OUTPERFORM", "RECOVERY", "BOOM", "HIKE",
             "SHORT SQUEEZE" # GAP-25 FIX: Short Squeeze is explicitly Bullish
         ]
         BEAR_WORDS = [
-            "MISS", "DOWNGRADE", "LOWER", "NEGATIVE", "FALL", "LOSS", "DROP", "PLUNGE", 
+            "MISS", "DOWNGRADE", "LOWER", "NEGATIVE", "FALL", "LOSS", "DROP", "PLUNGE",
             "BEARISH", "FAILURE", "SHRINK", "SELL", "UNDERPERFORM", "CRASH", "SLUMP", "CUT"
         ]
-        
+
         for w in BULL_WORDS:
             if w in headline.upper(): sentiment += 0.25
         for w in BEAR_WORDS:
             if w in headline.upper(): sentiment -= 0.25
-            
+
         return {"headline": headline, "impact": impact, "sentiment": max(-1.0, min(1.0, sentiment))}
 
     async def run(self) -> None:
         self._running = True
         logger.info("NewsHarvester: Neural Reading Hub active.")
-        
+
         # Samvid v1.0-beta-beta: Persistent Client for connection pooling
         async with httpx.AsyncClient(timeout=httpx.Timeout(60.0, connect=30.0)) as client:
             while self._running:
@@ -529,20 +528,20 @@ class NewsHarvester:
                                     h = str(item.get("headline", ""))
                                     s_text = str(item.get("summary", ""))
                                     full_text = f"{h} {s_text}".upper()
-                                    
+
                                     # GAP-236 FIX: Scan both Headline and Body (Summary)
                                     is_dot = any(k.upper() in full_text for k in GEOPOLITICAL_KEYWORDS + MACRO_KEYWORDS)
                                     if (is_dot) and h not in self._last_headlines and processed < 5:
                                         self._last_headlines.add(h)
                                         processed += 1
                                         distilled = await self._distill_headline(f"{h} | {s_text}")
-                                        
+
                                         # ── NEURAL DELTA DETECTION (SE-11 Port) ──
                                         # Capture shift from 'last sentiment' to 'this headline'
                                         if distilled["impact"] > 0.6:
                                              self.status_summary = f"Synthesizing {h[:15]}..."
                                              logger.info(f"📰 HIGH IMPACT: {h} (Sentiment Shift: {distilled['sentiment']})")
-                                        
+
                                         if self.bus:
                                             await self.bus.publish("news.hft", {
                                                 "source": "Finnhub", "headline": h,
@@ -550,21 +549,21 @@ class NewsHarvester:
                                                 "impact": distilled["impact"], "sentiment": distilled["sentiment"],
                                                 "timestamp": datetime.now(timezone.utc).isoformat()
                                             })
-                            
+
                             self.status_summary = f"Monitoring {len(data)} Feeds"
                         else:
                             logger.error(f"NewsHarvester: API Error {resp.status_code} from Finnhub.")
-                    
+
                     if len(self._last_headlines) > 1000:
                         # Defensive sorting: ensure we only sort strings to prevent TypeError
                         current = sorted([str(x) for x in self._last_headlines])
                         self._last_headlines = set(current[-200:])
-    
+
                     await asyncio.sleep(60) # Poll every minute
 
                 except Exception as e:
                     logger.error(f"🚨 NewsHarvester: Neural Hub failure: {e}")
-                    await asyncio.sleep(60) 
+                    await asyncio.sleep(60)
 
 # =============================================================================
 # TRADINGVIEW NEWS SCENT (THE IMPERIAL FEED)
@@ -600,22 +599,22 @@ class TVNewsScent:
             while ptr < len(raw_data):
                 if not raw_data[ptr:].startswith('~m~'):
                     break
-                
+
                 # Find the second ~m~
                 end_len_idx = raw_data.find('~m~', ptr + 3)
                 if end_len_idx == -1:
                     break
-                
+
                 msg_len = int(raw_data[ptr + 3 : end_len_idx])
                 start_json = end_len_idx + 3
                 end_json = start_json + msg_len
-                
+
                 json_str = raw_data[start_json:end_json]
                 try:
                     results.append(json.loads(json_str))
                 except json.JSONDecodeError:
                     pass
-                
+
                 ptr = end_json
         except Exception:
             pass
@@ -625,7 +624,7 @@ class TVNewsScent:
         """Main WebSocket loop."""
         self._running = True
         logger.info("TVNewsScent: Initiating Imperial Scent Connection...")
-        
+
         headers = {
             "Origin": "https://www.tradingview.com",
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
@@ -637,7 +636,7 @@ class TVNewsScent:
                 target_url = self.url
                 target_headers = headers
                 async with websockets.connect(
-                    target_url, 
+                    target_url,
                     additional_headers=target_headers,
                     open_timeout=40.0,  # Increased for G3 network stability
                     ping_interval=10,
@@ -649,7 +648,7 @@ class TVNewsScent:
                     # 2. Subscribe to Global Feed (or specific targets)
                     # Note: 'news_feed' handles the streaming of headlines
                     await ws.send(self._format_message({"m": "news_feed", "p": [self.session_id, "news_feed:1:1:1:1", "ALL:ALL"]}))
-                    
+
                     logger.info("✓ TVNewsScent: Neural Scent Feed established (TradingView WS).")
 
                     async for message in ws:
@@ -658,7 +657,7 @@ class TVNewsScent:
                             if message.startswith("~h~"):
                                 await ws.send(message)
                                 continue
-                            
+
                             msgs = self._parse_messages(message)
                             for msg in msgs:
                                 if msg.get("m") == "news_item":
@@ -667,7 +666,7 @@ class TVNewsScent:
                                         item = p[1]
                                         headline = item.get("headline", "")
                                         source = item.get("source", "UNKNOWN")
-                                        
+
                                         if headline:
                                             logger.info(f"📰 TV_SCENT: [{source}] {headline}")
                                             # Broadcast to the machine's nervous system
@@ -680,7 +679,7 @@ class TVNewsScent:
                                                 })
             except Exception as e:
                 logger.error(f"⚠️ TVNewsScent: Neural Scent blip (Check Origin/Proxy): {e}")
-            
+
             # Samvid v1.0-beta-beta: Mandatory Neural Cooling (Prevents machine-gun reconnects)
             # Replaces the unstable fixed sleep inside the except block.
             await asyncio.sleep(15)
@@ -726,12 +725,12 @@ class DhatuOracle:
         self._ollama_base_url = _ob
         self._local_model = ollama_model
         self._gemini_model = gemini_model
-        
+
         # GAP-32: Interruptible refresh for 'Flash' events
         self._flash_event = asyncio.Event()
         self._flash_keywords = {"CRASH", "HALT", "WAR", "EXPLOSION", "LIQUIDATION", "PANIC", "FLASH", "CIRCUIT"}
         self._last_flash_time = 0.0 # Throttler
-        
+
         # GAP-70: Anti-Injection Sanitizer
         self._forbidden_neural = ["IGNORE ALL", "SYSTEM:", "USER:", "PREVIOUS INSTRUCTIONS", "SETTING:"]
 
@@ -754,7 +753,7 @@ class DhatuOracle:
             self._bus.on("macro.impact", self._on_macro_received)
             self._bus.on("institutional.flow", self._on_flow_received)
         self._background_tasks: list[asyncio.Task] = []
-        
+
         # --- BAYESIAN REWARD MECHANISM (Samvid v1.0-beta-beta Native Integration) ---
         from bayesian_oracle import BayesianOracle
         self._bayesian_oracle = BayesianOracle()
@@ -767,7 +766,7 @@ class DhatuOracle:
         h_raw = data.get("headline")
         s = data.get("source", "UNKNOWN")
         if not h_raw: return
-        
+
         # GAP-70 FIX: Neural Injection Shield
         h_up = h_raw.upper()
         h = h_raw
@@ -780,14 +779,14 @@ class DhatuOracle:
             self._news_buffer.append(f"[{s}] {h}")
             if len(self._news_buffer) > 100:
                 self._news_buffer.pop(0)
-            
+
             # GAP-32: Trigger 'Flash Refresh' with Throttle
             found_k = [k for k in self._flash_keywords if k in h_up]
             if found_k:
                 # GAP-80 Hardening: Negation awareness (Semantic Drift Protection)
                 negators = ["NOT ", "NO ", "NEVER ", "FALSE ", "DENIES ", "REJECTS ", "UNLIKELY "]
                 is_negated = any(neg + k in h_up for k in found_k for neg in negators)
-                
+
                 now = time.time()
                 # 5-minute cooldown between flashes to prevent LLM/Budget burnout
                 if not is_negated and (now - self._last_flash_time > 300):
@@ -820,11 +819,11 @@ class DhatuOracle:
         if spread <= 0:
              # Inverted spread or zero spread = MAXIMUM TENSION
              return 100.0
-        
+
         # TENSION = VOLUME / SPREAD^2 (Sovereign Paradox)
         # As spread tightens, tension explodes exponentially, signaling institutional exhaustion.
         tension = volume / (spread ** 2)
-        
+
         # Normalize to a 0-100 logarithmic scale
         # log10(1) = 0, log10(1,000,000) = 6
         normalized_tension = min(100.0, 15.0 * math.log10(max(1.0, tension)))
@@ -998,19 +997,19 @@ class DhatuOracle:
                 # GAP-32: Interruptible Sleep (Normal refresh OR Flash wake-up)
                 try:
                     await asyncio.wait_for(
-                        self._flash_event.wait(), 
+                        self._flash_event.wait(),
                         timeout=self._refresh_interval_minutes * 60
                     )
                     logger.warning("DhatuOracle: FLASH REFRESH triggered by neural scent.")
                 except asyncio.TimeoutError:
                     pass # Normal timed refresh
-                
+
                 self._flash_event.clear()
-                
+
                 # If flash/manual refresh, clear caches to force raw re-ingestion
                 await self._ticker_cache.clear()
                 await self._graph_cache.clear()
-                
+
                 state = await self._full_synthesis_cycle()
                 if state:
                     self._current_state = state
@@ -1066,7 +1065,7 @@ class DhatuOracle:
             except Exception as e:
                 logger.error(f"DhatuOracle synthesis cycle failed: {e}", exc_info=True)
                 # Wait before retry on failure
-                await asyncio.sleep(60) 
+                await asyncio.sleep(60)
 
     # ------------------------------------------------------------------
     # Stage 1: Ingestion
@@ -1083,7 +1082,7 @@ class DhatuOracle:
             # Fetch 2 days to get change percent
             df = await loop.run_in_executor(
                 None,
-                lambda: ticker.history(period="5d", interval="1d"),  # type: ignore
+                lambda t=ticker: t.history(period="5d", interval="1d"),  # type: ignore
             )
 
             snippets = []
@@ -1094,7 +1093,7 @@ class DhatuOracle:
                 tag = ""
                 if pct_change > 0.5: tag = f"{symbol}_UP"
                 elif pct_change < -0.5: tag = f"{symbol}_DOWN"
-                
+
                 # Special mapping for Macro logic
                 macro_tag = ""
                 if symbol == "^TNX": macro_tag = "YIELD_UP" if pct_change > 0.5 else ("YIELD_DOWN" if pct_change < -0.5 else "")
@@ -1105,7 +1104,7 @@ class DhatuOracle:
                 )
 
             # Fetch recent news
-            news = await loop.run_in_executor(None, lambda: ticker.news)  # type: ignore
+            news = await loop.run_in_executor(None, lambda t=ticker: t.news)  # type: ignore
             if news and isinstance(news, list):
                 for item in [news[i] for i in range(min(2, len(news)))]:
                     title = item.get("title", "")
@@ -1177,7 +1176,7 @@ class DhatuOracle:
         if not signals:
             logger.warning("DhatuOracle: EMPTY macro snapshot detected. Returning None to trigger safety fallback.")
             return None
-            
+
         return {
             "signals": signals,
             "timestamp": datetime.now(timezone.utc).isoformat(),
@@ -1294,24 +1293,24 @@ class DhatuOracle:
 
         score = 0
         vix_abs = 0.0
-        
+
         # 1. ANALYZE ABSOLUTE LEVELS & CHANGES
         for s in signals:
             s_up = s.upper()
             val = extract_val(s)
-            
+
             # VIX SENSING
             if "VIX" in s_up:
                 if val and val > 28.0:
                     score -= 3 # Absolute High Volatility
                     vix_abs = val
                 if "+" in s or "UP" in s_up: score -= 1 # Momentum
-            
+
             # S&P 500 SENSING
             if "S&P 500" in s_up or "SPY" in s_up:
                 if "-" in s or "DOWN" in s_up: score -= 2
                 if "+" in s or "UP" in s_up: score += 1
-            
+
             # YIELD / GOLD SENSING (CROSS-ASSET)
             if "YIELD" in s_up and val and val < 3.50: score -= 1 # Bond bid (Flight to quality)
             if "GOLD" in s_up and val and val > 2200: score -= 1 # Safe haven premium
@@ -1383,23 +1382,23 @@ class DhatuOracle:
 
     async def _synthesize_oracle_state(self, signals: list[str]) -> CausationGraph:
         """
-        Synthesizes the global macro regime using Adaptive Effort Scaling logic 
+        Synthesizes the global macro regime using Adaptive Effort Scaling logic
         ported from Anthropic's Claude-Code codebase.
         """
         logger.info("DhatuOracle: Initiating Adaptive Macro Synthesis...")
 
         signals_up = [s.upper() for s in signals]
         all_text = " ".join(signals_up)
-        
+
         # 0. PRELIMINARY VIX SCAN for Effort Scaling
         import re
         vix_m = re.search(r"VIX:\s*([\d\.]+)", all_text)
         vix_val = float(vix_m.group(1)) if vix_m else 20.0
-        
+
         # Adaptive Effort (Claude Rule #11)
         effort = self._evaluate_effort_needs(vix_val, 0.5)
         logger.info(f"Dhatu_Oracle: Using {effort.upper()} effort for Macro Synthesis.")
-        
+
         # DEBUG: Log the first 500 chars of the collected text
         logger.info(f"Dhatu_Oracle: RAW SIGNAL TEXT: {all_text[:500]}...")
 
@@ -1407,20 +1406,11 @@ class DhatuOracle:
         effort_mult = {"low": 1, "medium": 3, "high": 5, "max": 10}[effort]
 
         # 1. INSTITUTIONAL SENTIMENT MAP (Scaled by Effort)
-        risk_on_indicators = ["ARKK", "BTC", "TECH", "NASDAQ", "IWM", "RETAIL_BULLISH", "GAP_UP", "BREAKOUT"]
-        risk_off_indicators = ["GOLD", "VIX", "DXY", "USD", "SHELTER", "RETAIL_PANIC", "GAP_DOWN", "BREAKDOWN"]
-        macro_themes = {
-            "STAGFLATION": ["CPI_UP", "GDP_DOWN", "OIL_UP", "CORE_STORES"],
-            "GOLDILOCKS": ["CPI_STEADY", "GDP_UP", "EMPLOYMENT_STABLE"],
-            "LIQUIDITY_TRAP": ["YIELD_CURVE_INVERTED", "REVERSE_REPO_SPIKE"],
-            "DISINFLATIONARY_WHIPSAW": ["COMMODITY_CRASH", "YIELD_STEEPENING"]
-        }
-        
+
         # 2. CAUSATION EDGE GENERATION (Scaled Depth)
         edges = []
         macro_score = 0
-        liquidity_score = 0
-        
+
         # [LOW EFFORT PASS]
         if "YIELD_UP" in all_text:
             macro_score -= 2
@@ -1439,12 +1429,12 @@ class DhatuOracle:
              if vix_val > 35 and "DISTRIBUTION" in all_text:
                   edges.append(CausationEdge("SYSTEMIC_FAILURE", "LIQUIDITY_CRUNCH", "Sovereign Event Horizontal", 1.0))
                   macro_score -= 20 # Absolute Veto triggering logic
-        
+
         # --- BULLISH TRIGGERS (GAP-88 RESTORATION) ---
         if "NASDAQ_UP" in all_text and "YIELD_DOWN" in all_text:
              macro_score += 8
              edges.append(CausationEdge("GOLDILOCKS", "EQUITY_EXPANSION", "Monetary Ease Resonance", 0.9))
-        
+
         if "BTC_UP" in all_text and "NASDAQ_UP" in all_text:
              macro_score += 4
              edges.append(CausationEdge("RISK_ON", "SPECULATIVE_PULSE", "High Beta Alignment", 0.85))
@@ -1458,9 +1448,9 @@ class DhatuOracle:
         macro_bias = "NEUTRAL"
         if macro_score > 4: macro_bias = "BULLISH"
         elif macro_score < -4: macro_bias = "BEARISH"
-        
+
         uncertainty = 1.0 - min(0.9, (len(edges) * 0.2))
-        
+
         return CausationGraph(
             macro_bias=macro_bias,
             dominant_theme="ADAPTIVE_" + effort.upper(),
@@ -1503,7 +1493,7 @@ class DhatuOracle:
 
         # 1. Prepare Narrative Vector
         narrative = f"Theme: {graph.dominant_theme}. Bias: {graph.macro_bias}. Certainty: {graph.certainty:.1%}. " + ". ".join(all_signals)
-        
+
         # 2. Define Dhatu Archetype Definitions (The 'Intelligence' library)
         archetypes = {
             "Samyoga": "Strong alignment of catalysts, stable bullish momentum, order in market flow, high confidence.",
@@ -1518,27 +1508,27 @@ class DhatuOracle:
         try:
             from embedding_engine import SharedEmbeddingEngine
             engine = SharedEmbeddingEngine()
-            
+
             # Embed both the narrative and the archetypes
             narrative_vec = engine.embed([narrative])[0]
             archetype_keys = list(archetypes.keys())
             archetype_vecs = engine.embed(list(archetypes.values()))
-            
+
             # 3. COGNITIVE CALCULATION: Cosine Similarity Resonance
             import math
             def cosine_sim(v1, v2):
-                dot = sum(a*b for a, b in zip(v1, v2))
+                dot = sum(a*b for a, b in zip(v1, v2, strict=False))
                 mag1 = math.sqrt(sum(a*a for a in v1))
                 mag2 = math.sqrt(sum(a*a for a in v2))
                 return dot / (mag1 * mag2 + 1e-10)
 
             scores = [cosine_sim(narrative_vec, av) for av in archetype_vecs]
-            
+
             # Find the best match (The 'Reasoning' Result)
             top_idx = scores.index(max(scores))
             state_name = archetype_keys[top_idx]
             confidence = scores[top_idx]
-            
+
             reasoning = f"Semantic resonance detected match with {state_name} ({confidence:.1%} similarity). "
             reasoning += f"Primary themes: {graph.dominant_theme} and {graph.macro_bias}. Certainty: {graph.certainty:.1%}."
 
@@ -1546,8 +1536,10 @@ class DhatuOracle:
             logger.error(f"DhatuOracle: Semantic reasoning failed: {e}. Falling back to Rule-Engine.")
             # Deterministic Fallback if Embedding Engine fails
             state_name = "Sthira"
-            if graph.macro_bias == "BULLISH": state_name = "Samyoga"
-            elif graph.macro_bias == "BEARISH": state_name = "Kshaya"
+            if graph.macro_bias == "BULLISH":
+                state_name = "Samyoga"
+            elif graph.macro_bias == "BEARISH":
+                state_name = "Kshaya"
             confidence = 0.5
             reasoning = "Rule-based fallback active."
 
@@ -1593,11 +1585,11 @@ class DhatuOracle:
         if self._news_buffer:
             all_signals.extend(self._news_buffer)
             self._news_buffer = [] # Clear
-        
+
         if self._macro_buffer:
             all_signals.extend(self._macro_buffer)
             self._macro_buffer = []
-            
+
         if self._flow_buffer:
             all_signals.extend(self._flow_buffer)
             self._flow_buffer = []
@@ -1610,7 +1602,7 @@ class DhatuOracle:
 
         # Layer 3: Dhatu State Mapping
         state = await self._map_to_dhatu_state(graph, all_signals)
-        
+
         # --- BAYESIAN CONFIDENCE BLENDING (GAP-54) ---
         if state is not None:
              try:
@@ -1619,14 +1611,14 @@ class DhatuOracle:
                  vix = 15.0
                  prices = np.array([])
                  volumes = np.array([])
-                 
+
                  # Attempt to find prices in graph or news context
                  if self._ticker_cache:
                      spy_data = await self._ticker_cache.get("SPY")
                      if spy_data and isinstance(spy_data, dict):
                          prices = np.array(spy_data.get("prices", []))
                          volumes = np.array(spy_data.get("volumes", []))
-                 
+
                  if len(prices) >= 10:
                      bayes_state = self._bayesian_oracle.update(prices, volumes, vix)
                      original_conf = state.confidence
