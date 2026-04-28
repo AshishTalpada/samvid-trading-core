@@ -23,7 +23,7 @@ class PanelBoundary extends React.Component {
   }
 }
 
-/** 🪐 SOVEREIGN DASHBOARD | v1.0-beta-beta
+/** 🪐 SOVEREIGN DASHBOARD | v1.0-beta
  *  Three-column institutional command center.
  */
 
