@@ -2,7 +2,19 @@
 
 All notable changes to the **Samvid Trading Core** will be documented in this file.
 
-## [1.0.0-beta] - 2026-04-27
+## [1.0.0-beta] - 2026-04-28
+### Added
+- Official **Samvid v1.0-beta** release.
+- **Visual Demonstration Suite**: Added `src/demonstration.py` for live terminal simulation.
+- **HFT Hardening**: Optimized background task cancellation to ensure 100% clean shutdown.
+- **Resilient Embedding Fallback**: Implemented native Python hashing fallback for environments with missing `mmh3` binaries.
+
+### Fixed
+- Resolved Windows process-hangs during system exit (asyncio task drain fix).
+- Fixed DLL load failures on Windows for `mmh3` dependency.
+- Normalized versioning across all core system components.
+
+## [0.9.5-beta] - 2026-04-27
 ### Added
 - Initial public release on GitHub.
 - Full "Autonomous Agent Mesh" implementation.
