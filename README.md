@@ -50,11 +50,8 @@ graph TD
 
 ## 🖼️ Dashboard Preview
 
-![Cinematic Preview](docs/images/dashboard_cinematic.png)
-*High-conviction Intelligence Mesh Dashboard (Concept v1.0-beta)*
-
-![Dashboard Mockup](docs/images/samvid_dashboard_mockup.png)
-*Real-time telemetry and agent voting logs interface.*
+![Live Dashboard](docs/images/dashboard_live.png)
+*Live v1.0-beta Intelligence Dashboard showing real-time agent consensus and macro state synthesis.*
 
 ---
 
@@ -109,7 +106,7 @@ make dev
 ---
 
 ## 🛡️ License
-This project is currently under a proprietary license. For collaboration or access requests, please open an issue or contact the maintainer.
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
 ---
 
