@@ -50,7 +50,7 @@ graph TD
 
 ## 🖼️ Dashboard Preview
 
-![Live Dashboard](docs/images/dashboard_live.png)
+![Live Dashboard](docs/images/dashboard.png)
 *Live v1.0-beta Intelligence Dashboard showing real-time agent consensus and macro state synthesis.*
 
 ---
