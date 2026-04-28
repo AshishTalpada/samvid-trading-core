@@ -49,8 +49,12 @@ graph TD
 ---
 
 ## 🖼️ Dashboard Preview
+
+![Cinematic Preview](docs/images/dashboard_cinematic.png)
+*High-conviction Intelligence Mesh Dashboard (Concept v1.0-beta)*
+
 ![Dashboard Mockup](docs/images/samvid_dashboard_mockup.png)
-*Current v1.0-beta Intelligence Dashboard concept focusing on real-time telemetry and agent voting logs.*
+*Real-time telemetry and agent voting logs interface.*
 
 ---
 
