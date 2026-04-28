@@ -1,21 +1,31 @@
-# 🪐 Samvid Trading Core (v1.0-beta-beta)
+# 🪐 Samvid Trading Core (v1.0-beta)
 
 [![Build Status](https://github.com/AshishTalpada/samvid-trading-core/actions/workflows/main.yml/badge.svg)](https://github.com/AshishTalpada/samvid-trading-core/actions)
 [![Version](https://img.shields.io/badge/version-1.0.0--beta-cyan.svg)](https://github.com/AshishTalpada/samvid-trading-core/blob/main/CHANGELOG.md)
 [![Python](https://img.shields.io/badge/Python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![Linter](https://img.shields.io/badge/linting-ruff-black.svg)](https://github.com/astral-sh/ruff)
 
-**Status: Active Development | Core Agent Mesh Functional | Dashboard Telemetry Active**
+**Status: v1.0-beta Release | Core Agent Mesh Hardened | Live Demo Active**
 
-**Samvid** (Sanskrit for *Consensus* or *Shared Intelligence*) is an experimental, event-driven trading engine. Iteratively developed through 13 internal research versions, it utilizes a decentralized mesh of specialized agents that collaborate via a consensus-based voting model to manage trade discovery, macro-analysis, and execution.
+**Samvid** (Sanskrit for *Consensus* or *Shared Intelligence*) is an experimental, event-driven trading engine. Developed through multiple research iterations, it utilizes a decentralized mesh of specialized agents that collaborate via a consensus-based voting model to manage trade discovery, macro-analysis, and execution.
 
+---
+
+## 🚀 Live Demonstration
+
+Experience the "Samvid Intelligence Mesh" in action without any external dependencies.
+
+```bash
+# Run the live sovereign demonstration
+python src/demonstration.py
+```
 
 ---
 
 ## 🖼️ Visualizing the Mesh
 
-### Intelligence Dashboard (Real-time Telemetry)
-![Dashboard](docs/images/dashboard.png)
+### Intelligence Dashboard (v1.0-beta Concept)
+![Dashboard](docs/images/samvid_dashboard_mockup.png)
 
 ### Dhatu Macro-Causation Oracle (State Synthesis)
 ![Oracle](docs/images/oracle.png)
