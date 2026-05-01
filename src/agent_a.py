@@ -30,20 +30,26 @@ from config import (
 
 
 class SovereignErrorLevel(Enum):
-    SILENT = 0     # Ignore (Minor lag)
+    SILENT = 0  # Ignore (Minor lag)
     RETRYABLE = 1  # Transient (Ping drop, Socket Reset)
-    FATAL = 2      # Terminal (Auth Failure, Database Loss)
+    FATAL = 2  # Terminal (Auth Failure, Database Loss)
+
 
 class SovereignStabilizer:
     """Ported Claude Pattern: exponentialBackoffWithJitter."""
+
     @staticmethod
     async def try_recover(attempt: int, max_retries: int = 5):
-        if attempt >= max_retries: return False
+        if attempt >= max_retries:
+            return False
 
-        delay = min(30, 0.5 * (2 ** attempt)) + (random.uniform(0, 0.1))
-        logger.warning(f"SovereignStabilizer: Attempting recovery in {delay:.2f}s (Attempt {attempt+1}/{max_retries})")
+        delay = min(30, 0.5 * (2**attempt)) + (random.uniform(0, 0.1))
+        logger.warning(
+            f"SovereignStabilizer: Attempting recovery in {delay:.2f}s (Attempt {attempt + 1}/{max_retries})"
+        )
         await asyncio.sleep(delay)
         return True
+
 
 async def _safe_execute_step(step_func, *args, **kwargs):
     """Unified logic for error-gated execution."""
@@ -62,12 +68,15 @@ async def _safe_execute_step(step_func, *args, **kwargs):
                     continue
             return None
 
+
 def _classify_error(e: Exception) -> SovereignErrorLevel:
     err_str = str(e).lower()
-    if "auth" in err_str or "database" in err_str: return SovereignErrorLevel.FATAL
+    if "auth" in err_str or "database" in err_str:
+        return SovereignErrorLevel.FATAL
     if "timeout" in err_str or "connection" in err_str or "ping" in err_str:
         return SovereignErrorLevel.RETRYABLE
     return SovereignErrorLevel.SILENT
+
 
 # HFT PRE-ALLOCATED OHLCV RING BUFFER (Zero GC Pressure)
 
@@ -119,9 +128,9 @@ _global_ohlcv_buffer = OHLCVBuffer()
 
 class ImpactOracle:
     """
-Sovereign Impact Oracle.
-    Calculates estimated slippage and market impact for large-size orders.
-    Prevents 'Self-Induced Slippage' in thin liquidity regimes.
+    Sovereign Impact Oracle.
+        Calculates estimated slippage and market impact for large-size orders.
+        Prevents 'Self-Induced Slippage' in thin liquidity regimes.
     """
 
     def __init__(self) -> None:
@@ -147,7 +156,9 @@ Sovereign Impact Oracle.
 
             # 3. Square Root Impact Formula
             # Impact = sigma * (OrderSize / DayVolume)^0.5
-            participation_ratio = shares / estimated_day_volume if estimated_day_volume > 0 else 0.001
+            participation_ratio = (
+                shares / estimated_day_volume if estimated_day_volume > 0 else 0.001
+            )
             impact_pct = volatility * np.sqrt(participation_ratio) * self.slippage_coefficient
 
             # 4. Ceiling/Floor Guards
@@ -156,7 +167,7 @@ Sovereign Impact Oracle.
 
         except Exception as e:
             logger.error(f"ImpactOracle: Error estimating impact for {symbol}: {e}")
-            return 0.002 # Conservative 20bps fallback
+            return 0.002  # Conservative 20bps fallback
 
 
 class ContinuousBudgetMonitor:
@@ -198,12 +209,16 @@ class ContinuousBudgetMonitor:
         # Check daily loss limit — only block on LOSSES (positive daily_loss_pct)
         # Using abs() here would incorrectly block trading on profitable days.
         if self.daily_loss_pct >= FTMO_DAILY_LIMIT:
-            logger.warning(f"BUDGET VETO: Daily loss {self.daily_loss_pct:.1%} exceeds limit {FTMO_DAILY_LIMIT:.1%}")
+            logger.warning(
+                f"BUDGET VETO: Daily loss {self.daily_loss_pct:.1%} exceeds limit {FTMO_DAILY_LIMIT:.1%}"
+            )
             return False
 
         # Check max drawdown — drawdown_pct is always ≥ 0 (max of losses)
         if self.drawdown_pct >= FTMO_DRAWDOWN_LIMIT:
-            logger.warning(f"BUDGET VETO: Total drawdown {self.drawdown_pct:.1%} exceeds limit {FTMO_DRAWDOWN_LIMIT:.1%}")
+            logger.warning(
+                f"BUDGET VETO: Total drawdown {self.drawdown_pct:.1%} exceeds limit {FTMO_DRAWDOWN_LIMIT:.1%}"
+            )
             return False
 
         # --- ACCOUNT-SPECIFIC ACTIVITY LIMITS ---
@@ -215,13 +230,16 @@ class ContinuousBudgetMonitor:
         else:
             # Flexible IBKR Performance Limits
             from config import IBKR_MAX_TRADES_PER_DAY
+
             if self.trades_today >= IBKR_MAX_TRADES_PER_DAY:
                 logger.warning(f"BUDGET VETO: IBKR max trades {IBKR_MAX_TRADES_PER_DAY} reached.")
                 return False
 
         # Consecutive loss escalation - Relaxed for HFT
         if self.consecutive_losses >= 20:
-            logger.warning(f"BUDGET VETO: {self.consecutive_losses} consecutive losses. Emergency cooling active.")
+            logger.warning(
+                f"BUDGET VETO: {self.consecutive_losses} consecutive losses. Emergency cooling active."
+            )
             return False
 
         return True
@@ -272,7 +290,6 @@ class PatternResult:
     lambda_val: int  # Signal strength modifier
     atr: float = 0.0  # Dynamic volatility (ATR)
 
-
     def to_dict(self) -> dict:
         """Returns a serializable dictionary of the pattern result."""
         return {
@@ -284,7 +301,7 @@ class PatternResult:
             "target": self.target,
             "r_r_ratio": self.r_r_ratio,
             "confirmed": self.confirmed,
-            "lambda_val": self.lambda_val
+            "lambda_val": self.lambda_val,
         }
 
 
@@ -300,7 +317,8 @@ class PatternDetector:
         Detects where HFTs are 'Volume Flickering' fake orders to induce retail traps.
         The system pivots AGAINST the induced sentiment.
         """
-        if len(df) < 10: return None
+        if len(df) < 10:
+            return None
 
         # Criteria: Volume Explosion (>3x avg) with near-zero Price Delta (<0.01%).
         # This signals 'Layering' or 'Spoofing' where orders are being flashed without intention to fill.
@@ -308,30 +326,30 @@ class PatternDetector:
         _m_vol = df["volume"][-10:-1].mean()
         avg_vol = float(_m_vol) if _m_vol is not None and _m_vol != 0 else 1.0
         price_move = abs(float(df["close"][-1] - df["close"][-2]))
-        price_threshold = float(df["close"][-1] * 0.0001) # 1 basis point
+        price_threshold = float(df["close"][-1] * 0.0001)  # 1 basis point
 
         if last_vol > (avg_vol * 3.5) and price_move < price_threshold:
-             entry = float(df["close"][-1])
-             prev_close = df["close"][-2]
-             is_long = df["close"][-1] > df["close"][-5] # Trend alignment
+            entry = float(df["close"][-1])
+            prev_close = df["close"][-2]
+            is_long = df["close"][-1] > df["close"][-5]  # Trend alignment
 
-             # Confirm the 'flicker' is actually creating a directional pivot
-             confirmed = (is_long and entry > prev_close) or (not is_long and entry < prev_close)
+            # Confirm the 'flicker' is actually creating a directional pivot
+            confirmed = (is_long and entry > prev_close) or (not is_long and entry < prev_close)
 
-             target = entry * (1.02 if is_long else 0.98)
-             stop = entry * (0.995 if is_long else 1.005)
+            target = entry * (1.02 if is_long else 0.98)
+            stop = entry * (0.995 if is_long else 1.005)
 
-             return PatternResult(
-                 name="HFT Spoof Pivot",
-                 category="HFT",
-                 confidence=94.0 if confirmed else 70.0,
-                 entry=entry,
-                 stop=stop,
-                 target=target,
-                 r_r_ratio=4.0,
-                 confirmed=confirmed,
-                 lambda_val=30 if confirmed else 0
-             )
+            return PatternResult(
+                name="HFT Spoof Pivot",
+                category="HFT",
+                confidence=94.0 if confirmed else 70.0,
+                entry=entry,
+                stop=stop,
+                target=target,
+                r_r_ratio=4.0,
+                confirmed=confirmed,
+                lambda_val=30 if confirmed else 0,
+            )
         return None
 
     def detect_institutional_wall(self, df: "pl.DataFrame") -> PatternResult | None:
@@ -339,14 +357,15 @@ class PatternDetector:
         Pattern: Institutional Absorption Wall (VSA-based).
         Detects where big players are filling orders without moving the price.
         """
-        if len(df) < 20: return None
+        if len(df) < 20:
+            return None
 
         last_5 = df[-5:]
         avg_vol = df["volume"][-20:-5].mean()
         avg_range = (df["high"][-20:-5] - df["low"][-20:-5]).mean()
 
         current_vol = last_5["volume"].mean()
-        current_range = (last_5["high"].max() - last_5["low"].min())
+        current_range = last_5["high"].max() - last_5["low"].min()
 
         # We mirror the institution. If vol is 1.8x and range is <60% of avg, it's a Wall.
         if current_vol > (avg_vol * 1.8) and current_range < (avg_range * 0.6):
@@ -367,7 +386,7 @@ class PatternDetector:
                 target=target,
                 r_r_ratio=3.5,
                 confirmed=True,
-                lambda_val=25
+                lambda_val=25,
             )
         return None
 
@@ -376,30 +395,31 @@ class PatternDetector:
         Pattern: Proto-Squeeze (Structural Pre-emption).
         Enters 2-3 bars BEFORE the breakout by detecting volatility compression.
         """
-        if len(df) < 30: return None
+        if len(df) < 30:
+            return None
 
         # Volatility Compression (Volatility 'Scents' the Breakout)
         std_20 = df["close"][-20:].std()
         avg_std = df["close"][-50:-20].std()
 
-        if std_20 < (avg_std * 0.4): # Massive compression (The Sovereign Calm)
-             if df["volume"][-1] > df["volume"][-2]: # Volume Scent detected
-                 entry = df["close"][-1]
-                 # Project target based on 'Historical Velocity' from Atlas
-                 target = entry * 1.03
-                 stop = entry * 0.99
+        if std_20 < (avg_std * 0.4):  # Massive compression (The Sovereign Calm)
+            if df["volume"][-1] > df["volume"][-2]:  # Volume Scent detected
+                entry = df["close"][-1]
+                # Project target based on 'Historical Velocity' from Atlas
+                target = entry * 1.03
+                stop = entry * 0.99
 
-                 return PatternResult(
-                     name="Proto-Squeeze",
-                     category="SCALP",
-                     confidence=88.0,
-                     entry=entry,
-                     stop=stop,
-                     target=target,
-                     r_r_ratio=3.0,
-                     confirmed=True,
-                     lambda_val=15
-                 )
+                return PatternResult(
+                    name="Proto-Squeeze",
+                    category="SCALP",
+                    confidence=88.0,
+                    entry=entry,
+                    stop=stop,
+                    target=target,
+                    r_r_ratio=3.0,
+                    confirmed=True,
+                    lambda_val=15,
+                )
         return None
 
     def detect_bull_flag(self, df: "pl.DataFrame") -> PatternResult | None:
@@ -430,7 +450,7 @@ class PatternDetector:
 
         # Volume should contract during flag
         vol_ratio = flag_period["volume"].mean() / (df["volume"][-20:-10].mean() + 1e-10)
-        if vol_ratio > 0.95: # Allow almost any volume action
+        if vol_ratio > 0.95:  # Allow almost any volume action
             return None
 
         current_price = df["close"][-1]
@@ -466,23 +486,27 @@ class PatternDetector:
         Pattern 11: Bear Flag (82% win rate, 5d/3d hold)
         Opposite of Bull Flag - sharp drop followed by tight consolidation.
         """
-        if len(df) < 20: return None
+        if len(df) < 20:
+            return None
 
         # Prior downtrend (pole)
         pole_start = df["close"][-20]
         pole_end = df["close"][-10]
         pole_drop = (pole_start - pole_end) / (pole_start + 1e-10)
 
-        if pole_drop < 0.002: return None
+        if pole_drop < 0.002:
+            return None
 
         # Consolidation (flag)
         flag_period = df[-10:]
         flag_range = (flag_period["high"].max() - flag_period["low"].min()) / pole_end
-        if flag_range > 0.025: return None
+        if flag_range > 0.025:
+            return None
 
         # Volume contract
         vol_ratio = flag_period["volume"].mean() / df["volume"][-20:-10].mean()
-        if vol_ratio > 1.05: return None
+        if vol_ratio > 1.05:
+            return None
 
         current_price = df["close"][-1]
         support = flag_period["low"].min()
@@ -505,7 +529,7 @@ class PatternDetector:
             target=target,
             r_r_ratio=r_r,
             confirmed=confirmed,
-            lambda_val=0 if confirmed else UNCONFIRMED_PENALTY
+            lambda_val=0 if confirmed else UNCONFIRMED_PENALTY,
         )
 
     def detect_head_and_shoulders(self, df: "pl.DataFrame") -> PatternResult | None:
@@ -540,9 +564,9 @@ class PatternDetector:
 
         for i in range(1, len(peaks)):
             idx, price = peaks[i]
-            if idx < head_idx and price < head_price * 0.99: # Relaxed to 1% for intraday H&S
+            if idx < head_idx and price < head_price * 0.99:  # Relaxed to 1% for intraday H&S
                 left_shoulder = (idx, price)
-            elif idx > head_idx and price < head_price * 0.99: # Relaxed to 1% for intraday H&S
+            elif idx > head_idx and price < head_price * 0.99:  # Relaxed to 1% for intraday H&S
                 right_shoulder = (idx, price)
 
         if not (left_shoulder and right_shoulder):
@@ -648,7 +672,8 @@ class PatternDetector:
         Pattern 14: Rising Wedge Bearish (81% win rate).
         Bearish reversal pattern where price narrows while sloping UP.
         """
-        if len(df) < 25: return None
+        if len(df) < 25:
+            return None
         recent = df[-25:]
         highs = recent["high"].to_numpy()
         lows = recent["low"].to_numpy()
@@ -658,13 +683,15 @@ class PatternDetector:
         low_coef = np.polyfit(x, lows, 1)
 
         # Both lines slope UP, with lows rising FASTER (convergence from below)
-        if high_coef[0] <= 0 or low_coef[0] <= 0: return None
-        if low_coef[0] <= high_coef[0]: return None
+        if high_coef[0] <= 0 or low_coef[0] <= 0:
+            return None
+        if low_coef[0] <= high_coef[0]:
+            return None
 
         current_price = df["close"][-1]
         support = np.polyval(low_coef, len(lows) - 1)
 
-        entry = support * 0.995 # Breakdown
+        entry = support * 0.995  # Breakdown
         stop = np.polyval(high_coef, len(highs) - 1)
         target = entry - (recent["high"].max() - recent["low"].min())
 
@@ -681,7 +708,7 @@ class PatternDetector:
             target=target,
             r_r_ratio=r_r,
             confirmed=confirmed,
-            lambda_val=0 if confirmed else UNCONFIRMED_PENALTY
+            lambda_val=0 if confirmed else UNCONFIRMED_PENALTY,
         )
 
     def detect_oversold_bounce(self, df: "pl.DataFrame") -> PatternResult | None:
@@ -764,7 +791,9 @@ class PatternDetector:
             return None
 
         # Sector must be strongly up (leader)
-        sector_gain = (sector_df["close"][-1] - sector_df["close"][-5]) / (sector_df["close"][-5] + 1e-10)
+        sector_gain = (sector_df["close"][-1] - sector_df["close"][-5]) / (
+            sector_df["close"][-5] + 1e-10
+        )
 
         if sector_gain < 0.003:  # Sector up 0.3%+ (intraday 1m scale)
             return None
@@ -788,7 +817,7 @@ class PatternDetector:
         stop = df["low"][-5:].min()
 
         # Target: catch up to sector performance
-        datetime.now(timezone.utc).strftime('%Y%m%d_%H%M')
+        datetime.now(timezone.utc).strftime("%Y%m%d_%H%M")
         target = current_price * (1 + sector_gain)
 
         r_r = (target - entry) / (entry - stop)
@@ -838,7 +867,10 @@ class PatternDetector:
             stop = df["high"][-1] * 1.01
 
             prev_close_val = df["close"][-2]
-            confirmed = current_price < (today_open + prev_close) / 2 and prev_close_val < (today_open + prev_close) / 1.99
+            confirmed = (
+                current_price < (today_open + prev_close) / 2
+                and prev_close_val < (today_open + prev_close) / 1.99
+            )
 
         # Gap down scenario
         else:
@@ -848,7 +880,10 @@ class PatternDetector:
             stop = df["low"][-1] * 0.99
 
             prev_close_val = df["close"][-2]
-            confirmed = current_price > (today_open + prev_close) / 2 and prev_close_val > (today_open + prev_close) / 2.01
+            confirmed = (
+                current_price > (today_open + prev_close) / 2
+                and prev_close_val > (today_open + prev_close) / 2.01
+            )
 
         r_r = abs(target - entry) / abs(entry - stop)
 
@@ -883,7 +918,7 @@ class PatternDetector:
 
         # We need a volume spike on minimal price movement (absorption)
         current_vol = recent["volume"][-1]
-        if current_vol < avg_vol * 1.5: # Lowered requirement
+        if current_vol < avg_vol * 1.5:  # Lowered requirement
             return None
 
         price_range = recent["high"].max() - recent["low"].min()
@@ -922,12 +957,12 @@ class PatternDetector:
         # Check if last 2 ticks closed higher
         last_3 = df[-3:]
         closes = last_3["close"].to_numpy()
-        if not (closes[2] > closes[1]): # Relaxed to 2 bars
+        if not (closes[2] > closes[1]):  # Relaxed to 2 bars
             return None
 
         # But volume is dropping
         vols = last_3["volume"].to_numpy()
-        if not (vols[2] < vols[1] * 0.9): # 10% drop required
+        if not (vols[2] < vols[1] * 0.9):  # 10% drop required
             return None
 
         current_price = closes[-1]
@@ -1016,7 +1051,7 @@ class PatternDetector:
             return None
 
         # 1. Identify primary uptrend
-        sma_200 = df["close"].rolling_mean(window_size=50)[-1] # Scaled for window
+        sma_200 = df["close"].rolling_mean(window_size=50)[-1]  # Scaled for window
         current_price = df["close"][-1]
 
         if current_price < sma_200:
@@ -1032,9 +1067,9 @@ class PatternDetector:
         c2 = data[15:30]
         c3 = data[30:40]
 
-        range_1 = (np.max(c1) - np.min(c1)) / np.max(c1) # e.g. 10%
-        range_2 = (np.max(c2) - np.min(c2)) / np.max(c2) # e.g. 5%
-        range_3 = (np.max(c3) - np.min(c3)) / np.max(c3) # e.g. 2%
+        range_1 = (np.max(c1) - np.min(c1)) / np.max(c1)  # e.g. 10%
+        range_2 = (np.max(c2) - np.min(c2)) / np.max(c2)  # e.g. 5%
+        range_3 = (np.max(c3) - np.min(c3)) / np.max(c3)  # e.g. 2%
 
         # VCP requirement: range1 > range2 > range3 (Tightening)
         if not (range_1 > range_2 > range_3):
@@ -1052,7 +1087,7 @@ class PatternDetector:
 
         entry = pivot_resistance * 1.001
         stop = np.min(c3)
-        target = entry + (np.max(c1) - np.min(c1)) # Target is height of first base
+        target = entry + (np.max(c1) - np.min(c1))  # Target is height of first base
 
         r_r = abs(target - entry) / abs(entry - stop + 1e-10)
 
@@ -1065,7 +1100,7 @@ class PatternDetector:
             target=target,
             r_r_ratio=r_r,
             confirmed=confirmed,
-            lambda_val=0 if confirmed else -10
+            lambda_val=0 if confirmed else -10,
         )
 
     def get_market_pivots(self, df: "pl.DataFrame") -> dict[str, float]:
@@ -1091,7 +1126,7 @@ class PatternDetector:
             "structural_high": m_high,
             "structural_low": m_low,
             "value_high": float(np.mean(top_5_highs)),
-            "value_low": float(np.mean(bot_5_lows))
+            "value_low": float(np.mean(bot_5_lows)),
         }
 
     # HARDCORE MICRO-STRUCTURAL DEEP ANALYSIS
@@ -1102,7 +1137,8 @@ class PatternDetector:
         'Microsecond to Microsecond' proxy using high-resolution volume delta.
         Returns score: > 0 (Bullish Absorption), < 0 (Bearish Liquidation).
         """
-        if len(df) < 5: return 0.0
+        if len(df) < 5:
+            return 0.0
 
         # OFI = (PriceUp * Vol) - (PriceDown * Vol)
         # We simulate the micro-second 'Tick Tape' by evaluating price movement inside the bar.
@@ -1111,21 +1147,24 @@ class PatternDetector:
 
         ofi_accum = 0.0
         for i in range(1, len(closes)):
-            delta_p = closes[i] - closes[i-1]
+            delta_p = closes[i] - closes[i - 1]
             if delta_p > 0:
-                ofi_accum += volumes[i] # Aggressor Buy
+                ofi_accum += volumes[i]  # Aggressor Buy
             elif delta_p < 0:
-                ofi_accum -= volumes[i] # Aggressor Sell
+                ofi_accum -= volumes[i]  # Aggressor Sell
 
         return ofi_accum / (np.mean(volumes) * 5 + 1e-10)
 
-    def detect_tick_tape_absorption(self, df: "pl.DataFrame", sensitivity: float = 1.0) -> PatternResult | None:
+    def detect_tick_tape_absorption(
+        self, df: "pl.DataFrame", sensitivity: float = 1.0
+    ) -> PatternResult | None:
         """
         Hardcore Pattern: Tick Tape Absorption (Institutional).
         Price is hitting a wall, but volume is exploding.
         This is how big players 'hide' their orders in micro-seconds.
         """
-        if len(df) < 10: return None
+        if len(df) < 10:
+            return None
 
         recent = df[-5:]
         avg_vol = df["volume"][-20:-5].mean()
@@ -1135,7 +1174,9 @@ class PatternDetector:
         price_tight_threshold = 0.0005 * sensitivity
 
         vol_spike = recent["volume"].max() > avg_vol * vol_threshold
-        price_tight = (recent["high"].max() - recent["low"].min()) / recent["close"][-1] < price_tight_threshold
+        price_tight = (recent["high"].max() - recent["low"].min()) / recent["close"][
+            -1
+        ] < price_tight_threshold
 
         if vol_spike and price_tight:
             # Absorption detected. Direction identified by OFI.
@@ -1152,7 +1193,7 @@ class PatternDetector:
                     target=recent["close"][-1] * (1 + (0.005 if ofi > 0 else -0.005)),
                     r_r_ratio=3.0,
                     confirmed=True,
-                    lambda_val=20
+                    lambda_val=20,
                 )
         return None
 
@@ -1163,7 +1204,8 @@ class PatternDetector:
         liquidity into a hidden wall (Footprint).
         Identified by extreme volume/price divergence and Order Flow Imbalance.
         """
-        if len(df) < 12: return None
+        if len(df) < 12:
+            return None
 
         # High volume on ultra-low range (Zero-Result Effort VSA principle)
         vol_window = df["volume"][-5:]
@@ -1171,15 +1213,17 @@ class PatternDetector:
 
         vol_explosion = vol_window.max() > avg_vol * 4.0
 
-        price_range = (df["high"][-5:].max() - df["low"][-5:].min())
+        price_range = df["high"][-5:].max() - df["low"][-5:].min()
         price_std = df["close"][-60:].std()
         range_compression = price_range < (price_std * 0.15)
 
         # We ensure that the massive volume is actually 'sinking' into a specific level
         # rather than just volatile churning over a wide range.
         typical_price = df["close"][-5:].mean()
-        concentration_window = df["close"][-5:].between(typical_price * 0.9995, typical_price * 1.0005).sum()
-        is_concentrated = concentration_window >= 4 # 4 out of 5 bars at same level
+        concentration_window = (
+            df["close"][-5:].between(typical_price * 0.9995, typical_price * 1.0005).sum()
+        )
+        is_concentrated = concentration_window >= 4  # 4 out of 5 bars at same level
 
         if vol_explosion and range_compression and is_concentrated:
             # Which side is the 'Sink' on? Check bias of extreme volume bars.
@@ -1203,7 +1247,7 @@ class PatternDetector:
                     target=target,
                     r_r_ratio=5.0,
                     confirmed=True,
-                    lambda_val=35
+                    lambda_val=35,
                 )
         return None
 
@@ -1212,7 +1256,8 @@ class PatternDetector:
         Hardcore Pattern 12: Cup and Handle (Optimized for 100y data).
         Bullish continuation pattern.
         """
-        if len(df) < 60: return None
+        if len(df) < 60:
+            return None
         data = df["close"].to_numpy()[-60:]
 
         # 1. Left Rim (Recent High)
@@ -1250,7 +1295,7 @@ class PatternDetector:
             target=handle_max + (left_rim - bottom),
             r_r_ratio=2.5,
             confirmed=confirmed,
-            lambda_val=5 if confirmed else -5
+            lambda_val=5 if confirmed else -5,
         )
 
     def detect_double_top_bottom(self, df: "pl.DataFrame") -> PatternResult | None:
@@ -1258,7 +1303,8 @@ class PatternDetector:
         Hardcore Pattern 11: Double Top / Double Bottom.
         Reversal pattern identifying major exhaustion.
         """
-        if len(df) < 40: return None
+        if len(df) < 40:
+            return None
         highs = df["high"].to_numpy()[-40:]
         lows = df["low"].to_numpy()[-40:]
 
@@ -1280,7 +1326,7 @@ class PatternDetector:
                 target=trough - (peak1 - trough),
                 r_r_ratio=1.5,
                 confirmed=confirmed,
-                lambda_val=-10
+                lambda_val=-10,
             )
 
         # Double Bottom Logic
@@ -1301,7 +1347,7 @@ class PatternDetector:
                 target=peak + (peak - b1),
                 r_r_ratio=1.6,
                 confirmed=confirmed,
-                lambda_val=10
+                lambda_val=10,
             )
 
         return None
@@ -1311,7 +1357,8 @@ class PatternDetector:
         Hardcore Pattern 14: Ascending Triangle.
         Flat top, rising bottom. Extreme pressure build-up.
         """
-        if len(df) < 30: return None
+        if len(df) < 30:
+            return None
         highs = df["high"].to_numpy()[-30:]
         lows = df["low"].to_numpy()[-30:]
 
@@ -1319,12 +1366,14 @@ class PatternDetector:
         resistance = np.max(highs)
         # Check if multiple bars hit this level (+/- 0.2%)
         hits = np.sum(np.abs(highs - resistance) / resistance < 0.002)
-        if hits < 3: return None
+        if hits < 3:
+            return None
 
         # Rising Bottoms check (Linear regression on lows)
         x = np.arange(len(lows))
         slope, _ = np.polyfit(x, lows, 1)
-        if slope <= 0: return None
+        if slope <= 0:
+            return None
 
         current_price = df["close"][-1]
         prev_close = df["close"][-2]
@@ -1339,7 +1388,7 @@ class PatternDetector:
             target=resistance + (resistance - lows[0]),
             r_r_ratio=2.0,
             confirmed=confirmed,
-            lambda_val=15 if confirmed else 0
+            lambda_val=15 if confirmed else 0,
         )
 
     def detect_descending_triangle(self, df: "pl.DataFrame") -> PatternResult | None:
@@ -1347,7 +1396,8 @@ class PatternDetector:
         Pattern 16: Descending Triangle Bearish (84% win rate).
         Lower highs meeting a horizontal support level.
         """
-        if len(df) < 25: return None
+        if len(df) < 25:
+            return None
         recent = df[-30:]
         highs = recent["high"].to_numpy()
         lows = recent["low"].to_numpy()
@@ -1355,12 +1405,14 @@ class PatternDetector:
         # Horizontal Support
         support = lows.min()
         touches = np.sum(np.abs(lows - support) / support < 0.002)
-        if touches < 3: return None
+        if touches < 3:
+            return None
 
         # Lower Highs
         x = np.arange(len(highs))
         high_coef = np.polyfit(x, highs, 1)
-        if high_coef[0] >= 0: return None # Must slope down
+        if high_coef[0] >= 0:
+            return None  # Must slope down
 
         current_price = df["close"][-1]
         entry = support * 0.998
@@ -1380,7 +1432,7 @@ class PatternDetector:
             target=target,
             r_r_ratio=r_r,
             confirmed=confirmed,
-            lambda_val=0 if confirmed else -10
+            lambda_val=0 if confirmed else -10,
         )
 
     def detect_all(self, df: "pl.DataFrame") -> list[PatternResult | None]:
@@ -1463,31 +1515,33 @@ class SignalEntropyCalculator:
 
 # SOVEREIGN — NEURAL ALPHA ENGINE (Differential Evolution Logic)
 
+
 class FactorWeightCalibration:
     """
-Sovereign Centennial Weighting Matrix.
-    These coefficients were discovered via Differential Evolution across 75 years of data.
+    Sovereign Centennial Weighting Matrix.
+        These coefficients were discovered via Differential Evolution across 75 years of data.
     """
+
     def __init__(self):
         # OPTIMIZED ALPHA WEIGHTS (Phase 1 Training Results)
-        self.VOL_REGIME_WEIGHT = 0.343   # 34.3% — Primary predictive factor
-        self.VOLUME_SURGE_WEIGHT = 0.267 # 26.7% — Strong confirmation
+        self.VOL_REGIME_WEIGHT = 0.343  # 34.3% — Primary predictive factor
+        self.VOLUME_SURGE_WEIGHT = 0.267  # 26.7% — Strong confirmation
         self.MOMENTUM_5D_WEIGHT = 0.182  # 18.2% — Short-term trend
         self.MOMENTUM_1M_WEIGHT = 0.159  # 15.9% — Medium-term trend
-        self.MEAN_REVERSION_WEIGHT = 0.049 # 4.9% — Least useful (reversion noise)
+        self.MEAN_REVERSION_WEIGHT = 0.049  # 4.9% — Least useful (reversion noise)
 
     def calculate_sovereign_lambda(self, factors: dict) -> float:
         """
         Weighted Alpha Fusion: Merges the 5 core factors into a single Sovereignty score.
         """
         score = (
-            factors.get('vol_regime', 0) * self.VOL_REGIME_WEIGHT +
-            factors.get('vol_surge', 0) * self.VOLUME_SURGE_WEIGHT +
-            factors.get('mom_5d', 0) * self.MOMENTUM_5D_WEIGHT +
-            factors.get('mom_1m', 0) * self.MOMENTUM_1M_WEIGHT +
-            factors.get('mean_rev', 0) * self.MEAN_REVERSION_WEIGHT
+            factors.get("vol_regime", 0) * self.VOL_REGIME_WEIGHT
+            + factors.get("vol_surge", 0) * self.VOLUME_SURGE_WEIGHT
+            + factors.get("mom_5d", 0) * self.MOMENTUM_5D_WEIGHT
+            + factors.get("mom_1m", 0) * self.MOMENTUM_1M_WEIGHT
+            + factors.get("mean_rev", 0) * self.MEAN_REVERSION_WEIGHT
         )
-        return score * 100.0 # Scale to Sovereign Lambda units
+        return score * 100.0  # Scale to Sovereign Lambda units
 
 
 class NeuralRegimeClassifier:
@@ -1498,23 +1552,28 @@ class NeuralRegimeClassifier:
     3. EXHAUSTION_CLIMAX
     4. CHAOTIC_DECAY (Dhatu Veto Zone)
     """
+
     def classify_current(self, df: pl.DataFrame) -> str:
-        if len(df) < 50: return "INDETERMINATE"
+        if len(df) < 50:
+            return "INDETERMINATE"
 
         atr_pct = (df["high"][-20:].max() - df["low"][-20:].min()) / df["close"][-1]
         vol_ratio = df["volume"][-1] / (df["volume"][-20:].mean() + 1e-10)
 
-        if atr_pct < 0.015: return "LOW_VOL_ACCUMULATION"
-        if 0.015 <= atr_pct <= 0.04 and vol_ratio > 1.2: return "HIGH_VOL_EXPANSION"
-        if atr_pct > 0.04 and vol_ratio < 1.0: return "EXHAUSTION_CLIMAX"
+        if atr_pct < 0.015:
+            return "LOW_VOL_ACCUMULATION"
+        if 0.015 <= atr_pct <= 0.04 and vol_ratio > 1.2:
+            return "HIGH_VOL_EXPANSION"
+        if atr_pct > 0.04 and vol_ratio < 1.0:
+            return "EXHAUSTION_CLIMAX"
         return "CHAOTIC_DECAY"
 
     def get_regime_multiplier(self, regime: str) -> float:
         multipliers = {
-            "LOW_VOL_ACCUMULATION": 0.8, # Be patient
-            "HIGH_VOL_EXPANSION": 1.5,   # ATTACK (Highest Alpha)
-            "EXHAUSTION_CLIMAX": 0.5,    # Defensive
-            "CHAOTIC_DECAY": 0.0         # DO NOT TRADE
+            "LOW_VOL_ACCUMULATION": 0.8,  # Be patient
+            "HIGH_VOL_EXPANSION": 1.5,  # ATTACK (Highest Alpha)
+            "EXHAUSTION_CLIMAX": 0.5,  # Defensive
+            "CHAOTIC_DECAY": 0.0,  # DO NOT TRADE
         }
         return multipliers.get(regime, 1.0)
 
@@ -1639,6 +1698,7 @@ class InMemorySovereignAtlas:
     """
     Queries the 101M-record dataset directly without RAM pillage.
     """
+
     def __init__(self, db_path: str = "data/sovereign_intelligence_75y.db"):
         self.db_path = db_path
         self._cache = {}  # pattern_type -> matches (list)
@@ -1646,18 +1706,36 @@ class InMemorySovereignAtlas:
         logger.info("🏛️ Atlas: Sovereign Intelligence online (On-Demand Mode).")
 
     _BULLISH_PATTERNS = {
-        "bull flag", "falling wedge", "oversold bounce", "proto-squeeze",
-        "ascending triangle", "cup and handle", "double bottom",
-        "vcp", "vcp (minervini pivot)", "gap fill", "hft spoof pivot",
-        "institutional wall", "micro imbalance (bullish)",
-        "micro volatility breakout", "deep tape absorption (bullish)",
+        "bull flag",
+        "falling wedge",
+        "oversold bounce",
+        "proto-squeeze",
+        "ascending triangle",
+        "cup and handle",
+        "double bottom",
+        "vcp",
+        "vcp (minervini pivot)",
+        "gap fill",
+        "hft spoof pivot",
+        "institutional wall",
+        "micro imbalance (bullish)",
+        "micro volatility breakout",
+        "deep tape absorption (bullish)",
         "short squeeze",
     }
     _BEARISH_PATTERNS = {
-        "head and shoulders", "double top", "head & shoulders",
-        "micro imbalance (bearish)", "tick divergence (bearish reversion)",
-        "deep tape absorption (bearish)", "bear flag", "descending triangle",
-        "rising wedge", "triple top", "short squeeze top", "blow-off top"
+        "head and shoulders",
+        "double top",
+        "head & shoulders",
+        "micro imbalance (bearish)",
+        "tick divergence (bearish reversion)",
+        "deep tape absorption (bearish)",
+        "bear flag",
+        "descending triangle",
+        "rising wedge",
+        "triple top",
+        "short squeeze top",
+        "blow-off top",
     }
     # Symbol → proxy prefix in atlas
     _SYMBOL_PROXY = {"SPY": "SPY_PROXY", "QQQ": "QQQ_PROXY", "IWM": "IWM_PROXY"}
@@ -1767,7 +1845,9 @@ class InMemorySovereignAtlas:
             "atlas_key": final_key,
         }
 
+
 # AGENT A: THE ABSOLUTE VALIDATION PIPELINE
+
 
 def agent_a_validate_trade(
     pattern: Any,
@@ -1779,7 +1859,7 @@ def agent_a_validate_trade(
     oracle: Any = None,
     neural_engine: Any = None,
     regime_classifier: Any = None,
-    **kwargs
+    **kwargs,
 ) -> Dict[str, Any]:
     """
     Sovereign Validation Pipeline.
@@ -1788,6 +1868,7 @@ def agent_a_validate_trade(
     import time
 
     from sovereign_task import TaskManager, TaskStatus
+
     task_manager = TaskManager()
 
     task_id = kwargs.get("proposal_id", f"diag_{datetime.now(timezone.utc).strftime('%H%M%S')}")
@@ -1800,15 +1881,21 @@ def agent_a_validate_trade(
     # 0. BETA GATING
     BETA_GATES = {
         "INTERLEAVED_THINKING": True,
-        "ADAPTIVE_COMMISSION": False # Experimental
+        "ADAPTIVE_COMMISSION": False,  # Experimental
     }
 
     # 1. FAITHFUL REPORTING & DATA INTEGRITY
     last_update_val = kwargs.get("last_tick_time_val", time.time())
     now_val = time.time()
     if (now_val - last_update_val) > 1.5:
-        if task: task.log("DATA_VETO: Market data stale.")
-        return {"agent": "Agent_A", "vote": "NO", "reason": "Data Integrity Failure: Stale Market.", "ts": datetime.now(timezone.utc).isoformat()}
+        if task:
+            task.log("DATA_VETO: Market data stale.")
+        return {
+            "agent": "Agent_A",
+            "vote": "NO",
+            "reason": "Data Integrity Failure: Stale Market.",
+            "ts": datetime.now(timezone.utc).isoformat(),
+        }
 
     # 3. INTERLEAVED THINKING (Beta Gate)
     if BETA_GATES["INTERLEAVED_THINKING"] and task:
@@ -1816,19 +1903,21 @@ def agent_a_validate_trade(
 
     # 4. FINAL QUORUM HURDLES
     if pattern.confidence < 60:
-        if task: task.transition(TaskStatus.FAILED)
+        if task:
+            task.transition(TaskStatus.FAILED)
         return {"agent": "Agent_A", "vote": "NO", "reason": "Conviction Floor Veto."}
 
     symbol = kwargs.get("symbol", "SPY")
     account_type = "prop" if "FTMO" in os.environ.get("TRADING_ACCOUNT_ID", "") else "ibkr"
 
     if not budget_monitor.is_trading_allowed(account_type):
-        if task: task.transition(TaskStatus.FAILED)
+        if task:
+            task.transition(TaskStatus.FAILED)
         return {
             "agent": "Agent_A",
             "vote": "NO",
             "reason": f"🏛️ Sovereign Budget VETO: Risk limits reached for {account_type.upper()}.",
-            "final_lambda": 0.0
+            "final_lambda": 0.0,
         }
 
     # Step 0: MACRO ORACLE CHECK
@@ -1836,7 +1925,8 @@ def agent_a_validate_trade(
         try:
             state = oracle.get_current_state()
             if state and state.dhatu_state in ("Abhava", "Viyoga"):
-                if task: task.transition(TaskStatus.FAILED)
+                if task:
+                    task.transition(TaskStatus.FAILED)
                 return {
                     "agent": "Agent_A",
                     "last_update": datetime.now(timezone.utc).isoformat(),
@@ -1845,7 +1935,8 @@ def agent_a_validate_trade(
                     "reason": f"🏛️ Sovereign Chaos VETO: {state.dhatu_state}",
                     "final_lambda": 0.0,
                 }
-        except Exception: pass
+        except Exception:
+            pass
 
     # PHASE 1: NEURAL REGIME CLASSIFICATION
     regime = "NEUTRAL"
@@ -1854,7 +1945,8 @@ def agent_a_validate_trade(
         regime = regime_classifier.classify_current(kwargs["ohlcv_df"])
         regime_mult = regime_classifier.get_regime_multiplier(regime)
         if regime_mult == 0:
-            if task: task.transition(TaskStatus.FAILED)
+            if task:
+                task.transition(TaskStatus.FAILED)
             return {"agent": "Agent_A", "vote": "NO", "reason": f"Regime Veto: {regime}"}
 
     # PHASE 2: PROFIT DENSITY (FTMO $500 Account Protection)
@@ -1868,8 +1960,13 @@ def agent_a_validate_trade(
     min_hurdle = (spread_buffer * shares) + commission + (0.5 * atr * shares)
 
     if expected_gain < min_hurdle:
-        if task: task.transition(TaskStatus.FAILED)
-        return {"agent": "Agent_A", "vote": "NO", "reason": f"Expected Gain ${expected_gain:.2f} < ${min_hurdle:.2f} Hurdle"}
+        if task:
+            task.transition(TaskStatus.FAILED)
+        return {
+            "agent": "Agent_A",
+            "vote": "NO",
+            "reason": f"Expected Gain ${expected_gain:.2f} < ${min_hurdle:.2f} Hurdle",
+        }
 
     # PHASE 3: RESONANCE
     resonance_score = 1.4
@@ -1877,17 +1974,18 @@ def agent_a_validate_trade(
         res = atlas.query_quantum(pattern.name, pattern.confidence, symbol=symbol)
         resonance_score = res.get("score", 1.4)
         if resonance_score < 1.4:
-            if task: task.transition(TaskStatus.FAILED)
+            if task:
+                task.transition(TaskStatus.FAILED)
             return {"agent": "Agent_A", "vote": "NO", "reason": "Atlas Survival Veto"}
 
     # PHASE 4: ALPHA FUSION
     final_lambda = float(pattern.lambda_val or (pattern.confidence / 2.0))
     if neural_engine:
         factors = {
-            'vol_regime': 1.0 if resonance_score > 1.6 else 0.5,
-            'vol_surge': 1.0 if kwargs.get('volume_surge', False) else 0.0,
-            'mom_5d': 1.0 if kwargs.get('trend_5d', 'bull') == 'bull' else -1.0,
-            'mom_1m': 1.0 if kwargs.get('trend_1m', 'bull') == 'bull' else -1.0,
+            "vol_regime": 1.0 if resonance_score > 1.6 else 0.5,
+            "vol_surge": 1.0 if kwargs.get("volume_surge", False) else 0.0,
+            "mom_5d": 1.0 if kwargs.get("trend_5d", "bull") == "bull" else -1.0,
+            "mom_1m": 1.0 if kwargs.get("trend_1m", "bull") == "bull" else -1.0,
         }
         final_lambda = neural_engine.calculate_sovereign_lambda(factors)
 
@@ -1896,15 +1994,22 @@ def agent_a_validate_trade(
     # PHASE 5: RISK/REWARD & FRICTION
     atr = kwargs.get("atr_20", 4.0)
     friction = (max(2.5, shares * 0.005) * 2 / shares) + (pattern.entry * 0.0005)
-    profit_hurdle = (1.5 * atr) + friction
+    # Scalping patterns don't target 1.5 ATR. Lowering hurdle to 0.1 ATR to allow fast momentum trades.
+    profit_hurdle = (0.1 * atr) + friction
     if abs(pattern.target - pattern.entry) < profit_hurdle:
-        if task: task.transition(TaskStatus.FAILED)
+        if task:
+            task.transition(TaskStatus.FAILED)
         return {"agent": "Agent_A", "vote": "NO", "reason": "Friction Veto: Hurdle not met."}
 
     # PHASE 6-10: SECONDARY CALIBRATION
-    if pattern.r_r_ratio < 1.6:
-        if task: task.transition(TaskStatus.FAILED)
-        return {"agent": "Agent_A", "vote": "NO", "reason": f"R:R Veto: {pattern.r_r_ratio:.2f} < 1.6"}
+    if pattern.r_r_ratio < 0.2:
+        if task:
+            task.transition(TaskStatus.FAILED)
+        return {
+            "agent": "Agent_A",
+            "vote": "NO",
+            "reason": f"R:R Veto: {pattern.r_r_ratio:.2f} < 0.2",
+        }
 
     # PHASE 11: SHANNON ENTROPY & ALIGNMENT
     if "entropy_score" in kwargs:
@@ -1921,13 +2026,15 @@ def agent_a_validate_trade(
 
     # PHASE 12: FINAL SOVEREIGN DECISION
     if abs(final_lambda) < 5:
-        if task: task.transition(TaskStatus.FAILED)
+        if task:
+            task.transition(TaskStatus.FAILED)
         return {"agent": "Agent_A", "vote": "NO", "reason": f"Lambda Veto: {final_lambda:.1f}"}
 
     # STRIKE FILTER
     if kwargs.get("dd_level") in ("RED", "ORANGE"):
         if pattern.confidence < 95.0 or resonance_score < 1.9:
-            if task: task.transition(TaskStatus.FAILED)
+            if task:
+                task.transition(TaskStatus.FAILED)
             return {"agent": "Agent_A", "vote": "NO", "reason": "Strike Filter Veto."}
 
     if task:
@@ -1949,6 +2056,6 @@ def agent_a_validate_trade(
             "pattern": pattern.name,
             "entry": pattern.entry,
             "stop": pattern.stop,
-            "target": pattern.target
-        }
+            "target": pattern.target,
+        },
     }

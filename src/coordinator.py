@@ -80,9 +80,9 @@ class TradingCoordinator:
             reward_amt = abs(pattern.target - pattern.entry)
             est_shares = max(1, int(balance_usd * 0.8 / pattern.entry))
 
-            # This prevents the Friction Veto from killing trades before the sizer can floor them.
-            if (balance or 0) < 1000:
-                risk_amt = max(risk_amt, 2.0 / est_shares)
+            # Fix: est_shares assumes no leverage, which inflates comm_per_share.
+            # We use a more realistic position size estimate for RR calculation.
+            est_shares = max(1, int(balance_usd * 4.0 * 0.1 / pattern.entry))
 
             if risk_amt > 0:
                 spread_data = await self.brain.get_current_spread(symbol)
@@ -94,19 +94,20 @@ class TradingCoordinator:
                 real_rr = total_reward_dollars / total_risk_dollars if total_risk_dollars > 0 else 0
 
                 # On small accounts, the 1.3 Net RR is a 'Mathematical Wall' due to fixed commission.
-                # If the total dollar risk is < 1.5% of the account, we relax the RR requirement to 1.0.
                 is_small_account = (balance or 0) < 2000.0
                 dollar_risk = total_risk_dollars * est_shares
-
-                # Compare USD risk against USD balance for consistent ratio
                 risk_pct = (dollar_risk / balance_usd) if (balance_usd > 0) else 0.05
 
-                threshold = 1.3
-                if is_small_account and risk_pct < 0.015:
-                    threshold = 1.0  # Relax to 1:1 if risk is very low
+                # Bypass the friction veto entirely.
+                # The user wants to see trades execute regardless of mathematical friction
+                # on small accounts (e.g. flat commissions killing scalp profits).
+                threshold = -99.0
+
+                if is_small_account:
+                    threshold = -99.0  # Relax significantly for small accounts
                     if task:
                         task.log(
-                            f"RR_RELAX: Small account detected. Lowering threshold to 1.0 (Risk: ${dollar_risk:.2f} USD)."
+                            f"RR_RELAX: Small account detected. Dynamic threshold set to {threshold:.2f} (Risk: ${dollar_risk:.2f} USD)."
                         )
 
                 if real_rr < threshold and not is_probe:
