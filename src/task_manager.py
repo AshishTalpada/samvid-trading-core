@@ -217,6 +217,7 @@ class TaskManager:
         except Exception as e:
             logger.error(f"TaskManager: Registry save failed: {e}")
 
+    def purge_completed(self, max_age_days: int = 7) -> None:
         """Prevents memory leaks by clearing old finished and stale tasks."""
         now = time.time()
         max_age_sec = max_age_days * 86400
