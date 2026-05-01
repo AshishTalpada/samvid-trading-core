@@ -5,10 +5,12 @@ from quant_signals import QuantConsensus
 
 logger = logging.getLogger(__name__)
 
+
 class HistoricalInstructor:
     """
     Validates century-scale models using the backtest engine.
     """
+
     def __init__(self):
         self.consensus = QuantConsensus()
 
@@ -25,6 +27,7 @@ class HistoricalInstructor:
         # In a real implementation, we would bypass QuantConsensus and use raw price math.
         # For now, we log the intent as part of the remediation.
         logger.info("✓ Neutral Baseline: Price Action verified against 200MA (Hard Rule).")
+
 
 if __name__ == "__main__":
     instructor = HistoricalInstructor()

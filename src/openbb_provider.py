@@ -24,6 +24,7 @@ logger = logging.getLogger(__name__)
 _OPENBB_AVAILABLE = None  # None = not yet checked, True/False = checked
 obb = None  # type: ignore[assignment]
 
+
 def _try_load_openbb():
     """Lazy-load OpenBB SDK. Returns (is_available, obb_module)."""
     global _OPENBB_AVAILABLE, obb
@@ -31,6 +32,7 @@ def _try_load_openbb():
         return _OPENBB_AVAILABLE
     try:
         import importlib
+
         openbb = importlib.import_module("openbb")
         obb = openbb.obb
         _OPENBB_AVAILABLE = True
@@ -56,6 +58,7 @@ class OpenBBProvider:
         self._provider = preferred_provider
         self._initialized = False
         import os
+
         self._disabled_by_env = os.getenv("SOVEREIGN_DISABLE_OPENBB", "0") == "1"
         self._load_lock = asyncio.Lock()
 
@@ -126,7 +129,9 @@ class OpenBBProvider:
                     logger.warning("OpenBB SDK not available — falling back to yfinance.")
                     return False
             except asyncio.TimeoutError:
-                logger.warning("OpenBB SDK ingestion timed out (Slow Load) — falling back to yfinance for this cycle.")
+                logger.warning(
+                    "OpenBB SDK ingestion timed out (Slow Load) — falling back to yfinance for this cycle."
+                )
                 return False
             except Exception as e:
                 logger.error(f"OpenBB Loader Error: {e}")
@@ -134,6 +139,7 @@ class OpenBBProvider:
                 return False
         try:
             from vault import Vault
+
             pat = Vault.get("OPENBB_PAT")
 
             # This enables 'Active PAT' mode requested by the user.
@@ -146,6 +152,7 @@ class OpenBBProvider:
                     else:
                         # Fallback for older ODP versions: Environment variable injection
                         import os
+
                         os.environ["OPENBB_PLATFORM_PAT"] = pat
                         logger.info("✓ OpenBB PAT injected into environment (ODP Legacy Mode)")
                 except Exception as login_err:
@@ -276,7 +283,9 @@ class OpenBBProvider:
             import numpy as np
 
             if period_days > 100:
-                logger.warning(f"RSI/Technical period {period_days} too high, capping at 100 to prevent lag.")
+                logger.warning(
+                    f"RSI/Technical period {period_days} too high, capping at 100 to prevent lag."
+                )
                 period_days = 100
 
             start = (datetime.now() - timedelta(days=period_days)).strftime("%Y-%m-%d")

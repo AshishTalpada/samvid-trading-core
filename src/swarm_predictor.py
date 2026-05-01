@@ -64,7 +64,7 @@ class SwarmConsensus:
         now = datetime.now(timezone.utc)
         gen = self.generated_at
         if gen.tzinfo is None:
-             gen = gen.replace(tzinfo=timezone.utc)
+            gen = gen.replace(tzinfo=timezone.utc)
         return (now - gen) < timedelta(minutes=self._cache_minutes)
 
     def should_block_entry(self, entry_side: str = "long") -> bool:
@@ -89,8 +89,9 @@ class SwarmConsensus:
             return 1.0
 
         # Check alignment
-        is_aligned = (entry_side.lower() == "long" and self.bias == SwarmBias.BULLISH) or \
-                     (entry_side.lower() == "short" and self.bias == SwarmBias.BEARISH)
+        is_aligned = (entry_side.lower() == "long" and self.bias == SwarmBias.BULLISH) or (
+            entry_side.lower() == "short" and self.bias == SwarmBias.BEARISH
+        )
 
         if is_aligned:
             # Scale UP: 1.0 to 1.15
@@ -129,13 +130,18 @@ class ChromaDeepMemory:
 
         try:
             from embedding_engine import embedding_function
+
             fast_ef = embedding_function
             logger.info("✓ Chroma Memory using Shared Intelligence Embedding Engine")
         except ImportError:
-            logger.warning("Shared embedding engine not found locally, falling back to default Chroma embeddings")
+            logger.warning(
+                "Shared embedding engine not found locally, falling back to default Chroma embeddings"
+            )
             fast_ef = None
 
-        self.collection = self.client.get_or_create_collection(collection_name, embedding_function=fast_ef)
+        self.collection = self.client.get_or_create_collection(
+            collection_name, embedding_function=fast_ef
+        )
         try:
             count = int(self.collection.count())  # ChromaDB returns int directly
             logger.info(f"ChromaDB Memory Active: {count} memories in '{collection_name}'")
@@ -153,7 +159,7 @@ class ChromaDeepMemory:
             results = await asyncio.to_thread(
                 self.collection.query,
                 query_texts=[market_narrative],
-                n_results=limit * 3 # Wider sweep for compaction candidates
+                n_results=limit * 3,  # Wider sweep for compaction candidates
             )
             if not results or not results["documents"] or not results["documents"][0]:
                 return "", 0.0
@@ -167,6 +173,7 @@ class ChromaDeepMemory:
                 logger.info("🧠 [Memory]: Highly relevant Wisdom Token compacted.")
                 # Broadcast the newly synthesized truth to other agents
                 from telegram_alerts import send_telegram_alert
+
                 await send_telegram_alert(f"🏛️ *WISDOM DISCOVERED*\n{compacted_truth[:100]}...")
 
             memory_contexts = []
@@ -177,7 +184,7 @@ class ChromaDeepMemory:
                 if meta:
                     score += float(meta.get("confidence", 0.0)) * 10
                     if meta.get("bias") != "NEUTRAL":
-                         score += 5
+                        score += 5
                 scored_memories.append((score, meta, doc))
 
             scored_memories.sort(key=lambda x: x[0], reverse=True)
@@ -194,7 +201,8 @@ class ChromaDeepMemory:
 
     async def _compact_memories(self, documents: list[str], metadatas: list[dict]) -> str | None:
         """Compact multiple similar memories into a single synthesized wisdom token."""
-        if len(documents) < 3: return None
+        if len(documents) < 3:
+            return None
 
         # Heuristic: Combine the top 3 similar memories into a high-density alpha rule
         combined = "\n".join([f"- {d}" for d in documents[:3]])
@@ -202,7 +210,9 @@ class ChromaDeepMemory:
         # For now, we return a structured synthesis to preserve the 'Why'.
         return f"SYNTHESIZED WISDOM (n=3):\n{combined}\nREGIME_STABILITY: High"
 
-    async def store_memory(self, symbol: str, debate_summary: str, bias_str: str, confidence: float) -> None:
+    async def store_memory(
+        self, symbol: str, debate_summary: str, bias_str: str, confidence: float
+    ) -> None:
         """Embeds and saves a Swarm consensus into long term memory with alpha-tracking."""
         if not self.collection:
             return
@@ -216,7 +226,7 @@ class ChromaDeepMemory:
                         "symbol": symbol,
                         "bias": bias_str,
                         "confidence": confidence,
-                        "timestamp": datetime.now(timezone.utc).isoformat()
+                        "timestamp": datetime.now(timezone.utc).isoformat(),
                     }
                 ],
                 ids=[doc_id],
@@ -239,14 +249,22 @@ class SwarmPredictor:
         from datetime import datetime
 
         import pytz
-        tz = pytz.timezone('US/Eastern')
+
+        tz = pytz.timezone("US/Eastern")
         now = datetime.now(tz)
-        if now.weekday() >= 5: return False
-        market_open = now.replace(hour=9, minute=0, second=0, microsecond=0) # Incl. Pre-market lite
-        market_close = now.replace(hour=17, minute=0, second=0, microsecond=0) # Incl. Post-market lite
+        if now.weekday() >= 5:
+            return False
+        market_open = now.replace(
+            hour=9, minute=0, second=0, microsecond=0
+        )  # Incl. Pre-market lite
+        market_close = now.replace(
+            hour=17, minute=0, second=0, microsecond=0
+        )  # Incl. Post-market lite
         return market_open < now < market_close
 
-    def __init__(self, api_url: str = "", timeout_sec: float = 30.0, cache_minutes: int = 15) -> None:
+    def __init__(
+        self, api_url: str = "", timeout_sec: float = 30.0, cache_minutes: int = 15
+    ) -> None:
         self._api_url = api_url  # Stored for compatibility and tests
         self.consensus_history: list[SwarmConsensus] = []
         self._last_consensus: SwarmConsensus | None = None
@@ -275,7 +293,9 @@ class SwarmPredictor:
             self._model_fast = Vault.get("OLLAMA_MODEL_FAST", "qwen2.5:1.5b") or "qwen2.5:1.5b"
             self._model_heavy = Vault.get("OLLAMA_MODEL_HEAVY", "phi3:mini") or "phi3:mini"
             self._available = True
-            logger.info(f"✓ Native Swarm Intelligence: Load Balancing active across {len(self._ollama_urls)} nodes.")
+            logger.info(
+                f"✓ Native Swarm Intelligence: Load Balancing active across {len(self._ollama_urls)} nodes."
+            )
         elif self._openai_key:
             self._available = True
             self._model_fast = "gpt-4o-mini"
@@ -339,7 +359,7 @@ class SwarmPredictor:
         def _is_negated(word: str, text: str) -> bool:
             # Look back 25 characters for negation markers
             start = max(0, text.find(word) - 25)
-            precedence = text[start:text.find(word)].lower()
+            precedence = text[start : text.find(word)].lower()
             return any(neg in precedence for neg in ["not", "no ", "never", "avoid", "low", "weak"])
 
         bullish_words = ["bullish", "bull", "rally", "upward", "buy", "long", "rise", "breakout"]
@@ -364,7 +384,7 @@ class SwarmPredictor:
             if "neutral" in report_lower or "flat" in report_lower:
                 bias = SwarmBias.NEUTRAL
             else:
-                bias = SwarmBias.NEUTRAL # Still default for safety
+                bias = SwarmBias.NEUTRAL  # Still default for safety
 
         # Clamp confidence to [0.0, 1.0]
         raw_conf = float(data.get("confidence", 0.0))
@@ -389,13 +409,15 @@ class SwarmPredictor:
         self._url_index = (self._url_index + 1) % len(self._ollama_urls)
         return url
 
-    async def get_market_forecast(self, symbol: str, context: Dict[str, Any], effort: str = "medium") -> SwarmConsensus:
+    async def get_market_forecast(
+        self, symbol: str, context: Dict[str, Any], effort: str = "medium"
+    ) -> SwarmConsensus:
         """
         Unified Swarm Prediction.
         Combines SFI Flash-Inference, Advisor Logic, and Teammate Spawning.
         """
         if not self._available:
-             return self._neutral_consensus("Intelligence Provider Missing")
+            return self._neutral_consensus("Intelligence Provider Missing")
 
         # 1. CACHE CHECK
         cached = self._last_consensus
@@ -407,7 +429,9 @@ class SwarmPredictor:
         deep_memory_str, top_confidence = await self._memory.search_memory(seed_narrative)
 
         if top_confidence > 0.90:
-            logger.info(f"⚡ FLASH-INFERENCE: High-Resonance Ghost detected ({top_confidence:.1%}).")
+            logger.info(
+                f"⚡ FLASH-INFERENCE: High-Resonance Ghost detected ({top_confidence:.1%})."
+            )
             bias = SwarmBias.BULLISH if "BULLISH" in deep_memory_str.upper() else SwarmBias.BEARISH
             consensus = SwarmConsensus(
                 bias=bias,
@@ -415,7 +439,7 @@ class SwarmPredictor:
                 summary=f"Flash Resonance Hit: Mirroring historical win (Conf: {top_confidence:.1%})",
                 agent_count=1000807,
                 generated_at=datetime.now(timezone.utc),
-                symbol=symbol
+                symbol=symbol,
             )
             self._last_consensus = consensus
             return consensus
@@ -435,11 +459,17 @@ class SwarmPredictor:
         bear_weight = sum(w for b, w in votes if b == SwarmBias.BEARISH)
 
         final_bias = SwarmBias.NEUTRAL
-        if bull_weight > bear_weight: final_bias = SwarmBias.BULLISH
-        elif bear_weight > bull_weight: final_bias = SwarmBias.BEARISH
+        if bull_weight > bear_weight:
+            final_bias = SwarmBias.BULLISH
+        elif bear_weight > bull_weight:
+            final_bias = SwarmBias.BEARISH
 
         total_vote_weight = bull_weight + bear_weight
-        confidence = (max(bull_weight, bear_weight) / (total_vote_weight + 1e-10)) if total_vote_weight > 0 else 0.5
+        confidence = (
+            (max(bull_weight, bear_weight) / (total_vote_weight + 1e-10))
+            if total_vote_weight > 0
+            else 0.5
+        )
 
         consensus = SwarmConsensus(
             bias=final_bias,
@@ -447,7 +477,7 @@ class SwarmPredictor:
             summary=f"Swarm consensus via {len(votes)} agents. Resonance: {top_confidence:.1%}",
             agent_count=len(votes),
             generated_at=datetime.now(timezone.utc),
-            symbol=symbol
+            symbol=symbol,
         )
 
         self._last_consensus = consensus
@@ -455,13 +485,16 @@ class SwarmPredictor:
         # 4. Async Memory Commitment
         if confidence > 0.70:
             try:
-                await self._memory_queue.put({
-                    "symbol": symbol,
-                    "summary": f"High-Confidence {final_bias.value} debate for {symbol}.",
-                    "bias": final_bias.value,
-                    "confidence": confidence
-                })
-            except Exception: pass
+                await self._memory_queue.put(
+                    {
+                        "symbol": symbol,
+                        "summary": f"High-Confidence {final_bias.value} debate for {symbol}.",
+                        "bias": final_bias.value,
+                        "confidence": confidence,
+                    }
+                )
+            except Exception:
+                pass
 
         return consensus
 
@@ -485,21 +518,28 @@ class SwarmPredictor:
         # Default medium effort quorum
         return ["RiskOfficer", "TrendFollower", "MacroAnalyst"]
 
-    async def _simulate_teammate_inference(self, persona: str, context: dict, briefing: str) -> tuple:
+    async def _simulate_teammate_inference(
+        self, persona: str, context: dict, briefing: str
+    ) -> tuple:
         """Simulate a single LLM-driven persona's opinion in the swarm debate."""
         prompt = f"As a {persona}, analyze {context.get('symbol')} given: {context.get('pattern')}. Brief: {briefing}. End with: BIAS: [BULLISH/BEARISH/NEUTRAL]"
 
         # We use the fast model for individual agents
-        opinion = await self._prompt_agent(persona, f"You are a professional {persona} in a hedge fund.", prompt)
+        opinion = await self._prompt_agent(
+            persona, f"You are a professional {persona} in a hedge fund.", prompt
+        )
 
         bias = SwarmBias.NEUTRAL
-        if "BULLISH" in opinion.upper(): bias = SwarmBias.BULLISH
-        elif "BEARISH" in opinion.upper(): bias = SwarmBias.BEARISH
+        if "BULLISH" in opinion.upper():
+            bias = SwarmBias.BULLISH
+        elif "BEARISH" in opinion.upper():
+            bias = SwarmBias.BEARISH
 
         # Dynamic weight based on persona relevance to the current VIX
         weight = 0.8
         vix = float(context.get("vix", 20))
-        if persona == "RiskOfficer" and vix > 25: weight = 1.2 # Risk officer has more say in high vol
+        if persona == "RiskOfficer" and vix > 25:
+            weight = 1.2  # Risk officer has more say in high vol
 
         return bias, weight
 
@@ -519,7 +559,9 @@ class SwarmPredictor:
 
         if consensus.should_block_entry(entry_side):
             vote = "NO"
-            reason = f"VETO: Swarm contradictions detected! Bias: {consensus.bias.value} vs {entry_side}"
+            reason = (
+                f"VETO: Swarm contradictions detected! Bias: {consensus.bias.value} vs {entry_side}"
+            )
         elif consensus.confidence < 0.55 and consensus.bias != SwarmBias.NEUTRAL:
             # Weak directional conviction: flag as low-confidence but don't veto
             reason = f"LOW CONVICTION: {consensus.bias.value} @ {consensus.confidence:.1%} — proceed with caution"
@@ -533,12 +575,15 @@ class SwarmPredictor:
             "timestamp": context.get("timestamp", datetime.now(timezone.utc).isoformat()),
             "reason": reason,
             "bias": consensus.bias.value,
-            "agent_count": consensus.agent_count
+            "agent_count": consensus.agent_count,
         }
 
-    async def _prompt_agent(self, name: str, role: str, context: str, is_critical: bool = False) -> str:
+    async def _prompt_agent(
+        self, name: str, role: str, context: str, is_critical: bool = False
+    ) -> str:
         """Makes direct async call to grabbing a persona's opinion (Synchronized via Semaphore)."""
         import httpx
+
         try:
             import openai
 
@@ -553,6 +598,7 @@ class SwarmPredictor:
             client = self._openai_client
 
             from thermal_guard import ThermalGuard
+
             options = await ThermalGuard.get_handshake_options(is_critical=is_critical)
 
             kwargs = {
@@ -565,7 +611,7 @@ class SwarmPredictor:
                     },
                 ],
                 "temperature": 0.7,
-                "max_tokens": 150
+                "max_tokens": 150,
             }
             if self.use_local:
                 kwargs["extra_body"] = {"options": options}
@@ -581,7 +627,9 @@ class SwarmPredictor:
         except Exception as e:
             return f"Agent offline due to API error: {e}"
 
-    async def _synthesize_consensus(self, symbol: str, debate: str, persona_count: int = 5, is_critical: bool = True) -> SwarmConsensus:
+    async def _synthesize_consensus(
+        self, symbol: str, debate: str, persona_count: int = 5, is_critical: bool = True
+    ) -> SwarmConsensus:
         """The Chief Strategist reviews the agent outputs and returns structured consensus."""
         try:
             import json
@@ -615,7 +663,7 @@ class SwarmPredictor:
                     },
                 ],
                 "temperature": 0.4,
-                "response_format": {"type": "json_object"}
+                "response_format": {"type": "json_object"},
             }
             if self.use_local:
                 kwargs["extra_body"] = {"options": options}
@@ -626,7 +674,9 @@ class SwarmPredictor:
             try:
                 data = json.loads(txt)
             except json.JSONDecodeError:
-                logger.warning(f"SwarmPredictor: LLM returned invalid JSON — defaulting to neutral. Raw: {txt[:200]}")
+                logger.warning(
+                    f"SwarmPredictor: LLM returned invalid JSON — defaulting to neutral. Raw: {txt[:200]}"
+                )
                 data = {}
 
             b_str = data.get("bias", "NEUTRAL").upper()
@@ -648,7 +698,9 @@ class SwarmPredictor:
                 _cache_minutes=self._cache_minutes,
             )
         except (httpx.ConnectTimeout, httpx.ReadTimeout) as e:
-            logger.debug(f"Swarm Chief Strategist: OpenAI timeout — returning neutral ({type(e).__name__})")
+            logger.debug(
+                f"Swarm Chief Strategist: OpenAI timeout — returning neutral ({type(e).__name__})"
+            )
             return self._neutral_consensus("Chief Strategist offline (timeout)")
         except Exception as e:
             return self._neutral_consensus(f"Chief Strategist synthesis failed: {e}")
@@ -662,7 +714,13 @@ class SwarmPredictor:
 
         if ctx.get("news"):
             parts.append("\n<NEWS_DATA>")
-            injection_flags = ["ignore all ", "system override", "new instructions", "you are now", "forget everything"]
+            injection_flags = [
+                "ignore all ",
+                "system override",
+                "new instructions",
+                "you are now",
+                "forget everything",
+            ]
             for h in ctx["news"][:3]:
                 safe_h = str(h)
                 for flag in injection_flags:
@@ -698,7 +756,7 @@ class SwarmPredictor:
                     symbol=mem["symbol"],
                     debate_summary=mem["summary"],
                     bias_str=mem["bias"],
-                    confidence=mem["confidence"]
+                    confidence=mem["confidence"],
                 )
                 self._memory_queue.task_done()
             except asyncio.CancelledError:

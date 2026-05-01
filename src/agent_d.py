@@ -35,13 +35,14 @@ from typing import Any, Dict
 
 class LiveRecursiveEvolution:
     """
-Stable Evolution Engine.
-    Implements 'Learning Inertia' to prevent Luck-Based Weight Drift.
-    Ensures that as pattern maturity (n_count) grows, individual noisy outcomes
-    have diminishing impact on the core belief system.
+    Stable Evolution Engine.
+        Implements 'Learning Inertia' to prevent Luck-Based Weight Drift.
+        Ensures that as pattern maturity (n_count) grows, individual noisy outcomes
+        have diminishing impact on the core belief system.
     """
+
     def __init__(self, atlas: Any):
-        self.atlas = atlas # InMemorySovereignAtlas
+        self.atlas = atlas  # InMemorySovereignAtlas
 
     def evolve_live(self, pattern_name: str, pnl: float, regime: str, **kwargs):
         """
@@ -49,16 +50,20 @@ Stable Evolution Engine.
         Zero-Latency Learning with Anti-Recency bias.
         """
         # outcome: 1=WIN, -1=LOSS, 0=BE
-        if pnl > 0.0001: outcome = 1.0
-        elif pnl < -0.0001: outcome = -1.0
-        else: return # Break-even doesn't shift the weight state
+        if pnl > 0.0001:
+            outcome = 1.0
+        elif pnl < -0.0001:
+            outcome = -1.0
+        else:
+            return  # Break-even doesn't shift the weight state
 
         if not (self.atlas and getattr(self.atlas, "atlas_data", {})):
             return
 
         patterns = self.atlas.atlas_data.get(pattern_name, [])
         n_count = len(patterns)
-        if n_count == 0: return
+        if n_count == 0:
+            return
 
         # As n increases, the impact of 1 trade (alpha) decreases.
         # Base alpha 0.4 (40% impact for 1st trade) -> alpha 0.01 (1% impact for 400th trade)
@@ -76,7 +81,7 @@ Stable Evolution Engine.
         # This ensures recent losses don't erase 2-year-old alpha-drivers completely.
         count = 0
         for i in range(min(100, len(patterns))):
-            idx = -(i+1)
+            idx = -(i + 1)
             data = list(patterns[idx])
 
             # Recency Decay: 100% impact for current trade, 50% for 50th trade back
@@ -89,7 +94,10 @@ Stable Evolution Engine.
             patterns[idx] = tuple(data)
             count += 1
 
-        logging.info(f"🏛️ Evolution: Stable Rewire for '{pattern_name}'. Impact: {multiplier:.4f}x (Alpha: {alpha:.4f}, n={n_count}).")
+        logging.info(
+            f"🏛️ Evolution: Stable Rewire for '{pattern_name}'. Impact: {multiplier:.4f}x (Alpha: {alpha:.4f}, n={n_count})."
+        )
+
 
 class RegimeClassifier:
     """
@@ -448,16 +456,17 @@ class ConditionalExpectancyMatrix:
     Activates from trade #1 by using historical priors.
     As live trades increase, the prior's influence decays.
     """
+
     MIN_TRADES = 1  # Updated for Bayesian Warm-Start
 
     def __init__(self, db_path: str = "data/trading.db") -> None:
         self.db_path = db_path
         self.priors: dict[str, dict] = {}
         self.matrix: dict[str, ExpectancyData] = {}
-        self._raw_stats: dict[str, dict] = {} # Internal buffers for incremental updates
+        self._raw_stats: dict[str, dict] = {}  # Internal buffers for incremental updates
         self.activated = False
         self.gate = StatisticalSignificanceGate()
-        self.n_live_historical = 0 # Tracks total live trades processed
+        self.n_live_historical = 0  # Tracks total live trades processed
         self._load_priors()
 
     def _load_priors(self) -> None:
@@ -470,10 +479,18 @@ class ConditionalExpectancyMatrix:
         if target_path.exists():
             try:
                 self.priors = json.loads(target_path.read_text())
-                source = "Dynamic (Evolutionary)" if target_path == dynamic_path else "Static (Historical)"
-                logging.getLogger(__name__).info(f"ConditionalExpectancyMatrix: {source} Priors loaded.")
+                source = (
+                    "Dynamic (Evolutionary)"
+                    if target_path == dynamic_path
+                    else "Static (Historical)"
+                )
+                logging.getLogger(__name__).info(
+                    f"ConditionalExpectancyMatrix: {source} Priors loaded."
+                )
             except Exception as e:
-                logging.getLogger(__name__).warning(f"ConditionalExpectancyMatrix: Failed to load priors: {e}")
+                logging.getLogger(__name__).warning(
+                    f"ConditionalExpectancyMatrix: Failed to load priors: {e}"
+                )
 
     def save_priors(self) -> None:
         """Persist current weighted matrix as dynamic priors for the next session."""
@@ -492,21 +509,22 @@ class ConditionalExpectancyMatrix:
                 output[pattern][regime] = {
                     "win_rate": round(data.win_rate, 3),
                     "avg_r": round(data.avg_r, 3),
-                    "n": data.n_trades
+                    "n": data.n_trades,
                 }
 
             save_path = Path("scratch/priors/dynamic_priors.json")
             save_path.parent.mkdir(parents=True, exist_ok=True)
             save_path.write_text(json.dumps(output, indent=4))
-            logging.getLogger(__name__).info(f"ConditionalExpectancyMatrix: System Wisdom persisted to {save_path}")
+            logging.getLogger(__name__).info(
+                f"ConditionalExpectancyMatrix: System Wisdom persisted to {save_path}"
+            )
         except Exception as e:
-            logging.getLogger(__name__).error(f"ConditionalExpectancyMatrix: Persistence failed: {e}")
+            logging.getLogger(__name__).error(
+                f"ConditionalExpectancyMatrix: Persistence failed: {e}"
+            )
 
     def build(
-        self,
-        trade_history: Any,
-        total_count: int | None = None,
-        incremental: bool = False
+        self, trade_history: Any, total_count: int | None = None, incremental: bool = False
     ) -> dict[str, ExpectancyData]:
         """
         Build or update the expectancy matrix while minimizing RAM.
@@ -535,13 +553,19 @@ class ConditionalExpectancyMatrix:
                         "weighted_n": float(prior_n),
                         "weighted_wins": float(prior_n * prior_wr),
                         "weighted_r": float(prior_n * prior_r),
-                        "is_prior": True
+                        "is_prior": True,
                     }
 
         # 2. Iterate and Update
         # If total_count is provided, we use it for the decay baseline
-        n_base = total_count if total_count is not None else (
-            len(trade_history) if isinstance(trade_history, list) else (self.n_live_historical + 1)
+        n_base = (
+            total_count
+            if total_count is not None
+            else (
+                len(trade_history)
+                if isinstance(trade_history, list)
+                else (self.n_live_historical + 1)
+            )
         )
 
         for i, trade in enumerate(trade_history):
@@ -557,10 +581,16 @@ class ConditionalExpectancyMatrix:
             key = f"{pattern}|{regime}|{session}"
             if key not in self._raw_stats:
                 self._raw_stats[key] = {
-                    "pattern": pattern, "regime": regime, "session": session,
-                    "n": 0, "wins": 0, "total_r": 0.0,
-                    "weighted_n": 0.0, "weighted_wins": 0.0, "weighted_r": 0.0,
-                    "is_prior": False
+                    "pattern": pattern,
+                    "regime": regime,
+                    "session": session,
+                    "n": 0,
+                    "wins": 0,
+                    "total_r": 0.0,
+                    "weighted_n": 0.0,
+                    "weighted_wins": 0.0,
+                    "weighted_r": 0.0,
+                    "is_prior": False,
                 }
 
             self._raw_stats[key]["n"] += 1
@@ -583,7 +613,7 @@ class ConditionalExpectancyMatrix:
                 self.n_live_historical += 1
 
         if incremental:
-            self.n_live_historical += (i + 1)
+            self.n_live_historical += i + 1
 
         # 3. Finalize ExpectancyData objects
         self.matrix = {}
@@ -597,26 +627,27 @@ class ConditionalExpectancyMatrix:
                 total_r=d["total_r"],
                 weighted_n=d["weighted_n"],
                 weighted_wins=d["weighted_wins"],
-                weighted_r=d["weighted_r"]
+                weighted_r=d["weighted_r"],
             )
         return self.matrix
 
     def _normalize_regime(self, regime: str) -> str:
         """Bug 39 FIX: Regime Normalization (Chala -> VOLATILE mapping)."""
-        if not regime: return "UNKNOWN"
+        if not regime:
+            return "UNKNOWN"
         r = str(regime).upper()
-        if r in ("CHALA", "VOLATILE", "HIGH_VOL"): return "VOLATILE"
-        if r in ("BULL", "BULLISH", "UPTREND"): return "BULL"
-        if r in ("BEAR", "BEARISH", "DOWNTREND"): return "BEAR"
-        if r in ("CHOPPY", "SIDEWAYS", "RANGE"): return "CHOPPY"
+        if r in ("CHALA", "VOLATILE", "HIGH_VOL"):
+            return "VOLATILE"
+        if r in ("BULL", "BULLISH", "UPTREND"):
+            return "BULL"
+        if r in ("BEAR", "BEARISH", "DOWNTREND"):
+            return "BEAR"
+        if r in ("CHOPPY", "SIDEWAYS", "RANGE"):
+            return "CHOPPY"
         return r
 
     def get_win_rate(
-        self,
-        pattern: str,
-        regime: str,
-        session: str = "RTH",
-        default: float = 0.55
+        self, pattern: str, regime: str, session: str = "RTH", default: float = 0.55
     ) -> float:
         """
         Get the calibrated win rate for a specific condition combination.
@@ -976,7 +1007,6 @@ class CalibrationPipeline:
 
         return vars(report)
 
-
     def monthly_audit(self, trade_history: list[dict]) -> dict:
         """
         Run full monthly audit.
@@ -1120,7 +1150,9 @@ class CalibrationPipeline:
 # CONVENIENCE FUNCTION — used by brain.py
 
 
-def run_after_trade(trade_result: dict, n_total: int, n_wins: int, recent_trades: list[dict]) -> dict:
+def run_after_trade(
+    trade_result: dict, n_total: int, n_wins: int, recent_trades: list[dict]
+) -> dict:
     """
     Run Agent D's learning cycle after every completed trade.
     Optimized for RAM.
@@ -1139,7 +1171,11 @@ def run_after_trade(trade_result: dict, n_total: int, n_wins: int, recent_trades
     matrix_active = n_total >= ConditionalExpectancyMatrix.MIN_TRADES
 
     # Quick entropy estimate from recent trend
-    wr_recent = sum(1 for t in recent_trades if t.get("outcome") == "WIN") / len(recent_trades) if recent_trades else 0.5
+    wr_recent = (
+        sum(1 for t in recent_trades if t.get("outcome") == "WIN") / len(recent_trades)
+        if recent_trades
+        else 0.5
+    )
     wr_all = n_wins / n_total if n_total else 0.5
     wr_trend = wr_recent - wr_all
 
@@ -1209,7 +1245,7 @@ class LiveLearningEngine:
         self,
         db_path: str = "data/trading.db",
         bus: SharedIntelligenceBus | None = None,
-        evolution_engine: LiveRecursiveEvolution | None = None, # Hyper-Sovereign Wiring
+        evolution_engine: LiveRecursiveEvolution | None = None,  # Hyper-Sovereign Wiring
         dms: Any = None,
     ) -> None:
         self.db_path = db_path
@@ -1221,11 +1257,10 @@ class LiveLearningEngine:
         self._entropy = SystemEntropyMonitor()
         self._n_trades = 0
         self._n_wins = 0
-        self._recent_trades: _deque[dict] = _deque(maxlen=200) # RAM-Lean buffer
+        self._recent_trades: _deque[dict] = _deque(maxlen=200)  # RAM-Lean buffer
         self._candle_queue: _asyncio.Queue | None = None
         self._ensure_table()
         self._load_history()
-
 
     def _ensure_table(self) -> None:
         """Create the agent_d_trades table if it doesn't exist."""
@@ -1248,43 +1283,56 @@ class LiveLearningEngine:
             conn.row_factory = _sqlite3.Row
 
             # 1. Get totals via SQL to avoid loading 1,000,000 rows into RAM
-            row = conn.execute("SELECT COUNT(*), SUM(CASE WHEN outcome='WIN' THEN 1 ELSE 0 END) FROM agent_d_trades").fetchone()
+            row = conn.execute(
+                "SELECT COUNT(*), SUM(CASE WHEN outcome='WIN' THEN 1 ELSE 0 END) FROM agent_d_trades"
+            ).fetchone()
             self._n_trades = row[0] if row else 0
             self._n_wins = row[1] if row and row[1] else 0
 
             # 2. Rebuild Matrix via streaming SQL aggregation
             if self._n_trades >= ConditionalExpectancyMatrix.MIN_TRADES:
-                _lld_logger.info(f"LiveLearningEngine: Bootstrapping Matrix from {self._n_trades} trades (Streaming SQL)...")
+                _lld_logger.info(
+                    f"LiveLearningEngine: Bootstrapping Matrix from {self._n_trades} trades (Streaming SQL)..."
+                )
 
                 # Fetch only required columns for matrix build
-                cursor = conn.execute("SELECT pattern, regime, session, outcome, r_multiple FROM agent_d_trades")
+                cursor = conn.execute(
+                    "SELECT pattern, regime, session, outcome, r_multiple FROM agent_d_trades"
+                )
 
                 # Use a generator to build matrix without a full list copy
                 def trade_generator():
                     while True:
                         rows = cursor.fetchmany(1000)
-                        if not rows: break
+                        if not rows:
+                            break
                         for r in rows:
                             yield {
                                 "pattern": r[0],
                                 "regime": r[1],
                                 "session": r[2],
                                 "outcome": r[3],
-                                "r_multiple": r[4]
+                                "r_multiple": r[4],
                             }
 
                 self._matrix.build(trade_generator(), total_count=self._n_trades)
-                _lld_logger.info("LiveLearningEngine: ConditionalExpectancyMatrix ACTIVATED (RAM-Lean Warm-Start)")
+                _lld_logger.info(
+                    "LiveLearningEngine: ConditionalExpectancyMatrix ACTIVATED (RAM-Lean Warm-Start)"
+                )
 
             # 3. Load only the most RECENT trades for trend tracking
-            rows = conn.execute("SELECT * FROM agent_d_trades ORDER BY id DESC LIMIT 200").fetchall()
+            rows = conn.execute(
+                "SELECT * FROM agent_d_trades ORDER BY id DESC LIMIT 200"
+            ).fetchall()
             conn.close()
             # Store reversed to maintain ASC order in the deque
             for r in reversed(rows):
                 self._recent_trades.append(dict(r))
 
             rating = self._gate.rate_data(self._n_trades)
-            _lld_logger.info(f"LiveLearningEngine: History Handled (Total: {self._n_trades} trades, Rating: {rating})")
+            _lld_logger.info(
+                f"LiveLearningEngine: History Handled (Total: {self._n_trades} trades, Rating: {rating})"
+            )
         except Exception as e:
             _lld_logger.warning(f"LiveLearningEngine: history load failure: {e}")
             self._n_trades = 0
@@ -1330,7 +1378,6 @@ class LiveLearningEngine:
         except Exception as e:
             _lld_logger.warning(f"LiveLearningEngine: batch persist failed: {e}")
 
-
     async def _handle_trade_exit(self, payload: dict) -> None:
         """
         Handle a "trade.exit" bus event.
@@ -1369,9 +1416,7 @@ class LiveLearningEngine:
         # --- HYPER-SOVEREIGN BREAKTHROUGH: LIVE RECURSIVE RE-WIRE (SE-11) ---
         if self.evolution_engine:
             self.evolution_engine.evolve_live(
-                pattern_name=trade["pattern"],
-                pnl=trade["pnl"],
-                regime=trade["regime"]
+                pattern_name=trade["pattern"], pnl=trade["pnl"], regime=trade["regime"]
             )
 
         # Build matrix if threshold crossed (AND trade is NOT dirty)
@@ -1379,7 +1424,9 @@ class LiveLearningEngine:
         if result["matrix_active"] and not is_dirty:
             # Re-incrementally build matrix? No, for now we let build() take
             # the single new trade to be fast.
-            matrix_data_raw = self._matrix.build([trade], total_count=self._n_trades, incremental=True)
+            matrix_data_raw = self._matrix.build(
+                [trade], total_count=self._n_trades, incremental=True
+            )
             # Condense to top patterns for the bus payload
             top_patterns = []
             for key, ed in sorted(
@@ -1405,7 +1452,9 @@ class LiveLearningEngine:
         # This prevents 'Amnesia' if the system crashes between the 50-trade cycles.
         if self._matrix.activated and not is_dirty:
             await _asyncio.to_thread(self._matrix.save_priors)
-            _lld_logger.info(f"🧠 [Agent D Evolution]: Trade #{n} integrated. System Wisdom permanently anchored.")
+            _lld_logger.info(
+                f"🧠 [Agent D Evolution]: Trade #{n} integrated. System Wisdom permanently anchored."
+            )
 
     async def _publish_calibration(self) -> None:
         """Publish calibration.update so Brain can tune thresholds live."""
@@ -1418,7 +1467,9 @@ class LiveLearningEngine:
             return
 
         last_trade = self._recent_trades[-1] if self._recent_trades else {}
-        result = run_after_trade(last_trade, self._n_trades, self._n_wins, list(self._recent_trades))
+        result = run_after_trade(
+            last_trade, self._n_trades, self._n_wins, list(self._recent_trades)
+        )
 
         # Build matrix data
         matrix_data: dict = {}
@@ -1455,7 +1506,6 @@ class LiveLearningEngine:
             },
         )
 
-
     async def run(self) -> None:
         """
         Subscribe to bus events and process them.
@@ -1473,7 +1523,7 @@ class LiveLearningEngine:
 
         # --- PILLAR 7: AUTODREAM REFLECTION (SE-11 Port) ---
         last_dream_at = 0
-        DREAM_INTERVAL = 3600 * 2 # dream every 2 hours
+        DREAM_INTERVAL = 3600 * 2  # dream every 2 hours
 
         while True:
             try:
@@ -1483,14 +1533,18 @@ class LiveLearningEngine:
                 # --- 🪞 DEEP REFLECTION PULSE ---
                 now = time.time()
                 if (now - last_dream_at) > DREAM_INTERVAL and self._n_trades >= 5:
-                    _lld_logger.info("🧠 [Agent D]: Initiating Sovereign Dream (Deep Reflection)...")
+                    _lld_logger.info(
+                        "🧠 [Agent D]: Initiating Sovereign Dream (Deep Reflection)..."
+                    )
                     await self._deep_reflection()
                     last_dream_at = now
 
                 # Wait for a trade exit
                 try:
                     payload = await _asyncio.wait_for(q.get(), timeout=60.0)
-                    _lld_logger.info("🧠 INTELLIGENCE: New trade outcome received. Evolving Matrix...")
+                    _lld_logger.info(
+                        "🧠 INTELLIGENCE: New trade outcome received. Evolving Matrix..."
+                    )
                     await self._handle_trade_exit(payload)
                 except (_asyncio.TimeoutError, TimeoutError):
                     continue
@@ -1511,7 +1565,9 @@ class LiveLearningEngine:
         try:
             # 1. MEASURE ENTROPY
             last_trade = self._recent_trades[-1] if self._recent_trades else {}
-            stats = run_after_trade(last_trade, self._n_trades, self._n_wins, list(self._recent_trades))
+            stats = run_after_trade(
+                last_trade, self._n_trades, self._n_wins, list(self._recent_trades)
+            )
             entropy = stats["entropy_level"]
 
             # 2. CONSOLIDATE WISDOM
@@ -1520,12 +1576,19 @@ class LiveLearningEngine:
                 "n_trades": self._n_trades,
                 "win_rate": self._n_wins / self._n_trades if self._n_trades > 0 else 0,
                 "entropy_state": entropy,
-                "top_performers": [k for k, v in sorted(self._matrix.matrix.items(), key=lambda x: x[1].win_rate, reverse=True)[:5]]
+                "top_performers": [
+                    k
+                    for k, v in sorted(
+                        self._matrix.matrix.items(), key=lambda x: x[1].win_rate, reverse=True
+                    )[:5]
+                ],
             }
 
             # 3. SELF-CORRECTION (RE-WIRE IF DECAYING)
             if entropy == "HIGH ENTROPY":
-                _lld_logger.warning("🚨 [Agent D]: HIGH ENTROPY DETECTED. Forcing Emergency Weight Anchoring.")
+                _lld_logger.warning(
+                    "🚨 [Agent D]: HIGH ENTROPY DETECTED. Forcing Emergency Weight Anchoring."
+                )
                 # Reset Bayesian Alpha to be more aggressive for recovery
                 if self.evolution_engine:
                     # Logic shift: increased learning rate during crisis
@@ -1539,7 +1602,6 @@ class LiveLearningEngine:
         except Exception as e:
             _lld_logger.error(f"Sovereign Dream failed: {e}")
 
-
     def get_win_rate(self, pattern: str, regime: str, session: str = "RTH") -> float:
         """
         Get calibrated win rate for a pattern+regime combo.
@@ -1547,7 +1609,9 @@ class LiveLearningEngine:
         """
         return self._matrix.get_win_rate(pattern, regime, session, default=0.60)
 
-    def evaluate_proposal(self, pattern_name: str, regime: str, session: str = "RTH") -> Dict[str, Any]:
+    def evaluate_proposal(
+        self, pattern_name: str, regime: str, session: str = "RTH"
+    ) -> Dict[str, Any]:
         """
         Provides Agent D's vote based on historical performance data.
         """
@@ -1572,10 +1636,11 @@ class LiveLearningEngine:
             "agent": "Agent_D",
             "vote": vote,
             "confidence": win_rate,
-            "signal_strength": 1.0 if rating == "STRONG" else (0.5 if rating == "MODERATE" else 0.1),
+            "signal_strength": 1.0
+            if rating == "STRONG"
+            else (0.5 if rating == "MODERATE" else 0.1),
             "risk_flag": win_rate < 0.55,
             "reason": reason,
             "win_rate": win_rate,
-            "data_rating": rating
+            "data_rating": rating,
         }
-

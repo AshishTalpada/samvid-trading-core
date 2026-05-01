@@ -76,17 +76,17 @@ class SharedIntelligenceBus:
         self._max_publish_tasks = 50
 
         self.TOPIC_PRIORITIES = {
-            "oracle.freeze": 0,    # Hard Stop (Abhava)
-            "trade.exit": 1,      # Portfolio preservation
-            "trade.entry": 2,     # Capture opportunity
-            "trade.vetting": 3,   # Cognitive load
-            "tick.hft": 5,        # 100Hz stream (Pulse)
-            "news.hft": 6,        # High-freq news
-            "institutional.flow": 7, # Large size alerts (Impact)
-            "candle.batch": 12,   # 1m/5m/1h closures
-            "oracle.state": 15,   # Routine updates
-            "calibration.update": 20, # Slow learning
-            "macro.impact": 20,   # 15m synthesis
+            "oracle.freeze": 0,  # Hard Stop (Abhava)
+            "trade.exit": 1,  # Portfolio preservation
+            "trade.entry": 2,  # Capture opportunity
+            "trade.vetting": 3,  # Cognitive load
+            "tick.hft": 5,  # 100Hz stream (Pulse)
+            "news.hft": 6,  # High-freq news
+            "institutional.flow": 7,  # Large size alerts (Impact)
+            "candle.batch": 12,  # 1m/5m/1h closures
+            "oracle.state": 15,  # Routine updates
+            "calibration.update": 20,  # Slow learning
+            "macro.impact": 20,  # 15m synthesis
         }
 
     # Priority Queue Wrapper (Maintains Backward Compatibility)
@@ -96,6 +96,7 @@ class SharedIntelligenceBus:
         Extends PriorityQueue so 'await q.get()' returns payload, NOT the priority tuple.
         This allows us to swap FIFO with PriorityQueue without breaking the 89 GAPs already coded.
         """
+
         async def get(self) -> Any:
             priority_tuple = await super().get()
             if isinstance(priority_tuple, tuple) and len(priority_tuple) == 4:
@@ -115,7 +116,9 @@ class SharedIntelligenceBus:
         q = self.PriorityQueueWrapper(maxsize=maxsize)
         # Store a weak reference to the queue
         self._subscribers.setdefault(topic, []).append(weakref.ref(q))
-        logger.debug(f"BUS: subscribed to '{topic}' (Memory-Safe Queue #{len(self._subscribers[topic])})")
+        logger.debug(
+            f"BUS: subscribed to '{topic}' (Memory-Safe Queue #{len(self._subscribers[topic])})"
+        )
         return q
 
     def unsubscribe(self, topic: str, queue: "asyncio.PriorityQueue[Any]") -> None:
@@ -123,8 +126,7 @@ class SharedIntelligenceBus:
         if topic in self._subscribers:
             # Match by the underlying object the weakref points to
             self._subscribers[topic] = [
-                r for r in self._subscribers[topic]
-                if r() is not None and r() is not queue
+                r for r in self._subscribers[topic] if r() is not None and r() is not queue
             ]
 
     # Subscribe via Callback (push model)
@@ -136,6 +138,7 @@ class SharedIntelligenceBus:
         """
         # Determine if we should use WeakMethod (for instance methods) or ref (for functions)
         import inspect
+
         if inspect.ismethod(handler):
             ref = weakref.WeakMethod(handler)
         else:
@@ -143,7 +146,9 @@ class SharedIntelligenceBus:
                 ref = weakref.ref(handler)
             except TypeError:
                 # Fallback for things that cannot be weakref'd (rare in this system)
-                logger.warning(f"BUS: Handler {handler} cannot be weakref'd. Using strong reference.")
+                logger.warning(
+                    f"BUS: Handler {handler} cannot be weakref'd. Using strong reference."
+                )
                 ref = handler
 
         self._callbacks.setdefault(topic, []).append(ref)
@@ -164,7 +169,6 @@ class SharedIntelligenceBus:
             target_obj = getattr(handler, "__self__", handler)
             weakref.finalize(target_obj, _cleanup_worker, worker, weakref.ref(self), h_id)
 
-
         logger.debug(f"BUS: callback registered for '{topic}' (Memory-Safe Matrix ONLINE)")
 
     def _prune_dead_references(self) -> None:
@@ -172,7 +176,8 @@ class SharedIntelligenceBus:
         # 1. Prune Callbacks
         for topic in list(self._callbacks.keys()):
             self._callbacks[topic] = [
-                r for r in self._callbacks[topic]
+                r
+                for r in self._callbacks[topic]
                 if (isinstance(r, (weakref.WeakMethod, weakref.ReferenceType)) and r() is not None)
                 or not isinstance(r, (weakref.WeakMethod, weakref.ReferenceType))
             ]
@@ -182,7 +187,8 @@ class SharedIntelligenceBus:
         # 2. Prune Subscribers (Queues)
         for topic in list(self._subscribers.keys()):
             self._subscribers[topic] = [
-                r for r in self._subscribers[topic]
+                r
+                for r in self._subscribers[topic]
                 if isinstance(r, weakref.ReferenceType) and r() is not None
             ]
             if not self._subscribers[topic]:
@@ -199,7 +205,11 @@ class SharedIntelligenceBus:
             try:
                 payload = await q.get()
 
-                handler = handler_ref() if isinstance(handler_ref, (weakref.WeakMethod, weakref.ReferenceType)) else handler_ref
+                handler = (
+                    handler_ref()
+                    if isinstance(handler_ref, (weakref.WeakMethod, weakref.ReferenceType))
+                    else handler_ref
+                )
 
                 if handler is None:
                     logger.debug("BUS: Handler collected by GC. Terminating worker.")
@@ -215,7 +225,7 @@ class SharedIntelligenceBus:
                 # Check for .__name__ or .__class__.__name__ or str()
                 h_name = getattr(handler_ref, "__name__", "unknown_handler")
                 logger.error(f"BUS: handler {h_name} raised error: {e}")
-                await asyncio.sleep(0.1) # Cool down
+                await asyncio.sleep(0.1)  # Cool down
 
     def off(self, topic: str, handler: Callable) -> None:
         """Remove an async callback."""
@@ -269,6 +279,7 @@ class SharedIntelligenceBus:
 
         # Capture timestamp to ensure FIFO for equal priority (Pillar 12 safety)
         from time import monotonic
+
         ts = monotonic()
 
         # Envelope for PriorityQueue matching: (priority, counter, ts, payload)
@@ -296,9 +307,9 @@ class SharedIntelligenceBus:
             if priority >= 10:
                 return
             else:
-                 # High-priority: run synchronously but briefly
-                 await self._publish_with_concurrency(topic, p_item, r_item)
-                 return
+                # High-priority: run synchronously but briefly
+                await self._publish_with_concurrency(topic, p_item, r_item)
+                return
 
         task = asyncio.create_task(self._publish_with_concurrency(topic, p_item, r_item))
         self._pending_publish_tasks.add(task)
@@ -369,9 +380,10 @@ class SharedIntelligenceBus:
 
             # Verify HMAC-SHA256 of current 30s window timestamp
             from time_sync import TimeSync
+
             ts = int(TimeSync.now().timestamp()) // 30
             valid_auth = False
-            for offset in (0, -1, 1): # Standard +/- 30s window
+            for offset in (0, -1, 1):  # Standard +/- 30s window
                 msg = str(ts + offset).encode()
                 expected = hmac.new(server_key.encode(), msg, hashlib.sha256).hexdigest()
                 if hmac.compare_digest(token, expected):
@@ -430,6 +442,7 @@ class SharedIntelligenceBus:
             """Robust JSON serialization that handles complex broker objects and non-serializable types."""
             import decimal
             from datetime import date, datetime
+
             if isinstance(obj, (datetime, date)):
                 return obj.isoformat()
             if isinstance(obj, decimal.Decimal):
@@ -438,7 +451,9 @@ class SharedIntelligenceBus:
                 return obj.to_dict()
             if hasattr(obj, "__dict__"):
                 # Handle generic objects by converting their __dict__ (Surgical conversion)
-                return {k: _safe_serialize(v) for k, v in obj.__dict__.items() if not k.startswith("_")}
+                return {
+                    k: _safe_serialize(v) for k, v in obj.__dict__.items() if not k.startswith("_")
+                }
             return str(obj)
 
         try:
@@ -492,6 +507,7 @@ _bus: SharedIntelligenceBus | None = None
 import threading
 
 _bus_lock = threading.Lock()
+
 
 def get_bus() -> SharedIntelligenceBus:
     """

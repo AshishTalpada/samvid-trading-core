@@ -1,4 +1,5 @@
 """src/indicators/averages.py — EMA, SMA, WMA"""
+
 from __future__ import annotations
 
 from collections import deque
@@ -6,6 +7,7 @@ from collections import deque
 
 class EMA:
     """Exponential Moving Average — O(1) incremental update."""
+
     def __init__(self, period: int):
         self.period = period
         self._alpha = 2.0 / (period + 1)
@@ -35,6 +37,7 @@ class EMA:
 
 class SMA:
     """Simple Moving Average using a fixed-size deque."""
+
     def __init__(self, period: int):
         self.period = period
         self._buf: deque[float] = deque(maxlen=period)
@@ -59,6 +62,7 @@ class SMA:
 
 class WMA:
     """Weighted Moving Average — linearly weighted, most recent gets highest weight."""
+
     def __init__(self, period: int):
         self.period = period
         self._buf: deque[float] = deque(maxlen=period)

@@ -1,4 +1,5 @@
 """src/indicators/momentum.py — RSI, MACD"""
+
 from __future__ import annotations
 
 from collections import deque
@@ -8,6 +9,7 @@ from indicators.averages import EMA
 
 class RSI:
     """Wilder's Relative Strength Index — incremental O(1)."""
+
     def __init__(self, period: int = 14):
         self.period = period
         self._gains: deque[float] = deque(maxlen=period)
@@ -57,6 +59,7 @@ class RSI:
 
 class MACD:
     """MACD Line, Signal Line, and Histogram."""
+
     def __init__(self, fast: int = 12, slow: int = 26, signal: int = 9):
         self._fast = EMA(fast)
         self._slow = EMA(slow)

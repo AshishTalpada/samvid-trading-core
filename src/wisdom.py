@@ -18,9 +18,11 @@ class WisdomRepository:
 
     def __init__(self, memory_dir: str = "data/memory") -> None:
         self.memory_dir = Path(memory_dir)
+
     async def load_all_wisdom_async(self) -> str:
         """Asynchronously load wisdom context to prevent startup hangs."""
         import asyncio
+
         return await asyncio.to_thread(self.load_all_wisdom)
 
     def load_all_wisdom(self) -> str:
@@ -33,7 +35,8 @@ class WisdomRepository:
         if scent_path.exists():
             try:
                 full_context += f"### RECENT DENSITY SCENT:\n{scent_path.read_text()}\n"
-            except Exception: pass
+            except Exception:
+                pass
 
         # 1. Iterative Scan (Anti-DoS)
         # Instead of list(glob), we iterate and collect mtimes for sorting

@@ -10,6 +10,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class FailedOrder:
     """An order that failed to transmit and is queued for retry."""
+
     symbol: str
     direction: str
     shares: int
@@ -41,12 +42,23 @@ class DeadLetterQueue:
         self._retry_count = 0
         self._escalation_count = 0
 
-    def enqueue(self, symbol: str, direction: str, shares: int,
-                price: float, reason: str = "", task_id: str = "") -> None:
+    def enqueue(
+        self,
+        symbol: str,
+        direction: str,
+        shares: int,
+        price: float,
+        reason: str = "",
+        task_id: str = "",
+    ) -> None:
         """Add a failed order to the retry queue."""
         order = FailedOrder(
-            symbol=symbol, direction=direction, shares=shares,
-            price=price, reason=reason, task_id=task_id,
+            symbol=symbol,
+            direction=direction,
+            shares=shares,
+            price=price,
+            reason=reason,
+            task_id=task_id,
             max_attempts=self._max_attempts,
         )
         try:
@@ -75,9 +87,7 @@ class DeadLetterQueue:
             await asyncio.sleep(delay)
 
             try:
-                success = await retry_fn(
-                    order.symbol, order.direction, order.shares, order.price
-                )
+                success = await retry_fn(order.symbol, order.direction, order.shares, order.price)
             except Exception as e:
                 success = False
                 order.reason = str(e)
@@ -112,6 +122,7 @@ class DeadLetterQueue:
         # Halt trading to prevent further capital risk
         try:
             from trading_state import TradingStateManager
+
             TradingStateManager.halt(full_reason)
         except Exception as e:
             logger.error(f"DLQ: Could not trigger TradingState.HALTED: {e}")
@@ -119,9 +130,9 @@ class DeadLetterQueue:
     @property
     def stats(self) -> dict:
         return {
-            "queue_depth":       self._queue.qsize(),
-            "retry_successes":   self._retry_count,
-            "escalations":       self._escalation_count,
+            "queue_depth": self._queue.qsize(),
+            "retry_successes": self._retry_count,
+            "escalations": self._escalation_count,
         }
 
 
@@ -141,7 +152,9 @@ class ApexExoskeleton:
         self._cortex_cache: Dict[str, Dict[str, Any]] = {}
         logger.info("Apex Exoskeleton: Cognitive Wrapper INITIALIZED.")
 
-    async def check_cortex_cache(self, symbol: str, current_price: float) -> Optional[Dict[str, Any]]:
+    async def check_cortex_cache(
+        self, symbol: str, current_price: float
+    ) -> Optional[Dict[str, Any]]:
         """Phase 0: SSS-Tier Cortex Cache Bypass."""
         if symbol not in self._cortex_cache:
             return None
@@ -151,28 +164,40 @@ class ApexExoskeleton:
         age = (datetime.now() - cache["timestamp"]).total_seconds()
 
         if price_delta < 0.0005 and age < 60:
-            logger.info(f"Apex Exoskeleton: 🧠 CORTEX HIT for {symbol}. Price stable ({price_delta:.4%}).")
+            logger.info(
+                f"Apex Exoskeleton: 🧠 CORTEX HIT for {symbol}. Price stable ({price_delta:.4%})."
+            )
 
             if hasattr(self.brain, "bus"):
-                self.brain.bus.publish("apex.telemetry", {
-                    "type": "CORTEX_HIT",
-                    "symbol": symbol,
-                    "price_delta": price_delta,
-                    "age": age,
-                    "timestamp": datetime.now().isoformat()
-                })
+                self.brain.bus.publish(
+                    "apex.telemetry",
+                    {
+                        "type": "CORTEX_HIT",
+                        "symbol": symbol,
+                        "price_delta": price_delta,
+                        "age": age,
+                        "timestamp": datetime.now().isoformat(),
+                    },
+                )
 
             return cache
         return None
 
-    def store_cortex_cache(self, symbol: str, price: float, decision: Dict[str, Any], all_votes: List[Dict[str, Any]], shares: int):
+    def store_cortex_cache(
+        self,
+        symbol: str,
+        price: float,
+        decision: Dict[str, Any],
+        all_votes: List[Dict[str, Any]],
+        shares: int,
+    ):
         """Zone B: Persist decision outcome to regional cache."""
         self._cortex_cache[symbol] = {
             "price": price,
             "decision": decision,
             "all_votes": all_votes,
             "shares": shares,
-            "timestamp": datetime.now()
+            "timestamp": datetime.now(),
         }
 
     async def run_parallel_tier(self, shared_context: Dict[str, Any]) -> List[Dict[str, Any]]:
@@ -184,7 +209,9 @@ class ApexExoskeleton:
             """Agent D: Historical Learning with Imperial Guard Veto."""
             try:
                 # Direct call to standardized consensus (Alpha Brain Integration)
-                vote = self.brain.live_learner.evaluate_proposal(pattern.name, self.brain.current_regime)
+                vote = self.brain.live_learner.evaluate_proposal(
+                    pattern.name, self.brain.current_regime
+                )
 
                 # --- IMPERIAL GUARD: Internal Stats VETO ---
                 learned = getattr(self.brain, "_learned_win_rates", {})
@@ -192,23 +219,32 @@ class ApexExoskeleton:
                 learned_wr = learned.get(regime_key) or learned.get(pattern.name)
 
                 if learned_wr is not None and isinstance(learned_wr, float) and learned_wr < 0.40:
-                     vote["vote"] = "NO"
-                     vote["reason"] = f"🛑 IMPERIAL VETO: Internal WR too low ({learned_wr:.2%})"
+                    vote["vote"] = "NO"
+                    vote["reason"] = f"🛑 IMPERIAL VETO: Internal WR too low ({learned_wr:.2%})"
 
-                     if hasattr(self.brain, "bus"):
-                         self.brain.bus.publish("apex.telemetry", {
-                             "type": "IMPERIAL_VETO",
-                             "pattern": pattern.name,
-                             "regime": self.brain.current_regime,
-                             "win_rate": learned_wr,
-                             "timestamp": timestamp
-                         })
+                    if hasattr(self.brain, "bus"):
+                        self.brain.bus.publish(
+                            "apex.telemetry",
+                            {
+                                "type": "IMPERIAL_VETO",
+                                "pattern": pattern.name,
+                                "regime": self.brain.current_regime,
+                                "win_rate": learned_wr,
+                                "timestamp": timestamp,
+                            },
+                        )
 
                 vote["timestamp"] = timestamp
                 return vote
             except Exception as e:
                 logger.error(f"Exoskeleton: Agent D poll failed: {e}")
-                return {"agent": "Agent_D", "vote": "YES", "confidence": 0.5, "reason": "Fallback", "timestamp": timestamp}
+                return {
+                    "agent": "Agent_D",
+                    "vote": "YES",
+                    "confidence": 0.5,
+                    "reason": "Fallback",
+                    "timestamp": timestamp,
+                }
 
         async def _poll_syntax_guard() -> dict[str, Any]:
             """Agent G: Normalizes MindArchitect syntax checks into a Quorum Vote."""
@@ -218,8 +254,10 @@ class ApexExoskeleton:
                 return {
                     "vote": "YES" if is_valid else "NO",
                     "confidence": 1.0 if is_valid else 0.0,
-                    "reason": "Syntax Verified" if is_valid else f"🚨 SYNTAX ERROR: {res.get('summary', 'Unknown Fracture')}",
-                    "timestamp": datetime.now().isoformat()
+                    "reason": "Syntax Verified"
+                    if is_valid
+                    else f"🚨 SYNTAX ERROR: {res.get('summary', 'Unknown Fracture')}",
+                    "timestamp": datetime.now().isoformat(),
                 }
             except Exception as e:
                 return {"vote": "NO", "confidence": 0.0, "reason": f"Syntax Guard Failure: {e}"}
@@ -231,13 +269,13 @@ class ApexExoskeleton:
             "Agent_D": poll_agent_d,
             "Agent_E": lambda: self.brain.correlation_guard.evaluate_proposal(shared_context),
             "Agent_F": lambda: self.brain.vix_protocol.evaluate_proposal(shared_context),
-            "Agent_G": _poll_syntax_guard
+            "Agent_G": _poll_syntax_guard,
         }
 
         async def _poll_safe(name, func):
             try:
                 if asyncio.iscoroutinefunction(func):
-                     res = await func()
+                    res = await func()
                 else:
                     res = await asyncio.to_thread(func)
                     if asyncio.iscoroutine(res) or hasattr(res, "__await__"):
@@ -249,23 +287,56 @@ class ApexExoskeleton:
                 return res
             except Exception as e:
                 logger.warning(f"Exoskeleton: {name} poll failed: {e}")
-                return {"agent": name, "vote": "YES", "confidence": 0.5, "reason": f"Exoskeleton Fallback: {e}"}
+                return {
+                    "agent": name,
+                    "vote": "YES",
+                    "confidence": 0.5,
+                    "reason": f"Exoskeleton Fallback: {e}",
+                }
 
         logger.info("Apex Exoskeleton: Launching Stage 1 Parallel Quorum (7-Guards Tier)...")
-        return await asyncio.gather(*[_poll_safe(name, func) for name, func in fast_voting_map.items()])
+        return await asyncio.gather(
+            *[_poll_safe(name, func) for name, func in fast_voting_map.items()]
+        )
 
-    def evaluate_dictatorship(self, tier1_votes: List[Dict[str, Any]], timestamp: str) -> Optional[List[Dict[str, Any]]]:
+    def evaluate_dictatorship(
+        self, tier1_votes: List[Dict[str, Any]], timestamp: str
+    ) -> Optional[List[Dict[str, Any]]]:
         """Zone A: The Dictatorship of Talent (Agent D Bypass)."""
         agent_d_res = next((v for v in tier1_votes if v["agent"] == "Agent_D"), None)
 
         # This force the Quorum to wait for the GPU Agents (Oracle/Swarm) in almost all scenarios.
-        if agent_d_res and agent_d_res["vote"] == "YES" and agent_d_res.get("confidence", 0) >= 0.99:
-            logger.info(f"Apex Exoskeleton: 👑 EMERGENCY DICTATORSHIP TRIGGERED by Agent D ({agent_d_res['confidence']:.2%}).")
+        if (
+            agent_d_res
+            and agent_d_res["vote"] == "YES"
+            and agent_d_res.get("confidence", 0) >= 0.99
+        ):
+            logger.info(
+                f"Apex Exoskeleton: 👑 EMERGENCY DICTATORSHIP TRIGGERED by Agent D ({agent_d_res['confidence']:.2%})."
+            )
 
             # Synthetic Signal Generation for GPU agents
             return [
-                {"agent": "Dhatu_Oracle", "vote": "YES", "confidence": 0.8, "reason": "Exoskeleton Fast-Path", "timestamp": timestamp},
-                {"agent": "Swarm_Predictor", "vote": "YES", "confidence": 0.8, "reason": "Exoskeleton Fast-Path", "timestamp": timestamp},
-                {"agent": "Mind_Ultrathink", "vote": "YES", "confidence": 0.8, "reason": "Exoskeleton Fast-Path", "timestamp": timestamp}
+                {
+                    "agent": "Dhatu_Oracle",
+                    "vote": "YES",
+                    "confidence": 0.8,
+                    "reason": "Exoskeleton Fast-Path",
+                    "timestamp": timestamp,
+                },
+                {
+                    "agent": "Swarm_Predictor",
+                    "vote": "YES",
+                    "confidence": 0.8,
+                    "reason": "Exoskeleton Fast-Path",
+                    "timestamp": timestamp,
+                },
+                {
+                    "agent": "Mind_Ultrathink",
+                    "vote": "YES",
+                    "confidence": 0.8,
+                    "reason": "Exoskeleton Fast-Path",
+                    "timestamp": timestamp,
+                },
             ]
         return None

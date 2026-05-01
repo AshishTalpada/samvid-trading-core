@@ -1,4 +1,5 @@
 """src/indicators/volatility.py — ATR, BollingerBands, KeltnerChannel"""
+
 from __future__ import annotations
 
 from collections import deque
@@ -8,6 +9,7 @@ from indicators.averages import EMA, SMA
 
 class ATR:
     """Average True Range (Wilder's smoothing)."""
+
     def __init__(self, period: int = 14):
         self.period = period
         self._prev_close: float | None = None
@@ -50,6 +52,7 @@ class ATR:
 
 class BollingerBands:
     """Bollinger Bands: middle SMA ± k * std."""
+
     def __init__(self, period: int = 20, k: float = 2.0):
         self.period = period
         self.k = k
@@ -65,6 +68,7 @@ class BollingerBands:
             return None
 
         import math
+
         mean = mid
         variance = sum((p - mean) ** 2 for p in self._buf) / self.period
         std = math.sqrt(variance)
@@ -79,6 +83,7 @@ class BollingerBands:
 
 class KeltnerChannel:
     """Keltner Channel: EMA ± k * ATR."""
+
     def __init__(self, period: int = 20, atr_period: int = 10, k: float = 2.0):
         self.k = k
         self._ema = EMA(period)

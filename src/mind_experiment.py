@@ -48,36 +48,48 @@ class MindExperiment:
     ) -> dict[str, Any]:
         """Initiates a 'Shadow Experiment' for a specific trading rule."""
         from time_sync import TimeSync
+
         self.active_experiments[feature_name] = {
             "variant": variant_id,
             "logic": logic,
             "start_time": TimeSync.now().isoformat(),
-            "performance_history": []
+            "performance_history": [],
         }
         logger.info(f"MindExperiment: LAUNCHED SHADOW TEST: {feature_name} (Variant: {variant_id})")
         return {"id": feature_name, "status": "ACTIVE_SHADOW"}
 
-    async def _tool_report_experiment_outcome(self, feature_name: str, pnl: float) -> dict[str, Any]:
+    async def _tool_report_experiment_outcome(
+        self, feature_name: str, pnl: float
+    ) -> dict[str, Any]:
         """Records a trade outcome into the experiment's performance history."""
         if feature_name not in self.active_experiments:
-             return {"success": False, "error": f"Experiment {feature_name} not found."}
+            return {"success": False, "error": f"Experiment {feature_name} not found."}
 
         self.active_experiments[feature_name]["performance_history"].append(pnl)
-        logger.info(f"MindExperiment: RECORDED OUTCOME for {feature_name}: ${pnl:+.2f} (Total: {len(self.active_experiments[feature_name]['performance_history'])})")
-        return {"success": True, "history_depth": len(self.active_experiments[feature_name]["performance_history"])}
+        logger.info(
+            f"MindExperiment: RECORDED OUTCOME for {feature_name}: ${pnl:+.2f} (Total: {len(self.active_experiments[feature_name]['performance_history'])})"
+        )
+        return {
+            "success": True,
+            "history_depth": len(self.active_experiments[feature_name]["performance_history"]),
+        }
 
     async def _tool_gate_feature(self, feature_name: str, enabled: bool) -> dict[str, Any]:
         """
         Gates or enables a feature based on experiment results.
         Ensures AI cannot enable features without recorded shadow performance.
         """
-        logger.info(f"MindExperiment: Evaluating GATE request for {feature_name} (ENABLED={enabled})...")
+        logger.info(
+            f"MindExperiment: Evaluating GATE request for {feature_name} (ENABLED={enabled})..."
+        )
 
         if enabled:
             # 1. Check if the experiment exists
             exp = self.active_experiments.get(feature_name)
             if not exp:
-                logger.warning(f"MindExperiment: GATE REJECTED. No active shadow test for {feature_name}.")
+                logger.warning(
+                    f"MindExperiment: GATE REJECTED. No active shadow test for {feature_name}."
+                )
                 return {"success": False, "error": "Neural Guard: No shadow test evidence found."}
 
             # 2. EVIDENCE CHECK: Retrieve shadow performance from database
@@ -86,18 +98,30 @@ class MindExperiment:
                 # We enforce that the AI cannot self-enable without performance metadata
                 performance = exp.get("performance_history", [])
                 if len(performance) < 5:
-                    logger.warning(f"MindExperiment: GATE REJECTED. Insufficient evidence ({len(performance)}/5 trades).")
-                    return {"success": False, "error": f"Evidence Guard: Only {len(performance)}/5 trades recorded."}
+                    logger.warning(
+                        f"MindExperiment: GATE REJECTED. Insufficient evidence ({len(performance)}/5 trades)."
+                    )
+                    return {
+                        "success": False,
+                        "error": f"Evidence Guard: Only {len(performance)}/5 trades recorded.",
+                    }
 
                 avg_win = sum(1 for p in performance if p > 0) / len(performance)
                 if avg_win < 0.55:
-                    logger.warning(f"MindExperiment: GATE REJECTED. Shadow WinRate {avg_win:.1%} below 55% threshold.")
-                    return {"success": False, "error": "Evidence Guard: Strategy variant failed winrate threshold."}
+                    logger.warning(
+                        f"MindExperiment: GATE REJECTED. Shadow WinRate {avg_win:.1%} below 55% threshold."
+                    )
+                    return {
+                        "success": False,
+                        "error": "Evidence Guard: Strategy variant failed winrate threshold.",
+                    }
 
             except Exception as e:
                 logger.error(f"MindExperiment: Evidence check failure: {e}")
                 return {"success": False, "error": "Internal safety check error during gating."}
 
         # 3. If passed (or if disabling), trigger MindArchitect to update config
-        logger.info(f"MindExperiment: GATING PASSED. Enabling feature {feature_name} in production.")
+        logger.info(
+            f"MindExperiment: GATING PASSED. Enabling feature {feature_name} in production."
+        )
         return {"success": True, "evidence_verified": True}

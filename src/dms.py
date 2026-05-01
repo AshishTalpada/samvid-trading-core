@@ -91,6 +91,7 @@ class DMSMonitor:
         session = self.session
         if not session:
             from session_manager import SovereignSession
+
             session = await SovereignSession.get_session()
             self.session = session
 
@@ -146,7 +147,9 @@ class DMSMonitor:
             # Differentiate between connection blips and actual crashes
             self.retry_count += 1
             if self.retry_count < self.max_retries:
-                logger.warning(f"DMS: Ghost drift detected in {stale_agents} ({self.retry_count}/{self.max_retries}).")
+                logger.warning(
+                    f"DMS: Ghost drift detected in {stale_agents} ({self.retry_count}/{self.max_retries})."
+                )
                 return False
 
             # Timeout detected
@@ -164,7 +167,9 @@ class DMSMonitor:
             # Wait grace period, then execute flatten
             grace_elapsed = (current_time - timeout_at).total_seconds()
             if grace_elapsed >= self.grace_period and not self.flatten_executed:
-                logger.critical(f"DMS: Panic threshold reached for {stale_agents} — executing emergency flatten!")
+                logger.critical(
+                    f"DMS: Panic threshold reached for {stale_agents} — executing emergency flatten!"
+                )
                 await self.execute_emergency_flatten()
                 self.flatten_executed = True
 
@@ -201,6 +206,7 @@ class DMSMonitor:
         import time
 
         from data_pipeline import DataPipeline
+
         lock_file = DataPipeline.DMS_LOCK_FILE
 
         # Proactive directory creation
@@ -212,18 +218,24 @@ class DMSMonitor:
         # Atomic lock creation
         try:
             fd = os.open(lock_file, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
-            with os.fdopen(fd, 'w') as f:
-                f.write(f"LATENCY_CRITICAL node={socket.gethostname()} ts={datetime.now(timezone.utc).isoformat()}")
+            with os.fdopen(fd, "w") as f:
+                f.write(
+                    f"LATENCY_CRITICAL node={socket.gethostname()} ts={datetime.now(timezone.utc).isoformat()}"
+                )
         except FileExistsError:
             # Check if the lock is stale (> 30 mins)
             if (time.time() - os.path.getmtime(lock_file)) < 1800:
-                logger.warning("DMS: Liquidation LOCK detected. Another node is already flattening. Standing down.")
+                logger.warning(
+                    "DMS: Liquidation LOCK detected. Another node is already flattening. Standing down."
+                )
                 return []
             else:
                 # Force take-over of stale lock
                 logger.warning("DMS: Stale lock detected (>30m). Force-assuming leadership.")
                 with open(lock_file, "w") as f:
-                    f.write(f"LATENCY_CRITICAL node={socket.gethostname()} ts={datetime.now(timezone.utc).isoformat()} (FORCED)")
+                    f.write(
+                        f"LATENCY_CRITICAL node={socket.gethostname()} ts={datetime.now(timezone.utc).isoformat()} (FORCED)"
+                    )
         except Exception as e:
             logger.error(f"DMS: Failed to create concurrency lock: {e}")
 
@@ -242,36 +254,62 @@ class DMSMonitor:
                                     direction = "SELL" if pos.position > 0 else "BUY"
                                     shares = abs(pos.position)
 
-                                    ticker = await asyncio.to_thread(self.ibkr_client.ticker, pos.contract)
+                                    ticker = await asyncio.to_thread(
+                                        self.ibkr_client.ticker, pos.contract
+                                    )
                                     price = ticker.last or ticker.close or pos.avgCost
 
                                     from ib_insync import LimitOrder, MarketOrder
+
                                     if not price or price <= 0:
-                                         logger.warning(f"DMS: Invalid price for {pos.contract.symbol}, falling back to market.")
-                                         order = MarketOrder(direction, shares)
+                                        logger.warning(
+                                            f"DMS: Invalid price for {pos.contract.symbol}, falling back to market."
+                                        )
+                                        order = MarketOrder(direction, shares)
                                     else:
-                                         # 5% buffer through the market
-                                         lmt_price = price * (1.05 if direction == "BUY" else 0.95)
-                                         order = LimitOrder(direction, shares, round(lmt_price, 4))
-                                         logger.info(f"DMS [Shield]: Emergency Limit ({direction}) for {pos.contract.symbol} @ {lmt_price:.4f}")
+                                        # 5% buffer through the market
+                                        lmt_price = price * (1.05 if direction == "BUY" else 0.95)
+                                        order = LimitOrder(direction, shares, round(lmt_price, 4))
+                                        logger.info(
+                                            f"DMS [Shield]: Emergency Limit ({direction}) for {pos.contract.symbol} @ {lmt_price:.4f}"
+                                        )
 
                                     # Ensure qualification doesn't hang the DMS monitor
-                                    await asyncio.wait_for(self.ibkr_client.qualifyContractsAsync(pos.contract), timeout=15.0)
+                                    await asyncio.wait_for(
+                                        self.ibkr_client.qualifyContractsAsync(pos.contract),
+                                        timeout=15.0,
+                                    )
                                     trade = self.ibkr_client.placeOrder(pos.contract, order)
                                     ibkr_count += 1
 
-                                    order_desc = f"{round(lmt_price, 4)}" if isinstance(order, LimitOrder) else "MKT"
-                                    flatten_results.append(f"IBKR: {direction} {shares} {pos.contract.symbol} @ {order_desc}")
-                                    logger.critical(f"DMS FLATTEN: {direction} {shares} {pos.contract.symbol} OrderId={trade.order.orderId}")
+                                    order_desc = (
+                                        f"{round(lmt_price, 4)}"
+                                        if isinstance(order, LimitOrder)
+                                        else "MKT"
+                                    )
+                                    flatten_results.append(
+                                        f"IBKR: {direction} {shares} {pos.contract.symbol} @ {order_desc}"
+                                    )
+                                    logger.critical(
+                                        f"DMS FLATTEN: {direction} {shares} {pos.contract.symbol} OrderId={trade.order.orderId}"
+                                    )
                                 except Exception as e:
-                                    logger.error(f"DMS IBKR flatten {pos.contract.symbol} failed: {e}")
-                                    flatten_results.append(f"IBKR FAILED: {pos.contract.symbol} - {e}")
+                                    logger.error(
+                                        f"DMS IBKR flatten {pos.contract.symbol} failed: {e}"
+                                    )
+                                    flatten_results.append(
+                                        f"IBKR FAILED: {pos.contract.symbol} - {e}"
+                                    )
                         break
                     else:
-                        logger.warning(f"DMS: IBKR not connected (Attempt {attempt}/{_retries}) — attempting reconnect...")
+                        logger.warning(
+                            f"DMS: IBKR not connected (Attempt {attempt}/{_retries}) — attempting reconnect..."
+                        )
                         try:
                             await asyncio.wait_for(
-                                self.ibkr_client.connectAsync(host="127.0.0.1", port=self.ibkr_port, clientId=99),
+                                self.ibkr_client.connectAsync(
+                                    host="127.0.0.1", port=self.ibkr_port, clientId=99
+                                ),
                                 timeout=10.0,
                             )
                             if self.ibkr_client.isConnected():
@@ -280,20 +318,21 @@ class DMSMonitor:
                         except Exception as e:
                             logger.error(f"DMS: IBKR reconnect failed: {e}")
                             if attempt == _retries:
-                                flatten_results.append(f"IBKR RECONNECT FAILED AFTER ALL RETRIES: {e}")
-                            await asyncio.sleep(2 ** attempt)
+                                flatten_results.append(
+                                    f"IBKR RECONNECT FAILED AFTER ALL RETRIES: {e}"
+                                )
+                            await asyncio.sleep(2**attempt)
 
                 except Exception as e:
                     logger.error(f"DMS IBKR flatten attempt failed: {e}")
                     if attempt == _retries:
                         flatten_results.append(f"IBKR FATAL ERROR: {e}")
-                    await asyncio.sleep(2 ** attempt)
+                    await asyncio.sleep(2**attempt)
 
         # --- Flatten MT5 positions ---
         mt5_count = 0
         if self.mt5_client:
             try:
-
                 # Retry with 60s intervals (up to 3 attempts)
                 for attempt in range(3):
                     positions = await asyncio.to_thread(mt5.positions_get)
@@ -311,7 +350,11 @@ class DMSMonitor:
                                 else mt5.ORDER_TYPE_BUY
                             )
                             symbol_info = await asyncio.to_thread(mt5.symbol_info, pos.symbol)
-                            price = symbol_info.bid if close_type == mt5.ORDER_TYPE_SELL else symbol_info.ask
+                            price = (
+                                symbol_info.bid
+                                if close_type == mt5.ORDER_TYPE_SELL
+                                else symbol_info.ask
+                            )
 
                             request = {
                                 "action": mt5.TRADE_ACTION_DEAL,
@@ -320,7 +363,7 @@ class DMSMonitor:
                                 "volume": pos.volume,
                                 "type": close_type,
                                 "price": price,
-                                "deviation": 50, # Guard: Max 50 points of slippage
+                                "deviation": 50,  # Guard: Max 50 points of slippage
                                 "magic": 234000,
                                 "comment": "DMS emergency flatten",
                                 "type_time": mt5.ORDER_TIME_GTC,
