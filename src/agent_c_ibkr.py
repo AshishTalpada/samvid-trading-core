@@ -20,6 +20,8 @@ import pytz
 from ib_insync import IB  # Hyper-Sovereign Bridge
 
 from config import STARTING_CAPITAL_CAD, USD_CAD_RATE
+from risk_invariants import ORDER_THROTTLER, RiskInvariants
+from trading_state import TradingStateManager
 from vault import Vault
 
 logger = logging.getLogger(__name__)
@@ -112,9 +114,22 @@ Connection Mind.
         time_to_close = (market_close - now).total_seconds()
         return 0 < time_to_close < 300 # 5 minute buffer
 
-    def validate_order_pre_flight(self, symbol: str, direction: str, shares: int, price: float, account_id: str = None) -> tuple[bool, str]:
-        """Institutional pre-flight validation: account alignment, purchasing power, and margin."""
+    def validate_order_pre_flight(self, symbol: str, direction: str, shares: int, price: float, account_id: str = None, is_close: bool = False) -> tuple[bool, str]:
+        """Institutional pre-flight validation: TradingState, throttle, notional, account, purchasing power, margin."""
         try:
+            # 0a. TradingState FSM gate — block new entries if HALTED or REDUCING
+            allowed, state_reason = TradingStateManager.allow_order(is_close=is_close)
+            if not allowed:
+                return False, state_reason
+
+            # 0b. Order rate throttle — prevents runaway loops flooding the API
+            if not ORDER_THROTTLER.can_submit():
+                return False, "THROTTLE_VETO: Order submission rate exceeded. Standing down."
+
+            # 0c. Per-instrument notional cap
+            if not RiskInvariants.check_notional(symbol, shares, price):
+                return False, f"NOTIONAL_VETO: {symbol} order exceeds hard dollar cap."
+
             # 1. Account Alignment
             from config import IBKR_ACCOUNT_ID
             target_acc = account_id or IBKR_ACCOUNT_ID.strip()
@@ -131,16 +146,15 @@ Connection Mind.
             # 3. Temporal Execution Awareness
             is_eth = self.is_extended_hours()
             if is_eth:
-                 logger.info(f'🏛️ ETH MODE: Order for {symbol} detected Post-Market. outsideRth will be FORCED.')
+                logger.info(f'🏛️ ETH MODE: Order for {symbol} detected Post-Market. outsideRth will be FORCED.')
 
-            # Rejects orders if the current margin cushion is below 10%
+            # 4. Margin cushion guard
             cushion = self.get_margin_cushion()
             if cushion < 0.10:
                 return False, f"MARGIN_CUSHION_CRITICAL: {cushion:.1%} is below 10% safety threshold."
 
-            # Bug 32 FIX: Market-Close Risk Guard
-            # Rejects new LONG positions within 5 minutes of market close to avoid overnight gap risk.
-            if self.is_near_close() and direction == "BUY":
+            # 5. Market-Close Risk Guard
+            if self.is_near_close() and direction == "BUY" and not is_close:
                 return False, f"MARKET_CLOSE_VETO: Refusing new {symbol} position 5 mins before close."
 
             return True, 'PROCEED'
