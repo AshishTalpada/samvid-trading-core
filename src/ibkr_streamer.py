@@ -15,6 +15,8 @@ if TYPE_CHECKING:
 
 from ib_insync import IB, Stock
 
+from tick_batcher import TICK_BATCHER
+
 logger = logging.getLogger(__name__)
 
 
@@ -248,6 +250,9 @@ class IBKRStreamer:
 
             last_size = ticker.lastSize if (ticker.lastSize and ticker.lastSize > 0) else ticker.bidSize
 
+            # Push to TickBatcher — batched at 10Hz, prevents Bayesian/Dhatu firing 100x/s
+            TICK_BATCHER.push(symbol, target_price, bid, ask, float(last_size or 0))
+
             # Tags must be escaped: spaces, commas, and equals signs.
             safe_symbol = str(symbol).replace(",", "\\,").replace(" ", "\\ ").replace("=", "\\=")
 
@@ -329,6 +334,7 @@ class IBKRStreamer:
 
                 self._publisher_task = asyncio.create_task(self._bus_publisher())
                 self._drain_task = asyncio.create_task(self._qdb_drain_worker())
+                self._batcher_task = asyncio.create_task(TICK_BATCHER.run(self.bus))
 
                 # 1. Bind events with Deduplication Guard
                 try:
@@ -376,6 +382,7 @@ class IBKRStreamer:
             finally:
                 if hasattr(self, "_publisher_task") and self._publisher_task: self._publisher_task.cancel()
                 if hasattr(self, "_drain_task") and self._drain_task: self._drain_task.cancel()
+                if hasattr(self, "_batcher_task") and self._batcher_task: self._batcher_task.cancel()
                 try:
                     self.ib.pendingTickersEvent.disconnect(self.on_tick)
                 except Exception:
