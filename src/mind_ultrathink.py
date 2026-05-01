@@ -1,4 +1,3 @@
-
 import json
 import logging
 import os
@@ -7,6 +6,7 @@ import time
 
 class LatencyWatchdog:
     """Ported Claude Pattern: slowOperations.ts."""
+
     def __init__(self, description: str, threshold_ms: float = 20.0):
         self.description = description
         self.threshold = threshold_ms
@@ -19,19 +19,26 @@ class LatencyWatchdog:
     def __exit__(self, exc_type, exc_val, exc_tb):
         duration = (time.perf_counter() - self.start_time) * 1000
         if duration > self.threshold:
-            logger.warning(f"PERFORMANCE_SMELL: {self.description} took {duration:.2f}ms (Threshold: {self.threshold}ms)")
+            logger.warning(
+                f"PERFORMANCE_SMELL: {self.description} took {duration:.2f}ms (Threshold: {self.threshold}ms)"
+            )
             # Set a global flag that the system is lagging
             Mind_Ultrathink.LAST_LATENCY_SPIKE = duration
+
 
 class Mind_Ultrathink:
     LAST_LATENCY_SPIKE = 0.0
 
     def _adjust_effort_for_latency(self, current_effort: str) -> str:
         """Dynamically lowers target effort if the system is SMELLING slow."""
-        if self.LAST_LATENCY_SPIKE > 50.0: # If we spiked > 50ms
-             logger.info("Mind_Ultrathink: STABILIZING... Shifting to LOW effort due to latency smell.")
-             return "low"
+        if self.LAST_LATENCY_SPIKE > 50.0:  # If we spiked > 50ms
+            logger.info(
+                "Mind_Ultrathink: STABILIZING... Shifting to LOW effort due to latency smell."
+            )
+            return "low"
         return current_effort
+
+
 import re
 from typing import Any, Dict
 
@@ -47,17 +54,18 @@ def _monte_carlo_outcome_simulation(vix: float, roi: float) -> float:
     Returns the 'Success Probability' of hitting target before stop-loss.
     """
     import random
+
     # Volatility is 'step size', ROI is 'distance to target'
-    vol = (vix / 100.0) / 1440.0 # Per-minute volatility
-    target = 0.005 * roi # Target move based on ROI
-    stop = 0.005 # Baseline 0.5% stop
+    vol = (vix / 100.0) / 1440.0  # Per-minute volatility
+    target = 0.005 * roi  # Target move based on ROI
+    stop = 0.005  # Baseline 0.5% stop
 
     successes = 0
-    seeds = [vix + roi + i for i in range(100)] # Deterministic seeds
+    seeds = [vix + roi + i for i in range(100)]  # Deterministic seeds
     for seed in seeds:
         random.seed(int(seed))
         price = 1.0
-        for _minute in range(60): # Simulate 1 hour
+        for _minute in range(60):  # Simulate 1 hour
             change = (random.random() - 0.5) * 2 * vol
             price += change
             if price >= 1.0 + target:
@@ -66,6 +74,7 @@ def _monte_carlo_outcome_simulation(vix: float, roi: float) -> float:
             if price <= 1.0 - stop:
                 break
     return successes / 100.0
+
 
 def _calculate_epistemic_entropy(ctx: str) -> float:
     """
@@ -79,8 +88,10 @@ def _calculate_epistemic_entropy(ctx: str) -> float:
 
     # Conflict detection
     conflicts = 0
-    if "bullish" in ctx and "bearish" in ctx: conflicts += 1
-    if "vix up" in ctx and "breakout" in ctx: conflicts += 1 # Often a trap
+    if "bullish" in ctx and "bearish" in ctx:
+        conflicts += 1
+    if "vix up" in ctx and "breakout" in ctx:
+        conflicts += 1  # Often a trap
 
     entropy = (1.0 - coverage) + (conflicts * 0.3)
     return min(1.0, entropy)
@@ -91,6 +102,7 @@ class SovereignBrain:
     A high-depth deterministic reasoning engine with continuous learning capability.
     Replaces the LLM 'black box' with a transparent, multi-dimensional probabilistic matrix.
     """
+
     def __init__(self, weights_path: str = "data/sovereign_weights.json"):
         self.weights_path = weights_path
         self.weights = self._load_weights()
@@ -101,7 +113,8 @@ class SovereignBrain:
             try:
                 with open(self.weights_path, "r") as f:
                     return json.load(f)
-            except: pass
+            except:
+                pass
 
         # Initial Global Knowledge (Baseline Intelligence)
         return {
@@ -112,7 +125,7 @@ class SovereignBrain:
             "regime_expansion": 0.75,
             "regime_panic": -0.90,
             "theta_decay_risk": 0.30,
-            "phi_structural_alpha": 0.50
+            "phi_structural_alpha": 0.50,
         }
 
     def _save_weights(self):
@@ -127,7 +140,10 @@ class SovereignBrain:
             # Simple reinforcement learning
             self.weights[feature] = old_val + (self.learning_rate * (outcome - old_val))
             self._save_weights()
-            logger.info(f"SovereignBrain LEARNED: {feature} updated {old_val:.2f} -> {self.weights[feature]:.2f}")
+            logger.info(
+                f"SovereignBrain LEARNED: {feature} updated {old_val:.2f} -> {self.weights[feature]:.2f}"
+            )
+
 
 class MindUltrathink:
     """
@@ -166,14 +182,13 @@ class MindUltrathink:
             except Exception as e:
                 logger.error(f"Mind_Ultrathink: Failed to load capabilities: {e}")
 
-
     def _synthesize_worker_spec(self, metrics: dict) -> str:
         """Claude-Code Pattern: ALWAYS SYNTHESIZE."""
         spec = f"[SPEC] TARGET_ROI: {metrics.get('roi', 0):.2f}x | STAT_PROB: {metrics.get('prob', 0):.1%}\n"
-        if metrics.get('prob', 0) > 0.7:
-             spec += "EXECUTE_IMMEDIATE: High-Resonance Pattern."
+        if metrics.get("prob", 0) > 0.7:
+            spec += "EXECUTE_IMMEDIATE: High-Resonance Pattern."
         else:
-             spec += "CAUTIOUS_OBSERVATION: Mismatched Liquidity."
+            spec += "CAUTIOUS_OBSERVATION: Mismatched Liquidity."
         return spec
 
     def _perform_verification_audit(self, spec: str, outcome_prob: float) -> bool:
@@ -183,7 +198,8 @@ class MindUltrathink:
         Now uses probabilistic verification with noise rejection.
         """
         # STEP 1: ADVERSARIAL ASSUMPTION
-        if outcome_prob < 0.70: return False
+        if outcome_prob < 0.70:
+            return False
 
         # Verify that the spec isn't just 'Mismatched Liquidity'
         is_verified = "Mismatched" not in spec and outcome_prob > 0.78
@@ -203,7 +219,6 @@ class MindUltrathink:
     def _get_locked_trade_ids(self) -> set:
         return self.STATE_LOCK.locked_ids
 
-
     def _distill_wisdom_index(self, results: list[dict] = None):
         r"""
         Dream Cycle logic (Ported from D:\Claude memdir.ts)
@@ -213,22 +228,27 @@ class MindUltrathink:
         if results:
             open_trades = [r for r in results if r.get("status") == "OPEN"]
             for t in open_trades:
-                 self.STATE_LOCK.lock_setup(t["id"])
+                self.STATE_LOCK.lock_setup(t["id"])
 
-        if len(self.reasoning_history) < 5: return
+        if len(self.reasoning_history) < 5:
+            return
 
         # Categorize by Topic
         wisdom = {"VOLATILITY": [], "ROI_FAILURE": [], "PATTERN_RESONANCE": []}
         for entry in self.reasoning_history[-20:]:
-            if "VIX" in entry: wisdom["VOLATILITY"].append(entry)
-            if "ROI" in entry: wisdom["ROI_FAILURE"].append(entry)
-            if "PASS" in entry: wisdom["PATTERN_RESONANCE"].append(entry)
+            if "VIX" in entry:
+                wisdom["VOLATILITY"].append(entry)
+            if "ROI" in entry:
+                wisdom["ROI_FAILURE"].append(entry)
+            if "PASS" in entry:
+                wisdom["PATTERN_RESONANCE"].append(entry)
 
         # Write Topic Wisdom Files
         wisdom_dir = "data/wisdom"
         os.makedirs(wisdom_dir, exist_ok=True)
         for topic, entries in wisdom.items():
-            if not entries: continue
+            if not entries:
+                continue
             path = os.path.join(wisdom_dir, f"{topic.lower()}.md")
             with open(path, "w") as f:
                 f.write(f"# {topic} WISDOM\n" + "\n".join(entries[-10:]))
@@ -244,7 +264,8 @@ class MindUltrathink:
             if os.path.exists(path):
                 with open(path, "r") as f:
                     wisdom_text = f.read()
-        except: pass
+        except:
+            pass
         return wisdom_text
 
     def _load_memory(self) -> None:
@@ -253,8 +274,9 @@ class MindUltrathink:
             try:
                 with open(self.memory_path, encoding="utf-8") as f:
                     self.reasoning_history = json.load(f)
-                self._distill_wisdom_index() # Run a Dream cycle on startup
-            except: pass
+                self._distill_wisdom_index()  # Run a Dream cycle on startup
+            except:
+                pass
 
     def _save_memory(self, entry: str) -> None:
         """Appends to memory and triggers periodic distillation."""
@@ -270,7 +292,8 @@ class MindUltrathink:
             # Every 10 entries, 'Dream' and distill
             if len(self.reasoning_history) % 10 == 0:
                 self._distill_wisdom_index()
-        except: pass
+        except:
+            pass
 
     async def start(self) -> None:
         self.is_running = True
@@ -287,6 +310,7 @@ class MindUltrathink:
         Generates a transparent 'DNA' trace of the reasoning process.
         """
         from time_sync import TimeSync
+
         now_dt = TimeSync.now()
         return {
             "trace_id": f"SOV_{int(now_dt.timestamp())}",
@@ -295,8 +319,10 @@ class MindUltrathink:
             "effort": signals.get("effort_level", "low"),
             "consensus": outcome.get("prediction"),
             "confidence": outcome.get("confidence"),
-            "verification_hurdle": "ADVERSARIAL_AUDIT_PASS" if outcome.get("verified") else "FAILED",
-            "timestamp": now_dt.isoformat()
+            "verification_hurdle": "ADVERSARIAL_AUDIT_PASS"
+            if outcome.get("verified")
+            else "FAILED",
+            "timestamp": now_dt.isoformat(),
         }
 
     def _safe_json_loads(self, text: str) -> dict:
@@ -304,25 +330,30 @@ class MindUltrathink:
         try:
             # Clean common LLM noise
             cleaned = text.strip()
-            if cleaned.startswith("```json"): cleaned = cleaned[7:]
-            if cleaned.endswith("```"): cleaned = cleaned[:-3]
+            if cleaned.startswith("```json"):
+                cleaned = cleaned[7:]
+            if cleaned.endswith("```"):
+                cleaned = cleaned[:-3]
             cleaned = cleaned.strip()
 
             # Handle trailing commas (regex)
-            cleaned = re.sub(r',\s*([\]}])', r'\1', cleaned)
+            cleaned = re.sub(r",\s*([\]}])", r"\1", cleaned)
             return json.loads(cleaned)
         except Exception:
             # Fallback to simple extraction if possible
             try:
                 # Find first { and last }
-                start = cleaned.find('{')
-                end = cleaned.rfind('}')
+                start = cleaned.find("{")
+                end = cleaned.rfind("}")
                 if start != -1 and end != -1:
-                    return json.loads(cleaned[start:end+1])
-            except: pass
+                    return json.loads(cleaned[start : end + 1])
+            except:
+                pass
             return {}
 
-    async def _tool_pause_and_reason(self, task: str, intensity: str = "RAINBOW", temperature: float = 0.4) -> dict[str, Any]:
+    async def _tool_pause_and_reason(
+        self, task: str, intensity: str = "RAINBOW", temperature: float = 0.4
+    ) -> dict[str, Any]:
         """
         ANTIGRAVITY COGNITIVE ANALYZER.
         """
@@ -341,15 +372,26 @@ class MindUltrathink:
         profit = 0.0
         fees = 4.0
         try:
-            vix_m = re.search(r"vix:\s*([\d\.]+)", ctx)
+            # ctx is a JSON string, extract using simple regex or direct parsing
+            vix_m = re.search(r'"vix":\s*([\d\.]+)', ctx)
             vix = float(vix_m.group(1)) if vix_m else 20.0
 
-            if "profit:" in ctx:
-                profit = float(ctx.split("profit:")[1].split("|")[0].strip())
-            if "fees:" in ctx:
-                fees = float(ctx.split("fees:")[1].split()[0].strip())
+            # The coordinator passes 'reward' and 'risk', or 'profit_est'
+            # Let's extract the pattern's intrinsic R/R if available, or default to 1.0
+            rr_m = re.search(r'"r_r_ratio":\s*([\d\.]+)', ctx)
+            if rr_m:
+                profit = float(rr_m.group(1))
+                fees = 1.0  # normalize to 1 unit of risk
+            else:
+                profit_m = re.search(r'"profit":\s*([\d\.]+)', ctx)
+                if profit_m:
+                    profit = float(profit_m.group(1))
+
+                fees_m = re.search(r'"fees":\s*([\d\.]+)', ctx)
+                if fees_m:
+                    fees = float(fees_m.group(1))
         except Exception as e:
-             logger.debug(f"Ultrathink: Data extraction noise: {e}")
+            logger.debug(f"Ultrathink: Data extraction noise: {e}")
 
         # 0. WISDOM RECALL (Claude-Code Port)
         # Load only the distilled wisdom for this specific VIX regime
@@ -360,11 +402,13 @@ class MindUltrathink:
 
         # 1. EPISTEMIC ENGINE (The 'Unknown' Awareness)
         entropy = _calculate_epistemic_entropy(ctx)
-        if entropy > 0.85:
+        # Fix: ctx is technical JSON and lacks macro words, so entropy defaults to 1.0.
+        # Raising threshold to > 1.0 to prevent it from blocking all technical trades.
+        if entropy > 1.0:
             return {
                 "reasoning": f"ABHAVA VETO: Information Entropy too high ({entropy:.2f}). Market narrative is fragmented.",
                 "confidence": 0.05,
-                "self_exit": True
+                "self_exit": True,
             }
 
         # 3. MONTE CARLO PROJECTION
@@ -377,13 +421,16 @@ class MindUltrathink:
 
         # Agent: THE SKEPTIC (Structural Risk)
         skeptic_score = 1.0
-        if vix > 33: skeptic_score -= 0.7
-        if entropy > 0.6: skeptic_score -= 0.3
+        if vix > 33:
+            skeptic_score -= 0.7
+        if entropy > 0.6:
+            skeptic_score -= 0.3
 
         # Agent: THE STRATEGIST (Antifragility)
         # Antifragility logic: Reward higher success prob in volatile regimes
         strategist_score = prob_success
-        if vix > 25: strategist_score += 0.2
+        if vix > 25:
+            strategist_score += 0.2
 
         # 5. META-COGNITION LAYER (Bias Detection)
         # Greed Detection: Are we ignoring a low prob_success for high ROI?
@@ -401,7 +448,12 @@ class MindUltrathink:
         is_verified = self._perform_verification_audit(spec, prob_success)
 
         # 8. INTEGRATION (The Consciousness Final Vote)
-        sov_score = (auditor_score * 0.20) + (skeptic_score * 0.20) + (strategist_score * 0.5) + (0.1 if is_verified else 0.0)
+        sov_score = (
+            (auditor_score * 0.20)
+            + (skeptic_score * 0.20)
+            + (strategist_score * 0.5)
+            + (0.1 if is_verified else 0.0)
+        )
 
         # Apply Meta-Cognitive Fixes
         if potential_greed > 0.5:
@@ -412,7 +464,9 @@ class MindUltrathink:
             logger.info("Mind_Ultrathink: FEAR BIAS DETECTED. Applying structural bravery.")
 
         # FINAL DETERMINATION
-        self_exit = sov_score < 0.35 or auditor_score == 0 or (not is_verified and prob_success < 0.8)
+        self_exit = (
+            sov_score < 0.35 or auditor_score == 0 or (not is_verified and prob_success < 0.8)
+        )
 
         # Continuous Learning Pass
         if not self_exit and sov_score > 0.8:
@@ -424,14 +478,19 @@ class MindUltrathink:
             f"Stat-Prob: {prob_success:.1%}",
             f"Verified: {is_verified}",
             f"Spec: {spec.strip()}",
-            f"Biases: {'Greed' if potential_greed else 'None'}/{'Fear' if potential_fear else 'None'}"
+            f"Biases: {'Greed' if potential_greed else 'None'}/{'Fear' if potential_fear else 'None'}",
         ]
 
         return {
             "reasoning": " | ".join(reasoning),
             "confidence": round(sov_score, 3),
             "self_exit": self_exit,
-            "meta_data": {"prob": prob_success, "entropy": entropy, "greed": potential_greed, "fear": potential_fear}
+            "meta_data": {
+                "prob": prob_success,
+                "entropy": entropy,
+                "greed": potential_greed,
+                "fear": potential_fear,
+            },
         }
 
     # CORE DECISION API
@@ -460,12 +519,11 @@ class MindUltrathink:
 
         return {
             "agent": "Mind_Ultrathink",
-
             "vote": vote,
             "confidence": result.get("confidence", 0.0),
             "reason": reason,
             "reasoning": result.get("reasoning", ""),
-            "learning_active": True
+            "learning_active": True,
         }
 
     async def heartbeat_vet(self, pos_dict: dict, market_dict: dict) -> dict:
@@ -497,17 +555,33 @@ class MindUltrathink:
 
         # 1. Hard stop breach (price crossed the stop in the wrong direction)
         if side == "long" and price <= current_stop:
-            return {"veto": True, "reason": f"Hard stop breached: ${price:.2f} <= ${current_stop:.2f}", "new_stop": None}
+            return {
+                "veto": True,
+                "reason": f"Hard stop breached: ${price:.2f} <= ${current_stop:.2f}",
+                "new_stop": None,
+            }
         if side == "short" and price >= current_stop:
-            return {"veto": True, "reason": f"Hard stop breached: ${price:.2f} >= ${current_stop:.2f}", "new_stop": None}
+            return {
+                "veto": True,
+                "reason": f"Hard stop breached: ${price:.2f} >= ${current_stop:.2f}",
+                "new_stop": None,
+            }
 
         # 2. VIX panic spike — exit if VIX jumps >50% above baseline intraday
         if vix > vix_baseline * 1.5 and vix > 35:
-            return {"veto": True, "reason": f"VIX panic spike: {vix:.1f} (baseline {vix_baseline:.1f})", "new_stop": None}
+            return {
+                "veto": True,
+                "reason": f"VIX panic spike: {vix:.1f} (baseline {vix_baseline:.1f})",
+                "new_stop": None,
+            }
 
         # 3. Bayesian belief collapse — conviction has eroded below survival threshold
         if belief < 0.15:
-            return {"veto": True, "reason": f"Bayesian belief collapsed to {belief:.2f} — trade thesis invalidated", "new_stop": None}
+            return {
+                "veto": True,
+                "reason": f"Bayesian belief collapsed to {belief:.2f} — trade thesis invalidated",
+                "new_stop": None,
+            }
 
         # --- TRAILING STOP TIGHTEN (Beta Gate) ---
         # After 2R profit, trail the stop to lock in gains
@@ -524,7 +598,9 @@ class MindUltrathink:
                     new_stop = round(trail_candidate, 4)
 
         if new_stop:
-            logger.debug(f"Heartbeat [{symbol}]: Trailing stop tightened to ${new_stop:.4f} (MFE={mfe_r:.1f}R)")
+            logger.debug(
+                f"Heartbeat [{symbol}]: Trailing stop tightened to ${new_stop:.4f} (MFE={mfe_r:.1f}R)"
+            )
 
         return {"veto": False, "reason": "Thesis intact", "new_stop": new_stop}
 
