@@ -98,20 +98,22 @@ class WalkForwardResult:
         return float(np.min(dd))
 
 
-async def load_ohlcv_from_db(db_path: str, symbol: str) -> tuple[np.ndarray, np.ndarray, list[str]]:
+async def load_ohlcv_from_db(db_path: str, symbol: str) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, list[str]]:
     """
     Load OHLCV from SQLite.
+    Returns (opens, highs, lows, closes, volumes, timestamps).
     Uses global _db_lock to prevent contention during parallel validation bursts.
     """
     async with _db_lock:
         try:
-            # Shift blocking I/O to thread pool
             def _load():
                 conn = sqlite3.connect(db_path, timeout=60.0)
                 conn.execute("PRAGMA journal_mode=WAL;")
                 cursor = conn.cursor()
+                # Load open/high/low/close for realistic intra-bar simulation
                 cursor.execute(
-                    "SELECT timestamp, close, volume FROM ohlcv WHERE symbol=? ORDER BY timestamp ASC",
+                    "SELECT timestamp, open, high, low, close, volume FROM ohlcv "
+                    "WHERE symbol=? ORDER BY timestamp ASC",
                     (symbol,)
                 )
                 rows = cursor.fetchall()
@@ -121,14 +123,16 @@ async def load_ohlcv_from_db(db_path: str, symbol: str) -> tuple[np.ndarray, np.
             rows = await asyncio.to_thread(_load)
 
             if not rows:
-                return np.array([]), np.array([]), []
+                return np.array([]), np.array([]), np.array([]), np.array([]), []
             timestamps = [r[0] for r in rows]
-            prices     = np.array([float(r[1]) for r in rows])
-            volumes    = np.array([float(r[2]) for r in rows])
-            return prices, volumes, timestamps
+            opens  = np.array([float(r[1]) for r in rows])
+            highs  = np.array([float(r[2]) for r in rows])
+            lows   = np.array([float(r[3]) for r in rows])
+            closes = np.array([float(r[4]) for r in rows])
+            return opens, highs, lows, closes, timestamps
         except Exception as e:
             logger.error(f"DB load failed for {symbol}: {e}")
-            return np.array([]), np.array([]), []
+            return np.array([]), np.array([]), np.array([]), np.array([]), []
 
 
 class WalkForwardEngine:
@@ -163,26 +167,27 @@ class WalkForwardEngine:
         self.consensus      = QuantConsensus()
 
     async def run(self, symbol: str) -> list[WalkForwardResult]:
-        prices, volumes, timestamps = await load_ohlcv_from_db(self.db_path, symbol)
+        result_tuple = await load_ohlcv_from_db(self.db_path, symbol)
+        opens, highs, lows, closes, timestamps = result_tuple
 
-        if len(prices) < self.train_bars + self.test_bars:
-            logger.warning(f"{symbol}: insufficient data ({len(prices)} bars). Need {self.train_bars + self.test_bars}")
+        if len(closes) < self.train_bars + self.test_bars:
+            logger.warning(f"{symbol}: insufficient data ({len(closes)} bars). Need {self.train_bars + self.test_bars}")
             return []
 
         results: list[WalkForwardResult] = []
         start = 0
 
-        while start + self.train_bars + self.test_bars <= len(prices):
+        while start + self.train_bars + self.test_bars <= len(closes):
             train_end = start + self.train_bars
             test_end  = train_end + self.test_bars
 
-            train_prices  = prices[start:train_end]
-            train_volumes = volumes[start:train_end]
-            test_prices   = prices[train_end:test_end]
-            test_volumes  = volumes[train_end:test_end]
+            train_closes  = closes[start:train_end]
+            test_closes   = closes[train_end:test_end]
+            test_highs    = highs[train_end:test_end]
+            test_lows     = lows[train_end:test_end]
 
             # Fit models on training window
-            self.consensus.fit(train_prices)
+            self.consensus.fit(train_closes)
 
             # Simulate on test window
             win_rate = 0.5  # initial estimate, updates after first trades
@@ -193,9 +198,9 @@ class WalkForwardEngine:
             equity = self.capital
 
             i = 50  # minimum lookback before first signal
-            while i < len(test_prices) - 1:
-                p_window = np.concatenate([train_prices[-100:], test_prices[:i]])
-                v_window = np.concatenate([train_volumes[-100:], test_volumes[:i]])
+            while i < len(test_closes) - 1:
+                p_window = np.concatenate([train_closes[-100:], test_closes[:i]])
+                v_window = np.concatenate([train_closes[-100:], test_closes[:i]])
 
                 consensus = self.consensus.evaluate(
                     symbol, p_window, v_window,
@@ -212,7 +217,7 @@ class WalkForwardEngine:
                 direction = 1 if side == "LONG" else -1
 
                 # Entry at next bar Close (conservative proxy for Next Open)
-                entry_raw = float(test_prices[i+1])
+                entry_raw = float(test_closes[i + 1])
                 friction = self.SLIPPAGE_PCT + (self.SPREAD_PCT / 2.0)
                 entry = entry_raw * (1 + friction) if side == "LONG" else entry_raw * (1 - friction)
 
@@ -220,30 +225,38 @@ class WalkForwardEngine:
                 stop     = entry * (1 - direction * self.stop_loss_pct)
                 target   = entry * (1 + direction * self.take_profit_pct)
 
-                # Find exit in next bars
+                # Find exit — check intra-bar HIGH/LOW first (realistic stop/target triggering)
                 exit_price = None
                 exit_idx   = i + 1
-                for j in range(i + 2, min(i + 61, len(test_prices))):
-                    p = float(test_prices[j])
+                for j in range(i + 2, min(i + 61, len(test_closes))):
+                    bar_high  = float(test_highs[j])
+                    bar_low   = float(test_lows[j])
                     friction = self.SLIPPAGE_PCT + (self.SPREAD_PCT / 2.0)
+
                     if side == "LONG":
-                        if p <= stop:
-                            exit_price = min(p, stop) * (1 - friction) # Handle Gap Down
-                            exit_idx = j; break
-                        if p >= target:
+                        # Check stop via intra-bar LOW (more realistic than only close)
+                        if bar_low <= stop:
+                            exit_price = stop * (1 - friction)  # fill at stop accounting for gap
+                            exit_idx = j
+                            break
+                        if bar_high >= target:
                             exit_price = target * (1 - friction)
-                            exit_idx = j; break
-                    else:
-                        if p >= stop:
-                            exit_price = max(p, stop) * (1 + friction) # Handle Gap Up
-                            exit_idx = j; break
-                        if p <= target:
+                            exit_idx = j
+                            break
+                    else:  # SHORT
+                        # Check stop via intra-bar HIGH
+                        if bar_high >= stop:
+                            exit_price = stop * (1 + friction)
+                            exit_idx = j
+                            break
+                        if bar_low <= target:
                             exit_price = target * (1 + friction)
-                            exit_idx = j; break
+                            exit_idx = j
+                            break
 
                 if exit_price is None:
-                    exit_price = float(test_prices[min(i + 60, len(test_prices) - 1)])
-                    exit_idx   = min(i + 60, len(test_prices) - 1)
+                    exit_price = float(test_closes[min(i + 60, len(test_closes) - 1)])
+                    exit_idx   = min(i + 60, len(test_closes) - 1)
 
                 trade = Trade(symbol=symbol, entry_price=entry, exit_price=exit_price,
                               entry_idx=i, exit_idx=exit_idx, side=side, size_usd=size_usd,
