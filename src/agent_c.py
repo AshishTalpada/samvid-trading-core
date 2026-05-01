@@ -25,7 +25,9 @@ class EvolutionManager:
     Manages the feedback loop between trade outcomes and technical/macro parameters.
     """
 
-    def __init__(self, db_path: str | None = None, main_db_path: str = "data/trading.db", dms: Any = None) -> None:
+    def __init__(
+        self, db_path: str | None = None, main_db_path: str = "data/trading.db", dms: Any = None
+    ) -> None:
         self.main_db_path = main_db_path
         self.dms = dms
         if db_path is None:
@@ -126,6 +128,7 @@ class EvolutionManager:
 
         try:
             from pathlib import Path
+
             safe_db_path = str(Path(main_db_path).resolve())
             if not Path(safe_db_path).exists():
                 logger.error(f"EvolutionManager: Main DB not found at {safe_db_path}")
@@ -134,8 +137,11 @@ class EvolutionManager:
             try:
                 self.conn.execute(f"ATTACH DATABASE '{safe_db_path}' AS main_db")
             except sqlite3.OperationalError as e:
-                if "already in use" in str(e).lower() or "database main_db is already attached" in str(e).lower():
-                    pass # Already attached
+                if (
+                    "already in use" in str(e).lower()
+                    or "database main_db is already attached" in str(e).lower()
+                ):
+                    pass  # Already attached
                 else:
                     raise
             cursor = self.conn.cursor()
@@ -162,13 +168,15 @@ class EvolutionManager:
             for state, total, wins, _avg_pnl, g_wins, g_losses in rows:
                 wr = wins / total if total > 0 else 0.0
                 pf = g_wins / g_losses if g_losses > 0 else (g_wins if g_wins > 0 else 1.0)
-                expectancy = (wr * (g_wins/wins if wins > 0 else 0)) - ((1-wr) * (g_losses/(total-wins) if total > wins else 0))
+                expectancy = (wr * (g_wins / wins if wins > 0 else 0)) - (
+                    (1 - wr) * (g_losses / (total - wins) if total > wins else 0)
+                )
 
                 stats[state] = {
                     "wr": round(wr, 2),
                     "n": total,
                     "pf": round(pf, 2),
-                    "expectancy": round(expectancy, 2)
+                    "expectancy": round(expectancy, 2),
                 }
 
                 if expectancy > best_expectancy:
@@ -213,7 +221,14 @@ class EvolutionManager:
 
             if not rows:
                 conn.close()
-                return {"n": 0, "win_rate": 0.0, "total_pnl": 0.0, "max_drawdown": 0.0, "pf": 0.0, "sortino": 0.0}
+                return {
+                    "n": 0,
+                    "win_rate": 0.0,
+                    "total_pnl": 0.0,
+                    "max_drawdown": 0.0,
+                    "pf": 0.0,
+                    "sortino": 0.0,
+                }
 
             # 2. Decrypt and aggregate
             pnls = []
@@ -222,7 +237,7 @@ class EvolutionManager:
             wins = 0
 
             for row in rows:
-                val_raw = row['pnl_dollars']
+                val_raw = row["pnl_dollars"]
                 if val_raw is None:
                     continue
 
@@ -244,7 +259,14 @@ class EvolutionManager:
             n = len(pnls)
             if n == 0:
                 conn.close()
-                return {"n": 0, "win_rate": 0.0, "total_pnl": 0.0, "max_drawdown": 0.0, "pf": 0.0, "sortino": 0.0}
+                return {
+                    "n": 0,
+                    "win_rate": 0.0,
+                    "total_pnl": 0.0,
+                    "max_drawdown": 0.0,
+                    "pf": 0.0,
+                    "sortino": 0.0,
+                }
 
             win_rate = wins / n
             profit_factor = gross_wins / gross_losses if gross_losses > 0 else gross_wins
@@ -273,7 +295,11 @@ class EvolutionManager:
 
                 downside_rets = [p for p in pnls if p < 0]
                 downside_std = np.std(downside_rets) if downside_rets else 0.0
-                sortino = (avg_ret / downside_std) if downside_std > 0 else (sharpe if avg_ret > 0 else 0.0)
+                sortino = (
+                    (avg_ret / downside_std)
+                    if downside_std > 0
+                    else (sharpe if avg_ret > 0 else 0.0)
+                )
 
             conn.close()
             return {
@@ -283,7 +309,7 @@ class EvolutionManager:
                 "max_drawdown": round(max_dd, 4),
                 "pf": round(profit_factor, 2),
                 "sharpe": round(sharpe, 2),
-                "sortino": round(sortino, 2)
+                "sortino": round(sortino, 2),
             }
         except Exception as e:
             logger.error(f"EvolutionManager: Global audit failed: {e}")
@@ -299,7 +325,7 @@ class EvolutionManager:
 
         insights = self.audit_global_performance()
         if "error" in insights or insights.get("n", 0) < 10:
-            return [] # Need at least 10 trades to evolve
+            return []  # Need at least 10 trades to evolve
 
         mutations = []
         insights["win_rate"]
@@ -349,6 +375,7 @@ class EvolutionManager:
     def _apply_mutation(self, key: str, value: float, sharpe: float = 0.0) -> None:
         """Persists mutation to both runtime config and optimization database."""
         import config
+
         try:
             # 1. Update Runtime Memory
             setattr(config, key, value)
@@ -359,10 +386,13 @@ class EvolutionManager:
                 conn.execute("PRAGMA journal_mode=WAL;")
                 conn.execute("PRAGMA busy_timeout = 60000;")
                 cursor = conn.cursor()
-                cursor.execute("""
+                cursor.execute(
+                    """
                     INSERT OR REPLACE INTO brain_optimization (parameter_name, parameter_value, confidence, sharpe_ratio, last_updated)
                     VALUES (?, ?, ?, ?, ?)
-                """, (key, str(value), 1.0, sharpe, datetime.now().isoformat()))
+                """,
+                    (key, str(value), 1.0, sharpe, datetime.now().isoformat()),
+                )
                 conn.commit()
                 conn.close()
 
@@ -379,6 +409,7 @@ class EvolutionManager:
         gains persist across system restarts.
         """
         import config
+
         try:
             conn = sqlite3.connect(self.db_path, timeout=60.0)
             conn.execute("PRAGMA journal_mode=WAL;")
@@ -390,20 +421,25 @@ class EvolutionManager:
 
             restored_count = 0
             for row in rows:
-                key = row['parameter_name']
-                val = float(row['parameter_value'])
+                key = row["parameter_name"]
+                val = float(row["parameter_value"])
 
                 # Double-check safety even on load (prevents corruption at rest)
                 from risk_invariants import RiskInvariants
+
                 if hasattr(config, key) and RiskInvariants.is_mutation_safe(key, val):
                     setattr(config, key, val)
                     restored_count += 1
                 else:
-                    logger.error(f"EvolutionManager: Safety VETO during startup load for {key}={val}")
+                    logger.error(
+                        f"EvolutionManager: Safety VETO during startup load for {key}={val}"
+                    )
 
             conn.close()
             if restored_count > 0:
-                logger.info(f"✅ Evolution: Restored {restored_count} optimized parameters from persistent memory.")
+                logger.info(
+                    f"✅ Evolution: Restored {restored_count} optimized parameters from persistent memory."
+                )
         except Exception as e:
             logger.error(f"EvolutionManager: Failed to load optimizations: {e}")
 
@@ -418,12 +454,16 @@ class EvolutionManager:
                 # 1. Perform Audits
                 dhatu_insights = self.audit_performance()
                 if dhatu_insights.get("top_performing_dhatu") != "None":
-                    logger.info(f"Evolution: Peak State Alpha: {dhatu_insights['top_performing_dhatu']}")
+                    logger.info(
+                        f"Evolution: Peak State Alpha: {dhatu_insights['top_performing_dhatu']}"
+                    )
 
                 # 2. Propose & Apply Mutations
                 mutations = self.evolve_parameters()
                 for key, old_v, new_v, sharpe in mutations:
-                    logger.info(f"Evolution: Proposing mutation {key}: {old_v} -> {new_v} (Sharpe: {sharpe})")
+                    logger.info(
+                        f"Evolution: Proposing mutation {key}: {old_v} -> {new_v} (Sharpe: {sharpe})"
+                    )
                     self._apply_mutation(key, new_v, sharpe)
 
                 if not mutations:

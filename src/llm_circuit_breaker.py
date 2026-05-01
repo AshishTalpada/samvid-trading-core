@@ -16,6 +16,7 @@ Usage:
         timeout_s=4.0,
     )
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -29,9 +30,9 @@ logger = logging.getLogger("LLMCircuitBreaker")
 
 
 class CircuitState:
-    CLOSED = "CLOSED"       # Normal — LLM calls go through
-    OPEN   = "OPEN"         # Tripped — all calls use fallback instantly
-    HALF_OPEN = "HALF_OPEN" # Probing — one call allowed to test recovery
+    CLOSED = "CLOSED"  # Normal — LLM calls go through
+    OPEN = "OPEN"  # Tripped — all calls use fallback instantly
+    HALF_OPEN = "HALF_OPEN"  # Probing — one call allowed to test recovery
 
 
 class LLMCircuitBreaker:
@@ -58,7 +59,7 @@ class LLMCircuitBreaker:
         self._timeout = default_timeout_s
 
         self._state = CircuitState.CLOSED
-        self._failures: deque[float] = deque()   # timestamps
+        self._failures: deque[float] = deque()  # timestamps
         self._tripped_at: float = 0.0
         self._total_timeouts: int = 0
         self._total_fallbacks: int = 0
@@ -130,10 +131,14 @@ class LLMCircuitBreaker:
                 # Probe succeeded — close the breaker
                 self._state = CircuitState.CLOSED
                 self._failures.clear()
-                logger.info(f"CB [{label}]: HALF_OPEN probe succeeded — CLOSED. Latency: {latency_ms:.1f}ms")
+                logger.info(
+                    f"CB [{label}]: HALF_OPEN probe succeeded — CLOSED. Latency: {latency_ms:.1f}ms"
+                )
 
             if latency_ms > 1500:
-                logger.warning(f"CB [{label}]: Slow response {latency_ms:.0f}ms (threshold: {timeout*1000:.0f}ms)")
+                logger.warning(
+                    f"CB [{label}]: Slow response {latency_ms:.0f}ms (threshold: {timeout * 1000:.0f}ms)"
+                )
 
             return result, False
 
@@ -142,7 +147,7 @@ class LLMCircuitBreaker:
             latency_ms = (time.monotonic() - t0) * 1000
             logger.error(
                 f"CB [{label}]: TIMEOUT after {latency_ms:.0f}ms "
-                f"(limit: {timeout*1000:.0f}ms). Using fallback."
+                f"(limit: {timeout * 1000:.0f}ms). Using fallback."
             )
             if self._state == CircuitState.HALF_OPEN:
                 self._state = CircuitState.OPEN
@@ -176,6 +181,7 @@ class LLMCircuitBreaker:
 # Convenience wrapper
 # ---------------------------------------------------------------------------
 
+
 async def llm_call_with_fallback(
     coro: Coroutine,
     fallback_fn: Callable[[], Any],
@@ -199,7 +205,10 @@ async def llm_call_with_fallback(
             symbol=symbol or "SYSTEM",
             reason=f"FALLBACK_MODE: {label} timed out or circuit open",
             triggered_by="llm_circuit_breaker",
-            meta={"breaker_stats": breaker.stats, "timestamp": datetime.now(timezone.utc).isoformat()},
+            meta={
+                "breaker_stats": breaker.stats,
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+            },
         )
 
     return result
@@ -210,7 +219,11 @@ async def llm_call_with_fallback(
 # ---------------------------------------------------------------------------
 
 # Breaker for high-stakes reasoning (UltraThink, Architect)
-HEAVY_BREAKER = LLMCircuitBreaker(failure_threshold=2, window_s=60.0, cooldown_s=60.0, default_timeout_s=5.0)
+HEAVY_BREAKER = LLMCircuitBreaker(
+    failure_threshold=2, window_s=60.0, cooldown_s=60.0, default_timeout_s=5.0
+)
 
 # Breaker for background analysis (Observer, Evolution, Experiment)
-LIGHT_BREAKER = LLMCircuitBreaker(failure_threshold=3, window_s=120.0, cooldown_s=30.0, default_timeout_s=3.0)
+LIGHT_BREAKER = LLMCircuitBreaker(
+    failure_threshold=3, window_s=120.0, cooldown_s=30.0, default_timeout_s=3.0
+)

@@ -19,6 +19,7 @@ class WorkloadManager:
         self, bridge=None, path: str = os.path.join(PROJECT_PATH, ".mission.json")
     ) -> None:
         import threading
+
         self._lock = threading.Lock()
         self.bridge = bridge
         self.path = path
@@ -65,10 +66,10 @@ class WorkloadManager:
                     try:
                         os.chmod(temp_path, 0o600)
                     except Exception:
-                        pass # Non-critical failure on Windows
+                        pass  # Non-critical failure on Windows
                     json.dump(self.mission_board, f, indent=2)
                     f.flush()
-                    os.fsync(f.fileno()) # Force write to physical media
+                    os.fsync(f.fileno())  # Force write to physical media
 
                 if os.path.getsize(temp_path) > 0:
                     os.replace(temp_path, self.path)
@@ -80,6 +81,7 @@ class WorkloadManager:
     async def save_async(self) -> None:
         """Non-blocking atomic save via thread offloading."""
         import asyncio
+
         await asyncio.to_thread(self.save)
 
     async def update_mission(self, mission_name: str, steps: list[str]) -> None:
@@ -120,6 +122,7 @@ class WorkloadManager:
         """Simulation of a teammate's incoming task mailbox."""
         mid = str(mind_id).strip().upper()
         return [
-            s for s in self.mission_board["steps"]
+            s
+            for s in self.mission_board["steps"]
             if not s["done"] and (s.get("owner", "ALL") == mid or s.get("owner", "ALL") == "ALL")
         ]

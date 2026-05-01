@@ -585,6 +585,7 @@ class TradingBrain:
 
         # --- Exit Intelligence ---
         self.exit_engine = ExitIntelligence({"belief_threshold": 0.35})
+        self._exit_failure_counts: dict[str, int] = {}
 
         # --- Risk Management ---
         self.ibkr_drawdown = DrawdownLadder(account_type="ibkr", peak_equity=STARTING_CAPITAL_CAD)
@@ -1651,21 +1652,23 @@ class TradingBrain:
 
                         # --- ATR CALCULATION ---
                         # Essential for MindMath deterministic auditing.
-                        tr = df_pd.select(
+                        # Convert to Polars once for high-performance vectorized math
+                        df_pl = pl.from_pandas(df_pd)
+
+                        tr_expr = pl.max_horizontal(
                             [
-                                pl.max_horizontal(
-                                    [
-                                        (pl.col("high") - pl.col("low")).abs(),
-                                        (pl.col("high") - pl.col("close").shift(1)).abs(),
-                                        (pl.col("low") - pl.col("close").shift(1)).abs(),
-                                    ]
-                                ).alias("tr")
+                                (pl.col("high") - pl.col("low")).abs(),
+                                (pl.col("high") - pl.col("close").shift(1)).abs(),
+                                (pl.col("low") - pl.col("close").shift(1)).abs(),
                             ]
-                        )["tr"]
+                        ).alias("tr")
+
+                        tr = df_pl.select([tr_expr])["tr"]
                         atr_val = float(tr.tail(20).mean()) if len(tr) >= 20 else 0.0
 
                         # Offload CPU-heavy pattern detection to a thread pool to avoid blocking the event loop
-                        patterns = await asyncio.to_thread(self.pattern_detector.detect_all, df_pd)
+                        # Pass the Polars DataFrame as expected by agent_a
+                        patterns = await asyncio.to_thread(self.pattern_detector.detect_all, df_pl)
                         for p in patterns:
                             if p:
                                 p.atr = atr_val

@@ -68,8 +68,11 @@ class MindObserver:
 
                 # Debounce: Prevent 'Sentiment Oscillation Bomb'
                 from time_sync import TimeSync
+
                 now = TimeSync.now().timestamp()
-                if new_sentiment != self.current_market_sentiment and (now - self._last_broadcast_time > 300):
+                if new_sentiment != self.current_market_sentiment and (
+                    now - self._last_broadcast_time > 300
+                ):
                     self.current_market_sentiment = new_sentiment
                     self._last_broadcast_time = now
                     await self.bridge.broadcast(
@@ -94,16 +97,17 @@ class MindObserver:
     async def _tool_fetch_sentiment(self) -> dict[str, Any]:
         """Simulates fetching global sentiment from external feeds (MCP-compatible)."""
         from time_sync import TimeSync
+
         return {
             "sentiment": self.current_market_sentiment,
             "timestamp": TimeSync.now().timestamp(),
-            "status": "LIVE_SENSE"
+            "status": "LIVE_SENSE",
         }
 
     async def _tool_scan_environment(self) -> dict[str, Any]:
         """Scans the local database for staleness or 'Dirty Data'."""
         if not self.qdb or not self.qdb.enabled:
-             return {"status": "OFFLINE", "reason": "QuestDB not active"}
+            return {"status": "OFFLINE", "reason": "QuestDB not active"}
 
         import pandas as pd
 
@@ -119,11 +123,11 @@ class MindObserver:
                 df = await self.qdb.fetch_ohlcv_pandas(symbol, timeframe="1m", limit=1)
                 if df is not None and not df.empty:
                     # QuestDB timestamps are typically UTC
-                    last_ts = pd.to_datetime(df['timestamp'].iloc[0]).timestamp()
-                    if now_ts - last_ts > 300: # 5 minute staleness threshold
+                    last_ts = pd.to_datetime(df["timestamp"].iloc[0]).timestamp()
+                    if now_ts - last_ts > 300:  # 5 minute staleness threshold
                         stale_symbols.append(symbol)
                 else:
-                    stale_symbols.append(symbol) # No data in DB for core instrument
+                    stale_symbols.append(symbol)  # No data in DB for core instrument
             except Exception as e:
                 logger.debug(f"MindObserver: Pulse check failed for {symbol}: {e}")
                 continue
@@ -133,5 +137,5 @@ class MindObserver:
             "stale_count": len(stale_symbols),
             "stale_symbols": stale_symbols,
             "status": status,
-            "timestamp": now_ts
+            "timestamp": now_ts,
         }

@@ -44,7 +44,7 @@ class TTLCache:
         """Background loop to periodically prune stale entries."""
         while self._is_running:
             try:
-                await asyncio.sleep(60) # Scavenge every minute
+                await asyncio.sleep(60)  # Scavenge every minute
                 await self.prune()
             except asyncio.CancelledError:
                 break

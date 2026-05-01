@@ -78,9 +78,7 @@ class TradingCoordinator:
 
             risk_amt = abs(pattern.entry - pattern.stop)
             reward_amt = abs(pattern.target - pattern.entry)
-            est_shares = max(1, int(balance_usd * 0.8 / pattern.entry))
-
-            # Fix: est_shares assumes no leverage, which inflates comm_per_share.
+            # Unified Sizing Calculation
             # We use a more realistic position size estimate for RR calculation.
             est_shares = max(1, int(balance_usd * 4.0 * 0.1 / pattern.entry))
 

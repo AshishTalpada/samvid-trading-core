@@ -29,6 +29,7 @@ class MindEvolution:
         os.makedirs(os.path.dirname(self.db_path), exist_ok=True)
 
         from time_sync import TimeSync
+
         self._last_peak_save = TimeSync.now().timestamp()
 
         try:
@@ -37,7 +38,9 @@ class MindEvolution:
             conn.execute("PRAGMA busy_timeout = 60000;")
             cursor = conn.cursor()
             # Ensure table exists before querying
-            cursor.execute("CREATE TABLE IF NOT EXISTS system_state (key TEXT PRIMARY KEY, value TEXT, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)")
+            cursor.execute(
+                "CREATE TABLE IF NOT EXISTS system_state (key TEXT PRIMARY KEY, value TEXT, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)"
+            )
             cursor.execute("SELECT value FROM system_state WHERE key='peak_equity'")
             row = cursor.fetchone()
             conn.close()
@@ -46,6 +49,7 @@ class MindEvolution:
                 logger.info(f"MindEvolution: Restored High Water Mark: ${self.peak_equity:.2f}")
         except Exception as e:
             import sys
+
             print(f"CRITICAL: MindEvolution DB Recovery Failed: {e}", file=sys.stderr)
             logger.debug(f"MindEvolution: Could not load peak_equity on startup: {e}")
 
@@ -87,10 +91,14 @@ class MindEvolution:
 
                     # If entropy is high, force a threshold tightening
                     if wisdom.get("entropy_state") == "HIGH ENTROPY":
-                        logger.warning("🚨 [Evolution]: High System Entropy detected. Tightening Catalysts.")
-                        await self._tool_evolve_strategy("config_tightening", {"expected_profit_factor": 2.5})
+                        logger.warning(
+                            "🚨 [Evolution]: High System Entropy detected. Tightening Catalysts."
+                        )
+                        await self._tool_evolve_strategy(
+                            "config_tightening", {"expected_profit_factor": 2.5}
+                        )
 
-                await asyncio.sleep(3600 * 4) # Audit every 4 hours
+                await asyncio.sleep(3600 * 4)  # Audit every 4 hours
             except Exception as e:
                 logger.error(f"MindEvolution: Refinement error: {e}")
                 await asyncio.sleep(60)
@@ -146,9 +154,7 @@ class MindEvolution:
 
         # Call Healer (Architect) to apply the genetic patch
         mutation_result = await self.bridge.call_tool(
-            "heal",
-            issue=f"Strategic Mutation: {strategy_id}",
-            suggestion=json.dumps(params)
+            "heal", issue=f"Strategic Mutation: {strategy_id}", suggestion=json.dumps(params)
         )
 
         if mutation_result.get("success"):
@@ -159,6 +165,7 @@ class MindEvolution:
 
     async def _tool_report_peak(self) -> dict[str, Any]:
         from time_sync import TimeSync
+
         return {"peak": self.peak_equity, "at_time": TimeSync.now().isoformat()}
 
     async def _fetch_current_equity(self) -> float:
@@ -175,7 +182,7 @@ class MindEvolution:
 
             net_liq = equity
             if unrealized_pnl > 0:
-                net_liq -= (unrealized_pnl * 0.15)
+                net_liq -= unrealized_pnl * 0.15
 
             return net_liq
         except Exception as e:
@@ -184,10 +191,14 @@ class MindEvolution:
 
     async def _persist_peak(self, peak: float) -> None:
         """Saves the high water mark to the SQLite state matrix."""
+
         def _sync_save():
             try:
                 conn = sqlite3.connect(self.db_path, timeout=60)
-                conn.execute("INSERT OR REPLACE INTO system_state (key, value) VALUES (?, ?)", ("peak_equity", str(peak)))
+                conn.execute(
+                    "INSERT OR REPLACE INTO system_state (key, value) VALUES (?, ?)",
+                    ("peak_equity", str(peak)),
+                )
                 conn.commit()
                 conn.close()
             except Exception as e:
@@ -204,6 +215,7 @@ class MindEvolution:
         """Synchronizes session-level 'Learnings' across all minds via Team Context."""
         logger.info(f"MindEvolution: Knowledge Update from '{source}': {knowledge_item[:50]}...")
         from time_sync import TimeSync
+
         self.historical_memory.append(
             {"item": knowledge_item, "source": source, "timestamp": TimeSync.now().isoformat()}
         )

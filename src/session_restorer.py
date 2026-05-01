@@ -28,25 +28,28 @@ class SessionRestorer:
         # We NO LONGER use a hardcoded default in production.
         self.secret_key = Vault.get("SESSION_SECRET")
         if not self.secret_key:
-            logger.critical("SECURITY BREACH: SESSION_SECRET not found in Vault. Persistence is DISABLED to prevent forgery.")
+            logger.critical(
+                "SECURITY BREACH: SESSION_SECRET not found in Vault. Persistence is DISABLED to prevent forgery."
+            )
             raise RuntimeError("Critical Security Configuration Missing: SESSION_SECRET")
 
     def freeze_state(self, state: dict[str, Any]) -> bool:
         """Serializes and signs the current 'Brain State' for persistent recovery."""
         from time_sync import TimeSync
+
         try:
             # 1. Prepare State Bundle
             now_ts = TimeSync.now()
             bundle = {"timestamp": now_ts.isoformat(), "state": state, "version": "6.0"}
 
             # 2. Serialize and Sign
-            data = json.dumps(bundle, default=str).encode('utf-8')
+            data = json.dumps(bundle, default=str).encode("utf-8")
             signature = hashlib.sha256(data + self.secret_key.encode()).hexdigest()
 
             # 3. Write Atomic (Safe-Write pattern)
             temp_path = f"{self.path}.tmp"
             fd = os.open(temp_path, os.O_CREAT | os.O_WRONLY | os.O_TRUNC, 0o600)
-            with os.fdopen(fd, 'wb') as f:
+            with os.fdopen(fd, "wb") as f:
                 f.write(data)
                 f.write(b"\n--SIGNATURE--\n")
                 f.write(signature.encode())
@@ -68,6 +71,7 @@ class SessionRestorer:
         Saves a full conversation transcript for resumable sessions.
         """
         from time_sync import TimeSync
+
         transcript_dir = os.path.join(PROJECT_PATH, "data", "transcripts")
         os.makedirs(transcript_dir, exist_ok=True)
 
@@ -88,6 +92,7 @@ class SessionRestorer:
         Creates a versioned backup before surgical system edits.
         """
         from time_sync import TimeSync
+
         if not os.path.exists(filepath):
             return ""
 
@@ -136,7 +141,7 @@ class SessionRestorer:
                 )
                 return None
 
-            bundle = json.loads(data.decode('utf-8'))
+            bundle = json.loads(data.decode("utf-8"))
             logger.info(
                 f"SessionRestorer: State THAWED from {bundle['timestamp']}. Version: {bundle['version']}"
             )
@@ -148,14 +153,12 @@ class SessionRestorer:
     def save_cognitive_capsule(self, state: Dict[str, Any]) -> None:
         """Persist the short-term market sentiment state for session continuity."""
         from time_sync import TimeSync
+
         try:
             capsule_path = "data/cognitive_capsule.json"
             os.makedirs(os.path.dirname(capsule_path), exist_ok=True)
             with open(capsule_path, "w") as f:
-                json.dump({
-                    "timestamp": TimeSync.now().isoformat(),
-                    "payload": state
-                }, f, indent=4)
+                json.dump({"timestamp": TimeSync.now().isoformat(), "payload": state}, f, indent=4)
         except Exception as e:
             logger.error(f"SessionRestorer: Failed to save capsule: {e}")
 
@@ -174,11 +177,14 @@ class SessionRestorer:
                         data = json.load(f)
                         return data.get("payload", {})
                     except json.JSONDecodeError:
-                        logger.warning("SessionRestorer: Cognitive capsule corrupted. Clean slate initiated.")
+                        logger.warning(
+                            "SessionRestorer: Cognitive capsule corrupted. Clean slate initiated."
+                        )
                         return {}
         except Exception as e:
             logger.debug(f"SessionRestorer: Adaptive recovery for capsule: {e}")
         return {}
+
     def restore_peak_equity(self, db_path: str, drawdown_ladder: Any) -> float:
         """
         Reads the last known peak_equity from the DB and restores it into
@@ -195,7 +201,9 @@ class SessionRestorer:
             if row:
                 peak = float(row[0])
                 drawdown_ladder.peak_equity = peak
-                logger.info(f"SessionRestorer: Restored peak_equity=${peak:.2f} into DrawdownLadder.")
+                logger.info(
+                    f"SessionRestorer: Restored peak_equity=${peak:.2f} into DrawdownLadder."
+                )
                 return peak
         except Exception as e:
             logger.warning(f"SessionRestorer: Could not restore peak_equity: {e}")
@@ -216,11 +224,13 @@ class SessionRestorer:
             broker_map = {p.contract.symbol: p for p in ib_pos}
 
             # 2. Fetch Active Database Trades
-            db_conn.row_factory = sqlite3.Row # Ensure safe dictionary-style access
+            db_conn.row_factory = sqlite3.Row  # Ensure safe dictionary-style access
             cursor = db_conn.cursor()
-            cursor.execute("SELECT id, instrument, direction, shares_remaining, stop_price, target_price FROM trades WHERE status = 'OPEN'")
+            cursor.execute(
+                "SELECT id, instrument, direction, shares_remaining, stop_price, target_price FROM trades WHERE status = 'OPEN'"
+            )
             db_trades = cursor.fetchall()
-            db_map = {t['instrument']: t for t in db_trades}
+            db_map = {t["instrument"]: t for t in db_trades}
 
             # 3. Handle ORPHANS (In Broker, but not managed in DB)
             from system_types import Position
@@ -228,7 +238,9 @@ class SessionRestorer:
             for symbol, p in broker_map.items():
                 broker_qty = abs(p.position)
                 if symbol not in db_map:
-                    logger.warning(f"🧟 Reconciler: ORPHAN DETECTED [{symbol} | {broker_qty}]. Initiating Adoption Protocol.")
+                    logger.warning(
+                        f"🧟 Reconciler: ORPHAN DETECTED [{symbol} | {broker_qty}]. Initiating Adoption Protocol."
+                    )
 
                     price = p.avgCost
                     if price <= 0:
@@ -236,12 +248,16 @@ class SessionRestorer:
                             # Attempt to get last tick from IB cache
                             ticker = ib.ticker(p.contract)
                             price = ticker.last or ticker.close or ticker.marketPrice() or 0.0
-                            logger.info(f"Reconciler: avgCost was 0 for {symbol}. Fetched marketPrice: ${price:.2f}")
+                            logger.info(
+                                f"Reconciler: avgCost was 0 for {symbol}. Fetched marketPrice: ${price:.2f}"
+                            )
                         except Exception:
                             price = 0.0
 
                     if price <= 0:
-                        logger.error(f"Zombie Trade Risk: Could not resolve valid price for {symbol}. DEFERRING adoption.")
+                        logger.error(
+                            f"Zombie Trade Risk: Could not resolve valid price for {symbol}. DEFERRING adoption."
+                        )
                         continue
 
                     direction = "LONG" if p.position > 0 else "SHORT"
@@ -259,27 +275,47 @@ class SessionRestorer:
                         pattern="ADOPTED_ORPHAN",
                         status="OPEN",
                         stop_loss=price - stop_dist if direction == "LONG" else price + stop_dist,
-                        take_profit=price + target_dist if direction == "LONG" else price - target_dist,
+                        take_profit=price + target_dist
+                        if direction == "LONG"
+                        else price - target_dist,
                         shares_remaining=broker_qty,
-                        meta={"adoption_ts": datetime.now(timezone.utc).isoformat()}
+                        meta={"adoption_ts": datetime.now(timezone.utc).isoformat()},
                     )
 
                     # Persist Adoption to DB
                     cursor.execute(
                         "INSERT INTO trades (instrument, direction, quantity, entry_price, status, stop_price, target_price, notes) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-                        (symbol, direction, broker_qty, price, "OPEN", adopted.stop_loss, adopted.take_profit, "Sovereign Adoption Protocol v1.0-beta")
+                        (
+                            symbol,
+                            direction,
+                            broker_qty,
+                            price,
+                            "OPEN",
+                            adopted.stop_loss,
+                            adopted.take_profit,
+                            "Sovereign Adoption Protocol v1.0-beta",
+                        ),
                     )
                     adopted.db_id = cursor.lastrowid
                     adopted_positions.append(adopted)
-                    logger.info(f"✓ Reconciler: Adopted {symbol} (Target: {adopted.take_profit:.2f}, Stop: {adopted.stop_loss:.2f})")
+                    logger.info(
+                        f"✓ Reconciler: Adopted {symbol} (Target: {adopted.take_profit:.2f}, Stop: {adopted.stop_loss:.2f})"
+                    )
                 else:
                     db_trade = db_map[symbol]
-                    db_qty = db_trade['shares_remaining']
-                    if abs(db_qty - broker_qty) > 0.001: # Use epsilon for float safety
-                        logger.warning(f"⚖️ Reconciler: QUANTITY MISMATCH for {symbol}. DB: {db_qty} | Broker: {broker_qty}. Synchronizing to Broker.")
+                    db_qty = db_trade["shares_remaining"]
+                    if abs(db_qty - broker_qty) > 0.001:  # Use epsilon for float safety
+                        logger.warning(
+                            f"⚖️ Reconciler: QUANTITY MISMATCH for {symbol}. DB: {db_qty} | Broker: {broker_qty}. Synchronizing to Broker."
+                        )
                         cursor.execute(
                             "UPDATE trades SET shares_remaining = ?, quantity = ?, notes = notes || ? WHERE id = ?",
-                            (broker_qty, broker_qty, f" | Qty Recon: {db_qty}->{broker_qty}", db_trade['id'])
+                            (
+                                broker_qty,
+                                broker_qty,
+                                f" | Qty Recon: {db_qty}->{broker_qty}",
+                                db_trade["id"],
+                            ),
                         )
 
             # 4. Handle GHOSTS (In DB but no longer in Broker)
@@ -288,18 +324,23 @@ class SessionRestorer:
                     # If it was created < 60s ago, it might be a race condition where IB hasn't updated yet.
                     # We only close if it's "Mature" (> 60s old).
                     try:
-                        cursor.execute("SELECT created_at FROM trades WHERE id = ?", (t['id'],))
+                        cursor.execute("SELECT created_at FROM trades WHERE id = ?", (t["id"],))
                         created_str = cursor.fetchone()[0]
                         created_dt = datetime.fromisoformat(created_str.replace("Z", "+00:00"))
                         if (datetime.now(timezone.utc) - created_dt).total_seconds() < 60:
-                            logger.info(f"⏳ Reconciler: Skipping Ghost Veto for {symbol} (Age < 60s, potential race).")
+                            logger.info(
+                                f"⏳ Reconciler: Skipping Ghost Veto for {symbol} (Age < 60s, potential race)."
+                            )
                             continue
-                    except Exception: pass
+                    except Exception:
+                        pass
 
-                    logger.info(f"👻 Reconciler: GHOST DETECTED [{symbol}]. Closing record (Terminal discrepancy).")
+                    logger.info(
+                        f"👻 Reconciler: GHOST DETECTED [{symbol}]. Closing record (Terminal discrepancy)."
+                    )
                     cursor.execute(
                         "UPDATE trades SET status = 'CLOSED', exit_reason = 'GHOST_SYNCHRONIZED', exit_time = ? WHERE id = ?",
-                        (datetime.now(timezone.utc).isoformat(), t['id'])
+                        (datetime.now(timezone.utc).isoformat(), t["id"]),
                     )
 
             db_conn.commit()
