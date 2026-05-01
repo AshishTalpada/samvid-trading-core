@@ -186,6 +186,47 @@ class QuestDBAdapter:
             self._sock = None
             self.is_active = False
 
+    def log_event(self, table: str, data: dict[str, Any]) -> None:
+        """
+        Log a generic system event or metric to QuestDB.
+        Example: log_event("system_metrics", {"cpu": 45.2, "ram": 1024})
+        """
+        if not self.enabled:
+            return
+
+        from datetime import datetime, timezone
+        ts = int(datetime.now(timezone.utc).timestamp() * 1e9)
+
+        # Sanitize table name
+        safe_table = str(table).replace(",", "\\,").replace(" ", "\\ ").replace("=", "\\=")
+
+        # Prepare fields (ILP format: key=value)
+        fields = []
+        for k, v in data.items():
+            safe_k = str(k).replace(",", "\\,").replace(" ", "\\ ").replace("=", "\\=")
+            if isinstance(v, bool):
+                fields.append(f"{safe_k}={'true' if v else 'false'}")
+            elif isinstance(v, (int, float)):
+                # QuestDB ILP uses 'f' suffix for floats sometimes, but usually just a dot is enough
+                # For integers, it uses 'i' suffix.
+                if isinstance(v, int):
+                    fields.append(f"{safe_k}={v}i")
+                else:
+                    fields.append(f"{safe_k}={v}")
+            else:
+                # String field (quoted)
+                safe_v = str(v).replace('"', '\\"')
+                fields.append(f'{safe_k}="{safe_v}"')
+
+        if not fields:
+            return
+
+        line = f"{safe_table} {','.join(fields)} {ts}"
+        try:
+            self._queue.put_nowait(line)
+        except asyncio.QueueFull:
+            pass
+
     def log_signal(
         self,
         agent_id: str,
