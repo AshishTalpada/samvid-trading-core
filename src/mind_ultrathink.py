@@ -212,9 +212,24 @@ class MindUltrathink:
         Claude-Code Pattern: DO NOT ADD IMPROVEMENTS BEYOND TASK.
         Strips away 'indicator bloat' to focus on load-bearing signals.
         """
-        load_bearing = ["VIX", "ROI", "VOL", "TREND"]
-        sniped = [line for line in context.split("\n") if any(k in line for k in load_bearing)]
-        return "\n".join(sniped)
+        load_bearing = [
+            "vix",
+            "roi",
+            "vol",
+            "trend",
+            "r_r_ratio",
+            "reward",
+            "risk",
+            "profit",
+            "fees",
+            "confidence",
+            "prob",
+        ]
+        sniped = [
+            line for line in context.split("\n") if any(k in line.lower() for k in load_bearing)
+        ]
+        # If the JSON was stripped entirely because it had no newlines, fallback to original
+        return "\n".join(sniped) if sniped else context
 
     def _get_locked_trade_ids(self) -> set:
         return self.STATE_LOCK.locked_ids
@@ -501,11 +516,18 @@ class MindUltrathink:
         shares = context.get("shares", 1) or 1
         total_profit = (context.get("potential_profit", 0) or 0) * shares
 
-        # Intelligence tasking
-        task_prompt = (
-            f"Vetting {symbol}.\n"
-            f"Context: {context.get('pattern')} @ {context.get('regime')}\n"
-            f"Stats: VIX {context.get('vix')} | Total Profit ${total_profit:.2f} | Total Fees ${context.get('commission', 0):.2f} | Shares {shares}"
+        # Intelligence tasking - MUST BE JSON format for the extraction regexes
+        task_prompt = json.dumps(
+            {
+                "symbol": symbol,
+                "pattern": context.get("pattern"),
+                "regime": context.get("regime"),
+                "vix": float(context.get("vix", 20.0)),
+                "profit": float(total_profit),
+                "fees": float(context.get("commission", 1.0)),
+                "r_r_ratio": float(context.get("r_r_ratio", 0.0)),
+                "shares": int(shares),
+            }
         )
 
         result = await self._tool_pause_and_reason(task_prompt, context.get("intensity", "RAINBOW"))
