@@ -14,11 +14,19 @@ import polars as pl
 # Resolved: 'NoneType' object is not subscriptable in history.py:224
 try:
     import yfinance.scrapers.history as yf_history
-    _orig_history = yf_history.History.history if hasattr(yf_history, "History") else yf_history.history
+
+    _orig_history = (
+        yf_history.History.history if hasattr(yf_history, "History") else yf_history.history
+    )
+
     def _patched_history(*args, **kwargs):
         try:
             # Handle both function and method calls depending on yfinance version
-            if hasattr(yf_history, "History") and len(args) > 0 and isinstance(args[0], yf_history.History):
+            if (
+                hasattr(yf_history, "History")
+                and len(args) > 0
+                and isinstance(args[0], yf_history.History)
+            ):
                 return _orig_history(*args, **kwargs)
             return _orig_history(*args, **kwargs)
         except Exception as e:
@@ -26,8 +34,10 @@ try:
             err_msg = str(e).lower()
             if "subscriptable" in err_msg or "nonetype" in err_msg:
                 import pandas as pd
+
                 return pd.DataFrame()
             raise e
+
     if hasattr(yf_history, "History"):
         yf_history.History.history = _patched_history
     else:
@@ -57,26 +67,54 @@ class DataPipeline:
     - Asynchronous signal publication to the Intelligence Bus.
     - Memory-safe enrichment (VIX, News, Institutional Flow).
     """
+
     # Full watchlist — must match TradingBrain._get_watchlist() exactly so that
     # every symbol the brain scans has fresh OHLCV rows in the database.
-    INSTRUMENTS = list(set([
-        # Core Indices
-        "SPY", "QQQ", "IWM", "DIA",
-        # Macro / Legacy
-        "XLK", "XLF", "GC=F", "NQ=F",
-        # Mag 7 & Trillion Dollar Tech
-        "AAPL", "MSFT", "GOOGL", "AMZN", "NVDA", "META", "TSLA",
-        # High Beta Semi / AI
-        "AMD", "AVGO", "SMCI", "ARM", "MU", "PLTR",
-        # Crypto Proxies
-        "COIN", "MSTR",
-        # Banks / Value
-        "JPM", "GS", "V", "MA",
-        # Retail / Consumer
-        "WMT", "COST", "NFLX",
-    ]))
+    INSTRUMENTS = list(
+        set(
+            [
+                # Core Indices
+                "SPY",
+                "QQQ",
+                "IWM",
+                "DIA",
+                # Macro / Legacy
+                "XLK",
+                "XLF",
+                "GC=F",
+                "NQ=F",
+                # Mag 7 & Trillion Dollar Tech
+                "AAPL",
+                "MSFT",
+                "GOOGL",
+                "AMZN",
+                "NVDA",
+                "META",
+                "TSLA",
+                # High Beta Semi / AI
+                "AMD",
+                "AVGO",
+                "SMCI",
+                "ARM",
+                "MU",
+                "PLTR",
+                # Crypto Proxies
+                "COIN",
+                "MSTR",
+                # Banks / Value
+                "JPM",
+                "GS",
+                "V",
+                "MA",
+                # Retail / Consumer
+                "WMT",
+                "COST",
+                "NFLX",
+            ]
+        )
+    )
 
-    DMS_LOCK_FILE = "data/dms.lock" #
+    DMS_LOCK_FILE = "data/dms.lock"  #
 
     def __init__(
         self,
@@ -96,7 +134,9 @@ class DataPipeline:
             finnhub_key = Vault.get("FINNHUB_API_KEY", "") or Vault.get("FINNHUB_KEY", "")
 
         if not finnhub_key:
-            logger.critical("🚨 NEWS DISRUPTION: No Finnhub API Key found! News fetching will stay offline. Add FINNHUB_API_KEY to Vault.")
+            logger.critical(
+                "🚨 NEWS DISRUPTION: No Finnhub API Key found! News fetching will stay offline. Add FINNHUB_API_KEY to Vault."
+            )
 
         # Explicit type-safety cast for Vault-retrieved keys
         self.finnhub_key = str(finnhub_key) if finnhub_key else ""
@@ -138,9 +178,9 @@ class DataPipeline:
         """Get a database connection with WAL mode enabled for concurrency."""
         conn = sqlite3.connect(
             self.db_path,
-            timeout=60.0, # Increased from 30s to 60s
+            timeout=60.0,  # Increased from 30s to 60s
             check_same_thread=False,
-            isolation_level=None
+            isolation_level=None,
         )
         conn.execute("PRAGMA busy_timeout = 60000;")
         conn.execute("PRAGMA journal_mode=WAL;")
@@ -195,7 +235,9 @@ class DataPipeline:
             )
         """)
 
-        cursor.execute("CREATE INDEX IF NOT EXISTS idx_ohlcv_query ON ohlcv (symbol, timeframe, timestamp DESC);")
+        cursor.execute(
+            "CREATE INDEX IF NOT EXISTS idx_ohlcv_query ON ohlcv (symbol, timeframe, timestamp DESC);"
+        )
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_ohlcv_time ON ohlcv (timestamp);")
 
         # Check if the 'ohlcv' table is missing any expected columns and add them.
@@ -203,9 +245,9 @@ class DataPipeline:
             cursor.execute("PRAGMA table_info(ohlcv)")
             columns = [row[1] for row in cursor.fetchall()]
             if "volume" not in columns:
-                 cursor.execute("ALTER TABLE ohlcv ADD COLUMN volume INTEGER")
+                cursor.execute("ALTER TABLE ohlcv ADD COLUMN volume INTEGER")
             if "timeframe" not in columns:
-                 cursor.execute("ALTER TABLE ohlcv ADD COLUMN timeframe TEXT")
+                cursor.execute("ALTER TABLE ohlcv ADD COLUMN timeframe TEXT")
         except Exception as e:
             logger.warning(f"DataPipeline: Schema migration check failed: {e}")
 
@@ -214,8 +256,12 @@ class DataPipeline:
         logger.info("Database initialized with optimized indices and migration check.")
 
     async def fetch_ohlcv(
-        self, symbol: str, tf: str = "1d", bars: int = 100,
-        start: Optional[datetime] = None, end: Optional[datetime] = None
+        self,
+        symbol: str,
+        tf: str = "1d",
+        bars: int = 100,
+        start: Optional[datetime] = None,
+        end: Optional[datetime] = None,
     ) -> Optional["pl.DataFrame"]:
         """
         Fetch OHLCV data for a symbol.
@@ -225,12 +271,16 @@ class DataPipeline:
             # --- Tier 1: OpenBB (if available and daily timeframe) ---
             if self.openbb and self.openbb.is_available and tf == "1d":
                 try:
-                    pl_df = await self.openbb.fetch_ohlcv(symbol=symbol, period_days=bars, interval=tf)
+                    pl_df = await self.openbb.fetch_ohlcv(
+                        symbol=symbol, period_days=bars, interval=tf
+                    )
                     if pl_df is not None and len(pl_df) > 0:
                         # Verify integrity
                         if pl_df["volume"].sum() == 0 and not symbol.startswith("^"):
-                             logger.warning(f"DataPipeline: Zero-Volume Anomaly detected for {symbol}. Rejecting batch.")
-                             return None
+                            logger.warning(
+                                f"DataPipeline: Zero-Volume Anomaly detected for {symbol}. Rejecting batch."
+                            )
+                            return None
                         logger.info(f"OpenBB fetched {len(pl_df)} bars for {symbol} ({tf})")
                         return pl_df
                 except Exception as e:
@@ -253,7 +303,9 @@ class DataPipeline:
 
             # Respective to yfinance historical limits
             if interval == "1m":
-                period = "7d" if bars <= 3000 else "30d" # yfinance allows 30d for 1m but it is fragile
+                period = (
+                    "7d" if bars <= 3000 else "30d"
+                )  # yfinance allows 30d for 1m but it is fragile
             elif interval in ["2m", "5m", "15m", "30m", "1h"]:
                 period = "60d"
             elif interval == "1d":
@@ -271,38 +323,64 @@ class DataPipeline:
             max_retries = 3
             for attempt in range(max_retries + 1):
                 try:
-                    if hasattr(ticker, "fast_info"): _ = ticker.fast_info
+                    if hasattr(ticker, "fast_info"):
+                        _ = ticker.fast_info
 
                     if start and end:
-                        df = await asyncio.to_thread(ticker.history, start=start, end=end, interval=interval, timeout=20)
+                        df = await asyncio.to_thread(
+                            ticker.history, start=start, end=end, interval=interval, timeout=20
+                        )
                     else:
-                        df = await asyncio.to_thread(ticker.history, period=period, interval=interval, timeout=20)
+                        df = await asyncio.to_thread(
+                            ticker.history, period=period, interval=interval, timeout=20
+                        )
 
                     if df is not None and not df.empty:
-                        break # Success
+                        break  # Success
                 except Exception as e:
                     err_str = str(e).lower()
                     is_ratelimit = "429" in err_str or "too many requests" in err_str
-                    if is_ratelimit or "subscriptable" in err_str or "nonetype" in err_str or attempt < max_retries:
-                        wait = (2 ** attempt) * 2.5 # Exponential backoff
-                        logger.warning(f"yfinance {'429' if is_ratelimit else 'glitch'} for {symbol} ({period}). Attempt {attempt+1} failed. Jittering {wait}s...")
+                    if (
+                        is_ratelimit
+                        or "subscriptable" in err_str
+                        or "nonetype" in err_str
+                        or attempt < max_retries
+                    ):
+                        wait = (2**attempt) * 2.5  # Exponential backoff
+                        logger.warning(
+                            f"yfinance {'429' if is_ratelimit else 'glitch'} for {symbol} ({period}). Attempt {attempt + 1} failed. Jittering {wait}s..."
+                        )
                         await asyncio.sleep(wait)
                         if attempt == max_retries - 1:
                             period = "1d"
-                            logger.info(f"Glitch Shield: Dropping {symbol} request to 1d period for recovery.")
+                            logger.info(
+                                f"Glitch Shield: Dropping {symbol} request to 1d period for recovery."
+                            )
                     else:
-                        logger.error(f"yfinance total failure for {symbol} after {max_retries} attempts: {e}")
+                        logger.error(
+                            f"yfinance total failure for {symbol} after {max_retries} attempts: {e}"
+                        )
                         break
 
             if df is None or (hasattr(df, "empty") and df.empty):
                 # --- HEURISTIC RECONSTRUCTION (FINAL FALLBACK) ---
-                logger.warning(f"No historical data for {symbol}. Attempting Heuristic Reconstruction...")
+                logger.warning(
+                    f"No historical data for {symbol}. Attempting Heuristic Reconstruction..."
+                )
                 last_price = await self.get_current_price(symbol)
                 if last_price > 0:
-                    df = pd.DataFrame([{
-                        "Open": last_price, "High": last_price, "Low": last_price,
-                        "Close": last_price, "Volume": 0
-                    }], index=[pd.Timestamp.now(tz="UTC")])
+                    df = pd.DataFrame(
+                        [
+                            {
+                                "Open": last_price,
+                                "High": last_price,
+                                "Low": last_price,
+                                "Close": last_price,
+                                "Volume": 0,
+                            }
+                        ],
+                        index=[pd.Timestamp.now(tz="UTC")],
+                    )
                 else:
                     return pl.DataFrame()
 
@@ -310,11 +388,14 @@ class DataPipeline:
                 # Check for gaps > 15 mins in historical index
                 diffs = df.index.to_series().diff().dropna().dt.total_seconds()
                 max_gap = diffs.max()
-                if max_gap > 900: # 15 mins
-                    logger.warning(f"GAP DETECTED: {symbol} has a data gap of {max_gap/60:.1f} minutes.")
+                if max_gap > 900:  # 15 mins
+                    logger.warning(
+                        f"GAP DETECTED: {symbol} has a data gap of {max_gap / 60:.1f} minutes."
+                    )
 
-            # Limit to requested number of bars
-            df = df.tail(bars).copy()
+            # Limit to requested number of bars ONLY if start/end are not used
+            if not (start and end):
+                df = df.tail(bars).copy()
 
             # Standardize column names
             df.columns = df.columns.str.lower()
@@ -331,6 +412,7 @@ class DataPipeline:
 
         except Exception as e:
             import traceback
+
             logger.error(f"Error fetching OHLCV for {symbol}: {e}\n{traceback.format_exc()}")
             return pl.DataFrame()
 
@@ -378,9 +460,9 @@ class DataPipeline:
                         return float(price)
             except Exception as e:
                 if "subscriptable" in str(e).lower():
-                     logger.debug(f"fast_info glitch for {symbol}, falling back to history...")
+                    logger.debug(f"fast_info glitch for {symbol}, falling back to history...")
                 else:
-                     raise e
+                    raise e
 
             # Otherwise use history
             try:
@@ -388,7 +470,7 @@ class DataPipeline:
                 if not df.empty:
                     return df["Close"].iloc[-1]
             except Exception:
-                pass # Silence yfinance scraper glitches here
+                pass  # Silence yfinance scraper glitches here
         except Exception as e:
             logger.error(f"Failed to get price for {symbol}: {e}")
 
@@ -405,7 +487,9 @@ class DataPipeline:
             except Exception as e:
                 # Catch subscriptable glitch in history
                 if "subscriptable" in str(e).lower():
-                    logger.warning(f"Glitch Shield: yfinance history failed for {symbol}. Returning empty.")
+                    logger.warning(
+                        f"Glitch Shield: yfinance history failed for {symbol}. Returning empty."
+                    )
                     return pl.DataFrame()
                 raise e
 
@@ -418,7 +502,7 @@ class DataPipeline:
             # We fill forward or retain the index and only drop rows with MISSING prices.
             df = df.ffill()
             # If still NAs exist in OHLC (unlikely after ffill unless whole block missing)
-            df = df.dropna(subset=['Open', 'High', 'Low', 'Close'])
+            df = df.dropna(subset=["Open", "High", "Low", "Close"])
             # then we drop, but we log it as a data integrity warning.
             if df.isnull().values.any():
                 logger.debug(f"DataPipeline: {symbol} has holes after ffill. Pruning...")
@@ -427,6 +511,7 @@ class DataPipeline:
             return pl.from_pandas(df.reset_index())
         except Exception as e:
             import traceback
+
             logger.error(f"Error fetching OHLCV for {symbol}: {e}\n{traceback.format_exc()}")
             return pl.DataFrame()
 
@@ -438,12 +523,38 @@ class DataPipeline:
         text = (headline + " " + (summary or "")).upper()
 
         BULL_WORDS = [
-            "BEAT", "UPGRADE", "RAISE", "POSITIVE", "GROWTH", "WIN", "SURGE", "PROFIT",
-            "BULLISH", "SUCCESS", "EXPAND", "BUY", "OUTPERFORM", "RECOVERY", "BOOM"
+            "BEAT",
+            "UPGRADE",
+            "RAISE",
+            "POSITIVE",
+            "GROWTH",
+            "WIN",
+            "SURGE",
+            "PROFIT",
+            "BULLISH",
+            "SUCCESS",
+            "EXPAND",
+            "BUY",
+            "OUTPERFORM",
+            "RECOVERY",
+            "BOOM",
         ]
         BEAR_WORDS = [
-            "MISS", "DOWNGRADE", "LOWER", "NEGATIVE", "FALL", "LOSS", "DROP", "PLUNGE",
-            "BEARISH", "FAILURE", "SHRINK", "SELL", "UNDERPERFORM", "CRASH", "SLUMP"
+            "MISS",
+            "DOWNGRADE",
+            "LOWER",
+            "NEGATIVE",
+            "FALL",
+            "LOSS",
+            "DROP",
+            "PLUNGE",
+            "BEARISH",
+            "FAILURE",
+            "SHRINK",
+            "SELL",
+            "UNDERPERFORM",
+            "CRASH",
+            "SLUMP",
         ]
 
         NEGATORS = ["NOT", "NO", "NEVER", "LESS", "WITHOUT", "AGAINST"]
@@ -452,25 +563,29 @@ class DataPipeline:
         words = text.split()
         for i, word in enumerate(words):
             for bw in BULL_WORDS:
-                if bw == word or (bw in word and len(word) < len(bw) + 3): # Fuzzy match
+                if bw == word or (bw in word and len(word) < len(bw) + 3):  # Fuzzy match
                     # Check for negation in previous 2 words
                     negated = False
-                    for j in range(max(0, i-2), i):
+                    for j in range(max(0, i - 2), i):
                         if words[j] in NEGATORS:
                             negated = True
                             break
-                    if negated: score -= 0.25
-                    else: score += 0.25
+                    if negated:
+                        score -= 0.25
+                    else:
+                        score += 0.25
 
             for rw in BEAR_WORDS:
                 if rw == word or (rw in word and len(word) < len(rw) + 3):
                     negated = False
-                    for j in range(max(0, i-2), i):
+                    for j in range(max(0, i - 2), i):
                         if words[j] in NEGATORS:
                             negated = True
                             break
-                    if negated: score += 0.25
-                    else: score -= 0.25
+                    if negated:
+                        score += 0.25
+                    else:
+                        score -= 0.25
 
         return max(-1.0, min(1.0, score))
 
@@ -490,7 +605,9 @@ class DataPipeline:
                         break
                 except Exception as e:
                     if "subscriptable" in str(e).lower():
-                        logger.warning(f"VIX yfinance glitch. Attempt {attempt+1} failed. Jittering...")
+                        logger.warning(
+                            f"VIX yfinance glitch. Attempt {attempt + 1} failed. Jittering..."
+                        )
                         await asyncio.sleep(1.0)
                     else:
                         raise e
@@ -499,7 +616,11 @@ class DataPipeline:
                 logger.warning("No VIX data available")
                 return 0.0
 
-            close_col = "Close" if "Close" in hist.columns else ("close" if "close" in hist.columns else None)
+            close_col = (
+                "Close"
+                if "Close" in hist.columns
+                else ("close" if "close" in hist.columns else None)
+            )
             if close_col is None:
                 logger.warning("VIX data missing 'Close' column")
                 return 0.0
@@ -508,6 +629,7 @@ class DataPipeline:
 
             def _save_vix():
                 from datetime import datetime, timezone
+
                 conn = self._get_db_connection()
                 try:
                     cursor = conn.cursor()
@@ -562,7 +684,9 @@ class DataPipeline:
                                     "published_at": datetime.fromtimestamp(
                                         article.get("datetime", 0)
                                     ).isoformat(),
-                                    "sentiment": self._calculate_sentiment(article.get("headline", ""), article.get("summary", "")),
+                                    "sentiment": self._calculate_sentiment(
+                                        article.get("headline", ""), article.get("summary", "")
+                                    ),
                                 }
                             )
                 logger.info(f"Finnhub fetched {len(data[:5])} news items for {symbol}")
@@ -582,7 +706,9 @@ class DataPipeline:
                             "source": article.get("source", "OpenBB"),
                             "url": article.get("url", ""),
                             "published_at": article.get("published_at", ""),
-                            "sentiment": self._calculate_sentiment(article.get("headline", ""), article.get("summary", "")),
+                            "sentiment": self._calculate_sentiment(
+                                article.get("headline", ""), article.get("summary", "")
+                            ),
                         }
                     )
                 if openbb_articles:
@@ -598,12 +724,14 @@ class DataPipeline:
             if yf_news:
                 for article in yf_news[:5]:
                     content = article.get("content", {})
-                    headline = content.get("title") or article.get("title") or article.get("headline", "")
+                    headline = (
+                        content.get("title") or article.get("title") or article.get("headline", "")
+                    )
                     summary = content.get("summary") or article.get("summary", "")
                     pub_time = content.get("pubDate") or article.get("providerPublishTime")
 
                     if not headline:
-                         continue
+                        continue
 
                     combined_news.append(
                         {
@@ -611,9 +739,11 @@ class DataPipeline:
                             "headline": headline,
                             "summary": summary,
                             "source": f"YFinance ({article.get('publisher', {}).get('displayName', 'Yahoo')})",
-                            "url": content.get("canonicalUrl", {}).get("url") or article.get("link", ""),
+                            "url": content.get("canonicalUrl", {}).get("url")
+                            or article.get("link", ""),
                             "published_at": (
-                                pub_time if isinstance(pub_time, str)
+                                pub_time
+                                if isinstance(pub_time, str)
                                 else datetime.fromtimestamp(pub_time or 0).isoformat()
                             ),
                             "sentiment": self._calculate_sentiment(headline, summary),
@@ -627,6 +757,7 @@ class DataPipeline:
 
         # Store in database
         if combined_news:
+
             def _save_news():
                 for attempt in range(10):
                     conn = self._get_db_connection()
@@ -652,7 +783,7 @@ class DataPipeline:
                             except sqlite3.IntegrityError:
                                 pass
                         conn.commit()
-                        break # Success
+                        break  # Success
                     except sqlite3.OperationalError as e:
                         if "locked" in str(e).lower() and attempt < 9:
                             time.sleep(1.0 + attempt * 0.5)
@@ -672,7 +803,9 @@ class DataPipeline:
             for item in combined_news[:3]:  # type: ignore
                 logger.info(f"📰 NEWS [{symbol}] from {item['source']}: {item['headline']}")
         else:
-            logger.info(f"🚫 NEWS: No fresh headlines for {symbol} after polling Finnhub, OpenBB, and YFinance.")
+            logger.info(
+                f"🚫 NEWS: No fresh headlines for {symbol} after polling Finnhub, OpenBB, and YFinance."
+            )
 
         return combined_news
 
@@ -749,12 +882,26 @@ class DataPipeline:
 
             date_str = now.strftime("%Y-%m-%d")
             HOLIDAYS = {
-                "2024-01-01", "2024-01-15", "2024-02-19", "2024-03-29",
-                "2024-05-27", "2024-06-19", "2024-07-04", "2024-09-02",
-                "2024-11-28", "2024-12-25",
-                "2025-01-01", "2025-01-20", "2025-02-17", "2025-04-18",
-                "2025-05-26", "2025-06-19", "2025-07-04", "2025-09-01",
-                "2025-11-27", "2025-12-25"
+                "2024-01-01",
+                "2024-01-15",
+                "2024-02-19",
+                "2024-03-29",
+                "2024-05-27",
+                "2024-06-19",
+                "2024-07-04",
+                "2024-09-02",
+                "2024-11-28",
+                "2024-12-25",
+                "2025-01-01",
+                "2025-01-20",
+                "2025-02-17",
+                "2025-04-18",
+                "2025-05-26",
+                "2025-06-19",
+                "2025-07-04",
+                "2025-09-01",
+                "2025-11-27",
+                "2025-12-25",
             }
             if date_str in HOLIDAYS:
                 return False
@@ -777,7 +924,8 @@ class DataPipeline:
         Store OHLCV data to SQLite database with mutual exclusion.
         Using self._db_lock to prevent 'Database is locked' errors.
         """
-        if df is None: return
+        if df is None:
+            return
 
         async with self._db_lock:
             # We move the actual heavy lifting to a thread to not block the loop
@@ -801,7 +949,11 @@ class DataPipeline:
             batch_data = []
             for row in df.iter_rows(named=True):
                 # 1. Discover Timestamp
-                ts = row.get("timestamp") or row.get("Date") or row.get("Datetime", datetime.now(timezone.utc))
+                ts = (
+                    row.get("timestamp")
+                    or row.get("Date")
+                    or row.get("Datetime", datetime.now(timezone.utc))
+                )
                 ts_str = str(ts) if not hasattr(ts, "isoformat") else ts.isoformat()
 
                 # 2. Discover OHLCV Columns
@@ -811,20 +963,23 @@ class DataPipeline:
                 c = row.get("Close", row.get("close", 0.0))
                 v = row.get("Volume", row.get("volume", 0))
 
-                batch_data.append((
-                    symbol, ts_str,
-                    float(o) if o is not None else 0.0,
-                    float(h) if h is not None else 0.0,
-                    float(l) if l is not None else 0.0,
-                    float(c) if c is not None else 0.0,
-                    int(float(v)) if v is not None else 0,
-                    tf
-                ))
+                batch_data.append(
+                    (
+                        symbol,
+                        ts_str,
+                        float(o) if o is not None else 0.0,
+                        float(h) if h is not None else 0.0,
+                        float(l) if l is not None else 0.0,
+                        float(c) if c is not None else 0.0,
+                        int(float(v)) if v is not None else 0,
+                        tf,
+                    )
+                )
 
             if not batch_data:
                 return
 
-            for attempt in range(10): # 10 retries
+            for attempt in range(10):  # 10 retries
                 try:
                     cursor = conn.cursor()
                     cursor.executemany(
@@ -833,17 +988,22 @@ class DataPipeline:
                         (symbol, timestamp, open, high, low, close, volume, timeframe)
                         VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                         """,
-                        batch_data
+                        batch_data,
                     )
                     conn.commit()
-                    logger.debug(f"DataPipeline: Flushed {len(batch_data)} bars for {symbol} to SQLite.")
-                    return # Success
+                    logger.debug(
+                        f"DataPipeline: Flushed {len(batch_data)} bars for {symbol} to SQLite."
+                    )
+                    return  # Success
                 except sqlite3.OperationalError as e:
                     if "locked" in str(e).lower() and attempt < 9:
                         # Exponential backoff with jitter
                         import random
-                        wait_time = 0.5 * (2 ** attempt) + random.uniform(0.1, 0.5)
-                        logger.warning(f"DataPipeline: Database locked for {symbol}. Jittering {wait_time:.2f}s... (Attempt {attempt+1}/10)")
+
+                        wait_time = 0.5 * (2**attempt) + random.uniform(0.1, 0.5)
+                        logger.warning(
+                            f"DataPipeline: Database locked for {symbol}. Jittering {wait_time:.2f}s... (Attempt {attempt + 1}/10)"
+                        )
                         time.sleep(wait_time)
                     else:
                         raise
@@ -877,7 +1037,9 @@ class DataPipeline:
         while self.is_running:
             try:
                 is_open = self.is_market_open()
-                logger.info(f"DataPipeline: Market is {'OPEN' if is_open else 'CLOSED'} - starting pulse.")
+                logger.info(
+                    f"DataPipeline: Market is {'OPEN' if is_open else 'CLOSED'} - starting pulse."
+                )
 
                 # Previously fired all 30 simultaneously, causing +1.7 GB RSS spike.
                 # Now strictly limited to 3 concurrent yfinance fetches to cap memory.
@@ -895,20 +1057,24 @@ class DataPipeline:
                 # Every 5 minutes (or on startup), fetch 1d data for core indices to handle multi-day regime shifts
                 pulse_id = int(time.time() // 60)
                 if pulse_id % 5 == 0:
-                   logger.info("DataPulse: Fetching Macro (1d) Context for SPY/QQQ...")
-                   for macro_sym in ["SPY", "QQQ"]:
-                       macro_df = await self.fetch_ohlcv(macro_sym, tf="1d", bars=250)
-                       if macro_df is not None:
-                           await self.store_ohlcv(macro_sym, macro_df, tf="1d")
+                    logger.info("DataPulse: Fetching Macro (1d) Context for SPY/QQQ...")
+                    for macro_sym in ["SPY", "QQQ"]:
+                        macro_df = await self.fetch_ohlcv(macro_sym, tf="1d", bars=250)
+                        if macro_df is not None:
+                            await self.store_ohlcv(macro_sym, macro_df, tf="1d")
 
                 conn = self._get_db_connection()
                 try:
-                    for symbol, df in zip(self.INSTRUMENTS[:len(results)], results, strict=False):
+                    for symbol, df in zip(self.INSTRUMENTS[: len(results)], results, strict=False):
                         if isinstance(df, Exception):
                             logger.error(f"✗ {symbol}: Fetch failed - {df}")
                             continue
 
-                        if df is None or (hasattr(df, "is_empty") and df.is_empty()) or (hasattr(df, "empty") and df.empty):
+                        if (
+                            df is None
+                            or (hasattr(df, "is_empty") and df.is_empty())
+                            or (hasattr(df, "empty") and df.empty)
+                        ):
                             continue
 
                         try:
@@ -917,10 +1083,12 @@ class DataPipeline:
                             now_mono = time.monotonic()
                             last_check = self._last_reality_check.get(symbol, 0)
 
-                            if now_mono - last_check > 3600: # 1-hour cooldown
+                            if now_mono - last_check > 3600:  # 1-hour cooldown
                                 bench_p = await self.fetch_benchmark_price(symbol)
                                 if bench_p and abs(last_p - bench_p) / bench_p > 0.05:
-                                    logger.critical(f"⚠️ MATRIX DESYNC: {symbol} Price Corrupted! Reality: ${bench_p:.2f} | Matrix: ${last_p:.2f}. Rejecting.")
+                                    logger.critical(
+                                        f"⚠️ MATRIX DESYNC: {symbol} Price Corrupted! Reality: ${bench_p:.2f} | Matrix: ${last_p:.2f}. Rejecting."
+                                    )
                                     continue
 
                                 self._last_reality_check[symbol] = now_mono
@@ -933,13 +1101,14 @@ class DataPipeline:
                             await self.store_ohlcv(symbol, df, tf="1m")
                             successful.append(symbol)
                 except Exception as loop_err:
-                     logger.error(f"Persistence Loop Error: {loop_err}")
+                    logger.error(f"Persistence Loop Error: {loop_err}")
                 finally:
                     conn.close()
 
                 # Python's GC on Windows doesn't always reclaim these promptly
                 del results
                 import gc
+
                 gc.collect()
 
                 # Heartbeat
@@ -947,17 +1116,26 @@ class DataPipeline:
 
                 if self.bus is not None:
                     now_mono = time.monotonic()
-                    stale_detect = any((now_mono - ts) > 60.0 for ts in self._last_reality_check.values()) if is_open else False
+                    stale_detect = (
+                        any((now_mono - ts) > 60.0 for ts in self._last_reality_check.values())
+                        if is_open
+                        else False
+                    )
                     if stale_detect:
-                         logger.warning("🏛️ Sovereign Integrity: Data Stream pulse detected as STALE. Veto flag engaged.")
+                        logger.warning(
+                            "🏛️ Sovereign Integrity: Data Stream pulse detected as STALE. Veto flag engaged."
+                        )
 
-                    await self.bus.publish("candle.batch", {
-                        "symbols": self.INSTRUMENTS,
-                        "count": len(self.INSTRUMENTS),
-                        "timestamp": datetime.now(timezone.utc).isoformat(),
-                        "market_open": is_open,
-                        "staleness_veto": stale_detect
-                    })
+                    await self.bus.publish(
+                        "candle.batch",
+                        {
+                            "symbols": self.INSTRUMENTS,
+                            "count": len(self.INSTRUMENTS),
+                            "timestamp": datetime.now(timezone.utc).isoformat(),
+                            "market_open": is_open,
+                            "staleness_veto": stale_detect,
+                        },
+                    )
 
                 # Previously these were fire-and-forget create_task() calls that
                 # leaked aiohttp sessions and TCP connections every 40 seconds.
@@ -975,27 +1153,34 @@ class DataPipeline:
 
                 try:
                     macro_impact = await asyncio.wait_for(self.fetch_macro_impact(), timeout=30.0)
-                    if self.bus: await self.bus.publish("macro.impact", macro_impact)
+                    if self.bus:
+                        await self.bus.publish("macro.impact", macro_impact)
                 except Exception as e:
                     logger.debug(f"DataPipeline: Macro poll skipped: {e}")
 
                 try:
                     for sym in ["SPY", "QQQ"]:
-                        flow = await asyncio.wait_for(self.fetch_institutional_flow(sym), timeout=15.0)
-                        if self.bus: await self.bus.publish("institutional.flow", flow)
+                        flow = await asyncio.wait_for(
+                            self.fetch_institutional_flow(sym), timeout=15.0
+                        )
+                        if self.bus:
+                            await self.bus.publish("institutional.flow", flow)
                 except Exception as e:
                     logger.debug(f"DataPipeline: Flow poll skipped: {e}")
 
                 # Force garbage collection to purge Polars/yfinance temporary allocations
                 import gc
+
                 gc.collect()
 
                 if is_open:
                     from config import DATA_INGESTION_INTERVAL
-                    await asyncio.sleep(DATA_INGESTION_INTERVAL) # Intraday high-freq
+
+                    await asyncio.sleep(DATA_INGESTION_INTERVAL)  # Intraday high-freq
                 else:
                     from config import DATA_MAINTENANCE_INTERVAL
-                    await asyncio.sleep(DATA_MAINTENANCE_INTERVAL) # Maintenance mode
+
+                    await asyncio.sleep(DATA_MAINTENANCE_INTERVAL)  # Maintenance mode
 
             except asyncio.CancelledError:
                 logger.info("DataPipeline: Cancellation received.")
@@ -1003,7 +1188,6 @@ class DataPipeline:
             except Exception as e:
                 logger.error(f"Error in data pipeline main loop: {e}")
                 await asyncio.sleep(5)
-
 
     async def _background_sync(self) -> None:
         """Execute the CORE SYNC in the background to avoid blocking system startup."""
@@ -1013,13 +1197,13 @@ class DataPipeline:
             async def throttled_backfill(sym):
                 async with semaphore:
                     res = await self.backfill_gap(sym)
-                    await asyncio.sleep(0.5) # Slight delay between symbols
+                    await asyncio.sleep(0.5)  # Slight delay between symbols
                     return res
 
             sync_tasks = [throttled_backfill(symbol) for symbol in self.INSTRUMENTS]
             results = await asyncio.gather(*sync_tasks, return_exceptions=True)
             # Log any backfill failures explicitly so they are visible in logs
-            for sym, result in zip(self.INSTRUMENTS[:len(results)], results, strict=False):
+            for sym, result in zip(self.INSTRUMENTS[: len(results)], results, strict=False):
                 if isinstance(result, Exception):
                     logger.error(f"BACKFILL FAILED for {sym}: {result}")
             logger.info("✅ CORE SYNC COMPLETE: Database established continuity in background.")
@@ -1029,7 +1213,6 @@ class DataPipeline:
         except Exception as e:
             logger.error(f"Error during background core sync: {e}")
 
-
     async def fetch_benchmark_price(self, symbol: str) -> float | None:
         """Helper to fetch a fast 'Reality Check' price from yfinance."""
         try:
@@ -1037,7 +1220,7 @@ class DataPipeline:
             info = await asyncio.to_thread(lambda: ticker.fast_info)
             if hasattr(info, "last_price"):
                 return float(info.last_price)
-            return float(info['lastPrice'])
+            return float(info["lastPrice"])
         except Exception:
             return None
 
@@ -1079,8 +1262,10 @@ class DataPipeline:
                 impact["regime"] = "STRESS"
                 impact["signals"].append("High 10Y Yield Pressure")
 
-            impact["impact"] = impact["regime"] # Ensure compatibility with listeners
-            logger.info(f"Macro Impact Synthesized: {impact['regime']} (VIX: {vix:.1f}, 10Y: {tnx:.1f})")
+            impact["impact"] = impact["regime"]  # Ensure compatibility with listeners
+            logger.info(
+                f"Macro Impact Synthesized: {impact['regime']} (VIX: {vix:.1f}, 10Y: {tnx:.1f})"
+            )
             return impact
         except Exception as e:
             logger.warning(f"Macro Impact calculation failed: {e}")
@@ -1099,7 +1284,12 @@ class DataPipeline:
                 last_vol = df["Volume"].iloc[-1]
                 if last_vol > avg_vol * 3:
                     bias = "BULLISH" if df["Close"].iloc[-1] > df["Open"].iloc[-1] else "BEARISH"
-                    return {"flow_bias": bias, "symbol": symbol, "intensity": 0.8, "detail": "Volume > 3x Avg"}
+                    return {
+                        "flow_bias": bias,
+                        "symbol": symbol,
+                        "intensity": 0.8,
+                        "detail": "Volume > 3x Avg",
+                    }
             return {"flow_bias": "NEUTRAL", "symbol": symbol, "intensity": 0.0}
         except Exception as e:
             logger.debug(f"Flow calculation error for {symbol}: {e}")
@@ -1128,7 +1318,7 @@ class DataPipeline:
                                 symbol="SPY",
                                 debate_summary=f"HEADLINE: {item.get('title') or item.get('headline', '')}\nTEXT: {item.get('summary', '')}",
                                 bias_str="GLOBAL_MACRO",
-                                confidence=0.5
+                                confidence=0.5,
                             )
 
                     # 2. Watchlist resonance
@@ -1140,7 +1330,7 @@ class DataPipeline:
                                     symbol=symbol,
                                     debate_summary=f"HEADLINE: {item.get('title') or item.get('headline', '')}\nTEXT: {item.get('summary', '')}",
                                     bias_str="NEWS_RESONANCE",
-                                    confidence=0.5
+                                    confidence=0.5,
                                 )
                 else:
                     logger.debug("News memory not initialized - skipping news resonance.")
@@ -1213,7 +1403,7 @@ class DataPipeline:
         tasks_to_cancel = [
             ("_sync_task", "Background Sync"),
             ("_news_task", "News Loop"),
-            ("_research_task", "Research Loop")
+            ("_research_task", "Research Loop"),
         ]
 
         cancel_tasks = []
@@ -1228,8 +1418,7 @@ class DataPipeline:
             try:
                 # Wait for all cancellations in parallel with a shared timeout
                 await asyncio.wait_for(
-                    asyncio.gather(*cancel_tasks, return_exceptions=True),
-                    timeout=5.0
+                    asyncio.gather(*cancel_tasks, return_exceptions=True), timeout=5.0
                 )
             except asyncio.TimeoutError:
                 logger.warning("DataPipeline: Some tasks failed to cancel within 5s.")
@@ -1255,5 +1444,3 @@ class DataPipeline:
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
     print("Sovereign DataPipeline: Manual test mode enabled.")
-
-
