@@ -546,7 +546,7 @@ class TradingCoordinator:
                             funcs = [f for _, f in gated_agents]
 
                             results = await asyncio.gather(
-                                *[asyncio.wait_for(_poll_neural_safe(name, func), timeout=120.0) for name, func in zip(names, funcs, strict=False)],
+                                *[asyncio.wait_for(_poll_neural_safe(name, func), timeout=12.0) for name, func in zip(names, funcs, strict=False)],
                                 return_exceptions=True
                             )
 
