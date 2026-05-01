@@ -19,8 +19,8 @@ from fastapi import (
 )
 from fastapi.middleware.cors import CORSMiddleware
 
-from vault import Vault
 from portfolio_analyzer import PORTFOLIO_ANALYZER
+from vault import Vault
 
 logger = logging.getLogger(__name__)
 
