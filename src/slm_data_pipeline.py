@@ -11,7 +11,7 @@ _root = str(_here.parent)
 if _root not in sys.path:
     sys.path.insert(0, _root)
 
-from src.database_security import DatabaseSecurity
+from database_security import DatabaseSecurity
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger("SLM_DataPipeline")
