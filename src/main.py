@@ -338,6 +338,14 @@ class TradingSystem:
         # 1.1 Synchronize Clock
         await TimeSync.sync()
 
+        # 1.2 JIT Warmup — pre-compile Numba math kernels before first tick
+        try:
+            from quant_math import warmup as _jit_warmup
+            await asyncio.to_thread(_jit_warmup)
+            self.profiler.mark("JIT_WARMUP_DONE")
+        except Exception as _e:
+            logger.warning(f"JIT warmup skipped (non-fatal): {_e}")
+
         await self._verify_watchdog()
 
         # Pre-subscribe to the HFT pulse before launching the streamer to capture start events.
@@ -389,6 +397,17 @@ class TradingSystem:
             else QUESTDB_CONNECT_TIMEOUT_SEC,
         )
         await self.questdb.start()
+
+        # Start CandleWriter — subscribes to tick.batch and builds live OHLCV for scanner
+        try:
+            from questdb_candle_writer import CandleWriter
+            self.candle_writer = CandleWriter(qdb_adapter=self.questdb)
+            await self.candle_writer.start(self.bus)
+            logger.info("CandleWriter: Live OHLCV aggregation active.")
+        except Exception as _e:
+            logger.warning(f"CandleWriter startup failed (non-fatal): {_e}")
+            self.candle_writer = None
+
         self.profiler.mark("QUESTDB_READY")
 
     async def _init_api_server(self) -> None:
