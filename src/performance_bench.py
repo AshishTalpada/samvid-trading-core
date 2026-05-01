@@ -33,9 +33,9 @@ def _generate_synthetic_price_data(n: int = 100_000) -> np.ndarray:
 def benchmark_jit_math() -> None:
     """Compare Numba JIT vs Pure NumPy on standard indicators."""
     logger.info("Starting JIT Math Benchmark...")
-    
+
     try:
-        from quant_math import ema_array, rsi_array, bollinger_bands, NUMBA_AVAILABLE
+        from quant_math import NUMBA_AVAILABLE, bollinger_bands, ema_array, rsi_array
     except ImportError:
         logger.error("quant_math module not found. Run from project root.")
         return
@@ -57,7 +57,7 @@ def benchmark_jit_math() -> None:
     t0 = time.perf_counter()
     _ = ema_array(prices, 14)
     t_ema = (time.perf_counter() - t0) * 1000
-    
+
     # 3. Benchmark RSI
     t0 = time.perf_counter()
     _ = rsi_array(prices, 14)
@@ -69,7 +69,7 @@ def benchmark_jit_math() -> None:
     t_bb = (time.perf_counter() - t0) * 1000
 
     print("\n" + "="*40)
-    print(f" Numba JIT Performance (100,000 bars)")
+    print(" Numba JIT Performance (100,000 bars)")
     print("="*40)
     print(f" EMA (14):            {t_ema:.2f} ms")
     print(f" RSI (14):            {t_rsi:.2f} ms")
@@ -80,16 +80,16 @@ def benchmark_jit_math() -> None:
 async def benchmark_tick_batcher() -> None:
     """Measure the throughput and latency of the TickBatcher."""
     logger.info("Starting TickBatcher Benchmark...")
-    
+
     try:
-        from tick_batcher import TICK_BATCHER
         from intelligence_bus import SharedIntelligenceBus
+        from tick_batcher import TICK_BATCHER
     except ImportError:
         logger.error("tick_batcher module not found.")
         return
 
     bus = SharedIntelligenceBus()
-    
+
     # Metrics
     metrics = {
         "batches_received": 0,
@@ -112,19 +112,19 @@ async def benchmark_tick_batcher() -> None:
         dispatch_task = asyncio.create_task(bus.run_dispatch_loop())
 
     # Start batcher background task (10ms flush for the test to see more batches)
-    TICK_BATCHER._interval = 0.010 
+    TICK_BATCHER._interval = 0.010
     batcher_task = asyncio.create_task(TICK_BATCHER.run(bus))
 
     # Simulate a high-frequency tick burst (e.g., market open)
     logger.info("Injecting 50,000 synthetic ticks at 100kHz...")
-    
+
     symbol = "SPY"
     t_start = time.perf_counter()
-    
+
     for i in range(50_000):
         # Push raw ticks into the batcher (simulating ibkr_streamer)
         TICK_BATCHER.push(symbol, price=500.0 + (i*0.01), bid=499.9, ask=500.1, size=100)
-        
+
         # Yield to event loop to allow batcher to flush
         if i % 5000 == 0:
             await asyncio.sleep(0.01)
@@ -132,7 +132,7 @@ async def benchmark_tick_batcher() -> None:
     # Wait for final flush
     await asyncio.sleep(0.2)
     t_total = time.perf_counter() - t_start
-    
+
     batcher_task.cancel()
     if dispatch_task:
         dispatch_task.cancel()
@@ -141,9 +141,9 @@ async def benchmark_tick_batcher() -> None:
     batches = stats.get("flush_count", 0)
 
     print("="*40)
-    print(f" TickBatcher Performance (10ms flush)")
+    print(" TickBatcher Performance (10ms flush)")
     print("="*40)
-    print(f" Total Ticks Injected:  50,000")
+    print(" Total Ticks Injected:  50,000")
     print(f" Total Time:            {t_total:.2f} s")
     print(f" Throughput:            {50_000 / t_total:,.0f} ticks/sec")
     print(f" Batches Emitted:       {batches}")
