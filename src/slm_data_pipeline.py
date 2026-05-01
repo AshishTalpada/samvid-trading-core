@@ -1,9 +1,9 @@
-import sqlite3
 import json
 import logging
-from pathlib import Path
-import sys
 import os
+import sqlite3
+import sys
+from pathlib import Path
 
 # Ensure project root is in path to import DatabaseSecurity
 _here = Path(__file__).resolve().parent
@@ -21,6 +21,7 @@ OUTPUT_PATH = Path("data/slm_training_data.jsonl")
 
 SYSTEM_PROMPT = "You are Sovereign-SLM, an elite quantitative strategist. Analyze the market context and output exactly one word: BULLISH, BEARISH, or NEUTRAL."
 
+
 def decrypt_pnl(raw_pnl: str) -> float:
     if raw_pnl is None:
         return 0.0
@@ -31,20 +32,21 @@ def decrypt_pnl(raw_pnl: str) -> float:
     except Exception:
         return 0.0
 
+
 def build_dataset():
     if not DB_PATH.exists():
         logger.error(f"Database not found at {DB_PATH}")
         return
 
     logger.info("Extracting historical trades for SLM Fine-Tuning...")
-    
+
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
 
     try:
         cursor.execute("""
-            SELECT 
+            SELECT
                 instrument, direction, pattern, regime, catalyst_score, dhatu_state, belief_at_entry, pnl_dollars
             FROM trades
             WHERE outcome IN ('WIN', 'LOSS')
@@ -68,9 +70,9 @@ def build_dataset():
         for row in rows:
             # Safely decrypt PnL
             pnl = decrypt_pnl(row["pnl_dollars"])
-            
+
             direction = str(row["direction"]).lower()
-            
+
             # Determine target Label
             if pnl > 0:
                 target = "BULLISH" if direction == "long" else "BEARISH"
@@ -96,7 +98,7 @@ def build_dataset():
                 "messages": [
                     {"role": "system", "content": SYSTEM_PROMPT},
                     {"role": "user", "content": f"Context:\n{context}"},
-                    {"role": "assistant", "content": target}
+                    {"role": "assistant", "content": target},
                 ]
             }
 
@@ -104,8 +106,11 @@ def build_dataset():
             extracted_count += 1
 
     logger.info(f"✅ Successfully extracted {extracted_count} training examples to {OUTPUT_PATH}")
-    logger.info(f"Dataset Balance -> Winners (Directional): {win_count} | Losers (Neutralized): {loss_count}")
+    logger.info(
+        f"Dataset Balance -> Winners (Directional): {win_count} | Losers (Neutralized): {loss_count}"
+    )
     logger.info("This JSONL file is ready for LoRA fine-tuning via HuggingFace or Unsloth.")
+
 
 if __name__ == "__main__":
     build_dataset()
