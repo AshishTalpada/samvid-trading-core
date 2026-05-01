@@ -213,7 +213,9 @@ class TradingCoordinator:
                     self.brain.dms.record_heartbeat("COORDINATOR")
 
                 timestamp = datetime.now(timezone.utc).isoformat()
-                account_value = await self.brain.get_safe_buying_power(self.brain.active_broker.lower())
+                account_value = await self.brain.get_safe_buying_power(
+                    self.brain.active_broker.lower()
+                )
                 pattern = proposal["pattern"]
 
                 alpha_val = proposal.get("lambda", pattern.confidence / 100.0)
@@ -245,9 +247,12 @@ class TradingCoordinator:
                     )
                     if self.brain.active_broker.upper() == "MT5":
                         risk_per_trade = getattr(self.brain, "mt5_risk_per_trade", 10.0)
-                        shares = self.brain.mt5_sizer.calculate_lots(
-                            risk_per_trade, pattern.entry, pattern.stop, symbol
-                        ) or 0.0
+                        shares = (
+                            self.brain.mt5_sizer.calculate_lots(
+                                risk_per_trade, pattern.entry, pattern.stop, symbol
+                            )
+                            or 0.0
+                        )
                         pos_value = shares * 100000.0  # Synthetic estimate for Forex tracking
                     else:
                         sizing = self.brain.ibkr_sizer.calculate(
