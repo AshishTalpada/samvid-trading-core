@@ -1094,12 +1094,10 @@ class TradingBrain:
                         timeout=8.0
                     )
                 except asyncio.TimeoutError:
-                    # LLM mind unresponsive — log via breaker and continue loop
-                    LIGHT_BREAKER._record_failure()
-                    logger.warning(
-                        f"TraderMind: get_next_message timed out (8s). "
-                        f"CB state: {LIGHT_BREAKER.state}. Continuing loop."
-                    )
+                    # Queue is empty — no agent sent a message in 8s.
+                    # This is NORMAL during idle periods and is NOT an LLM API failure.
+                    # Do NOT record a circuit breaker failure here.
+                    logger.debug("TraderMind: No messages in 8s (queue idle). Continuing loop.")
                     await asyncio.sleep(1)
                     continue
 
