@@ -6,6 +6,7 @@ into QuestDB via the InfluxDB Line Protocol (ILP).
 
 import asyncio
 import logging
+from collections import defaultdict, deque
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any, Optional
 
@@ -15,6 +16,73 @@ if TYPE_CHECKING:
 from ib_insync import IB, Stock
 
 logger = logging.getLogger(__name__)
+
+
+class SpreadTracker:
+    """
+    Real-time bid/ask spread tracker per symbol.
+    Uses an EMA over recent spread samples to smooth outliers.
+
+    Usage:
+        tracker = SpreadTracker()
+        tracker.update("SPY", bid=415.10, ask=415.12)
+        if tracker.is_wide("SPY"):   # skip trade — illiquid
+            ...
+    """
+
+    def __init__(self, ema_period: int = 20, wide_threshold_bps: float = 20.0):
+        """
+        Parameters
+        ----------
+        ema_period          : Number of ticks to smooth spread over
+        wide_threshold_bps  : Spread in basis points above which market is considered illiquid
+        """
+        self._ema_period = ema_period
+        self._alpha = 2.0 / (ema_period + 1)
+        self._threshold_bps = wide_threshold_bps
+        self._spreads_bps: dict[str, float] = {}    # EMA spread per symbol
+        self._raw_buf: dict[str, deque] = defaultdict(lambda: deque(maxlen=ema_period))
+
+    def update(self, symbol: str, bid: float, ask: float) -> float | None:
+        """Push a new bid/ask tick. Returns current EMA spread in bps, or None if invalid."""
+        if bid <= 0 or ask <= 0 or bid >= ask:
+            return None
+        spread_bps = ((ask - bid) / bid) * 10_000
+        self._raw_buf[symbol].append(spread_bps)
+
+        if symbol in self._spreads_bps:
+            self._spreads_bps[symbol] = (
+                self._alpha * spread_bps + (1.0 - self._alpha) * self._spreads_bps[symbol]
+            )
+        else:
+            # Seed with simple average until warmed up
+            buf = self._raw_buf[symbol]
+            self._spreads_bps[symbol] = sum(buf) / len(buf)
+        return self._spreads_bps[symbol]
+
+    def current_bps(self, symbol: str) -> float:
+        """Return current EMA spread in basis points (default 10 bps if unknown)."""
+        return self._spreads_bps.get(symbol, 10.0)
+
+    def is_wide(self, symbol: str, threshold_bps: float | None = None) -> bool:
+        """
+        Returns True if the spread is abnormally wide.
+        Callers should skip new entries when this is True.
+        """
+        threshold = threshold_bps if threshold_bps is not None else self._threshold_bps
+        spread = self.current_bps(symbol)
+        if spread > threshold:
+            logger.debug(f"SpreadTracker: {symbol} spread {spread:.1f}bps > threshold {threshold:.1f}bps — WIDE")
+            return True
+        return False
+
+    def summary(self) -> dict[str, float]:
+        """Returns current EMA spread bps for all tracked symbols."""
+        return dict(self._spreads_bps)
+
+
+# Module-level singleton
+SPREAD_TRACKER = SpreadTracker()
 
 
 class IBKRStreamer:
@@ -44,6 +112,8 @@ class IBKRStreamer:
         self.is_running = False
         self._loop_count = 0
         self.dropped_ticks = 0
+        self._tick_cache: dict[str, dict] = {}   # live bid/ask/last per symbol
+        self.spread_tracker = SPREAD_TRACKER      # shared singleton
 
         # Persistent Async Stream for QuestDB ILP
         self._qdb_writer: asyncio.StreamWriter | None = None
@@ -147,6 +217,11 @@ class IBKRStreamer:
                 if ticker_age > 0.5:
                     logger.debug(f"IBKR: {symbol} tick stale ({ticker_age:.2f}s). Skipping.")
                     continue
+
+            # Update tick cache and spread tracker
+            self._tick_cache[symbol] = {"bid": bid, "ask": ask, "last": last_p}
+            if bid > 0 and ask > 0:
+                self.spread_tracker.update(symbol, bid, ask)
 
             # 1. Spread Check: Reject hallucinations in low liquidity
             if bid > 0 and ask > 0:
