@@ -176,10 +176,10 @@ class TaskManager:
         except Exception as e:
             logger.error(f"TaskManager: Registry load failed: {e}")
 
-    def save_registry(self):
+    def save_registry(self, allow_empty: bool = False):
         """Atomically save task registry with Windows-safe retry logic."""
         try:
-            if not self.tasks and os.path.exists(self.registry_path):
+            if not self.tasks and os.path.exists(self.registry_path) and not allow_empty:
                 logger.error("TaskManager: SAFETY VETO! Attempted to save empty registry over existing data. Standing down.")
                 return
 
@@ -246,7 +246,7 @@ class TaskManager:
             logger.info(f"TaskManager: Hard Purge complete. Removed {purge_count} oldest tasks.")
 
         if to_remove or len(self.tasks) > 1000:
-            self.save_registry()
+            self.save_registry(allow_empty=True)
 
     def _delete_task_reference(self, tid: str):
         """Internal helper to clean up all index references for a task ID."""
