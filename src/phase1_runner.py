@@ -7,6 +7,7 @@ Usage:
   # Run live with quant signals replacing LLM agents:
   python src/phase1_runner.py live
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -26,6 +27,7 @@ async def _check_data_integrity(db_path: str, symbol: str = "SPY") -> int:
     """Run a blocking SQLite operation safely in a thread pool executor."""
     import os
     import sqlite3
+
     if not os.path.exists(db_path):
         return 0
     try:
@@ -40,6 +42,7 @@ async def _check_data_integrity(db_path: str, symbol: str = "SPY") -> int:
     except Exception:
         return 0
 
+
 async def run_backtest(db_path: str = "trading.db", symbols: list[str] = None) -> None:
     if symbols is None:
         symbols = ["SPY", "QQQ", "IWM"]
@@ -53,7 +56,9 @@ async def run_backtest(db_path: str = "trading.db", symbols: list[str] = None) -
         has_data = count >= 200
 
         if not has_data:
-            print(f"\n⚠️  Insufficient data in DB ({count} bars). Running data pipeline to backfill {symbols}...")
+            print(
+                f"\n⚠️  Insufficient data in DB ({count} bars). Running data pipeline to backfill {symbols}..."
+            )
             pipeline = DataPipeline()
             for sym in symbols:
                 try:
@@ -82,7 +87,7 @@ if __name__ == "__main__":
         sys.exit(1)
 
     mode = sys.argv[1].lower()
-    db   = sys.argv[2] if len(sys.argv) > 2 else "trading.db"
+    db = sys.argv[2] if len(sys.argv) > 2 else "trading.db"
     symbols_str = sys.argv[3] if len(sys.argv) > 3 else "SPY,QQQ,IWM"
     symbols = [s.strip().upper() for s in symbols_str.split(",")]
 

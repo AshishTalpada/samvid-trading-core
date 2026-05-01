@@ -41,11 +41,13 @@ class OrderThrottler:
 # Module-level singleton — import directly
 ORDER_THROTTLER = OrderThrottler()
 
+
 @dataclass
 class InvariantBounds:
     min_val: float
     max_val: float
     description: str
+
 
 class RiskInvariants:
     """
@@ -64,13 +66,13 @@ class RiskInvariants:
 
     # Hard notional caps per instrument (USD). DEFAULT applies to all unlisted symbols.
     MAX_NOTIONAL_PER_ORDER: dict[str, float] = {
-        "SPY":     50_000,
-        "QQQ":     40_000,
-        "IWM":     25_000,
-        "MSFT":    25_000,
-        "NVDA":    20_000,
-        "TSLA":    15_000,
-        "NFLX":    15_000,
+        "SPY": 50_000,
+        "QQQ": 40_000,
+        "IWM": 25_000,
+        "MSFT": 25_000,
+        "NVDA": 20_000,
+        "TSLA": 15_000,
+        "NFLX": 15_000,
         "DEFAULT": 10_000,
     }
 
@@ -81,6 +83,7 @@ class RiskInvariants:
         Returns False if corruption is detected.
         """
         import config
+
         corrupted = False
 
         for key, bounds in cls.SANCTITY_BOUNDS.items():
@@ -107,7 +110,9 @@ class RiskInvariants:
         """
         bounds = cls.SANCTITY_BOUNDS.get(key)
         if not bounds:
-            logger.warning(f"INVARIANT WARNING: No bounds defined for '{key}'. Mutation BLOCKED by default.")
+            logger.warning(
+                f"INVARIANT WARNING: No bounds defined for '{key}'. Mutation BLOCKED by default."
+            )
             return False
 
         if bounds.min_val <= proposed_value <= bounds.max_val:
@@ -131,7 +136,9 @@ class RiskInvariants:
         risk_pct = risk_dollars / balance
         # Absolute maximum risk per trade invariant: 3%
         if risk_pct > 0.03:
-            logger.critical(f"RISK VIOLATION: Proposed trade risk {risk_pct:.2%} exceeds 3% hard invariant!")
+            logger.critical(
+                f"RISK VIOLATION: Proposed trade risk {risk_pct:.2%} exceeds 3% hard invariant!"
+            )
             return False
 
         return True

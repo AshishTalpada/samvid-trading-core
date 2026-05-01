@@ -2,6 +2,7 @@
 Replaces LLM agent opinions with statistically validated signals.
 Each signal is independently testable and has a known theoretical basis.
 """
+
 from __future__ import annotations
 
 import logging
@@ -18,17 +19,17 @@ logger = logging.getLogger(__name__)
 @dataclass
 class SignalResult:
     name: str
-    score: float          # -1.0 (strong sell) to +1.0 (strong buy)
-    confidence: float     # 0.0 to 1.0
-    vote: str             # 'BUY' | 'SELL' | 'NEUTRAL'
+    score: float  # -1.0 (strong sell) to +1.0 (strong buy)
+    confidence: float  # 0.0 to 1.0
+    vote: str  # 'BUY' | 'SELL' | 'NEUTRAL'
     meta: dict = field(default_factory=dict)
 
     def to_vote(self) -> str:
         if self.score > 0.05 and self.confidence > 0.5:
-            return 'BUY'
+            return "BUY"
         if self.score < -0.05 and self.confidence > 0.5:
-            return 'SELL'
-        return 'NEUTRAL'
+            return "SELL"
+        return "NEUTRAL"
 
 
 class RegimeFilter:
@@ -58,7 +59,9 @@ class RegimeFilter:
 
             # Statistical Floor: Reject if variance is too low (e.g., flat market/bad data)
             if np.var(returns) < 1e-9:
-                logger.warning("RegimeFilter: Statistical Floor Veto (Variance < 1e-9). fitting aborted.")
+                logger.warning(
+                    "RegimeFilter: Statistical Floor Veto (Variance < 1e-9). fitting aborted."
+                )
                 return
 
             model = hmm.GaussianHMM(
@@ -74,9 +77,9 @@ class RegimeFilter:
             means = [model.means_[i][0] for i in range(self.n_regimes)]
             sorted_idx = np.argsort(means)
             self._regime_labels = {
-                sorted_idx[0]: 'BEAR',
-                sorted_idx[1]: 'SIDEWAYS',
-                sorted_idx[2]: 'BULL',
+                sorted_idx[0]: "BEAR",
+                sorted_idx[1]: "SIDEWAYS",
+                sorted_idx[2]: "BULL",
             }
             logger.info(f"RegimeFilter fitted. Labels: {self._regime_labels}")
         except ImportError:
@@ -100,9 +103,10 @@ class RegimeFilter:
             log_prob, posteriors = self._model.score_samples(returns)
             confidence = float(posteriors[-1][current_state])
 
-            score = {'BULL': 0.8, 'SIDEWAYS': 0.0, 'BEAR': -0.8}.get(regime, 0.0)
-            return SignalResult("regime", score, confidence, regime,
-                                {"regime": regime, "state": int(current_state)})
+            score = {"BULL": 0.8, "SIDEWAYS": 0.0, "BEAR": -0.8}.get(regime, 0.0)
+            return SignalResult(
+                "regime", score, confidence, regime, {"regime": regime, "state": int(current_state)}
+            )
         except Exception as e:
             logger.error(f"RegimeFilter predict error: {e}")
             return SignalResult("regime", 0.0, 0.2, "NEUTRAL")
@@ -118,16 +122,18 @@ class MultiFactorAlpha:
     def __init__(self, weights: Optional[dict] = None):
         # Default global weights or regime-specific map
         self.weights = weights or {
-            'momentum_1m':    0.30,
-            'momentum_5d':    0.20,
-            'mean_reversion': 0.20,
-            'vol_regime':     0.15,
-            'volume_surge':   0.15,
+            "momentum_1m": 0.30,
+            "momentum_5d": 0.20,
+            "mean_reversion": 0.20,
+            "vol_regime": 0.15,
+            "volume_surge": 0.15,
         }
         self._vol_kalman = None
         self._vol_P = 1.0
 
-    def compute(self, prices: np.ndarray, volumes: np.ndarray, regime: str = "DEFAULT") -> SignalResult:
+    def compute(
+        self, prices: np.ndarray, volumes: np.ndarray, regime: str = "DEFAULT"
+    ) -> SignalResult:
         if len(prices) < 25:
             return SignalResult("multi_factor", 0.0, 0.1, "NEUTRAL")
 
@@ -167,11 +173,15 @@ class MultiFactorAlpha:
 
             # Scale factors into -1 to 1 range (Normalization)
             factors = {
-                'momentum_1m': np.clip(mom_mid * 80, -1, 1),    # Key kept for trained_weights compatibility
-                'momentum_5d': np.clip(mom_short * 150, -1, 1), # Key kept for trained_weights compatibility
-                'mean_reversion': np.clip(mean_rev * 0.5, -1, 1),
-                'vol_regime': vol_regime,
-                'volume_surge': float(np.clip(vol_surge, -1, 1)),
+                "momentum_1m": np.clip(
+                    mom_mid * 80, -1, 1
+                ),  # Key kept for trained_weights compatibility
+                "momentum_5d": np.clip(
+                    mom_short * 150, -1, 1
+                ),  # Key kept for trained_weights compatibility
+                "mean_reversion": np.clip(mean_rev * 0.5, -1, 1),
+                "vol_regime": vol_regime,
+                "volume_surge": float(np.clip(vol_surge, -1, 1)),
             }
 
             # SELECT WEIGHTS (Regime-Aware Selection)
@@ -183,12 +193,16 @@ class MultiFactorAlpha:
             score = float(sum(w_map[k] * v for k, v in factors.items()))
             confidence = min(0.95, 0.5 + abs(score) * 0.5)
 
-            return SignalResult("multi_factor", score, confidence,
-                                "BUY" if score > 0.05 else "SELL" if score < -0.05 else "NEUTRAL",
-                                {
-                                    "factors": {k: round(v, 3) for k, v in factors.items()},
-                                    "regime_applied": regime if w_map != self.weights else "GLOBAL"
-                                })
+            return SignalResult(
+                "multi_factor",
+                score,
+                confidence,
+                "BUY" if score > 0.05 else "SELL" if score < -0.05 else "NEUTRAL",
+                {
+                    "factors": {k: round(v, 3) for k, v in factors.items()},
+                    "regime_applied": regime if w_map != self.weights else "GLOBAL",
+                },
+            )
         except Exception as e:
             logger.error(f"MultiFactorAlpha error: {e}")
             return SignalResult("multi_factor", 0.0, 0.1, "NEUTRAL")
@@ -201,8 +215,8 @@ class KalmanEntryTimer:
     """
 
     def __init__(self, process_noise: float = 1e-4, observation_noise: float = 1e-2):
-        self.Q = process_noise       # process noise
-        self.R = observation_noise   # observation noise
+        self.Q = process_noise  # process noise
+        self.R = observation_noise  # observation noise
         self._states: dict[str, dict] = {}
 
     def _get_state(self, symbol: str) -> dict:
@@ -239,7 +253,11 @@ class KalmanEntryTimer:
 
             # Optimization: If the last seen price for this symbol is the previous bar,
             # just update with the NEW bar instead of re-running the entire array.
-            if state["x"] is not None and len(prices) >= 2 and abs(prices[-2] - state["last_price"]) < 1e-8:
+            if (
+                state["x"] is not None
+                and len(prices) >= 2
+                and abs(prices[-2] - state["last_price"]) < 1e-8
+            ):
                 kalman_estimate = self.update(symbol, current_price)
             else:
                 # Re-run full array (Initial or Gap detected)
@@ -255,11 +273,17 @@ class KalmanEntryTimer:
             score = float(np.clip(-deviation * 0.5, -1.0, 1.0))
             confidence = min(0.9, 0.4 + abs(deviation) * 0.2)
 
-            return SignalResult("kalman_entry", score, confidence,
-                                "BUY" if score > 0.05 else "SELL" if score < -0.05 else "NEUTRAL",
-                                {"deviation": round(deviation, 3),
-                                 "kalman_price": round(kalman_estimate, 4),
-                                 "market_price": round(current_price, 4)})
+            return SignalResult(
+                "kalman_entry",
+                score,
+                confidence,
+                "BUY" if score > 0.05 else "SELL" if score < -0.05 else "NEUTRAL",
+                {
+                    "deviation": round(deviation, 3),
+                    "kalman_price": round(kalman_estimate, 4),
+                    "market_price": round(current_price, 4),
+                },
+            )
         except Exception as e:
             logger.error(f"KalmanEntryTimer error: {e}")
             return SignalResult("kalman_entry", 0.0, 0.2, "NEUTRAL")
@@ -272,23 +296,27 @@ class KellyPositionSizer:
     Uses HALF-Kelly for safety (industry standard).
     """
 
-    def compute(self, win_rate: float, avg_win: float, avg_loss: float,
-                portfolio_value: float, max_fraction: float = 0.10) -> SignalResult:
+    def compute(
+        self,
+        win_rate: float,
+        avg_win: float,
+        avg_loss: float,
+        portfolio_value: float,
+        max_fraction: float = 0.10,
+    ) -> SignalResult:
         """
         Returns optimal position size in dollars.
         max_fraction: never risk more than this % of portfolio (default 10%)
         """
         try:
             if avg_loss <= 0 or win_rate <= 0 or win_rate >= 1:
-                return SignalResult("kelly", 0.0, 0.5, "NEUTRAL",
-                                    {"position_usd": 0, "kelly_f": 0})
+                return SignalResult("kelly", 0.0, 0.5, "NEUTRAL", {"position_usd": 0, "kelly_f": 0})
 
             b = avg_win / avg_loss
             p, q = win_rate, 1.0 - win_rate
 
             if b <= 0:
-                return SignalResult("kelly", 0.0, 0.5, "NEUTRAL",
-                                    {"position_usd": 0, "kelly_f": 0})
+                return SignalResult("kelly", 0.0, 0.5, "NEUTRAL", {"position_usd": 0, "kelly_f": 0})
 
             kelly_f = (b * p - q) / b
 
@@ -301,11 +329,18 @@ class KellyPositionSizer:
             confidence = min(0.9, win_rate + 0.1)
             score = min(1.0, safe_fraction * 5)  # normalise to -1..1 range
 
-            return SignalResult("kelly", score, confidence, "BUY" if safe_fraction > 0 else "NEUTRAL",
-                                {"kelly_f": round(kelly_f, 4),
-                                 "half_kelly_f": round(half_kelly, 4),
-                                 "safe_fraction": round(safe_fraction, 4),
-                                 "position_usd": round(position_usd, 2)})
+            return SignalResult(
+                "kelly",
+                score,
+                confidence,
+                "BUY" if safe_fraction > 0 else "NEUTRAL",
+                {
+                    "kelly_f": round(kelly_f, 4),
+                    "half_kelly_f": round(half_kelly, 4),
+                    "safe_fraction": round(safe_fraction, 4),
+                    "position_usd": round(position_usd, 2),
+                },
+            )
         except Exception as e:
             logger.error(f"KellyPositionSizer error: {e}")
             return SignalResult("kelly", 0.0, 0.3, "NEUTRAL", {"position_usd": 0})
@@ -320,11 +355,11 @@ class QuantConsensus:
     def __init__(self):
         # Try to load trained weights from Phase 1 training
         trained_weights = self._load_trained_weights()
-        self.regime_filter   = RegimeFilter()
-        self.alpha_model     = MultiFactorAlpha(weights=trained_weights)
-        self.entry_timer     = KalmanEntryTimer()
-        self.position_sizer  = KellyPositionSizer()
-        self._fitted         = False
+        self.regime_filter = RegimeFilter()
+        self.alpha_model = MultiFactorAlpha(weights=trained_weights)
+        self.entry_timer = KalmanEntryTimer()
+        self.position_sizer = KellyPositionSizer()
+        self._fitted = False
         if trained_weights:
             logger.info("QuantConsensus: loaded trained weights from Phase 1")
 
@@ -332,6 +367,7 @@ class QuantConsensus:
     def _load_trained_weights() -> Optional[dict]:
         import json
         import os
+
         paths = [
             os.path.join(os.path.dirname(__file__), "trained_weights.json"),
             "src/trained_weights.json",
@@ -345,7 +381,9 @@ class QuantConsensus:
 
                     version = data.get("version", "UNKNOWN")
                     trained_at = data.get("trained_at", "UNKNOWN")
-                    logger.info(f"QuantConsensus: Sourcing weights from {p} (Version: {version}, Trained: {trained_at})")
+                    logger.info(
+                        f"QuantConsensus: Sourcing weights from {p} (Version: {version}, Trained: {trained_at})"
+                    )
 
                     return data.get("factor_weights")
                 except Exception:
@@ -358,10 +396,17 @@ class QuantConsensus:
         self._fitted = True
         logger.info("QuantConsensus: all models fitted.")
 
-    def evaluate(self, symbol: str, prices: np.ndarray, volumes: np.ndarray,
-                 win_rate: float = 0.5, avg_win: float = 1.0,
-                 avg_loss: float = 1.0, portfolio_value: float = STARTING_CAPITAL_CAD,
-                 regime_override: Optional[str] = None) -> dict:
+    def evaluate(
+        self,
+        symbol: str,
+        prices: np.ndarray,
+        volumes: np.ndarray,
+        win_rate: float = 0.5,
+        avg_win: float = 1.0,
+        avg_loss: float = 1.0,
+        portfolio_value: float = STARTING_CAPITAL_CAD,
+        regime_override: Optional[str] = None,
+    ) -> dict:
         """
         Run all 4 signals and return aggregated consensus.
         Returns dict compatible with existing brain.consensus structure.
@@ -369,45 +414,58 @@ class QuantConsensus:
         regime_signal = self.regime_filter.predict(prices)
         current_regime = regime_override or regime_signal.meta.get("regime", "UNKNOWN")
 
-        alpha    = self.alpha_model.compute(prices, volumes, regime=current_regime)
-        entry    = self.entry_timer.compute(symbol, prices)
-        sizing   = self.position_sizer.compute(win_rate, avg_win, avg_loss, portfolio_value)
+        alpha = self.alpha_model.compute(prices, volumes, regime=current_regime)
+        entry = self.entry_timer.compute(symbol, prices)
+        sizing = self.position_sizer.compute(win_rate, avg_win, avg_loss, portfolio_value)
 
-        signals  = [regime_signal, alpha, entry]
-        buy_conf  = sum(s.confidence for s in signals if s.vote == 'BUY')
-        sell_conf = sum(s.confidence for s in signals if s.vote == 'SELL')
+        signals = [regime_signal, alpha, entry]
+        buy_conf = sum(s.confidence for s in signals if s.vote == "BUY")
+        sell_conf = sum(s.confidence for s in signals if s.vote == "SELL")
         total_conf = sum(s.confidence for s in signals) + 1e-10
 
         if buy_conf > sell_conf and buy_conf / total_conf > 0.45:
-            bias, phase = 'BULLISH', 'BUY'
+            bias, phase = "BULLISH", "BUY"
         elif sell_conf > buy_conf and sell_conf / total_conf > 0.45:
-            bias, phase = 'BEARISH', 'SELL'
+            bias, phase = "BEARISH", "SELL"
         else:
-            bias, phase = 'NEUTRAL', 'HOLD'
+            bias, phase = "NEUTRAL", "HOLD"
 
         # Block trade if regime disagrees with alpha direction
-        regime_veto = (phase == 'BUY' and regime_signal.vote == 'SELL') or \
-                      (phase == 'SELL' and regime_signal.vote == 'BUY')
+        regime_veto = (phase == "BUY" and regime_signal.vote == "SELL") or (
+            phase == "SELL" and regime_signal.vote == "BUY"
+        )
         if regime_veto:
-            phase = 'HOLD'
-            bias  = 'NEUTRAL'
+            phase = "HOLD"
+            bias = "NEUTRAL"
 
-        confidence = (buy_conf if phase == 'BUY' else sell_conf) / total_conf
+        confidence = (buy_conf if phase == "BUY" else sell_conf) / total_conf
 
         return {
-            "phase":       phase,
-            "bias":        bias,
-            "confidence":  round(confidence, 4),
+            "phase": phase,
+            "bias": bias,
+            "confidence": round(confidence, 4),
             "position_usd": sizing.meta.get("position_usd", 0),
             "kelly_fraction": sizing.meta.get("safe_fraction", 0),
-            "regime":      regime_signal.meta.get("regime", "UNKNOWN"),
+            "regime": regime_signal.meta.get("regime", "UNKNOWN"),
             "regime_veto": regime_veto,
             "signals": {
-                "regime":  {"score": regime_signal.score, "vote": regime_signal.vote, "conf": regime_signal.confidence},
-                "alpha":   {"score": alpha.score,  "vote": alpha.vote,  "conf": alpha.confidence,
-                            "factors": alpha.meta.get("factors", {})},
-                "entry":   {"score": entry.score,  "vote": entry.vote,  "conf": entry.confidence,
-                            "deviation": entry.meta.get("deviation", 0)},
-                "sizing":  sizing.meta,
+                "regime": {
+                    "score": regime_signal.score,
+                    "vote": regime_signal.vote,
+                    "conf": regime_signal.confidence,
+                },
+                "alpha": {
+                    "score": alpha.score,
+                    "vote": alpha.vote,
+                    "conf": alpha.confidence,
+                    "factors": alpha.meta.get("factors", {}),
+                },
+                "entry": {
+                    "score": entry.score,
+                    "vote": entry.vote,
+                    "conf": entry.confidence,
+                    "deviation": entry.meta.get("deviation", 0),
+                },
+                "sizing": sizing.meta,
             },
         }

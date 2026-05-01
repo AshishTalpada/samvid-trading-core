@@ -8,6 +8,7 @@ from vault import Vault
 
 logger = logging.getLogger(__name__)
 
+
 class DatabaseSecurity:
     """
     Handles column-level encryption for sensitive trading data.
@@ -34,7 +35,8 @@ class DatabaseSecurity:
     @classmethod
     def _generate_hmac(cls, data: bytes) -> str:
         """Generate an HMAC signature for data integrity verification."""
-        if cls._hmac_key is None: cls._get_fernet()
+        if cls._hmac_key is None:
+            cls._get_fernet()
         return hmac.new(cls._hmac_key, data, hashlib.sha256).hexdigest()
 
     @classmethod

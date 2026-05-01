@@ -29,19 +29,15 @@ class MindMacros:
         "find_executable",
         "sovereign_flush",
         "get_account_status",
-        "get_open_positions"
+        "get_open_positions",
     }
 
     # These tools require a secondary 'justification' and 'DoubleHandshake' logic.
-    SENSITIVE_TOOLS: Final[set[str]] = {
-        "heal_code",
-        "reboot_service",
-        "run_system_command"
-    }
+    SENSITIVE_TOOLS: Final[set[str]] = {"heal_code", "reboot_service", "run_system_command"}
 
     # 2. SYSTEM INVARIANTS (The 'Constants of Truth')
     ABSOLUTE_MAX_LOSS_PERCENT: Final[float] = 2.0
-    COMMISSION_BUFFER_PERCENT: Final[float] = 0.1 # Reserve 10bps for fees
+    COMMISSION_BUFFER_PERCENT: Final[float] = 0.1  # Reserve 10bps for fees
     REQUIRED_CANDLE_COUNT: Final[int] = 50
     FORCED_LATENCY_GATE_MS: Final[int] = 250
 
@@ -64,7 +60,7 @@ class MindMacros:
 
         # Crypto-Specific Tolerance
         if any(crypto in symbol.upper() for crypto in ["BTC", "ETH", "SOL", "COIN"]):
-            limit = 5.0 # Allow up to 5% for high-ATR assets
+            limit = 5.0  # Allow up to 5% for high-ATR assets
 
         total_risk = percent_loss + MindMacros.COMMISSION_BUFFER_PERCENT
         if total_risk > limit:

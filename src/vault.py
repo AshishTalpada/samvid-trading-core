@@ -53,7 +53,16 @@ class Vault:
         if k in Vault.SENSITIVE_KEYS:
             return True
         # Algorithmic detection for new keys (tokens, secrets, passwords, etc)
-        SENSITIVE_PATTERNS = ["_KEY", "_PASS", "_SECRET", "_TOKEN", "_AUTH", "PASSWORD", "USERNAME", "PIN"]
+        SENSITIVE_PATTERNS = [
+            "_KEY",
+            "_PASS",
+            "_SECRET",
+            "_TOKEN",
+            "_AUTH",
+            "PASSWORD",
+            "USERNAME",
+            "PIN",
+        ]
         return any(p in k for p in SENSITIVE_PATTERNS)
 
     @staticmethod
@@ -67,7 +76,7 @@ class Vault:
             val = keyring.get_password(Vault.SERVICE_NAME, key)
             if val is not None:
                 final_val = str(val).strip()
-                Vault._cache[key] = final_val # Cache for performance
+                Vault._cache[key] = final_val  # Cache for performance
                 return final_val
         except Exception as e:
             logger.debug(f"Vault access error for {key}: {e}")
@@ -77,7 +86,9 @@ class Vault:
             # Strict mode: Warn if sensitive keys are read from .env instead of the vault.
             env_val = os.getenv(key, default)
             if env_val is None:
-                 logger.error(f"SECURITY BLOCK: Sensitive key '{key}' missing from Vault and .env. Fallback DENIED.")
+                logger.error(
+                    f"SECURITY BLOCK: Sensitive key '{key}' missing from Vault and .env. Fallback DENIED."
+                )
             return env_val
 
         # Non-sensitive keys (e.g. LOG_LEVEL, PORT) can still use environment variables
@@ -107,13 +118,14 @@ class Vault:
         values = []
         for key in Vault.SENSITIVE_KEYS:
             val = Vault.get(key, default="")
-            if val and len(val) > 3: # Avoid redacting extremely short strings like '123'
+            if val and len(val) > 3:  # Avoid redacting extremely short strings like '123'
                 values.append(val)
         return list(set(values))  # Unique values only
 
 
 if __name__ == "__main__":
     import sys
+
     # Basic CLI for managing secrets
     if len(sys.argv) < 2:
         print("Usage: python vault.py [get|set|delete|list] [key] [value]")
