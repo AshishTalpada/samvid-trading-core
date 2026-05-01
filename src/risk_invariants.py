@@ -1,7 +1,45 @@
 import logging
+from collections import deque
 from dataclasses import dataclass
+from datetime import datetime, timedelta
 
 logger = logging.getLogger(__name__)
+
+
+class OrderThrottler:
+    """
+    Token-bucket order rate limiter.
+    Prevents runaway loops from flooding the broker API.
+
+    Default: max 30 orders per 60 seconds.
+    """
+
+    def __init__(self, max_orders: int = 30, per_seconds: int = 60):
+        self._max = max_orders
+        self._window = timedelta(seconds=per_seconds)
+        self._timestamps: deque[datetime] = deque()
+
+    def can_submit(self) -> bool:
+        """Return True if an order may be submitted, False if throttled."""
+        now = datetime.utcnow()
+        # Evict timestamps outside the sliding window
+        while self._timestamps and (now - self._timestamps[0]) > self._window:
+            self._timestamps.popleft()
+        if len(self._timestamps) >= self._max:
+            logger.error(
+                f"ORDER THROTTLED: {self._max} orders already submitted in "
+                f"{self._window.seconds}s. Standing down."
+            )
+            return False
+        self._timestamps.append(now)
+        return True
+
+    def reset(self) -> None:
+        self._timestamps.clear()
+
+
+# Module-level singleton — import directly
+ORDER_THROTTLER = OrderThrottler()
 
 @dataclass
 class InvariantBounds:
@@ -22,6 +60,18 @@ class RiskInvariants:
         "FTMO_DAILY_LIMIT": InvariantBounds(0.01, 0.05, "Daily loss limit (1% - 5%)"),
         "MAX_TRADES_PER_DAY": InvariantBounds(1, 50, "Max trades per day (1 - 50)"),
         "BELIEF_EXIT_THRESHOLD": InvariantBounds(0.1, 0.5, "Belief exit threshold (10% - 50%)"),
+    }
+
+    # Hard notional caps per instrument (USD). DEFAULT applies to all unlisted symbols.
+    MAX_NOTIONAL_PER_ORDER: dict[str, float] = {
+        "SPY":     50_000,
+        "QQQ":     40_000,
+        "IWM":     25_000,
+        "MSFT":    25_000,
+        "NVDA":    20_000,
+        "TSLA":    15_000,
+        "NFLX":    15_000,
+        "DEFAULT": 10_000,
     }
 
     @classmethod
@@ -84,4 +134,20 @@ class RiskInvariants:
             logger.critical(f"RISK VIOLATION: Proposed trade risk {risk_pct:.2%} exceeds 3% hard invariant!")
             return False
 
+        return True
+
+    @classmethod
+    def check_notional(cls, symbol: str, quantity: float, price: float) -> bool:
+        """
+        Enforces per-instrument notional cap before order transmission.
+        Returns False and logs a CRITICAL if the order exceeds the instrument's limit.
+        """
+        notional = quantity * price
+        limit = cls.MAX_NOTIONAL_PER_ORDER.get(symbol, cls.MAX_NOTIONAL_PER_ORDER["DEFAULT"])
+        if notional > limit:
+            logger.critical(
+                f"NOTIONAL VETO: {symbol} order ${notional:,.0f} exceeds "
+                f"hard cap ${limit:,.0f}. Order DENIED."
+            )
+            return False
         return True
