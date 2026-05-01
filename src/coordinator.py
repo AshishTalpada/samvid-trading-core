@@ -596,9 +596,9 @@ class TradingCoordinator:
                             "timestamp": timestamp,
                         }
 
-                async def poll_swarm():
-                    """Swarm Predictor: (SOLUTION 5) Uses Background State with High-Fidelity Fallback."""
-                    state = self.brain.conviction_state.get("Swarm_Predictor")
+                async def poll_slm():
+                    """Native SLM: Ultra-low latency inference."""
+                    state = self.brain.conviction_state.get("Native_SLM")
                     if (
                         state
                         and (
@@ -609,19 +609,19 @@ class TradingCoordinator:
                         return state
 
                     try:
-                        if self.brain.swarm_predictor is None:
-                            raise RuntimeError("SwarmPredictor not configured")
+                        if not hasattr(self.brain, "native_slm") or self.brain.native_slm is None:
+                            raise RuntimeError("NativeSLM not configured")
                         logger.info(
-                            "Coordinator: Background Swarm stale. Falling back to Live Collective Intelligence..."
+                            "Coordinator: Background SLM stale. Falling back to Live Memory Inference..."
                         )
-                        return await self.brain.swarm_predictor.evaluate_proposal(shared_context)
+                        return await self.brain.native_slm.evaluate_proposal(shared_context)
                     except Exception as e:
-                        logger.warning(f"Coordinator: Swarm Live Fallback failed: {e}")
+                        logger.warning(f"Coordinator: SLM Live Fallback failed: {e}")
                         return {
-                            "agent": "Swarm_Predictor",
+                            "agent": "Native_SLM",
                             "vote": "YES",
                             "confidence": 0.5,
-                            "reason": "Swarm Offline (Deferred to Quorum)",
+                            "reason": "SLM Offline (Deferred to Quorum)",
                             "timestamp": timestamp,
                         }
 
@@ -686,7 +686,7 @@ class TradingCoordinator:
                                 "timestamp": timestamp,
                             },
                             {
-                                "agent": "Swarm_Predictor",
+                                "agent": "Native_SLM",
                                 "vote": "NO",
                                 "confidence": 0.0,
                                 "reason": "Skipped",
@@ -709,7 +709,7 @@ class TradingCoordinator:
                     try:
                         gated_agents = [
                             ("Dhatu_Oracle", poll_oracle),
-                            ("Swarm_Predictor", poll_swarm),
+                            ("Native_SLM", poll_slm),
                             (
                                 "Mind_Ultrathink",
                                 lambda: self.brain.mind_ultrathink.evaluate_proposal(

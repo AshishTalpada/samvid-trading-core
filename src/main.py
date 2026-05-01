@@ -274,7 +274,7 @@ class TradingSystem:
         self.hft_streamer: IBKRStreamer | None = None
         self.restorer = SessionRestorer()
         self._openbb_provider: Any = None
-        self._swarm_predictor: Any = None
+        self.native_slm: Any = None
         self.telegram_remote = get_remote()  # Remote Command Hub
         self.is_running = False
         self._mt5_failure_count = 0  # Track sequential MT5 heartbeat failures
@@ -460,18 +460,13 @@ class TradingSystem:
         except Exception as e:
             logger.warning(f"OpenBB initialization failed: {e}")
 
-        # MiroFish Swarm Intelligence Client
+        # Native SLM Inference Engine
         try:
-            from swarm_predictor import SwarmPredictor
+            from native_slm import NativeSLM
 
-            _miro_url = (
-                Vault.get("MIROFISH_API_URL", "http://localhost:5001") or "http://localhost:5001"
-            )
-            self._swarm_predictor = SwarmPredictor(
-                api_url=_miro_url, timeout_sec=30.0, cache_minutes=15
-            )
+            self.native_slm = NativeSLM(model_path="models/sovereign_slm.gguf")
         except Exception as e:
-            logger.warning(f"SwarmPredictor initialization failed: {e}")
+            logger.warning(f"NativeSLM initialization failed: {e}")
 
         self.profiler.mark("SEARCH_PROVIDERS_READY")
 
@@ -1112,7 +1107,7 @@ class TradingSystem:
                 mode=self.mode,
                 dhatu_oracle=self.dhatu_oracle,
                 qdb=self.questdb,
-                swarm_predictor=self._swarm_predictor,
+                native_slm=self.native_slm,
                 bus=self.bus,
             )
 
@@ -1329,19 +1324,12 @@ class TradingSystem:
 
             await self._start_background_tasks()
 
-            logger.info("\n[9/10] Validating Swarm Readiness...")
-            if self._swarm_predictor is not None:
-                try:
-                    is_up = await self._swarm_predictor.health_check()
-                    if is_up:
-                        self._swarm_predictor.is_available = True
-                    else:
-                        self._swarm_predictor.is_available = False
-                        logger.info(
-                            "Native Swarm offline - trading continues without swarm intelligence"
-                        )
-                except Exception as e:
-                    logger.debug(f"Native Swarm health check failed: {e}")
+            logger.info("\n[9/10] Validating Native SLM Readiness...")
+            if self.native_slm is not None:
+                if self.native_slm.is_available:
+                    logger.info("Native SLM is loaded in VRAM and ready.")
+                else:
+                    logger.info("Native SLM offline - trading continues with pure math execution.")
 
             # Step 8.5: Neural Warmup (Pre-cache Institutional Contracts)
             logger.info("\n[8.5/10] Initiating Neural Warmup (Contract Cache)...")
@@ -1377,7 +1365,7 @@ class TradingSystem:
                 f"🔌 MT5: {mt5_status}\n"
                 f"🧠 DhatuOracle: {dhatu_status}\n"
                 f"📈 OpenBB: {'✅' if (self._openbb_provider and self._openbb_provider.is_available) else '❌'}\n"
-                f"🐟 Native Swarm: {'✅' if (self._swarm_predictor and self._swarm_predictor.is_available) else '❌'}\n"
+                f"🐟 Native SLM: {'✅' if (self.native_slm and self.native_slm.is_available) else '❌'}\n"
                 f"🕒 Startup time: {(datetime.now(timezone.utc) - start_time).total_seconds():.2f}s\n"
                 f"🕒 {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')}"
             )
