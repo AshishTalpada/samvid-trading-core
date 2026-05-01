@@ -1,10 +1,8 @@
-# pyre-ignore-all-errors[21]
 """
 src/intelligence_bus.py — SharedIntelligenceBus
 ================================================
 In-process async pub/sub message bus that wires every trading component
 together so they share knowledge simultaneously.
-
 Topics (canonical list):
   "candle.batch"        — DataPipeline finished storing a new batch of bars
                           payload: {"symbols": [...], "count": n, "timestamp": str}
@@ -26,7 +24,6 @@ Topics (canonical list):
                           payload: {"sector": str, "exposure_pct": float, "action": str}
   "oracle.freeze"       — DhatuOracle emitted an Abhava/Viyoga (hard stop signal)
                           payload: {"dhatu": str, "reason": str}
-
 Design decisions:
   - Fire-and-forget for data events (candle.batch, oracle.state) — no blocking
   - Synchronous acknowledgement NOT required — subscribers must handle lag
@@ -50,20 +47,16 @@ logger = logging.getLogger(__name__)
 class SharedIntelligenceBus:
     """
     Lightweight in-process async pub/sub bus.
-
     Usage:
         bus = SharedIntelligenceBus()
-
         # Subscribe (returns an asyncio.Queue the caller reads from)
         q = bus.subscribe("candle.batch")
         # ── in a task:
         while True:
             payload = await q.get()
             ...
-
         # Publish (fire-and-forget, never blocks)
         await bus.publish("candle.batch", {"symbols": ["SPY"], "count": 100})
-
         # Register async callback (auto-spawned as task on each publish)
         bus.on("oracle.state", my_handler_coroutine)
     """
@@ -73,18 +66,15 @@ class SharedIntelligenceBus:
         self._subscribers: dict[str, list[asyncio.PriorityQueue]] = {}
         # topic → list of async callbacks (spawned as tasks on publish)
         self._callbacks: dict[str, list[Callable]] = {}
-        # id(handler) -> (Queue, Task) to prevent task-bombing (GAP-14 FIX)
-        # Using a regular dict + weakref.finalize to ensure clean task cancellation (Samvid v1.0-beta)
+        # id(handler) -> (Queue, Task) to prevent task-bombing
         self._callback_workers: dict[int, tuple[Any, asyncio.Task]] = {}
         self._relay_queues: list[asyncio.PriorityQueue] = []
         self._publish_count: int = 0
-        self._tie_breaker: int = 0  # Tie-breaker for PriorityQueue comparison (Samvid v1.0-beta FIX)
+        self._tie_breaker: int = 0  # Tie-breaker for PriorityQueue comparison
 
-        # Concurrency Control for Publishing (Samvid v1.0-beta)
         self._pending_publish_tasks = set()
         self._max_publish_tasks = 50
 
-        # Samvid v1.0-beta: Canonical Priority Map (0=Urgent, 10=Normal, 20=Low)
         self.TOPIC_PRIORITIES = {
             "oracle.freeze": 0,    # Hard Stop (Abhava)
             "trade.exit": 1,      # Portfolio preservation
@@ -99,9 +89,7 @@ class SharedIntelligenceBus:
             "macro.impact": 20,   # 15m synthesis
         }
 
-    # ──────────────────────────────────────────────────────────────────────
     # Priority Queue Wrapper (Maintains Backward Compatibility)
-    # ──────────────────────────────────────────────────────────────────────
 
     class PriorityQueueWrapper(asyncio.PriorityQueue):
         """
@@ -110,7 +98,6 @@ class SharedIntelligenceBus:
         """
         async def get(self) -> Any:
             priority_tuple = await super().get()
-            # Samvid v1.0-beta: Priority tuple is now (priority, count, ts, payload)
             if isinstance(priority_tuple, tuple) and len(priority_tuple) == 4:
                 return priority_tuple[3]
             # Backward compatibility for (priority, ts, payload)
@@ -118,9 +105,7 @@ class SharedIntelligenceBus:
                 return priority_tuple[2]
             return priority_tuple
 
-    # ──────────────────────────────────────────────────────────────────────
     # Subscribe via Queue (pull model)
-    # ──────────────────────────────────────────────────────────────────────
 
     def subscribe(self, topic: str, maxsize: int = 100) -> "asyncio.PriorityQueue[Any]":
         """
@@ -142,9 +127,7 @@ class SharedIntelligenceBus:
                 if r() is not None and r() is not queue
             ]
 
-    # ──────────────────────────────────────────────────────────────────────
     # Subscribe via Callback (push model)
-    # ──────────────────────────────────────────────────────────────────────
 
     def on(self, topic: str, handler: Callable) -> None:
         """
@@ -165,14 +148,12 @@ class SharedIntelligenceBus:
 
         self._callbacks.setdefault(topic, []).append(ref)
 
-        # GAP-14: Initialize worker for this handler if not present
         h_id = id(handler)
         if h_id not in self._callback_workers:
             q = self.PriorityQueueWrapper(maxsize=100)
             worker = asyncio.create_task(self._handler_worker(ref, q))
             self._callback_workers[h_id] = (q, worker)
 
-            # Samvid v1.0-beta: Ensure task is cancelled when handler is GC'd
             def _cleanup_worker(task: asyncio.Task, bus_ref: weakref.ReferenceType, hid: int):
                 task.cancel()
                 target_bus = bus_ref()
@@ -210,7 +191,6 @@ class SharedIntelligenceBus:
         # 3. Prune Callback Workers...
         # We periodically check if any of our keys are instance methods whose 'self' is dead
         # Note: dict keys keep the handler alive! This is a known risk.
-        # Samvid v1.0-beta: We rely on 'off()' being called or process restart.
         # For full safety, we'd need a WeakKeyDictionary for _callback_workers.
 
     async def _handler_worker(self, handler_ref: Any, q: asyncio.PriorityQueue) -> None:
@@ -219,7 +199,6 @@ class SharedIntelligenceBus:
             try:
                 payload = await q.get()
 
-                # Samvid v1.0-beta: Resolve handler from weakref to break memory cycle
                 handler = handler_ref() if isinstance(handler_ref, (weakref.WeakMethod, weakref.ReferenceType)) else handler_ref
 
                 if handler is None:
@@ -246,9 +225,7 @@ class SharedIntelligenceBus:
             except ValueError:
                 pass
 
-    # ──────────────────────────────────────────────────────────────────────
     # Publish
-    # ──────────────────────────────────────────────────────────────────────
 
     def _on_publish_task_done(self, task: asyncio.Task) -> None:
         """Cleanup finished publish tasks from the tracker."""
@@ -302,7 +279,6 @@ class SharedIntelligenceBus:
         envelope = {"topic": topic, "payload": payload}
         r_item = (priority, self._tie_breaker, ts, envelope)
 
-        # GAP-140 FIX: Yield to event loop to prevent deadlocks in recursive publish chains
         await asyncio.sleep(0)
 
         if priority <= 2:
@@ -314,7 +290,6 @@ class SharedIntelligenceBus:
         if self._publish_count % 1000 == 0:
             self._prune_dead_references()
 
-        # Task-Bombing Protection (Samvid v1.0-beta):
         # Check concurrency before spawning a delivery task
         if len(self._pending_publish_tasks) >= self._max_publish_tasks:
             # Low-priority drop to preserve event loop health
@@ -346,17 +321,14 @@ class SharedIntelligenceBus:
             except Exception:
                 pass  # System not yet started — silently skip
 
-    # ──────────────────────────────────────────────────────────────────────
     # Diagnostics
-    # ──────────────────────────────────────────────────────────────────────
 
     async def start_socket_relay(self, host: str = "127.0.0.1", port: int = 5570) -> None:
         """
-        Samvid v1.0-beta Distributed Intelligence Relay.
         Opens a TCP socket to mirror in-process events to external observers
         and receive external intelligence injections.
         """
-        logger.info(f"BUS: Starting Node Relay on {host}:{port} (Samvid v1.0-beta Matrix)...")
+        logger.info(f"BUS: Starting Node Relay on {host}:{port}...")
 
         try:
             server = await asyncio.start_server(self._handle_node_connection, host, port)
@@ -368,7 +340,7 @@ class SharedIntelligenceBus:
     async def _handle_node_connection(self, reader, writer) -> None:
         """
         Handle an incoming external Mind connection with mandatory authentication.
-        GAP-15 FIX: Mandatory HMAC Handshake before relay begins.
+        Mandatory HMAC Handshake before relay begins.
         """
         addr = writer.get_extra_info("peername")
         from vault import Vault
@@ -396,7 +368,6 @@ class SharedIntelligenceBus:
             token = auth_msg.get("token", "")
 
             # Verify HMAC-SHA256 of current 30s window timestamp
-            # GAP-03: Use Synchronized Sovereign Time for HMAC to prevent drift lockout
             from time_sync import TimeSync
             ts = int(TimeSync.now().timestamp()) // 30
             valid_auth = False
@@ -456,7 +427,7 @@ class SharedIntelligenceBus:
         self._relay_queues.append(q)
 
         def _safe_serialize(obj):
-            """GAP-139 FIX: Robust JSON serialization for complex broker objects."""
+            """Robust JSON serialization that handles complex broker objects and non-serializable types."""
             import decimal
             from datetime import date, datetime
             if isinstance(obj, (datetime, date)):
@@ -517,7 +488,6 @@ class SharedIntelligenceBus:
         logger.info("SharedIntelligenceBus: Matrix OFFLINE.")
 
 
-# ── Singleton — created once in main.py and shared everywhere ─────────────
 _bus: SharedIntelligenceBus | None = None
 import threading
 

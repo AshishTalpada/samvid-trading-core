@@ -1,45 +1,36 @@
-# pyre-ignore-all-errors[21]
 import os
 
-# -----------------------------------------------------------------------------
-# ABSOLUTE TELEMETRY SUPPRESSION (Samvid v1.0-beta HARDCORE)
 # MUST BE SET BEFORE ANY IMPORTS THAT MIGHT TRIGGER CHROMA/POSTHOG
-# -----------------------------------------------------------------------------
 os.environ["ANONYMIZED_TELEMETRY"] = "False"
 os.environ["CHROMA_TELEMETRY_ENABLED"] = "False"
 os.environ["HF_HUB_DISABLE_SYMLINKS"] = "1"
 
 """
 src/swarm_predictor.py - MiroFish Swarm Intelligence Client Adapter
-
 Connects to a running MiroFish instance (local or Docker) to obtain
 multi-agent swarm consensus predictions for market scenarios.
-
 MiroFish simulates thousands of AI agents with independent personalities
 and long-term memory to predict future trajectories from seed data.
-
 When MiroFish is unavailable the adapter returns a NEUTRAL signal so the
 trading system can continue operating without it.
 """
 
-import asyncio  # pyre-ignore[21]
-import logging  # pyre-ignore[21]
+import asyncio
+import logging
 import os
-from dataclasses import dataclass, field  # pyre-ignore[21]
-from datetime import datetime, timedelta, timezone  # pyre-ignore[21]
-from enum import Enum  # pyre-ignore[21]
-from typing import Any, Dict  # pyre-ignore[21]
+from dataclasses import dataclass, field
+from datetime import datetime, timedelta, timezone
+from enum import Enum
+from typing import Any, Dict
 
-import httpx  # pyre-ignore[21]
+import httpx
 
-from vault import Vault  # pyre-ignore[21]
+from vault import Vault
 
 logger = logging.getLogger(__name__)
 
 
-# =============================================================================
 # DATA MODELS
-# =============================================================================
 
 
 class SwarmBias(Enum):
@@ -59,7 +50,7 @@ class SwarmConsensus:
     summary: str = ""  # Human-readable reasoning
     agent_count: int = 0  # How many agents participated
     rounds: int = 0  # Simulation rounds completed
-    symbol: str = "GLOBAL" # GAP-36: Caching symbol (Prevents cross-symbol leaks)
+    symbol: str = "GLOBAL"
     # Use datetime.min as sentinel so that a freshly created *default* consensus
     # is treated as stale (is_fresh == False). Only explicitly-set timestamps
     # from actual predictions will be recent enough to be fresh.
@@ -68,7 +59,7 @@ class SwarmConsensus:
 
     @property
     def is_fresh(self) -> bool:
-        """True only if generated within the staleness window (Samvid v1.0-beta: TZ Safety)."""
+        """True only if generated within the staleness window."""
         # Ensure parity: both must be naive or same-aware
         now = datetime.now(timezone.utc)
         gen = self.generated_at
@@ -88,11 +79,9 @@ class SwarmConsensus:
 
     def get_confidence_modifier(self, entry_side: str = "long") -> float:
         """
-        Position-size modifier based on swarm alignment with trade direction (Samvid v1.0-beta Fixed).
-
+        Position-size modifier based on swarm alignment with trade direction.
         Args:
             entry_side: 'long' or 'short'
-
         Returns:
             Modifier > 1.0 if aligned, < 1.0 if contrary, 1.0 if neutral/low-conf.
         """
@@ -111,9 +100,7 @@ class SwarmConsensus:
             return 1.0 - (self.confidence - 0.40) * 0.40
 
 
-# =============================================================================
 # CHROMA GRAPH MEMORY
-# =============================================================================
 
 
 class ChromaDeepMemory:
@@ -126,13 +113,12 @@ class ChromaDeepMemory:
         import chromadb
         from chromadb.config import Settings
 
-        # GAP-183 FIX: Singleton Client to prevent memory/file-handle leaks
         if ChromaDeepMemory._client_instance is None:
             try:
                 ChromaDeepMemory._client_instance = chromadb.PersistentClient(
                     path=db_dir, settings=Settings(allow_reset=True, anonymized_telemetry=False)
                 )
-                logger.info(f"✓ Chroma Persistence Online (Samvid v1.0-beta Memory System) at {db_dir}")
+                logger.info(f"✓ Chroma Persistence Online at {db_dir}")
             except Exception as e:
                 logger.warning(f"Chroma: PersistentClient failed ({e}). Falling back to Ephemeral.")
                 ChromaDeepMemory._client_instance = chromadb.EphemeralClient(
@@ -151,14 +137,14 @@ class ChromaDeepMemory:
 
         self.collection = self.client.get_or_create_collection(collection_name, embedding_function=fast_ef)
         try:
-            count = int(self.collection.count())  # ChromaDB v1.0-beta+ returns int directly
+            count = int(self.collection.count())  # ChromaDB returns int directly
             logger.info(f"ChromaDB Memory Active: {count} memories in '{collection_name}'")
         except Exception:
             logger.info(f"ChromaDB Memory Active: collection '{collection_name}' ready")
 
     async def search_memory(self, market_narrative: str, limit: int = 5) -> tuple[str, float]:
         """
-        Samvid v1.0-beta: Wisdom Retrieval & Compaction.
+        Wisdom Retrieval & Compaction.
         Finds similar regimes AND compacts them into distilled wisdom tokens.
         """
         if not self.collection:
@@ -172,7 +158,6 @@ class ChromaDeepMemory:
             if not results or not results["documents"] or not results["documents"][0]:
                 return "", 0.0
 
-            # ── WISDOM COMPACTION (SE-11 Port) ──
             # If we find highly similar memories, compact them into a single truth token
             docs = results["documents"][0]
             metas = results["metadatas"][0]
@@ -208,7 +193,7 @@ class ChromaDeepMemory:
             return "", 0.0
 
     async def _compact_memories(self, documents: list[str], metadatas: list[dict]) -> str | None:
-        """GAP-68: Compaction logic that preserves reasoning ('Why') and signals ('What')."""
+        """Compact multiple similar memories into a single synthesized wisdom token."""
         if len(documents) < 3: return None
 
         # Heuristic: Combine the top 3 similar memories into a high-density alpha rule
@@ -240,9 +225,7 @@ class ChromaDeepMemory:
             logger.debug(f"Chroma memory save failed non-fatally: {e}")
 
 
-# =============================================================================
 # NATIVE SWARM PREDICTOR
-# =============================================================================
 
 
 class SwarmPredictor:
@@ -268,12 +251,12 @@ class SwarmPredictor:
         self.consensus_history: list[SwarmConsensus] = []
         self._last_consensus: SwarmConsensus | None = None
         self._memory_queue = asyncio.Queue()
-        self._prompt_semaphore = asyncio.Semaphore(2)  # GAP-138 FIX: Limit concurrency to prevent VRAM spikes
+        self._prompt_semaphore = asyncio.Semaphore(2)
         self.is_running = False
         self._cache_minutes = cache_minutes
         self._available: bool = False
         self._memory = ChromaDeepMemory()
-        self._memory_queue: asyncio.Queue = asyncio.Queue(maxsize=100)  # Samvid v1.0-beta: Bounded Buffer
+        self._memory_queue: asyncio.Queue = asyncio.Queue(maxsize=100)
         self._memory_loop: asyncio.Task | None = None
 
         # 2. SEEDS: Check for Local vs Cloud reasoning
@@ -284,7 +267,6 @@ class SwarmPredictor:
         self._openai_client: Any = None
 
         if self.use_local:
-            # GAP-162: Load Balancing (Round-Robin) for Multi-GPU/Multi-Node Ollama
             urls_str = Vault.get("OLLAMA_URLS", "http://localhost:11434/v1")
             self._ollama_urls = [u.strip() for u in urls_str.split(",") if u.strip()]
             self._url_index = 0
@@ -311,14 +293,12 @@ class SwarmPredictor:
             self._memory_loop = None
 
     def stop(self) -> None:
-        """Gracefully stop background tasks (Samvid v1.0-beta Cleanup)."""
+        """Gracefully stop background tasks."""
         if self._memory_loop and not self._memory_loop.done():
             self._memory_loop.cancel()
             logger.info("✓ SwarmPredictor: Background tasks terminated.")
 
-    # ------------------------------------------------------------------
     # Public Base Methods (Replacing HTTP logic)
-    # ------------------------------------------------------------------
     @property
     def is_available(self) -> bool:
         return self._available
@@ -343,7 +323,6 @@ class SwarmPredictor:
         Parse a prediction dict (legacy HTTP-client format) into a SwarmConsensus.
         Supports both string and dict 'report' fields.
         Used by tests and fallback path.
-
         Args:
             data: dict with keys: report (str|dict), confidence (float),
                   agent_count (int), rounds (int)
@@ -356,7 +335,6 @@ class SwarmPredictor:
             report = report.get("summary", report.get("text", str(report)))
         report_lower = str(report).lower()
 
-        # Samvid v1.0-beta GAP-78: Negation-Aware Sentiment Discovery
         # Prevents "not bullish" from being counted as a bullish signal.
         def _is_negated(word: str, text: str) -> bool:
             # Look back 25 characters for negation markers
@@ -402,11 +380,9 @@ class SwarmPredictor:
             _cache_minutes=self._cache_minutes,
         )
 
-    # ------------------------------------------------------------------
     # The Core Native Debate Engine
-    # ------------------------------------------------------------------
     def _get_next_url(self) -> str:
-        """GAP-162: Round-Robin Load Balancing for local Ollama instances."""
+        """Round-Robin Load Balancing across local Ollama instances."""
         if not self._ollama_urls:
             return "http://localhost:11434/v1"
         url = self._ollama_urls[self._url_index]
@@ -415,13 +391,13 @@ class SwarmPredictor:
 
     async def get_market_forecast(self, symbol: str, context: Dict[str, Any], effort: str = "medium") -> SwarmConsensus:
         """
-        Unified Swarm Prediction (Samvid v1.0-beta).
+        Unified Swarm Prediction.
         Combines SFI Flash-Inference, Advisor Logic, and Teammate Spawning.
         """
         if not self._available:
              return self._neutral_consensus("Intelligence Provider Missing")
 
-        # 1. CACHE CHECK (GAP-36: Verified Symbol + TTL)
+        # 1. CACHE CHECK
         cached = self._last_consensus
         if cached is not None and cached.is_fresh and cached.symbol == symbol:
             return cached
@@ -510,7 +486,7 @@ class SwarmPredictor:
         return ["RiskOfficer", "TrendFollower", "MacroAnalyst"]
 
     async def _simulate_teammate_inference(self, persona: str, context: dict, briefing: str) -> tuple:
-        """GAP-66: Real LLM-driven persona logic (replacing hardcoded mocks)."""
+        """Simulate a single LLM-driven persona's opinion in the swarm debate."""
         prompt = f"As a {persona}, analyze {context.get('symbol')} given: {context.get('pattern')}. Brief: {briefing}. End with: BIAS: [BULLISH/BEARISH/NEUTRAL]"
 
         # We use the fast model for individual agents
@@ -529,7 +505,6 @@ class SwarmPredictor:
 
     async def evaluate_proposal(self, context: Dict[str, Any]) -> Dict[str, Any]:
         """
-        Standardized consensus evaluation for Samvid v1.0-beta.
         Provides the Swarm Intelligence vote based on a 5-agent debate.
         """
         symbol = context.get("symbol", "UNKNOWN")
@@ -565,7 +540,7 @@ class SwarmPredictor:
         """Makes direct async call to grabbing a persona's opinion (Synchronized via Semaphore)."""
         import httpx
         try:
-            import openai  # pyre-ignore[21]
+            import openai
 
             if self._openai_client is None:
                 base_url = self._get_next_url() if self.use_local else None
@@ -592,11 +567,9 @@ class SwarmPredictor:
                 "temperature": 0.7,
                 "max_tokens": 150
             }
-            # GAP-67: Only use extra_body/options for local Ollama to avoid OpenAI SDK crashes
             if self.use_local:
                 kwargs["extra_body"] = {"options": options}
 
-            # GAP-138: Respect the VRAM safety semaphore
             async with self._prompt_semaphore:
                 resp = await client.chat.completions.create(**kwargs)
 
@@ -644,11 +617,9 @@ class SwarmPredictor:
                 "temperature": 0.4,
                 "response_format": {"type": "json_object"}
             }
-            # GAP-67: Defensive extra_body handling
             if self.use_local:
                 kwargs["extra_body"] = {"options": options}
 
-            # GAP-138: Respect the VRAM safety semaphore
             async with self._prompt_semaphore:
                 resp = await client.chat.completions.create(**kwargs)
             txt = resp.choices[0].message.content or "{}"
@@ -682,9 +653,7 @@ class SwarmPredictor:
         except Exception as e:
             return self._neutral_consensus(f"Chief Strategist synthesis failed: {e}")
 
-    # ------------------------------------------------------------------
     # Helpers
-    # ------------------------------------------------------------------
     def _build_seed_text(self, symbol: str, ctx: dict[str, Any]) -> str:
         parts = [f"Market Seed — {symbol} ({datetime.now(timezone.utc).strftime('%H:%M')})"]
         for key in ["price", "regime", "vix", "pattern", "rsi", "macd"]:
@@ -695,7 +664,6 @@ class SwarmPredictor:
             parts.append("\n<NEWS_DATA>")
             injection_flags = ["ignore all ", "system override", "new instructions", "you are now", "forget everything"]
             for h in ctx["news"][:3]:
-                # GAP-70 FIX: Prompt Injection Sterilization (Samvid v1.0-beta)
                 safe_h = str(h)
                 for flag in injection_flags:
                     safe_h = safe_h.lower().replace(flag, "[REDACTED]")

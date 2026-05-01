@@ -3,7 +3,6 @@ from typing import Final
 
 logger = logging.getLogger(__name__)
 
-# --- MACRO HUB: THE SIGNED GUARDRAILS (Samvid v1.0-beta) ---
 # These are 'Hardcoded System Truths' that even the Masters Mind cannot bypass.
 # Inspired by src/shims/macro.ts and path hijacking protection.
 
@@ -33,7 +32,6 @@ class MindMacros:
         "get_open_positions"
     }
 
-    # GAP-64 FIX: Sensitive Tool Handshake requirement
     # These tools require a secondary 'justification' and 'DoubleHandshake' logic.
     SENSITIVE_TOOLS: Final[set[str]] = {
         "heal_code",
@@ -43,7 +41,7 @@ class MindMacros:
 
     # 2. SYSTEM INVARIANTS (The 'Constants of Truth')
     ABSOLUTE_MAX_LOSS_PERCENT: Final[float] = 2.0
-    COMMISSION_BUFFER_PERCENT: Final[float] = 0.1 # Reserve 10bps for fees (GAP-65)
+    COMMISSION_BUFFER_PERCENT: Final[float] = 0.1 # Reserve 10bps for fees
     REQUIRED_CANDLE_COUNT: Final[int] = 50
     FORCED_LATENCY_GATE_MS: Final[int] = 250
 
@@ -61,11 +59,10 @@ class MindMacros:
     def validate_risk(percent_loss: float, symbol: str = "SPY") -> bool:
         """
         Hardcoded check to prevent 'Absolute Catastrophe'.
-        GAP-166: Dynamic cap for high-volatility assets (BTC/ETH).
         """
         limit = MindMacros.ABSOLUTE_MAX_LOSS_PERCENT
 
-        # Crypto-Specific Tolerance (Sovereign v1.0-beta)
+        # Crypto-Specific Tolerance
         if any(crypto in symbol.upper() for crypto in ["BTC", "ETH", "SOL", "COIN"]):
             limit = 5.0 # Allow up to 5% for high-ATR assets
 

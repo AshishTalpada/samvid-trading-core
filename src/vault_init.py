@@ -15,7 +15,7 @@ import json
 
 
 def check_vault_service():
-    """GAP-123 FIX: Verify keyring backend is available."""
+    """Verify keyring backend is available and usable before initialization."""
     import keyring
     backend = keyring.get_keyring()
     if "fail" in str(backend).lower():
@@ -52,7 +52,6 @@ def initialize_vault():
         "MT5_SERVER"
     ]
 
-    # GAP-124: Support Batch Mode via JSON file
     if "--batch" in sys.argv:
         batch_idx = sys.argv.index("--batch") + 1
         if batch_idx < len(sys.argv):
@@ -76,14 +75,12 @@ def initialize_vault():
         existing = Vault.get(key)
         prompt = f"Enter value for {key}"
         if existing:
-             # GAP-122 FIX: Prompt before overwrite
              prompt += " (Existing present. Overwrite? [y/N])"
              choice = input(prompt).strip().lower()
              if choice != 'y':
                  continue
              prompt = f"Enter NEW value for {key}"
 
-        # GAP-121 FIX: Use getpass to avoid leaking keys to terminal history
         val = getpass.getpass(f"{prompt}: ").strip()
         if val:
             Vault.set(key, val)

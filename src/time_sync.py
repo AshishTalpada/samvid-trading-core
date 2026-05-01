@@ -9,7 +9,7 @@ logger = logging.getLogger(__name__)
 
 class TimeSync:
     """
-    Sovereign Time Synchronization Protocol (GAP-11).
+    Sovereign Time Synchronization Protocol.
     Synchronizes system clock with global NTP pool to prevent stale signal execution.
     """
     NTP_SERVERS = [
@@ -24,10 +24,9 @@ class TimeSync:
 
     @classmethod
     async def sync(cls):
-        """Asynchronously determine the NTP offset (Samvid v1.0-beta Hardened)."""
+        """Asynchronously determine the NTP offset."""
         for server in cls.NTP_SERVERS:
             try:
-                # GAP-64 FIX: Asynchronous DNS resolution to prevent executor hang
                 loop = asyncio.get_running_loop()
                 addr_info = await loop.getaddrinfo(server, 123, proto=socket.IPPROTO_UDP)
                 if not addr_info: continue
@@ -41,7 +40,6 @@ class TimeSync:
             except Exception as e:
                 logger.warning(f"Failed to sync with {server}: {e}")
 
-        # --- GAP-11/62/137: HTTP FALLBACK PRECISION (Samvid v1.0-beta) ---
         try:
             from session_manager import SovereignSession
             session = await SovereignSession.get_session()
@@ -61,7 +59,6 @@ class TimeSync:
                         ntp_ts = await asyncio.to_thread(_parse_date, date_str)
                         if ntp_ts:
                             latency = (t1 - t0) / 2.0
-                            # GAP-137 FIX: HTTP precision is 1s, so we assume the server timestamp
                             # is at the start of the second. Adding 0.5s reduces mean error.
                             cls._offset = (ntp_ts + 0.5) - (t1 - latency)
                             logger.info(f"✅ Clock Synchronized via HTTP Fallback. Offset: {cls._offset:.4f}s (Latency Adj: {latency:.4f}s)")
@@ -74,7 +71,7 @@ class TimeSync:
 
     @classmethod
     async def start_periodic_sync(cls, interval_hours: int = 6):
-        """GAP-63 FIX: Background task to prevent clock drift during long sessions."""
+        """Background task that periodically re-syncs the clock to prevent drift in long sessions."""
         if cls._is_periodic_running:
             return
         cls._is_periodic_running = True

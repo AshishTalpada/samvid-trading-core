@@ -7,7 +7,7 @@ logger = logging.getLogger(__name__)
 
 class MindPrompts:
     """
-    Context Injector for the Samvid v1.0-beta Prime Architecture.
+    Context Injector: formats and prepares prompts for the multi-agent architecture.
     Constructs meticulous system prompts for the minds.
     Inspired by Claude-Code's 'prompts.ts' and 'context.ts' logic.
     """
@@ -15,7 +15,7 @@ class MindPrompts:
     def __init__(self, memory: MemoryManager) -> None:
         self.memory = memory
         self.system_identity = (
-            "You are a core mind in a SETO (Self-Evolving Trading Organism) v1.0-beta Sovereign. "
+            "You are a core mind in a SETO (Self-Evolving Trading Organism). "
             "You operate in a high-stakes financial environment where code integrity and risk management are paramount."
         )
 
@@ -38,7 +38,6 @@ class MindPrompts:
 
     def build_evolution_prompt(self, current_regime: str, win_rate: float) -> str:
         """Construct the prompt for Agent D/E (The Strategist)."""
-        # GAP-72 FIX: Removed 'Gambler Instructions'.
         # Replaced 'Velocity Accelerator' with 'Risk Invariance'.
         prompt = [
             f"IDENTITY: {self.system_identity}",

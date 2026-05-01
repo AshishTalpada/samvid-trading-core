@@ -11,7 +11,6 @@ class InvariantBounds:
 
 class RiskInvariants:
     """
-    GAP-86: Autonomous Risk Corruption Shield.
     Ensures that critical risk constants haven't been tampered with
     by an AI agent or a bug.
     """
