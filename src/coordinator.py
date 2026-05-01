@@ -213,7 +213,7 @@ class TradingCoordinator:
                     self.brain.dms.record_heartbeat("COORDINATOR")
 
                 timestamp = datetime.now(timezone.utc).isoformat()
-                account_value = await self.brain.get_safe_buying_power("ibkr")
+                account_value = await self.brain.get_safe_buying_power(self.brain.active_broker.lower())
                 pattern = proposal["pattern"]
 
                 alpha_val = proposal.get("lambda", pattern.confidence / 100.0)
@@ -243,37 +243,44 @@ class TradingCoordinator:
                         if (ohlcv_1m is not None and not isinstance(ohlcv_1m, str))
                         else None
                     )
-                    sizing = self.brain.ibkr_sizer.calculate(
-                        win_prob=alpha_val,
-                        r_r_ratio=pattern.r_r_ratio,
-                        balance=account_value,
-                        account_value=account_value,
-                        entry_price=pattern.entry,
-                        stop_price=pattern.stop,
-                        target_price=pattern.target,
-                        spread=spread_data["spread"],
-                        instrument=symbol,
-                        ohlcv_df=ohlcv_for_sizing,
-                        regime=self.brain.current_regime,
-                        regime_modifier=self.brain.regime_classifier.get_risk_modifier(
-                            self.brain.current_regime
-                        ),
-                        drawdown_modifier=self.brain.ibkr_drawdown.get_size_modifier(),
-                        loss_modifier=self.brain.loss_tracker.get_size_modifier(),
-                        is_probe=is_probe,
-                    )
-                    shares = int(sizing.get("step8_shares", 0))
-                    pos_value = sizing.get("position_value", 0.0)
-
-                    total_mod = sizing.get("total_multiplier", 1.0)
-                    if total_mod < 0.9 and not is_probe:
-                        logger.warning(
-                            f"Coordinator [{proposal_id}]: Imperial Safety Protocol Active. "
-                            f"Size reduced to {total_mod:.1%} of theoretical max (DD/Loss/Regime Guard)."
+                    if self.brain.active_broker.upper() == "MT5":
+                        risk_per_trade = getattr(self.brain, "mt5_risk_per_trade", 10.0)
+                        shares = self.brain.mt5_sizer.calculate_lots(
+                            risk_per_trade, pattern.entry, pattern.stop, symbol
+                        ) or 0.0
+                        pos_value = shares * 100000.0  # Synthetic estimate for Forex tracking
+                    else:
+                        sizing = self.brain.ibkr_sizer.calculate(
+                            win_prob=alpha_val,
+                            r_r_ratio=pattern.r_r_ratio,
+                            balance=account_value,
+                            account_value=account_value,
+                            entry_price=pattern.entry,
+                            stop_price=pattern.stop,
+                            target_price=pattern.target,
+                            spread=spread_data["spread"],
+                            instrument=symbol,
+                            ohlcv_df=ohlcv_for_sizing,
+                            regime=self.brain.current_regime,
+                            regime_modifier=self.brain.regime_classifier.get_risk_modifier(
+                                self.brain.current_regime
+                            ),
+                            drawdown_modifier=self.brain.ibkr_drawdown.get_size_modifier(),
+                            loss_modifier=self.brain.loss_tracker.get_size_modifier(),
+                            is_probe=is_probe,
                         )
+                        shares = int(sizing.get("step8_shares", 0))
+                        pos_value = sizing.get("position_value", 0.0)
+
+                        total_mod = sizing.get("total_multiplier", 1.0)
+                        if total_mod < 0.9 and not is_probe:
+                            logger.warning(
+                                f"Coordinator [{proposal_id}]: Imperial Safety Protocol Active. "
+                                f"Size reduced to {total_mod:.1%} of theoretical max (DD/Loss/Regime Guard)."
+                            )
 
                 # Fix C: Zero-share veto
-                if shares < 1 and not is_probe:
+                if shares <= 0 and not is_probe:
                     logger.warning(
                         f"Coordinator [{proposal_id}] ZERO-SHARE VETO: Position sizer returned shares=0 for {symbol}."
                     )
