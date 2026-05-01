@@ -468,6 +468,66 @@ class MindUltrathink:
             "learning_active": True
         }
 
+    async def heartbeat_vet(self, pos_dict: dict, market_dict: dict) -> dict:
+        """
+        Lightweight per-tick position re-validation (called by brain._state_positioned).
+        Checks whether the original trade thesis still holds. Fast and deterministic —
+        no LLM or heavy compute. Returns:
+            veto     (bool)  - True = trigger immediate exit
+            reason   (str)   - Human-readable explanation
+            new_stop (float) - Updated trailing stop price, or None if unchanged
+        """
+        symbol = pos_dict.get("symbol", "?")
+        side = pos_dict.get("side", "long")
+        entry = float(pos_dict.get("entry_price", 0))
+        current_stop = float(pos_dict.get("stop_loss", 0))
+        initial_stop = float(pos_dict.get("initial_stop", current_stop))
+        belief = float(pos_dict.get("bayesian_belief", 0.5))
+        mfe_r = float(pos_dict.get("mfe_r", 0.0))
+
+        price = float(market_dict.get("price", entry))
+        vix = float(market_dict.get("vix", 18.0))
+        vix_baseline = float(market_dict.get("vix_baseline", 15.0))
+
+        risk_amt = abs(entry - initial_stop)
+        if risk_amt < 0.0001:
+            risk_amt = 0.01
+
+        # --- VETO CHECKS ---
+
+        # 1. Hard stop breach (price crossed the stop in the wrong direction)
+        if side == "long" and price <= current_stop:
+            return {"veto": True, "reason": f"Hard stop breached: ${price:.2f} <= ${current_stop:.2f}", "new_stop": None}
+        if side == "short" and price >= current_stop:
+            return {"veto": True, "reason": f"Hard stop breached: ${price:.2f} >= ${current_stop:.2f}", "new_stop": None}
+
+        # 2. VIX panic spike — exit if VIX jumps >50% above baseline intraday
+        if vix > vix_baseline * 1.5 and vix > 35:
+            return {"veto": True, "reason": f"VIX panic spike: {vix:.1f} (baseline {vix_baseline:.1f})", "new_stop": None}
+
+        # 3. Bayesian belief collapse — conviction has eroded below survival threshold
+        if belief < 0.15:
+            return {"veto": True, "reason": f"Bayesian belief collapsed to {belief:.2f} — trade thesis invalidated", "new_stop": None}
+
+        # --- TRAILING STOP TIGHTEN (Beta Gate) ---
+        # After 2R profit, trail the stop to lock in gains
+        new_stop = None
+        if mfe_r >= 2.0 and risk_amt > 0:
+            if side == "long":
+                # Trail to 1R above entry (lock in at least breakeven + 1R)
+                trail_candidate = entry + risk_amt * 1.0
+                if trail_candidate > current_stop:
+                    new_stop = round(trail_candidate, 4)
+            elif side == "short":
+                trail_candidate = entry - risk_amt * 1.0
+                if trail_candidate < current_stop:
+                    new_stop = round(trail_candidate, 4)
+
+        if new_stop:
+            logger.debug(f"Heartbeat [{symbol}]: Trailing stop tightened to ${new_stop:.4f} (MFE={mfe_r:.1f}R)")
+
+        return {"veto": False, "reason": "Thesis intact", "new_stop": new_stop}
+
     async def _tool_cognitive_audit(self) -> dict[str, Any]:
         return {"brain_status": "STABLE", "learning_depth": len(self.brain.weights)}
 
