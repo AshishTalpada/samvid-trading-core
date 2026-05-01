@@ -19,8 +19,11 @@ try:
     from numba import njit  # type: ignore
     _NUMBA_AVAILABLE = True
     logger.info("quant_math: Numba JIT enabled — math running at native speed.")
-except ImportError:
-    logger.warning("quant_math: Numba not installed. Running pure NumPy (slower). pip install numba")
+except ImportError as e:
+    logger.warning(f"quant_math: Numba not installed or import failed: {e}. Running pure NumPy (slower). pip install numba")
+    _NUMBA_AVAILABLE = False
+except Exception as e:
+    logger.warning(f"quant_math: Unexpected error importing numba: {e}. Running pure NumPy (slower).")
     _NUMBA_AVAILABLE = False
 
     def njit(*args, **kwargs):  # type: ignore  # noqa: E302
