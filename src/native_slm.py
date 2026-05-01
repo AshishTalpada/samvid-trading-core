@@ -25,10 +25,26 @@ class NativeSLM:
             
         try:
             import os
-            # Only try to load if the file actually exists to prevent crashes
+            
+            # If the model doesn't exist, give it its 'first breath' by downloading a high-speed base model
             if not os.path.exists(model_path):
-                logger.warning(f"Native SLM model not found at {model_path}. Awaiting fine-tuned model.")
-                return
+                logger.info(f"Model not found at {model_path}. Awakening the SLM by downloading Qwen2.5-0.5B base model...")
+                try:
+                    from huggingface_hub import hf_hub_download
+                    os.makedirs(os.path.dirname(model_path), exist_ok=True)
+                    downloaded_path = hf_hub_download(
+                        repo_id="Qwen/Qwen2.5-0.5B-Instruct-GGUF",
+                        filename="qwen2.5-0.5b-instruct-q4_k_m.gguf",
+                        local_dir=os.path.dirname(model_path)
+                    )
+                    # Rename the downloaded file to match our expected path
+                    if os.path.exists(downloaded_path) and downloaded_path != model_path:
+                        import shutil
+                        shutil.move(downloaded_path, model_path)
+                    logger.info("✅ First Breath successful. Base model downloaded.")
+                except Exception as dl_err:
+                    logger.error(f"Failed to download base model: {dl_err}")
+                    return
 
             logger.info(f"Loading Native SLM into memory from {model_path}...")
             # n_gpu_layers=-1 attempts to offload entirely to GPU if compiled with cuBLAS/Metal
