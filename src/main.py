@@ -36,7 +36,6 @@ import asyncio.subprocess
 import logging
 import sqlite3
 import time
-
 from collections.abc import Callable, Coroutine
 from datetime import datetime, timezone
 from logging.handlers import RotatingFileHandler
@@ -279,11 +278,11 @@ class TradingSystem:
         self._hft_pulse_queue: Any = None
 
         self._last_tick_time = time.monotonic()
-        self._recalibration_in_progress = False    
+        self._recalibration_in_progress = False
         # Handle termination signals cleanly in the main event loop
         if sys.platform != "win32": # Windows uses signal.default_int_handler in main()
              import signal
-    
+
              for sig in (signal.SIGINT, signal.SIGTERM):
                  asyncio.get_event_loop().add_signal_handler(
                      sig, lambda: asyncio.create_task(self.shutdown())
