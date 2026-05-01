@@ -87,6 +87,7 @@ from mind_observer import MindObserver
 from mind_prompts import MindPrompts
 from mind_system import MindSystem
 from mind_ultrathink import MindUltrathink
+from portfolio_analyzer import PORTFOLIO_ANALYZER
 from quant_signals import QuantConsensus
 from questdb_adapter import QuestDBAdapter
 from session_restorer import SessionRestorer
@@ -97,7 +98,6 @@ from system_types import Position
 from vault import Vault
 from wisdom import SkillTreeManager, WisdomRepository
 from workload_manager import WorkloadManager
-from portfolio_analyzer import PORTFOLIO_ANALYZER
 
 if TYPE_CHECKING:
     import sqlite3
@@ -2012,7 +2012,7 @@ class TradingBrain:
                     if pos in self.positions:
                         self.positions.remove(pos)
                 self.closed_positions.append(pos)
-                
+
                 # --- RECORD FOR DASHBOARD ---
                 PORTFOLIO_ANALYZER.record_close(
                     symbol=pos.symbol,
