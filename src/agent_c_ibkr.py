@@ -12,6 +12,8 @@ import asyncio
 import hashlib
 import hmac
 import logging
+import os
+import sqlite3
 import time
 from datetime import datetime
 from typing import Any
@@ -55,14 +57,14 @@ class BrokerErrorProtocol:
 
 class IBKRConnection:
     """
-Connection Mind.
-    Handles Fault-Tolerant Broker Handshakes and FA-Routing.
+    Connection Mind.
+        Handles Fault-Tolerant Broker Handshakes and FA-Routing.
     """
 
     def __init__(self, ib_client=None) -> None:
         self.ib = ib_client if ib_client is not None else IB()
         self._last_heartbeat = datetime.now()
-        self._last_trade_time = datetime.fromtimestamp(0) # 15-Minute Discipline Lock
+        self._last_trade_time = datetime.fromtimestamp(0)  # 15-Minute Discipline Lock
         self._positions_cache = {}
         self._account_summary = {}
         self.is_reconnecting = False
@@ -72,8 +74,10 @@ Connection Mind.
         self.current_account_id = None
         self._lock = asyncio.Lock()  # PILLAR 3: Concurrency Safety for Parallel Vetting
         self._qualified_contracts: dict[str, Any] = {}
-        self._warm_slots: dict[str, Any] = {} # Hyper-Sovereign Warm Path
-        self._exec_secret = Vault.get("EXEC_SECRET", "SETO_SOVEREIGN_EXEC_V22") or "SETO_SOVEREIGN_EXEC_V22"
+        self._warm_slots: dict[str, Any] = {}  # Hyper-Sovereign Warm Path
+        self._exec_secret = (
+            Vault.get("EXEC_SECRET", "SETO_SOVEREIGN_EXEC_V22") or "SETO_SOVEREIGN_EXEC_V22"
+        )
         self._setup_callbacks()
 
         self._recovered_orders: set[int] = set()
@@ -91,30 +95,42 @@ Connection Mind.
         current_ts = int(time.time()) // 30
         for offset in (0, -1):  # Allow 1 window of clock drift
             message = f"{symbol}:{current_ts + offset}"
-            expected = hmac.new(self._exec_secret.encode(), message.encode(), hashlib.sha256).hexdigest()
+            expected = hmac.new(
+                self._exec_secret.encode(), message.encode(), hashlib.sha256
+            ).hexdigest()
             if hmac.compare_digest(token, expected):
                 return True
         return False
 
     def is_extended_hours(self) -> bool:
         """Determines if current time is outside RTH (9:30 AM - 4:00 PM ET)."""
-        tz = pytz.timezone('US/Eastern')
+        tz = pytz.timezone("US/Eastern")
         now = datetime.now(tz)
-        if now.weekday() >= 5: return True  # Weekend
+        if now.weekday() >= 5:
+            return True  # Weekend
         market_open = now.replace(hour=9, minute=30, second=0, microsecond=0)
         market_close = now.replace(hour=16, minute=0, second=0, microsecond=0)
         return now < market_open or now > market_close
 
     def is_near_close(self) -> bool:
         """Sovereign Guard: Checks if market is within 5 minutes of close."""
-        tz = pytz.timezone('US/Eastern')
+        tz = pytz.timezone("US/Eastern")
         now = datetime.now(tz)
-        if now.weekday() >= 5: return False # Weekend is already handled by is_eth
+        if now.weekday() >= 5:
+            return False  # Weekend is already handled by is_eth
         market_close = now.replace(hour=16, minute=0, second=0, microsecond=0)
         time_to_close = (market_close - now).total_seconds()
-        return 0 < time_to_close < 300 # 5 minute buffer
+        return 0 < time_to_close < 300  # 5 minute buffer
 
-    def validate_order_pre_flight(self, symbol: str, direction: str, shares: int, price: float, account_id: str = None, is_close: bool = False) -> tuple[bool, str]:
+    def validate_order_pre_flight(
+        self,
+        symbol: str,
+        direction: str,
+        shares: int,
+        price: float,
+        account_id: str = None,
+        is_close: bool = False,
+    ) -> tuple[bool, str]:
         """Institutional pre-flight validation: TradingState, throttle, notional, account, purchasing power, margin."""
         try:
             # 0a. TradingState FSM gate — block new entries if HALTED or REDUCING
@@ -132,34 +148,46 @@ Connection Mind.
 
             # 1. Account Alignment
             from config import IBKR_ACCOUNT_ID
+
             target_acc = account_id or IBKR_ACCOUNT_ID.strip()
             if target_acc and target_acc not in self.ib.wrapper.accounts:
-                return False, f'ACCOUNT_MISMATCH: Target {target_acc} not found in broker session.'
+                return False, f"ACCOUNT_MISMATCH: Target {target_acc} not found in broker session."
 
             # 2. Purchasing Power Guard
             nav_cad = self.get_account_value()
             nav_usd = nav_cad / USD_CAD_RATE
             order_value = shares * price
             if order_value > nav_usd * 2.0:  # Allow 2x margin maximum
-                return False, f'MARGIN_VIOLATION: Order value ${order_value:,.2f} exceeds 2x NAV (USD: ${nav_usd:,.2f} | CAD: ${nav_cad:,.2f}).'
+                return (
+                    False,
+                    f"MARGIN_VIOLATION: Order value ${order_value:,.2f} exceeds 2x NAV (USD: ${nav_usd:,.2f} | CAD: ${nav_cad:,.2f}).",
+                )
 
             # 3. Temporal Execution Awareness
             is_eth = self.is_extended_hours()
             if is_eth:
-                logger.info(f'🏛️ ETH MODE: Order for {symbol} detected Post-Market. outsideRth will be FORCED.')
+                logger.info(
+                    f"🏛️ ETH MODE: Order for {symbol} detected Post-Market. outsideRth will be FORCED."
+                )
 
             # 4. Margin cushion guard
             cushion = self.get_margin_cushion()
             if cushion < 0.10:
-                return False, f"MARGIN_CUSHION_CRITICAL: {cushion:.1%} is below 10% safety threshold."
+                return (
+                    False,
+                    f"MARGIN_CUSHION_CRITICAL: {cushion:.1%} is below 10% safety threshold.",
+                )
 
             # 5. Market-Close Risk Guard
             if self.is_near_close() and direction == "BUY" and not is_close:
-                return False, f"MARKET_CLOSE_VETO: Refusing new {symbol} position 5 mins before close."
+                return (
+                    False,
+                    f"MARKET_CLOSE_VETO: Refusing new {symbol} position 5 mins before close.",
+                )
 
-            return True, 'PROCEED'
+            return True, "PROCEED"
         except Exception as e:
-            return False, f'PRE_FLIGHT_CRASH: {e}'
+            return False, f"PRE_FLIGHT_CRASH: {e}"
 
     def _setup_callbacks(self) -> None:
         """Bind IBKR Real-time Events (Safely)."""
@@ -197,13 +225,16 @@ Connection Mind.
 
     def _on_disconnect(self) -> None:
         logger.warning("IBKR: Matrix Connection Severed. Initiating Recovery...")
-        if hasattr(self, 'bus') and self.bus:
+        if hasattr(self, "bus") and self.bus:
             try:
-                self.bus.publish_sync("system.alert", {
-                    "type": "BROKER_DISCONNECTED",
-                    "source": "AgentC_IBKR",
-                    "message": "IBKR Connection Severed. Please check TWS/Gateway login."
-                })
+                self.bus.publish_sync(
+                    "system.alert",
+                    {
+                        "type": "BROKER_DISCONNECTED",
+                        "source": "AgentC_IBKR",
+                        "message": "IBKR Connection Severed. Please check TWS/Gateway login.",
+                    },
+                )
             except Exception:
                 pass
 
@@ -221,25 +252,37 @@ Connection Mind.
         if status in ("Submitted", "PreSubmitted", "PartiallyFilled"):
             if not hasattr(self, "_order_persistence"):
                 self._order_persistence = {}
+
             # Bug 31 FIX: Persistent Order Tracking (SQLite Bridge)
             def _persist_order_status():
                 try:
-                    import os
-                    import sqlite3
-                    db_path = os.path.join('data', 'trading.db')
-                    if not os.path.exists('data'): os.makedirs('data')
+                    db_path = os.path.join("data", "trading.db")
+                    if not os.path.exists("data"):
+                        os.makedirs("data")
                     conn = sqlite3.connect(db_path, timeout=60.0)
                     conn.execute("PRAGMA journal_mode=WAL;")
                     conn.execute("PRAGMA busy_timeout = 60000;")
-                    conn.execute('CREATE TABLE IF NOT EXISTS persistent_orders (orderId INTEGER PRIMARY KEY, symbol TEXT, status TEXT, filled REAL, remaining REAL, last_update TEXT)')
-                    conn.execute('INSERT OR REPLACE INTO persistent_orders (orderId, symbol, status, filled, remaining, last_update) VALUES (?, ?, ?, ?, ?, ?)',
-                                 (trade.order.orderId, symbol, status, trade.orderStatus.filled, trade.orderStatus.remaining, datetime.now().isoformat()))
+                    conn.execute(
+                        "CREATE TABLE IF NOT EXISTS persistent_orders (orderId INTEGER PRIMARY KEY, symbol TEXT, status TEXT, filled REAL, remaining REAL, last_update TEXT)"
+                    )
+                    conn.execute(
+                        "INSERT OR REPLACE INTO persistent_orders (orderId, symbol, status, filled, remaining, last_update) VALUES (?, ?, ?, ?, ?, ?)",
+                        (
+                            trade.order.orderId,
+                            symbol,
+                            status,
+                            trade.orderStatus.filled,
+                            trade.orderStatus.remaining,
+                            datetime.now().isoformat(),
+                        ),
+                    )
                     conn.commit()
                     conn.close()
                 except Exception as e:
                     logger.error(f"🚨 ORDER PERSISTENCE FAILURE: {e}")
 
             import asyncio as _asyncio
+
             _asyncio.get_event_loop().run_in_executor(None, _persist_order_status)
 
             self._order_persistence[trade.order.orderId] = {
@@ -247,33 +290,48 @@ Connection Mind.
                 "status": status,
                 "filled": trade.orderStatus.filled,
                 "remaining": trade.orderStatus.remaining,
-                "last_update": time.time()
+                "last_update": time.time(),
             }
 
         # --- SOVEREIGN SHIELD: FAILURE FEEDBACK ---
-        if status in ['Cancelled', 'Inactive'] and trade.contract.symbol:
+        if status in ["Cancelled", "Inactive"] and trade.contract.symbol:
             # If we were trying to SELL (Exit), increment failure count in brain
-            brain = getattr(self, 'brain', None)
-            if trade.order.action == 'SELL' and brain:
+            brain = getattr(self, "brain", None)
+            if trade.order.action == "SELL" and brain:
                 symbol = trade.contract.symbol
                 current_fails = brain._exit_failure_counts.get(symbol, 0)
                 brain._exit_failure_counts[symbol] = current_fails + 1
-                logger.error(f"🛡️ SHIELD: Exit failure detected for {symbol}. Total Strikes: {current_fails + 1}")
+                logger.error(
+                    f"🛡️ SHIELD: Exit failure detected for {symbol}. Total Strikes: {current_fails + 1}"
+                )
 
                 # Autonomous Post-Mortem (Zero-Sync background write)
-                reason = str(trade.log[-1].message) if trade.log else 'UNKNOWN REASON'
+                reason = str(trade.log[-1].message) if trade.log else "UNKNOWN REASON"
+
                 def _write_post_mortem():
                     try:
                         import os
                         import sqlite3
-                        db_path = os.path.join('data', 'trading.db')
-                        if not os.path.exists('data'): os.makedirs('data')
+
+                        db_path = os.path.join("data", "trading.db")
+                        if not os.path.exists("data"):
+                            os.makedirs("data")
                         conn = sqlite3.connect(db_path, timeout=60.0)
                         conn.execute("PRAGMA journal_mode=WAL;")
                         conn.execute("PRAGMA busy_timeout = 60000;")
-                        conn.execute('CREATE TABLE IF NOT EXISTS failure_post_mortem (timestamp TEXT, symbol TEXT, action TEXT, status TEXT, reason TEXT)')
-                        conn.execute('INSERT INTO failure_post_mortem (timestamp, symbol, action, status, reason) VALUES (?, ?, ?, ?, ?)',
-                                     (datetime.now().isoformat(), symbol, trade.order.action, status, reason))
+                        conn.execute(
+                            "CREATE TABLE IF NOT EXISTS failure_post_mortem (timestamp TEXT, symbol TEXT, action TEXT, status TEXT, reason TEXT)"
+                        )
+                        conn.execute(
+                            "INSERT INTO failure_post_mortem (timestamp, symbol, action, status, reason) VALUES (?, ?, ?, ?, ?)",
+                            (
+                                datetime.now().isoformat(),
+                                symbol,
+                                trade.order.action,
+                                status,
+                                reason,
+                            ),
+                        )
                         conn.commit()
                         conn.close()
                     except Exception as e:
@@ -292,26 +350,37 @@ Connection Mind.
         order_id = str(trade.order.orderId)
         parent_id = str(trade.order.parentId)
 
-        logger.info(f"🏛️ IBKR EXECUTION: {symbol} {side} {qty} @ ${price:.2f} (Order: {order_id}, Parent: {parent_id})")
+        logger.info(
+            f"🏛️ IBKR EXECUTION: {symbol} {side} {qty} @ ${price:.2f} (Order: {order_id}, Parent: {parent_id})"
+        )
 
-        if hasattr(self, 'brain') and self.brain:
+        if hasattr(self, "brain") and self.brain:
             for p in self.brain.positions:
                 # Match by trade_id (parent) or if this order's parent is our trade_id
-                if p.symbol == symbol and (p.trade_id == order_id or p.trade_id == parent_id or f"ADOPTED-{order_id}" in p.trade_id or f"ADOPTED-{parent_id}" in p.trade_id):
+                if p.symbol == symbol and (
+                    p.trade_id == order_id
+                    or p.trade_id == parent_id
+                    or f"ADOPTED-{order_id}" in p.trade_id
+                    or f"ADOPTED-{parent_id}" in p.trade_id
+                ):
                     # If this is an entry (side matches position side)
-                    is_long_entry = (side == 'BOT' and p.qty > 0)
-                    is_short_entry = (side == 'SLD' and p.qty < 0)
+                    is_long_entry = side == "BOT" and p.qty > 0
+                    is_short_entry = side == "SLD" and p.qty < 0
 
                     if is_long_entry or is_short_entry:
                         old_price = p.entry_price
                         p.entry_price = float(price)
                         # Capture actual slippage
                         p.slippage_cost = abs(p.entry_price - old_price) * abs(p.qty)
-                        logger.warning(f"⚖️ MIRROR ALIGN [{symbol}]: Entry price updated to actual fill ${price:.2f} (Slippage: ${p.slippage_cost:.2f})")
+                        logger.warning(
+                            f"⚖️ MIRROR ALIGN [{symbol}]: Entry price updated to actual fill ${price:.2f} (Slippage: ${p.slippage_cost:.2f})"
+                        )
                     else:
                         # This is likely an exit (Stop Loss or Take Profit)
                         # We don't update entry_price on exit, but we can log the exit slippage
-                        logger.info(f"⚖️ MIRROR ALIGN [{symbol}]: Exit execution detected for {p.trade_id}.")
+                        logger.info(
+                            f"⚖️ MIRROR ALIGN [{symbol}]: Exit execution detected for {p.trade_id}."
+                        )
                     break
 
     def _on_commission_report(self, trade, fill, report) -> None:
@@ -321,15 +390,23 @@ Connection Mind.
         order_id = str(trade.order.orderId)
         parent_id = str(trade.order.parentId)
 
-        logger.info(f"🏛️ IBKR COMMISSION: {symbol} | ${comm:.2f} {report.currency} (Order: {order_id}, Parent: {parent_id})")
+        logger.info(
+            f"🏛️ IBKR COMMISSION: {symbol} | ${comm:.2f} {report.currency} (Order: {order_id}, Parent: {parent_id})"
+        )
 
-        if hasattr(self, 'brain') and self.brain:
+        if hasattr(self, "brain") and self.brain:
             for p in self.brain.positions:
-                if p.symbol == symbol and (p.trade_id == order_id or p.trade_id == parent_id or f"ADOPTED-{order_id}" in p.trade_id or f"ADOPTED-{parent_id}" in p.trade_id):
+                if p.symbol == symbol and (
+                    p.trade_id == order_id
+                    or p.trade_id == parent_id
+                    or f"ADOPTED-{order_id}" in p.trade_id
+                    or f"ADOPTED-{parent_id}" in p.trade_id
+                ):
                     p.commission_cost += float(comm)
-                    logger.debug(f"⚖️ COST ALIGN [{symbol}]: Accumulated commission: ${p.commission_cost:.2f}")
+                    logger.debug(
+                        f"⚖️ COST ALIGN [{symbol}]: Accumulated commission: ${p.commission_cost:.2f}"
+                    )
                     break
-
 
     async def ensure_connection(self) -> bool:
         """Handshake with MindGhost (Agent J) for resilient infra."""
@@ -347,20 +424,25 @@ Connection Mind.
         Scans SQLite for orders that were 'In-Flight' during a crash.
         Cross-references with the broker to re-bind or alert.
         """
-        if not self.is_connected: return
+        if not self.is_connected:
+            return
 
         logger.info("IBKR: Initiating Orphaned Order Recovery...")
         try:
             import os
             import sqlite3
-            db_path = os.path.join('data', 'trading.db')
-            if not os.path.exists(db_path): return
+
+            db_path = os.path.join("data", "trading.db")
+            if not os.path.exists(db_path):
+                return
 
             conn = sqlite3.connect(db_path, timeout=60.0)
             conn.execute("PRAGMA journal_mode=WAL;")
             conn.execute("PRAGMA busy_timeout = 60000;")
             cursor = conn.cursor()
-            cursor.execute("SELECT orderId, symbol, status FROM persistent_orders WHERE status NOT IN ('Filled', 'Cancelled', 'Inactive')")
+            cursor.execute(
+                "SELECT orderId, symbol, status FROM persistent_orders WHERE status NOT IN ('Filled', 'Cancelled', 'Inactive')"
+            )
             orphans = cursor.fetchall()
             conn.close()
 
@@ -374,9 +456,13 @@ Connection Mind.
 
             for oid, sym, status in orphans:
                 if oid in broker_order_ids:
-                    logger.warning(f"🏛️ RECOVERY: Found live orphan {oid} for {sym}. Re-binding to tracking.")
+                    logger.warning(
+                        f"🏛️ RECOVERY: Found live orphan {oid} for {sym}. Re-binding to tracking."
+                    )
                 else:
-                    logger.error(f"🚨 CRITICAL: Order {oid} ({sym}) lost from broker! Status was {status}. Manual audit required.")
+                    logger.error(
+                        f"🚨 CRITICAL: Order {oid} ({sym}) lost from broker! Status was {status}. Manual audit required."
+                    )
                 self._recovered_orders.add(oid)
 
         except Exception as e:
@@ -396,7 +482,7 @@ Connection Mind.
             # Use accountValues() which is a locally-cached list in ib_insync
             for item in self.ib.accountValues():
                 if item.tag == "NetLiquidation":
-                    self._account_summary["NetLiquidation"] = item.value # Populate cache
+                    self._account_summary["NetLiquidation"] = item.value  # Populate cache
                     return float(item.value)
 
             return STARTING_CAPITAL_CAD
@@ -413,7 +499,7 @@ Connection Mind.
             val = self._account_summary.get("EquityWithLoanValue", 0.0)
             maint = self._account_summary.get("MaintMarginReq", 0.0)
             if not val or float(val) == 0:
-                return 1.0 # Assume safe if no data to prevent lockouts
+                return 1.0  # Assume safe if no data to prevent lockouts
 
             cushion = (float(val) - float(maint)) / float(val)
             return max(0.0, cushion)
@@ -433,6 +519,7 @@ Connection Mind.
             return
 
         from ib_insync import Stock
+
         logger.info(f"IBKR: Initiating Neural Warmup for {len(symbols)} symbols...")
 
         for symbol in symbols:
@@ -446,7 +533,11 @@ Connection Mind.
 
                 # 2. Option Detection (OCC Format: SYMBOL YYMMDD C/P Strike)
                 # Example: SPY   240621C00500000
-                is_option = len(symbol) >= 15 and any(c.isdigit() for c in symbol) and ('C' in symbol or 'P' in symbol)
+                is_option = (
+                    len(symbol) >= 15
+                    and any(c.isdigit() for c in symbol)
+                    and ("C" in symbol or "P" in symbol)
+                )
 
                 if is_crypto:
                     contract = Crypto(symbol, "PAXOS", "USD")
@@ -460,7 +551,9 @@ Connection Mind.
                 qualified = await self.ib.qualifyContractsAsync(contract)
                 if qualified:
                     self._qualified_contracts[symbol] = qualified[0]
-                    logger.debug(f"IBKR [Warmup]: {symbol} ({'Crypto' if is_crypto else 'Stock'}) cached.")
+                    logger.debug(
+                        f"IBKR [Warmup]: {symbol} ({'Crypto' if is_crypto else 'Stock'}) cached."
+                    )
             except Exception as e:
                 logger.warning(f"IBKR [Warmup]: Failed to cache {symbol}: {e}")
 
@@ -475,7 +568,7 @@ Connection Mind.
         stop_loss: float,
         take_profit: float,
         urgency: str = "LOW",
-        **kwargs # Added for Ghost Expansion metadata
+        **kwargs,  # Added for Ghost Expansion metadata
     ) -> list[int]:
         """
         Place a Bracket Order (Entry + Stop + Profit).
@@ -487,36 +580,49 @@ Connection Mind.
             size_mult = kwargs.get("size_multiplier", 0.75)
 
             original_risk = abs(limit_price - stop_loss)
-            new_stop_loss = limit_price - (original_risk * stop_mult) if direction == "BUY" else limit_price + (original_risk * stop_mult)
+            new_stop_loss = (
+                limit_price - (original_risk * stop_mult)
+                if direction == "BUY"
+                else limit_price + (original_risk * stop_mult)
+            )
             new_shares = max(1, int(round(shares * size_mult)))
 
-            logger.info(f"🏛️ GHOST EXPANSION ACTIVE: Scaling {shares} -> {new_shares} | Expanding Stop: {stop_loss:.2f} -> {new_stop_loss:.2f}")
+            logger.info(
+                f"🏛️ GHOST EXPANSION ACTIVE: Scaling {shares} -> {new_shares} | Expanding Stop: {stop_loss:.2f} -> {new_stop_loss:.2f}"
+            )
             shares = new_shares
             stop_loss = new_stop_loss
 
         # The caller must provide an exec_token generated by IBKRConnection.generate_exec_token()
         exec_token = kwargs.get("exec_token", "")
         if not self._verify_exec_token(symbol, exec_token):
-            logger.critical(f"UNAUTHORIZED EXECUTION ATTEMPT for {symbol}! Invalid or missing exec_token. REJECTING ORDER.")
+            logger.critical(
+                f"UNAUTHORIZED EXECUTION ATTEMPT for {symbol}! Invalid or missing exec_token. REJECTING ORDER."
+            )
             return []
 
         # Reduced from 30s to 1s to allow Scalping/HFT while preventing API flooding
         wait_seconds = (datetime.now() - self._last_trade_time).total_seconds()
         if wait_seconds < 1.0:
-             logger.warning(f"🏛️ DISCIPLINE THROTTLE: Trade for {symbol} suppressed. Only {wait_seconds:.1f}s elapsed.")
-             return []
+            logger.warning(
+                f"🏛️ DISCIPLINE THROTTLE: Trade for {symbol} suppressed. Only {wait_seconds:.1f}s elapsed."
+            )
+            return []
 
         if self.is_near_close():
-             logger.warning(f"🏛️ MARKET CLOSE GUARD: Order for {symbol} rejected (within 5m of close).")
-             return []
+            logger.warning(
+                f"🏛️ MARKET CLOSE GUARD: Order for {symbol} rejected (within 5m of close)."
+            )
+            return []
 
         if not self.is_connected:
             from config import FORCED_PAPER_MODE
+
             if FORCED_PAPER_MODE:
                 logger.info(
                     f"IBKR [SIM]: Bracket {direction} {shares} {symbol} @ ${limit_price} (SL: {stop_loss}, TP: {take_profit})"
                 )
-                self._last_trade_time = datetime.now() # Update even in sim
+                self._last_trade_time = datetime.now()  # Update even in sim
                 return [int(time.time()), int(time.time()) + 1, int(time.time()) + 2]
             logger.error(f"IBKR: Offline. Cannot place bracket order for {symbol}.")
             return []
@@ -525,6 +631,7 @@ Connection Mind.
             try:
                 # Use cached contract if available (Neural Warmup)
                 from ib_insync import LimitOrder, Stock, StopLimitOrder
+
                 if symbol in self._qualified_contracts:
                     contract = self._qualified_contracts[symbol]
                 else:
@@ -533,12 +640,16 @@ Connection Mind.
 
                 # Bug 30 FIX: Limit Price Bias Guard
                 # If the spread is wider than 0.5%, use the actual Bid/Ask instead of Mid to ensure fill.
-                spread_data = self.ibkr_conn._tick_cache.get(symbol, {})
-                if spread_data and "bid" in spread_data and "ask" in spread_data:
-                    bid, ask = spread_data["bid"], spread_data["ask"]
-                    if bid > 0 and (ask - bid) / bid > 0.005:
+                # Use the brain's real-time tick cache
+                bid = self.brain.last_tick_bids.get(symbol, 0.0)
+                ask = self.brain.last_tick_asks.get(symbol, 0.0)
+
+                if bid > 0 and ask > 0:
+                    if (ask - bid) / bid > 0.005:
                         limit_price = ask if direction == "BUY" else bid
-                        logger.info(f"IBKR: Wide spread detected for {symbol}. Overriding Mid with {direction} side: ${limit_price:.2f}")
+                        logger.info(
+                            f"IBKR: Wide spread detected for {symbol}. Overriding Mid with {direction} side: ${limit_price:.2f}"
+                        )
 
                 # Tick-size rounding
                 lmt = self.round_to_tick(limit_price)
@@ -555,7 +666,11 @@ Connection Mind.
                 # A 2% buffer ensures fill in fast markets while capping slippage at a tolerable level.
                 opp_direction = "SELL" if direction == "BUY" else "BUY"
                 sl_buffer = 0.02
-                sl_limit = self.round_to_tick(sl * (1 - sl_buffer)) if opp_direction == "SELL" else self.round_to_tick(sl * (1 + sl_buffer))
+                sl_limit = (
+                    self.round_to_tick(sl * (1 - sl_buffer))
+                    if opp_direction == "SELL"
+                    else self.round_to_tick(sl * (1 + sl_buffer))
+                )
 
                 sl_order = StopLimitOrder(opp_direction, shares, sl_limit, sl)
                 sl_order.parentId = parent.orderId
@@ -572,12 +687,15 @@ Connection Mind.
                 # Resolve the 'Multi-Account Pillage' issue where empty IBKR_ACCOUNT_ID
                 # could lead to unintended execution on multiple accounts.
                 from config import IBKR_ACCOUNT_ID
+
                 target_acc = IBKR_ACCOUNT_ID.strip()
 
                 if not target_acc:
                     if self.ib.wrapper.accounts:
                         target_acc = self.ib.wrapper.accounts[0]  # Default to first account
-                        logger.info(f"IBKR: No account specified. Defaulting to PRME account: {target_acc}")
+                        logger.info(
+                            f"IBKR: No account specified. Defaulting to PRME account: {target_acc}"
+                        )
                     else:
                         target_acc = None  # Let IBKR handle default if possible
 
@@ -590,20 +708,26 @@ Connection Mind.
                     p_entry.transmit = False
 
                     sl_buff = 0.02
-                    sl_lmt = self.round_to_tick(sl * (1 - sl_buff)) if opp_direction == "SELL" else self.round_to_tick(sl * (1 + sl_buff))
+                    sl_lmt = (
+                        self.round_to_tick(sl * (1 - sl_buff))
+                        if opp_direction == "SELL"
+                        else self.round_to_tick(sl * (1 + sl_buff))
+                    )
                     sl_o = StopLimitOrder(opp_direction, shares, sl_lmt, sl)
                     sl_o.parentId = p_entry.orderId
                     sl_o.transmit = False
 
                     tp_o = LimitOrder(opp_direction, shares, tp)
                     tp_o.parentId = p_entry.orderId
-                    tp_o.transmit = True # Finalizes bracket
+                    tp_o.transmit = True  # Finalizes bracket
 
                     # Set account target
                     for o in [p_entry, sl_o, tp_o]:
-                        if acc: o.account = acc
+                        if acc:
+                            o.account = acc
                         trade = self.ib.placeOrder(contract, o)
-                        if i == 0: ids.append(trade.order.orderId)
+                        if i == 0:
+                            ids.append(trade.order.orderId)
 
                 logger.info(
                     f"IBKR: Sovereign Bracket BROADCAST for {symbol} | Accounts: {len(target_accounts)} | Entry: {lmt}"
@@ -620,12 +744,13 @@ Connection Mind.
             log_file = "data/execution_persistence.json"
             import json
             import os
+
             os.makedirs("data", exist_ok=True)
             entry = {
                 "timestamp": datetime.now().isoformat(),
                 "symbol": symbol,
                 "type": order_type,
-                "details": details
+                "details": details,
             }
             with open(log_file, "a") as f:
                 f.write(json.dumps(entry) + "\n")
@@ -641,7 +766,7 @@ Connection Mind.
         limit_price: float = 0.0,
         urgency: str = "LOW",
         tif: str = "DAY",
-        **kwargs
+        **kwargs,
     ) -> int | None:
         """
         Institutional Single Order Routing.
@@ -661,6 +786,7 @@ Connection Mind.
 
         if not self.is_connected:
             from config import FORCED_PAPER_MODE
+
             if FORCED_PAPER_MODE:
                 logger.info(f"IBKR [SIM]: Routing {direction} {shares} {symbol} (Mode: {urgency})")
                 return int(time.time())
@@ -668,7 +794,11 @@ Connection Mind.
             return None
 
         async with self._lock:  # Ensure serial access to IB client socket
-            self._persist_execution(symbol, "SINGLE", {"dir": direction, "shares": shares, "px": limit_price, "type": order_type})
+            self._persist_execution(
+                symbol,
+                "SINGLE",
+                {"dir": direction, "shares": shares, "px": limit_price, "type": order_type},
+            )
 
             try:
                 from ib_insync import Future, LimitOrder, Stock
@@ -697,15 +827,19 @@ Connection Mind.
                 # --- HYPER-SOVEREIGN BREAKTHROUGH: WARM-PATH MODIFICATION ---
                 # Attempt to modify an existing dormant order for sub-ms priority
                 warm_id = await self._execute_via_warm_slot(symbol, direction, shares, limit_price)
-                if warm_id: return warm_id
+                if warm_id:
+                    return warm_id
 
                 from config import IBKR_ACCOUNT_ID
+
                 target_acc = IBKR_ACCOUNT_ID.strip()
 
                 if not target_acc:
                     if self.ib.wrapper.accounts:
                         target_acc = self.ib.wrapper.accounts[0]
-                        logger.info(f"IBKR: Defaulting to PRIME account for single order: {target_acc}")
+                        logger.info(
+                            f"IBKR: Defaulting to PRIME account for single order: {target_acc}"
+                        )
                     else:
                         target_acc = None
 
@@ -716,11 +850,21 @@ Connection Mind.
                         # Replaced MarketOrder with 'Aggressive Limit' to prevent flash-crash slippage.
                         # We use a 1.5% buffer for entries and exits; if it doesn't fill, we prefer a miss over a ruinous price.
                         buffer = 0.015
-                        price = limit_price # Fallback to limit_price for buffering if lmt is not set
+                        price = (
+                            limit_price  # Fallback to limit_price for buffering if lmt is not set
+                        )
                         if direction == "BUY":
-                            lmt_buffered = self.round_to_tick(lmt * (1 + buffer)) if lmt else self.round_to_tick(price * (1 + buffer))
+                            lmt_buffered = (
+                                self.round_to_tick(lmt * (1 + buffer))
+                                if lmt
+                                else self.round_to_tick(price * (1 + buffer))
+                            )
                         else:
-                            lmt_buffered = self.round_to_tick(lmt * (1 - buffer)) if lmt else self.round_to_tick(price * (1 - buffer))
+                            lmt_buffered = (
+                                self.round_to_tick(lmt * (1 - buffer))
+                                if lmt
+                                else self.round_to_tick(price * (1 - buffer))
+                            )
 
                         o = LimitOrder(direction, shares, lmt_buffered)
                         o.outsideRth = self.is_extended_hours()
@@ -731,14 +875,15 @@ Connection Mind.
                         o.overridePercentageConstraints = True
 
                     o.tif = tif
-                    if acc: o.account = acc
+                    if acc:
+                        o.account = acc
 
                     trade = self.ib.placeOrder(contract, o)
                     if i == 0:
                         primary_id = trade.order.orderId
                         asyncio.create_task(self._audit_execution(trade, symbol, shares))
 
-                self._last_trade_time = datetime.now() # Update Discipline Lock
+                self._last_trade_time = datetime.now()  # Update Discipline Lock
                 return primary_id
 
             except Exception as e:
@@ -746,29 +891,37 @@ Connection Mind.
                 return None
 
         # --- HYPER-SOVEREIGN BREAKTHROUGH: WARM-SLOT EXECUTION (SE-13) ---
+
     async def _maintain_warm_slots(self, symbols: list[str]) -> None:
         """
         Maintains 'Dormant Orders' on the exchange to preserve a 'Warm Path'.
         Modifying an existing order is often faster than submitting a new one.
         """
-        if not self.is_connected: return
+        if not self.is_connected:
+            return
 
         from ib_insync import LimitOrder, Stock
+
         for symbol in symbols:
             if symbol not in self._warm_slots:
                 contract = self._qualified_contracts.get(symbol, Stock(symbol, "SMART", "USD"))
                 # Place a 'Placeholder' order very far from market to avoid fill
-                order = LimitOrder("BUY", 1, 0.01) # $0.01 Placeholder
+                order = LimitOrder("BUY", 1, 0.01)  # $0.01 Placeholder
                 trade = self.ib.placeOrder(contract, order)
                 self._warm_slots[symbol] = trade
-                logger.debug(f"IBKR: Warm-Slot initialized for {symbol} (Order ID: {trade.order.orderId})")
+                logger.debug(
+                    f"IBKR: Warm-Slot initialized for {symbol} (Order ID: {trade.order.orderId})"
+                )
 
-    async def _execute_via_warm_slot(self, symbol: str, direction: str, shares: int, price: float) -> int | None:
+    async def _execute_via_warm_slot(
+        self, symbol: str, direction: str, shares: int, price: float
+    ) -> int | None:
         """Executes a trade by MODIFYING an existing dormant order (The Hyper-Sovereign Leap)."""
-        if symbol not in self._warm_slots: return None
+        if symbol not in self._warm_slots:
+            return None
 
         trade = self._warm_slots[symbol]
-        if trade.status in ('Filled', 'Cancelled'):
+        if trade.status in ("Filled", "Cancelled"):
             del self._warm_slots[symbol]
             return None
 
@@ -779,7 +932,9 @@ Connection Mind.
         trade.order.transmit = True
 
         self.ib.placeOrder(trade.contract, trade.order)
-        logger.info(f"🏛️ HYPER-SOVEREIGN: Warm-Slot MODIFICATION executed for {symbol} (Sub-ms path).")
+        logger.info(
+            f"🏛️ HYPER-SOVEREIGN: Warm-Slot MODIFICATION executed for {symbol} (Sub-ms path)."
+        )
 
         # Remove from warm-slots so a new one can be pre-loaded
         del self._warm_slots[symbol]
@@ -792,20 +947,31 @@ Connection Mind.
         Prevents false-positive shutdowns caused by IBKR sync latency.
         """
         target_acc = trade.order.account
-        for _attempt in range(6): # Poll for 60s total
+        for _attempt in range(6):  # Poll for 60s total
             await asyncio.sleep(10)
-            if trade.orderStatus.status == 'Filled':
+            if trade.orderStatus.status == "Filled":
                 # Filter by Account ID to avoid cross-talk from other portfolios
-                current_pos = next((p for p in self.get_positions()
-                                  if p['symbol'] == symbol and (not target_acc or str(p['account']).strip() == str(target_acc).strip())), None)
+                current_pos = next(
+                    (
+                        p
+                        for p in self.get_positions()
+                        if p["symbol"] == symbol
+                        and (not target_acc or str(p["account"]).strip() == str(target_acc).strip())
+                    ),
+                    None,
+                )
 
-                if current_pos and abs(current_pos['shares']) >= abs(shares) * 0.9:
-                    logger.info(f"✓ AUDIT SUCCESS: {symbol} execution verified in portfolio account {target_acc}.")
-                    return # Alignment confirmed
+                if current_pos and abs(current_pos["shares"]) >= abs(shares) * 0.9:
+                    logger.info(
+                        f"✓ AUDIT SUCCESS: {symbol} execution verified in portfolio account {target_acc}."
+                    )
+                    return  # Alignment confirmed
 
         # If we reach here after 60s, it's a true critical inconsistency
-        logger.critical(f"IBKR: SILENT EXECUTION FAILURE DETECTED for {symbol}. Inconsistency persistent after 60s.")
-        self._last_heartbeat = datetime(1970, 1, 1) # Poison the heartbeat
+        logger.critical(
+            f"IBKR: SILENT EXECUTION FAILURE DETECTED for {symbol}. Inconsistency persistent after 60s."
+        )
+        self._last_heartbeat = datetime(1970, 1, 1)  # Poison the heartbeat
 
     def cancel_order(self, order_id: int) -> bool:
         if not self.is_connected:
@@ -847,6 +1013,7 @@ class PositionSizingChain:
 
     def __init__(self) -> None:
         from agent_a import ImpactOracle
+
         self.impact_oracle = ImpactOracle()
 
     def calculate(
@@ -860,11 +1027,13 @@ class PositionSizingChain:
 
         # --- SOVEREIGN REALITY ALIGNED HAIRCUT ---
         # Optimistic suicide is prevented by assuming slightly less capital than we think we have.
-        _raw_nav = kwargs.get('account_value', balance)
+        _raw_nav = kwargs.get("account_value", balance)
         balance = min(balance, _raw_nav) * 0.99
 
         if balance > 2000000.0:
-            logger.warning(f'🏛️ SOVEREIGN GUARD: Detected outlier account value of ${balance:,.2f}. Capping at $2M for Safety.')
+            logger.warning(
+                f"🏛️ SOVEREIGN GUARD: Detected outlier account value of ${balance:,.2f}. Capping at $2M for Safety."
+            )
             balance = 2000000.0
 
         # Step 1: Raw Kelly Risk (Balanced)
@@ -873,6 +1042,7 @@ class PositionSizingChain:
 
         # Step 2: High-Fidelity Hard Cap (Dynamic System Max Risk)
         from config import CASH_ACCOUNT_MAX_RATIO, RISK_PER_TRADE_PCT, SYSTEM_MAX_RISK
+
         step2_risk = min(step1_risk, balance * SYSTEM_MAX_RISK)
 
         # Step 3: Cash Availability (Dynamic Cash Ratio)
@@ -902,7 +1072,7 @@ class PositionSizingChain:
         step7_final_risk = min(max(step6_risk, min_viable_risk), self_risk_limit)
 
         # Apply the Sovereign safety multipliers to the final dollar risk
-        step7_final_risk *= (dd_mod * loss_mod)
+        step7_final_risk *= dd_mod * loss_mod
 
         # FINAL FLOOR: Ensure risk covers at least the commission + slippage buffer
         if balance < 1000:
@@ -924,83 +1094,111 @@ class PositionSizingChain:
         if risk_per_share > 0:
             real_rr = real_reward / risk_per_share
             if real_rr < 1.0:
-                 logger.warning(f"Sizer: [FRICTION VETO] {instrument} R:R with spread is only {real_rr:.2f} (Target Reward ${real_reward:.2f} < Risk ${risk_per_share:.2f}).")
-                 # We don't return 0 here yet, Phase 7 might still approve if high win_prob.
+                logger.warning(
+                    f"Sizer: [FRICTION VETO] {instrument} R:R with spread is only {real_rr:.2f} (Target Reward ${real_reward:.2f} < Risk ${risk_per_share:.2f})."
+                )
+                # We don't return 0 here yet, Phase 7 might still approve if high win_prob.
 
         if risk_per_share < (price * 0.0001):
             # If risk is too tight (< 0.01% of price), the geometry is invalid for HFT.
-            logger.error(f"Sizer: [GEOMETRY_VETO] {instrument} risk (${risk_per_share:.4f}) is too tight for price ${price:.2f}. Rejecting.")
+            logger.error(
+                f"Sizer: [GEOMETRY_VETO] {instrument} risk (${risk_per_share:.4f}) is too tight for price ${price:.2f}. Rejecting."
+            )
             return {"shares": 0, "risk_dollars": 0, "proposed_value": 0, "steps": {}}
 
         # --- SOVEREIGN QUANTIZATION ---
         if step7_final_risk <= 0 or step6_risk <= 0:
-            logger.warning(f"Sizer: Risk math resulted in zero exposure for {instrument}. Quashing trade.")
+            logger.warning(
+                f"Sizer: Risk math resulted in zero exposure for {instrument}. Quashing trade."
+            )
             return {"shares": 0, "risk_dollars": 0, "proposed_value": 0, "steps": {}}
 
         step8_shares = int(round(step7_final_risk / risk_per_share)) if risk_per_share > 0 else 0
 
         # This prevents forced over-leverage on micro-accounts ($500 etc.)
         min_trade_value = balance * 0.02  # 2% of NAV = $10 on $500 account
-        if step8_shares > 0 and (step8_shares * price) < min_trade_value and price > 0 and step7_final_risk > 0:
+        if (
+            step8_shares > 0
+            and (step8_shares * price) < min_trade_value
+            and price > 0
+            and step7_final_risk > 0
+        ):
             step8_shares = max(1, int(round(min_trade_value / price)))
 
         # Final Position Value Guard (10% max of NAV per trade)
         max_notional = balance * 0.10
         if step8_shares > 0 and (step8_shares * price) > max_notional:
-            logger.warning(f"Sizer: Capping {instrument} at 10% NAV (${max_notional:,.2f}) because math was too aggressive.")
+            logger.warning(
+                f"Sizer: Capping {instrument} at 10% NAV (${max_notional:,.2f}) because math was too aggressive."
+            )
             step8_shares = max(1, int(round(max_notional / price)))
 
         if step8_shares == 0 and step7_final_risk > (price * 0.5):
             # If the risk budget allows for at least 0.5 shares, we force 1 share
             # This allows $500 accounts to take positions where price is $100 and risk is $10
             step8_shares = 1
-            logger.info(f"Sizer: [SMALL_ACC_FIX] Forcing 1 share for {instrument} despite risk rounding.")
+            logger.info(
+                f"Sizer: [SMALL_ACC_FIX] Forcing 1 share for {instrument} despite risk rounding."
+            )
 
         # --- STEP 9: IMPACT ORACLE ---
         ohlcv = kwargs.get("ohlcv_df")
 
         if ohlcv is not None and len(ohlcv) < 50 and not kwargs.get("is_probe"):
-            logger.warning(f"Sizer: [IPO_GUARD] {instrument} has < 50 bars of history. Rejecting for low-liquidity/high-volatility risk.")
+            logger.warning(
+                f"Sizer: [IPO_GUARD] {instrument} has < 50 bars of history. Rejecting for low-liquidity/high-volatility risk."
+            )
             return {"shares": 0, "risk_dollars": 0, "proposed_value": 0, "steps": {}}
 
         if ohlcv is not None and step8_shares > 0:
             est_slippage = self.impact_oracle.estimate_impact(instrument, step8_shares, ohlcv)
             # If slippage eats more than 15% of the expected profit, we downsize
-            expected_profit_pct = abs(kwargs.get('target_price', price * 1.02) - price) / price
+            expected_profit_pct = abs(kwargs.get("target_price", price * 1.02) - price) / price
             if est_slippage > (expected_profit_pct * 0.15):
-                logger.warning(f"Sizer: [IMPACT_GUARD] {instrument} slippage {est_slippage:.2%} > 15% of reward. Downsizing 50% for safety.")
+                logger.warning(
+                    f"Sizer: [IMPACT_GUARD] {instrument} slippage {est_slippage:.2%} > 15% of reward. Downsizing 50% for safety."
+                )
                 step8_shares = max(1, int(round(step8_shares * 0.5)))
         elif step8_shares > 0 and not kwargs.get("is_probe"):
-            logger.warning(f"Sizer: [IMPACT_GAP] No OHLCV data for {instrument} impact estimation. Applying 30% blind downsizing.")
+            logger.warning(
+                f"Sizer: [IMPACT_GAP] No OHLCV data for {instrument} impact estimation. Applying 30% blind downsizing."
+            )
             step8_shares = max(1, int(round(step8_shares * 0.7)))
 
         # If the expected profit is less than round-trip commission, the trade is a guaranteed loss.
         from config import COMMISSION_PER_ROUND_TRIP
-        expected_reward = step8_shares * abs(price - kwargs.get('target_price', price * 1.03)) if step8_shares > 0 else 0
+
+        expected_reward = (
+            step8_shares * abs(price - kwargs.get("target_price", price * 1.03))
+            if step8_shares > 0
+            else 0
+        )
         if expected_reward > 0 and expected_reward < COMMISSION_PER_ROUND_TRIP:
-            logger.warning(f"Sizer: COMMISSION KILL for {instrument}. Expected reward ${expected_reward:.2f} < commission ${COMMISSION_PER_ROUND_TRIP:.2f}. Quashing trade.")
+            logger.warning(
+                f"Sizer: COMMISSION KILL for {instrument}. Expected reward ${expected_reward:.2f} < commission ${COMMISSION_PER_ROUND_TRIP:.2f}. Quashing trade."
+            )
             return {"shares": 0, "risk_dollars": 0, "proposed_value": 0, "steps": {}}
 
         # --- PHASE 9: INVARIANT AUDIT ---
         if not RiskInvariants.audit_trade_parameters(step7_final_risk, balance):
-            logger.critical(f"Sizer: [INVARIANT VETO] Proposed risk for {instrument} violates hard safety bounds.")
+            logger.critical(
+                f"Sizer: [INVARIANT VETO] Proposed risk for {instrument} violates hard safety bounds."
+            )
             return {"shares": 0, "risk_dollars": 0, "proposed_value": 0, "steps": {}}
 
-        logger.info(f"Imperial Sizer: [NAV: ${balance:,.2f}] -> [Risk: ${step7_final_risk:,.2f}] -> [Shares: {step8_shares}]")
+        logger.info(
+            f"Imperial Sizer: [NAV: ${balance:,.2f}] -> [Risk: ${step7_final_risk:,.2f}] -> [Shares: {step8_shares}]"
+        )
 
         return {
             "shares": step8_shares if step8_shares > 0 else 0,
-            "step8_shares": step8_shares if step8_shares > 0 else 0, # Legacy key for Coordinator
+            "step8_shares": step8_shares if step8_shares > 0 else 0,  # Legacy key for Coordinator
             "risk_dollars": step7_final_risk,
             "balance_used": balance,
             "proposed_value": step8_shares * price,
-            "position_value": step8_shares * price, # Legacy key for Coordinator
-            "steps": {
-                "kelly": step1_risk,
-                "regime": step5_risk,
-                "final": step7_final_risk
-            },
-            "total_multiplier": (dd_mod * loss_mod)
+            "position_value": step8_shares * price,  # Legacy key for Coordinator
+            "steps": {"kelly": step1_risk, "regime": step5_risk, "final": step7_final_risk},
+            "total_multiplier": (dd_mod * loss_mod),
         }
 
 
@@ -1012,7 +1210,9 @@ class VIXProtocol:
             return 0.50
         return 1.0
 
-    def evaluate_proposal(self, context: dict[str, Any], agent_name: str = "Agent_F") -> dict[str, Any]:
+    def evaluate_proposal(
+        self, context: dict[str, Any], agent_name: str = "Agent_F"
+    ) -> dict[str, Any]:
         """Agent F: VIX/Volatility Guard Vote."""
         vix = context.get("vix", getattr(self, "_last_vix", 20.0))
         self._last_vix = vix
@@ -1031,10 +1231,11 @@ class VIXProtocol:
             "agent": agent_name,
             "vote": "YES" if v_low else "NO",
             "confidence": 0.8 if v_low else 0.4,
-            "reason": f"VIX at {vix:.2f} (Threshold: {safe_threshold:.2f})" if v_low else f"VIX Spike {vix:.2f} (Dynamic Threshold {safe_threshold:.2f} Exceeded)",
-            "risk_flag": not v_low
+            "reason": f"VIX at {vix:.2f} (Threshold: {safe_threshold:.2f})"
+            if v_low
+            else f"VIX Spike {vix:.2f} (Dynamic Threshold {safe_threshold:.2f} Exceeded)",
+            "risk_flag": not v_low,
         }
-
 
     def monitor_intraday(self, current: float, high: float, low: float) -> str:
         """The Sovereign Intraday Circuit Breaker (Nuclear Option)."""
@@ -1068,19 +1269,22 @@ class PortfolioGuard:
         # 20% Mandatory Cash Reserve
         return total_position_value <= (balance * 0.80)
 
-    def evaluate_proposal(self, context: dict[str, Any], agent_name: str = "Agent_C") -> dict[str, Any]:
+    def evaluate_proposal(
+        self, context: dict[str, Any], agent_name: str = "Agent_C"
+    ) -> dict[str, Any]:
         """Evaluate portfolio-level risk and return a compliance vote."""
         balance = context.get("balance") or context.get("account_value", 0.0)
         total_p_val = context.get("total_position_value", 0.0)
         proposed_val = context.get("proposed_value") or context.get("new_position_value", 0.0)
 
-        is_compliant = (total_p_val + proposed_val) <= (balance * 0.85) # Allowing 15% buffer
+        is_compliant = (total_p_val + proposed_val) <= (balance * 0.85)  # Allowing 15% buffer
 
         return {
             "agent": agent_name,
             "vote": "YES" if is_compliant else "NO",
             "confidence": 1.0,
-            "reason": "Portfolio complies with Cash Reserve" if is_compliant else f"CASH_RESERVE_VETO: Total exposure would exceed 85% NAV (${(total_p_val+proposed_val):.2f} > ${(balance*0.85):.2f})",
-            "timestamp": datetime.now().isoformat()
+            "reason": "Portfolio complies with Cash Reserve"
+            if is_compliant
+            else f"CASH_RESERVE_VETO: Total exposure would exceed 85% NAV (${(total_p_val + proposed_val):.2f} > ${(balance * 0.85):.2f})",
+            "timestamp": datetime.now().isoformat(),
         }
-

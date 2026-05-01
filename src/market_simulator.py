@@ -63,7 +63,9 @@ async def simulate_broker_outage() -> None:
     logger.info("\n🔌 Simulating Broker Outage (Testing DLQ)...")
 
     # Mock order execution function that always fails
-    async def failing_order_execution(symbol: str, direction: str, shares: int, price: float) -> bool:
+    async def failing_order_execution(
+        symbol: str, direction: str, shares: int, price: float
+    ) -> bool:
         logger.error(f"  Mock Broker: Connection Refused for {direction} {symbol}")
         raise ConnectionError("Broker API timeout")
 
@@ -97,6 +99,7 @@ async def main():
     await simulate_broker_outage()
 
     batcher_task.cancel()
+
 
 if __name__ == "__main__":
     asyncio.run(main())

@@ -13,6 +13,7 @@ Usage:
     # At position exit:
     LEDGER.record_exit(symbol, exit_type, pnl, r_multiple, triggered_by)
 """
+
 from __future__ import annotations
 
 import json
@@ -32,17 +33,17 @@ _DB_PATH = Path(__file__).parent.parent / "data" / "decision_ledger.db"
 @dataclass
 class LedgerEntry:
     timestamp: str
-    event_type: str            # "ENTRY" | "EXIT" | "VETO" | "FALLBACK"
+    event_type: str  # "ENTRY" | "EXIT" | "VETO" | "FALLBACK"
     symbol: str
-    action: str                # "BUY" | "SELL" | "HOLD" | "BLOCKED"
-    triggered_by: str          # which agent/mind initiated this
-    agent_votes: dict          # {"agent_a": "BUY (reason)", "agent_b": "HOLD", ...}
+    action: str  # "BUY" | "SELL" | "HOLD" | "BLOCKED"
+    triggered_by: str  # which agent/mind initiated this
+    agent_votes: dict  # {"agent_a": "BUY (reason)", "agent_b": "HOLD", ...}
     pattern: str = ""
     pattern_confidence: float = 0.0
     pnl_usd: float = 0.0
     r_multiple: float = 0.0
     exit_type: str = ""
-    override: str = ""         # "RISK_VETO", "DLQ_ESCALATION", "FALLBACK_MODE", etc.
+    override: str = ""  # "RISK_VETO", "DLQ_ESCALATION", "FALLBACK_MODE", etc.
     meta: dict = field(default_factory=dict)
 
 

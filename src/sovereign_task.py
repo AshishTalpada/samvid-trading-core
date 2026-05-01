@@ -8,6 +8,7 @@ from typing import Any, Dict, List
 
 logger = logging.getLogger("SovereignTask")
 
+
 class TaskStatus(Enum):
     PENDING = "pending"
     RUNNING = "running"
@@ -15,24 +16,27 @@ class TaskStatus(Enum):
     FAILED = "failed"
     KILLED = "killed"
 
+
 class SovereignTask:
     """
     A first-class, persistent unit of work (Trade or Monitor).
     """
+
     def __init__(self, task_id: str, task_type: str, description: str, metadata: dict = None):
         self.id = task_id
-        self.type = task_type # 'trade', 'monitor', 'dream'
+        self.type = task_type  # 'trade', 'monitor', 'dream'
         self.status = TaskStatus.PENDING
         self.description = description
         self.metadata = metadata or {}
         from datetime import timezone as _timezone
+
         self.start_time = datetime.now(_timezone.utc).timestamp()
         self.end_time = None
         self.output_file = f"data/tasks/{self.id}.log"
 
-        self.baseline_state = {}     # Snapshot at creation
-        self.delta_metrics = {}      # Tracks shifts
-        self.reflection_log = []     # Post-mortem notes
+        self.baseline_state = {}  # Snapshot at creation
+        self.delta_metrics = {}  # Tracks shifts
+        self.reflection_log = []  # Post-mortem notes
         self.status_summary = "Initializing"
 
         # Ensure directory exists
@@ -43,6 +47,7 @@ class SovereignTask:
         self.status = new_status
         if new_status in [TaskStatus.COMPLETED, TaskStatus.FAILED, TaskStatus.KILLED]:
             from datetime import timezone as _timezone
+
             self.end_time = datetime.now(_timezone.utc).timestamp()
         self.save()
 
@@ -54,7 +59,7 @@ class SovereignTask:
                 self.delta_metrics[metric] = {
                     "base": base,
                     "now": current_value,
-                    "drift": (current_value - base) if isinstance(base, (int, float)) else "N/A"
+                    "drift": (current_value - base) if isinstance(base, (int, float)) else "N/A",
                 }
                 self.log(f"DIAGNOSTIC_PULSE: '{metric}' shifted. Drift detected.")
 
@@ -62,7 +67,7 @@ class SovereignTask:
         mapping = {
             "SUCCESS": TaskStatus.COMPLETED,
             "FAILED": TaskStatus.FAILED,
-            "VETOED": TaskStatus.KILLED
+            "VETOED": TaskStatus.KILLED,
         }
         self.transition(mapping.get(final_state, TaskStatus.FAILED))
         self.log(f"TASK_FINALIZED: State set to {final_state}.")
@@ -71,6 +76,7 @@ class SovereignTask:
         try:
             with open(self.output_file, "a", encoding="utf-8") as f:
                 from datetime import timezone as _timezone
+
                 timestamp = datetime.now(_timezone.utc).isoformat()
                 f.write(f"[{timestamp}] {message}\n")
         except Exception as e:
@@ -82,6 +88,7 @@ class SovereignTask:
         state_file = f"data/tasks/{self.id}.json"
         state = self.to_dict()
         import time as _time
+
         for attempt in range(5):
             try:
                 temp_file = f"{state_file}.tmp"
@@ -113,21 +120,23 @@ class SovereignTask:
             "start_time": self.start_time,
             "end_time": self.end_time,
             "status_summary": self.status_summary,
-            "delta_metrics": self.delta_metrics
+            "delta_metrics": self.delta_metrics,
         }
+
 
 class TaskManager:
     """Orchestrates the lifecycle of Sovereign Tasks."""
+
     def __init__(self, registry_path: str = "data/active_tasks.json"):
         self.registry_path = registry_path
         self.tasks: Dict[str, SovereignTask] = {}
-        self._symbol_index: Dict[str, List[str]] = {} # Symbol -> List of Task IDs
+        self._symbol_index: Dict[str, List[str]] = {}  # Symbol -> List of Task IDs
         os.makedirs(os.path.dirname(self.registry_path), exist_ok=True)
         self.load_registry()
 
     def spawn_trade(self, symbol: str, setup: dict) -> SovereignTask:
         if len(self.tasks) > 500:
-            self.purge_completed(max_age_days=1) # Aggressive purge
+            self.purge_completed(max_age_days=1)  # Aggressive purge
 
         task_id = f"t_{symbol}_{int(time.time())}"
         task = SovereignTask(task_id, "trade", f"Executing {symbol} Trade", setup)
@@ -155,14 +164,14 @@ class TaskManager:
                     try:
                         task = SovereignTask(
                             task_id=tid,
-                            task_type=state.get('type', 'unknown'),
-                            description=state.get('description', 'Restored Task'),
-                            metadata=state.get('metadata', {})
+                            task_type=state.get("type", "unknown"),
+                            description=state.get("description", "Restored Task"),
+                            metadata=state.get("metadata", {}),
                         )
-                        task.status = TaskStatus(state.get('status', 'pending'))
-                        task.start_time = state.get('start_time', time.time())
-                        task.end_time = state.get('end_time')
-                        task.delta_metrics = state.get('delta_metrics', {})
+                        task.status = TaskStatus(state.get("status", "pending"))
+                        task.start_time = state.get("start_time", time.time())
+                        task.end_time = state.get("end_time")
+                        task.delta_metrics = state.get("delta_metrics", {})
                         self.tasks[tid] = task
 
                         # Rebuild index
@@ -180,17 +189,21 @@ class TaskManager:
         """Atomically save task registry with Windows-safe retry logic."""
         try:
             if not self.tasks and os.path.exists(self.registry_path) and not allow_empty:
-                logger.error("TaskManager: SAFETY VETO! Attempted to save empty registry over existing data. Standing down.")
+                logger.error(
+                    "TaskManager: SAFETY VETO! Attempted to save empty registry over existing data. Standing down."
+                )
                 return
 
             if os.path.exists(self.registry_path):
                 import shutil
+
                 shutil.copy2(self.registry_path, f"{self.registry_path}.bak")
 
             data = {tid: t.to_dict() for tid, t in self.tasks.items()}
             temp_path = f"{self.registry_path}.tmp"
 
             import time as _time
+
             for attempt in range(5):
                 try:
                     with open(temp_path, "w", encoding="utf-8") as f:
@@ -216,7 +229,7 @@ class TaskManager:
         """Clear old finished and stale tasks to prevent memory leaks."""
         now = time.time()
         max_age_sec = max_age_days * 86400
-        stale_threshold_sec = 86400 # 24 hours for non-finished tasks
+        stale_threshold_sec = 86400  # 24 hours for non-finished tasks
         to_remove = []
 
         # 1. Standard Finished Purge
@@ -237,7 +250,9 @@ class TaskManager:
         # 3. Hard Ceiling Purge — keep only the 500 newest if registry exceeds 1000 tasks.
         # If we still have > 1000 tasks (e.g. from a massive backlog), keep only the 500 newest.
         if len(self.tasks) > 1000:
-            logger.warning(f"TaskManager: Registry overflow detected ({len(self.tasks)} tasks). Executing Hard Purge.")
+            logger.warning(
+                f"TaskManager: Registry overflow detected ({len(self.tasks)} tasks). Executing Hard Purge."
+            )
             sorted_tasks = sorted(self.tasks.items(), key=lambda x: x[1].start_time)
             purge_count = len(self.tasks) - 500
             for i in range(purge_count):

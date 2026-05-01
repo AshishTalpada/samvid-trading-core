@@ -3,6 +3,7 @@ src/questdb_candle_writer.py — Live OHLCV Candle Aggregator → QuestDB
 Subscribes to tick.batch events and builds 1m/5m/15m candles in memory.
 Writes completed bars to QuestDB via ILP, bypassing SQLite for live path.
 """
+
 from __future__ import annotations
 
 import logging
@@ -60,8 +61,12 @@ class CandleWriter:
     instead of executing a SQLite query on the hot path.
     """
 
-    def __init__(self, qdb_adapter: "QuestDBAdapter | None" = None,
-                 timeframes: list[str] | None = None, memory_bars: int = 200):
+    def __init__(
+        self,
+        qdb_adapter: "QuestDBAdapter | None" = None,
+        timeframes: list[str] | None = None,
+        memory_bars: int = 200,
+    ):
         self._qdb = qdb_adapter
         self._timeframes = timeframes or ["1m", "5m", "15m"]
         self._memory = memory_bars
@@ -81,10 +86,10 @@ class CandleWriter:
     def get_ohlcv(self, symbol: str, timeframe: str = "5m", n: int = 100) -> dict:
         bars = self.get_bars(symbol, timeframe, n)
         return {
-            "open":   [b.open   for b in bars],
-            "high":   [b.high   for b in bars],
-            "low":    [b.low    for b in bars],
-            "close":  [b.close  for b in bars],
+            "open": [b.open for b in bars],
+            "high": [b.high for b in bars],
+            "low": [b.low for b in bars],
+            "close": [b.close for b in bars],
             "volume": [b.volume for b in bars],
         }
 
@@ -96,9 +101,9 @@ class CandleWriter:
 
     async def _on_batch(self, data: dict) -> None:
         symbol = data.get("symbol")
-        price  = float(data.get("price", 0.0))
+        price = float(data.get("price", 0.0))
         volume = float(data.get("volume", 0.0))
-        ticks  = int(data.get("count", 1))
+        ticks = int(data.get("count", 1))
 
         if not symbol or price <= 0:
             return
@@ -106,8 +111,8 @@ class CandleWriter:
         now = time.time()
         for tf in self._timeframes:
             tf_secs = _TF_SECONDS[tf]
-            bar_ts  = (now // tf_secs) * tf_secs
-            active  = self._active[symbol]
+            bar_ts = (now // tf_secs) * tf_secs
+            active = self._active[symbol]
 
             # Close stale bar
             if tf in active and active[tf].ts_open < bar_ts:

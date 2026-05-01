@@ -38,7 +38,7 @@ class MindGhost:
         task = asyncio.create_task(self._ghost_audit_loop())
 
         def _ghost_dead_callback(t: asyncio.Task) -> None:
-            if self.is_running: # If it wasn't a clean stop
+            if self.is_running:  # If it wasn't a clean stop
                 try:
                     if t.cancelled():
                         # Just a shutdown, no need to log as critical
@@ -53,17 +53,16 @@ class MindGhost:
                     msg = "🚨 <b>CRITICAL</b>: MindGhost (Agent J) has STOPPED UNEXPECTEDLY!"
 
                 logger.critical(msg)
-                asyncio.create_task(self.bridge.broadcast(
-                    "ghost",
-                    msg,
-                    {"alert": "TELEGRAM", "urgency": "FATAL"}
-                ))
+                asyncio.create_task(
+                    self.bridge.broadcast("ghost", msg, {"alert": "TELEGRAM", "urgency": "FATAL"})
+                )
 
         task.add_done_callback(_ghost_dead_callback)
 
     async def _ghost_audit_loop(self) -> None:
         """The core audit loop that runs at sub-second frequency."""
         from time_sync import TimeSync
+
         while self.is_running:
             try:
                 current_time = TimeSync.now().timestamp()
@@ -75,13 +74,20 @@ class MindGhost:
                 # If we're still waiting for a handshake, check if the system heartbeats are active
                 if self.last_api_heartbeat <= self.startup_time:
                     # If we catch a bus event or a mirror update, sync the heartbeat
-                    if self.ghost_mirror.get("IBKR") == "connected" or self.ghost_mirror.get("MT5") == "connected":
+                    if (
+                        self.ghost_mirror.get("IBKR") == "connected"
+                        or self.ghost_mirror.get("MT5") == "connected"
+                    ):
                         self.last_api_heartbeat = current_time
-                        logger.info("MindGhost: Handshake confirmed via Global Matrix. Audit mode ENGAGED.")
+                        logger.info(
+                            "MindGhost: Handshake confirmed via Global Matrix. Audit mode ENGAGED."
+                        )
 
                 if self.last_api_heartbeat > self.startup_time:
                     if current_time - self.last_api_heartbeat > 60.0:
-                        logger.error(f"MindGhost: API HEARTBEAT LOST! (Last: {int(current_time - self.last_api_heartbeat)}s ago). Service may be hanging.")
+                        logger.error(
+                            f"MindGhost: API HEARTBEAT LOST! (Last: {int(current_time - self.last_api_heartbeat)}s ago). Service may be hanging."
+                        )
                         await self._trigger_ghost_reset("IBKR")
                 else:
                     # We haven't connected yet — just keep waiting quietly (Quieted to 15s reports)
@@ -105,7 +111,11 @@ class MindGhost:
                                 fail_count = self.ghost_mirror.get(f"{service}_probe_fail", 0) + 1
                                 self.ghost_mirror[f"{service}_probe_fail"] = fail_count
                                 # Only log on first failure and each doubled interval
-                                backoff = min(self._probe_backoff_sec.get(service, 60.0) * (2 ** (fail_count - 1)), 480.0)
+                                backoff = min(
+                                    self._probe_backoff_sec.get(service, 60.0)
+                                    * (2 ** (fail_count - 1)),
+                                    480.0,
+                                )
                                 self._probe_backoff_sec[service] = backoff
                                 self._probe_next_allowed[service] = current_time + backoff
                                 logger.warning(
@@ -118,7 +128,9 @@ class MindGhost:
                                 if self.ghost_mirror.get(f"{service}_probe_fail", 0) > 0:
                                     logger.info(f"MindGhost: {service} probe RECOVERED.")
                                 self.ghost_mirror[f"{service}_probe_fail"] = 0
-                                self._probe_backoff_sec[service] = 30.0 if service == "IBKR" else 60.0
+                                self._probe_backoff_sec[service] = (
+                                    30.0 if service == "IBKR" else 60.0
+                                )
                                 self._probe_next_allowed[service] = 0
 
                 await asyncio.sleep(0.5)  # Sub-second frequency
@@ -141,7 +153,7 @@ class MindGhost:
         await self.bridge.broadcast(
             "ghost",
             f"☣️ EMERGENCY RESET WARNING: {service_name} heartbeat failure. Rebooting in 5s unless system scent returns.",
-            {"alert": "TELEGRAM", "urgency": "CRITICAL"}
+            {"alert": "TELEGRAM", "urgency": "CRITICAL"},
         )
 
         await asyncio.sleep(backoff_delay)
@@ -157,6 +169,7 @@ class MindGhost:
         if result.get("status") == "OK":
             logger.info(f"MindGhost: Ghost Reset of {service_name} SUCCESSFUL.")
             from time_sync import TimeSync
+
             self.last_api_heartbeat = TimeSync.now().timestamp()
             self.retry_counts[service_name] = 0  # Reset on success
         else:
@@ -179,6 +192,7 @@ class MindGhost:
         # Any valid heartbeat from core services keeps the Ghost satisfied
         if service in ("IBKR", "MT5", "ENGINE", "CORE"):
             from time_sync import TimeSync
+
             self.last_api_heartbeat = TimeSync.now().timestamp()
             # If we were in handshake mode, this confirms success
             if self.last_api_heartbeat > self.startup_time:

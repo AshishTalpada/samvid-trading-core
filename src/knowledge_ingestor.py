@@ -9,6 +9,7 @@ from vault import Vault
 
 logger = logging.getLogger(__name__)
 
+
 class KnowledgeIngestor:
     """
     Hardened for safe recursive harvesting and secret redaction.
@@ -30,11 +31,13 @@ class KnowledgeIngestor:
         # Pattern: [any text](url_containing_secret) -> [REDACTED]
         patterns = list(escaped)
         for s in escaped:
-             patterns.append(rf'\[[^\]]*\]\([^\)]*{s}[^\)]*\)')
+            patterns.append(rf"\[[^\]]*\]\([^\)]*{s}[^\)]*\)")
 
         return re.compile("|".join(patterns))
 
-    async def ingest_directory(self, path: str, extensions: list[str] | None = None, max_depth: int = 5) -> None:
+    async def ingest_directory(
+        self, path: str, extensions: list[str] | None = None, max_depth: int = 5
+    ) -> None:
         """Crawl a directory and ingest content into Swarm Memory."""
         if extensions is None:
             extensions = [".md", ".txt", ".json", ".log"]
@@ -52,18 +55,24 @@ class KnowledgeIngestor:
             f"Ingestor: Successfully absorbed {self.ingested_count} intelligence fragments."
         )
 
-    async def _recursive_ingest(self, current_path: str, extensions: list[str], max_depth: int, current_depth: int):
+    async def _recursive_ingest(
+        self, current_path: str, extensions: list[str], max_depth: int, current_depth: int
+    ):
         """Safe recursive directory crawler with configurable depth and cycle detection."""
-        if current_depth > max_depth: return
+        if current_depth > max_depth:
+            return
 
         real_path = os.path.realpath(current_path)
-        if real_path in self.visited_paths: return
+        if real_path in self.visited_paths:
+            return
         self.visited_paths.add(real_path)
 
         try:
             for entry in os.scandir(current_path):
                 if entry.is_dir(follow_symlinks=False):
-                    await self._recursive_ingest(entry.path, extensions, max_depth, current_depth + 1)
+                    await self._recursive_ingest(
+                        entry.path, extensions, max_depth, current_depth + 1
+                    )
                 elif entry.is_file():
                     if any(entry.name.endswith(ext) for ext in extensions):
                         await self._process_file(entry.path)
@@ -82,24 +91,28 @@ class KnowledgeIngestor:
                 chunk_size = 2000
                 overlap = 200
                 for i in range(0, len(content), chunk_size - overlap):
-                    chunk = content[i:i + chunk_size]
-                    if len(chunk) < 50: continue # Skip tiny fragments
+                    chunk = content[i : i + chunk_size]
+                    if len(chunk) < 50:
+                        continue  # Skip tiny fragments
 
                     await self.memory.store_memory(
                         symbol="BRAIN_EVOLUTION",
-                        debate_summary=f"SOURCE: {os.path.basename(full_path)} [Part {i//(chunk_size-overlap)+1}]\nCONTENT: {chunk}",
+                        debate_summary=f"SOURCE: {os.path.basename(full_path)} [Part {i // (chunk_size - overlap) + 1}]\nCONTENT: {chunk}",
                         bias_str="REASONING_UPGRADE",
-                        confidence=0.85
+                        confidence=0.85,
                     )
                     self.ingested_count += 1
 
-                logger.debug(f"Ingestor: Absorbed {os.path.basename(full_path)} into Matrix DNA ({self.ingested_count} chunks).")
+                logger.debug(
+                    f"Ingestor: Absorbed {os.path.basename(full_path)} into Matrix DNA ({self.ingested_count} chunks)."
+                )
         except Exception as e:
             logger.error(f"Ingestor: Failed to read {full_path}: {e}")
 
     async def trigger_evolution_shift(self) -> None:
         """Signals to the Matrix that a 'Cognitive Shift' has occurred."""
         from intelligence_bus import get_bus
+
         bus = get_bus()
         await bus.publish(
             "evolution.knowledge_shift",
@@ -111,13 +124,16 @@ class KnowledgeIngestor:
         )
         logger.info("Evolution: Knowledge Shift SIGNAL PUBLISHED.")
 
+
 async def run_full_ingestion() -> None:
     from swarm_predictor import ChromaDeepMemory
+
     memory = ChromaDeepMemory()
     ingestor = KnowledgeIngestor(memory)
     source_dir = Vault.get("KNOWLEDGE_SOURCE_DIR", "data/knowledge")
     await ingestor.ingest_directory(source_dir)
     await ingestor.trigger_evolution_shift()
+
 
 if __name__ == "__main__":
     asyncio.run(run_full_ingestion())

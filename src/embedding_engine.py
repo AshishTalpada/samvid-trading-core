@@ -6,12 +6,14 @@ from chromadb import Documents, EmbeddingFunction, Embeddings
 
 logger = logging.getLogger(__name__)
 
+
 class SharedEmbeddingEngine:
     """
     Singleton Embedding Engine.
     Hardened for concurrent VRAM access and batch processing.
     """
-    _instance: Optional['SharedEmbeddingEngine'] = None
+
+    _instance: Optional["SharedEmbeddingEngine"] = None
     _model: Optional[any] = None
     _lock = threading.Lock()
 
@@ -26,6 +28,7 @@ class SharedEmbeddingEngine:
                 import importlib
 
                 from vault import Vault
+
                 fastembed = importlib.import_module("fastembed")
                 TextEmbedding = fastembed.TextEmbedding
 
@@ -52,7 +55,7 @@ class SharedEmbeddingEngine:
         with self._lock:
             try:
                 for i in range(0, len(texts), BATCH_SIZE):
-                    batch = texts[i:i + BATCH_SIZE]
+                    batch = texts[i : i + BATCH_SIZE]
                     # fastembed returns a generator
                     batch_gen = model.embed(batch)
                     batch_list = [[float(val) for val in vec] for vec in batch_gen]
@@ -65,15 +68,18 @@ class SharedEmbeddingEngine:
                 self._model = None
                 return []
 
+
 class SovereignEmbeddingWrapper(EmbeddingFunction):
     """
     ChromaDB compatible wrapper for the SharedEmbeddingEngine.
     """
+
     def __init__(self):
         self.engine = SharedEmbeddingEngine()
 
     def __call__(self, input: Documents) -> Embeddings:
         return self.engine.embed(list(input))
+
 
 # Globally accessible instance for ChromaDB collections
 embedding_function = SovereignEmbeddingWrapper()

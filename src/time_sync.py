@@ -7,19 +7,21 @@ from datetime import datetime, timezone
 
 logger = logging.getLogger(__name__)
 
+
 class TimeSync:
     """
     Sovereign Time Synchronization Protocol.
     Synchronizes system clock with global NTP pool to prevent stale signal execution.
     """
+
     NTP_SERVERS = [
         "pool.ntp.org",
         "time.google.com",
         "time.nist.gov",
         "time.cloudflare.com",
-        "time.windows.com"
+        "time.windows.com",
     ]
-    _offset = 0.0 # system_time + offset = ntp_time
+    _offset = 0.0  # system_time + offset = ntp_time
     _is_periodic_running = False
 
     @classmethod
@@ -29,7 +31,8 @@ class TimeSync:
             try:
                 loop = asyncio.get_running_loop()
                 addr_info = await loop.getaddrinfo(server, 123, proto=socket.IPPROTO_UDP)
-                if not addr_info: continue
+                if not addr_info:
+                    continue
                 ip_addr = addr_info[0][4][0]
 
                 logger.info(f"Synchronizing clock with {server} ({ip_addr})...")
@@ -42,27 +45,32 @@ class TimeSync:
 
         try:
             from session_manager import SovereignSession
+
             session = await SovereignSession.get_session()
             t0 = time.time()
             # Use a lightweight HEAD request to Cloudflare for minimal latency
             async with session.head("https://1.1.1.1", timeout=5) as resp:
-                    t1 = time.time()
-                    date_str = resp.headers.get('Date')
-                    if date_str:
-                        def _parse_date(ds):
-                            import email.utils
-                            parsed_date = email.utils.parsedate_tz(ds)
-                            if parsed_date:
-                                return email.utils.mktime_tz(parsed_date)
-                            return None
+                t1 = time.time()
+                date_str = resp.headers.get("Date")
+                if date_str:
 
-                        ntp_ts = await asyncio.to_thread(_parse_date, date_str)
-                        if ntp_ts:
-                            latency = (t1 - t0) / 2.0
-                            # is at the start of the second. Adding 0.5s reduces mean error.
-                            cls._offset = (ntp_ts + 0.5) - (t1 - latency)
-                            logger.info(f"✅ Clock Synchronized via HTTP Fallback. Offset: {cls._offset:.4f}s (Latency Adj: {latency:.4f}s)")
-                            return True
+                    def _parse_date(ds):
+                        import email.utils
+
+                        parsed_date = email.utils.parsedate_tz(ds)
+                        if parsed_date:
+                            return email.utils.mktime_tz(parsed_date)
+                        return None
+
+                    ntp_ts = await asyncio.to_thread(_parse_date, date_str)
+                    if ntp_ts:
+                        latency = (t1 - t0) / 2.0
+                        # is at the start of the second. Adding 0.5s reduces mean error.
+                        cls._offset = (ntp_ts + 0.5) - (t1 - latency)
+                        logger.info(
+                            f"✅ Clock Synchronized via HTTP Fallback. Offset: {cls._offset:.4f}s (Latency Adj: {latency:.4f}s)"
+                        )
+                        return True
         except Exception as e:
             logger.warning(f"HTTP Time fallback failed: {e}")
 
@@ -105,7 +113,7 @@ class TimeSync:
                 # Extract transmit timestamp (bytes 40-48)
                 # Format is 32-bit seconds since 1900, 32-bit fraction
                 unpacked = struct.unpack("!12I", data)
-                ntp_seconds = unpacked[10] - 2208988800 # Convert to Unix epoch
+                ntp_seconds = unpacked[10] - 2208988800  # Convert to Unix epoch
                 ntp_fraction = unpacked[11] / (2**32)
                 ntp_time = ntp_seconds + ntp_fraction
 

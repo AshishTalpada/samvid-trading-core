@@ -6,12 +6,14 @@ import aiohttp
 
 logger = logging.getLogger(__name__)
 
+
 class SovereignSession:
     """
     Global Shared HTTP Session Manager.
     Prevents TCP connection leakage and memory exhaustion by pinning
     all outgoing HTTP requests to a single, persistent session.
     """
+
     _instance: Optional[aiohttp.ClientSession] = None
     _lock = asyncio.Lock()
 

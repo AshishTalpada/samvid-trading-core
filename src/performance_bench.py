@@ -17,8 +17,7 @@ import numpy as np
 
 # Configure basic logging for the benchmarker
 logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger("PerfBench")
 
@@ -68,13 +67,13 @@ def benchmark_jit_math() -> None:
     _ = bollinger_bands(prices, 20, 2.0)
     t_bb = (time.perf_counter() - t0) * 1000
 
-    print("\n" + "="*40)
+    print("\n" + "=" * 40)
     print(" Numba JIT Performance (100,000 bars)")
-    print("="*40)
+    print("=" * 40)
     print(f" EMA (14):            {t_ema:.2f} ms")
     print(f" RSI (14):            {t_rsi:.2f} ms")
     print(f" Bollinger Bands:     {t_bb:.2f} ms")
-    print("="*40 + "\n")
+    print("=" * 40 + "\n")
 
 
 async def benchmark_tick_batcher() -> None:
@@ -91,11 +90,7 @@ async def benchmark_tick_batcher() -> None:
     bus = SharedIntelligenceBus()
 
     # Metrics
-    metrics = {
-        "batches_received": 0,
-        "total_ticks_processed": 0,
-        "latencies": []
-    }
+    metrics = {"batches_received": 0, "total_ticks_processed": 0, "latencies": []}
 
     async def _on_batch(data: dict[str, Any]) -> None:
         metrics["batches_received"] += 1
@@ -123,7 +118,7 @@ async def benchmark_tick_batcher() -> None:
 
     for i in range(50_000):
         # Push raw ticks into the batcher (simulating ibkr_streamer)
-        TICK_BATCHER.push(symbol, price=500.0 + (i*0.01), bid=499.9, ask=500.1, size=100)
+        TICK_BATCHER.push(symbol, price=500.0 + (i * 0.01), bid=499.9, ask=500.1, size=100)
 
         # Yield to event loop to allow batcher to flush
         if i % 5000 == 0:
@@ -140,15 +135,15 @@ async def benchmark_tick_batcher() -> None:
     stats = TICK_BATCHER.stats
     batches = stats.get("flush_count", 0)
 
-    print("="*40)
+    print("=" * 40)
     print(" TickBatcher Performance (10ms flush)")
-    print("="*40)
+    print("=" * 40)
     print(" Total Ticks Injected:  50,000")
     print(f" Total Time:            {t_total:.2f} s")
     print(f" Throughput:            {50_000 / t_total:,.0f} ticks/sec")
     print(f" Batches Emitted:       {batches}")
     print(f" Compression Ratio:     {50_000 / max(1, batches):.0f}x CPU reduction")
-    print("="*40 + "\n")
+    print("=" * 40 + "\n")
 
 
 if __name__ == "__main__":

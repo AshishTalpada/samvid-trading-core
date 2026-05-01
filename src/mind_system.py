@@ -89,7 +89,9 @@ class MindSystem:
                                             with winreg.OpenKey(key, sub_key_name) as sub_key:
                                                 try:
                                                     disp_name = str(
-                                                        winreg.QueryValueEx(sub_key, "DisplayName")[0]
+                                                        winreg.QueryValueEx(sub_key, "DisplayName")[
+                                                            0
+                                                        ]
                                                     )
                                                     if (
                                                         "TWS" in disp_name.upper()
@@ -101,9 +103,16 @@ class MindSystem:
                                                             )[0]
                                                         )
                                                         for tgt in ["tws.exe", "ibgateway.exe"]:
-                                                            full_path = os.path.join(install_loc, tgt)
+                                                            full_path = os.path.join(
+                                                                install_loc, tgt
+                                                            )
                                                             if os.path.exists(full_path):
-                                                                found_paths_info.append({"path": full_path, "trusted": True})
+                                                                found_paths_info.append(
+                                                                    {
+                                                                        "path": full_path,
+                                                                        "trusted": True,
+                                                                    }
+                                                                )
                                                 except (FileNotFoundError, OSError):
                                                     continue
                                         except (FileNotFoundError, OSError):
@@ -119,7 +128,9 @@ class MindSystem:
                 if name.lower() == "mt5":
                     _ml = Vault.get("MT5_LOGIN")
                     if not _ml or "YOUR_MT5" in str(_ml).upper() or str(_ml).lower() == "none":
-                        logger.info("MindSystem: Scent-Blocker ENGAGED — Skipping MetaTrader 5 search (Disabled).")
+                        logger.info(
+                            "MindSystem: Scent-Blocker ENGAGED — Skipping MetaTrader 5 search (Disabled)."
+                        )
                         return
 
                 common_roots = []
@@ -161,7 +172,10 @@ class MindSystem:
                     p_lower = p.lower()
                     is_sane = False
                     if name.lower() == "ibkr":
-                        is_sane = any(x in p_lower for x in ["jts", "interactive brokers", "tws", "gateway", "ibkr"])
+                        is_sane = any(
+                            x in p_lower
+                            for x in ["jts", "interactive brokers", "tws", "gateway", "ibkr"]
+                        )
                     elif name.lower() == "mt5":
                         is_sane = any(x in p_lower for x in ["metatrader", "terminal", "mt5"])
                     elif name.lower() == "questdb":
@@ -177,7 +191,9 @@ class MindSystem:
         await asyncio.to_thread(_sync_find_scent)
 
         if found_paths_info:
-            best_path = next((p["path"] for p in found_paths_info if p["trusted"]), found_paths_info[0]["path"])
+            best_path = next(
+                (p["path"] for p in found_paths_info if p["trusted"]), found_paths_info[0]["path"]
+            )
             dir_path = os.path.dirname(best_path)
 
             if name.lower() == "ibkr":
@@ -197,7 +213,7 @@ class MindSystem:
                 "success": True,
                 "found": [p["path"] for p in found_paths_info],
                 "msg": f"Smart Scent: Verified '{name}' location at {best_path}",
-                "trusted": any(p["trusted"] for p in found_paths_info)
+                "trusted": any(p["trusted"] for p in found_paths_info),
             }
 
         return {
@@ -208,6 +224,7 @@ class MindSystem:
     async def _tool_get_system_metrics(self) -> dict[str, Any]:
         """Provides the Ghost Mind (Agent J) with the hardware telemetry."""
         import psutil
+
         cpu = await asyncio.to_thread(psutil.cpu_percent)
         vmem = await asyncio.to_thread(psutil.virtual_memory)
         mem = vmem.percent
@@ -232,16 +249,17 @@ class MindSystem:
             cmds = self.CERTIFIED_COMMANDS[service_name]
 
             from vault import Vault
+
             interface = Vault.get("IBKR_INTERFACE", "gateway").lower()
             if service_name == "RESTART_IBKR":
                 target_exe = "ibgateway.exe" if interface == "gateway" else "TWS.exe"
                 verified_path = Vault.get("IBKR_PATH")
                 start_cmd = f"start {target_exe}"
                 if verified_path and os.path.exists(str(verified_path)):
-                     start_cmd = f'start "" "{verified_path}"'
+                    start_cmd = f'start "" "{verified_path}"'
 
                 cmds = [
-                    "taskkill /F /IM TWS.exe /IM ibgateway.exe /T /FI \"STATUS eq NOT RESPONDING\"",
+                    'taskkill /F /IM TWS.exe /IM ibgateway.exe /T /FI "STATUS eq NOT RESPONDING"',
                     start_cmd,
                 ]
 
@@ -256,7 +274,11 @@ class MindSystem:
                     status = "OK" if proc.returncode == 0 else "FAIL"
                     # Use errors="replace" for safe decoding on Windows
                     results.append(
-                        {"cmd": cmd, "stdout": stdout.decode(errors="replace")[:150], "status": status}
+                        {
+                            "cmd": cmd,
+                            "stdout": stdout.decode(errors="replace")[:150],
+                            "status": status,
+                        }
                     )
                 except Exception as e:
                     results.append({"cmd": cmd, "error": str(e), "status": "FAIL"})

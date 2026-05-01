@@ -13,6 +13,7 @@ Wire-in:
   - brain.py: call ANALYZER.record_close() when a position exits
   - api_server.py: expose ANALYZER.summary() as a live dashboard endpoint
 """
+
 from __future__ import annotations
 
 import logging
@@ -29,7 +30,7 @@ logger = logging.getLogger("PortfolioAnalyzer")
 @dataclass
 class ClosedTrade:
     symbol: str
-    side: str                    # "LONG" | "SHORT"
+    side: str  # "LONG" | "SHORT"
     quantity: float
     entry_price: float
     exit_price: float
@@ -183,17 +184,17 @@ class LivePortfolioAnalyzer:
         """Full session summary — expose on dashboard endpoint."""
         session_hours = (datetime.utcnow() - self._session_start).total_seconds() / 3600
         return {
-            "session_hours":    round(session_hours, 2),
-            "trades":           self.n_trades,
-            "equity_usd":       round(self.current_equity, 2),
-            "pnl_usd":          round(self.total_pnl_usd, 2),
-            "pnl_pct":          f"{self.total_pnl_pct:+.2%}",
-            "win_rate":         f"{self.win_rate:.1%}",
-            "profit_factor":    round(self.profit_factor, 3),
-            "avg_win_usd":      round(self.avg_win_usd, 2),
-            "avg_loss_usd":     round(self.avg_loss_usd, 2),
-            "live_sharpe":      round(self.live_sharpe, 3),
-            "max_drawdown":     f"{self.max_drawdown:.2%}",
+            "session_hours": round(session_hours, 2),
+            "trades": self.n_trades,
+            "equity_usd": round(self.current_equity, 2),
+            "pnl_usd": round(self.total_pnl_usd, 2),
+            "pnl_pct": f"{self.total_pnl_pct:+.2%}",
+            "win_rate": f"{self.win_rate:.1%}",
+            "profit_factor": round(self.profit_factor, 3),
+            "avg_win_usd": round(self.avg_win_usd, 2),
+            "avg_loss_usd": round(self.avg_loss_usd, 2),
+            "live_sharpe": round(self.live_sharpe, 3),
+            "max_drawdown": f"{self.max_drawdown:.2%}",
         }
 
     def log_summary(self) -> None:
@@ -208,6 +209,7 @@ class LivePortfolioAnalyzer:
 # Global instance for live session tracking (starting capital matches typical prop firm account or config)
 try:
     from config import ACCOUNT_SIZE
+
     starting_capital = ACCOUNT_SIZE
 except ImportError:
     starting_capital = 100_000.0
