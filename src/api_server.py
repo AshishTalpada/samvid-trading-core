@@ -20,6 +20,7 @@ from fastapi import (
 from fastapi.middleware.cors import CORSMiddleware
 
 from vault import Vault
+from portfolio_analyzer import PORTFOLIO_ANALYZER
 
 logger = logging.getLogger(__name__)
 
@@ -699,6 +700,7 @@ class APIServer:
                 "market": market_data,
                 "brain": brain_data,
                 "health": health_data,
+                "portfolio": PORTFOLIO_ANALYZER.summary(),
             }
         except Exception as e:
             logger.error(f"Critical error collecting state for API: {e}")
