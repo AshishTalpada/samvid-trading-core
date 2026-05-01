@@ -20,7 +20,6 @@ from telegram_alerts import send_telegram_alert
 
 logger = logging.getLogger(__name__)
 
-# Samvid v1.0-beta SINGULARITY PILARS
 CONCURRENCY_LIMIT = 3
 # NOTE: asyncio.Semaphore is created lazily inside the class to avoid
 # attaching to the wrong event loop when imported at module level.
@@ -28,7 +27,6 @@ CONCURRENCY_LIMIT = 3
 
 class TradingCoordinator:
     """
-    Samvid v1.0-beta 'Sovereign' Trade Coordinator (Agent M).
     Equipped with Concurrent Task-Graphing (Pillar 3), Adaptive Thinking (Pillar 5),
     and Autonomy Skill Permissioning (Pillar 6).
     """
@@ -45,16 +43,15 @@ class TradingCoordinator:
     def __init__(self, bridge: "MindBridge", brain: "TradingBrain") -> None:
         self.bridge = bridge
         self.brain = brain
-        self._pending_vets = set()  # Samvid v1.0-beta Idempotency Guard
+        self._pending_vets = set()
         self.exoskeleton = ApexExoskeleton(brain)
         self._semaphore: asyncio.Semaphore | None = None  # Lazy-init to bind to running loop
 
     async def initiate_trade_lifecycle(self, symbol: str, proposal: dict[str, Any], is_probe: bool = False) -> bool | None:
-        """Starts the multi-phase vetting of a trade proposal (v1.0-beta Sovereign Quorum)."""
+        """Starts the multi-phase vetting quorum for a trade proposal."""
         symbol = symbol.upper()
         task = proposal.get("task")
 
-        # --- LIVE QUORUM STREAM (Samvid v1.0-beta Start) ---
         if self.brain.bus:
             await self.brain.bus.publish("consensus.update", {
                 "symbol": symbol,
@@ -64,14 +61,12 @@ class TradingCoordinator:
                 "timestamp": time.time() * 1000
             })
 
-        # ── IMPERIAL MANDATE: RR CHECK ──
         pattern = proposal.get("pattern")
         if pattern:
             if task: task.log(f"PHASE_RR: Analyzing Risk/Reward for {symbol}. Pattern: {pattern.name}")
             balance = await self.brain.get_safe_buying_power("ibkr")
             from config import COMMISSION_PER_ROUND_TRIP, USD_CAD_RATE
 
-            # GAP-154 FIX: Institutional Currency Adjustment (CAD -> USD)
             # Necessary for accurate sizing when trading US assets on a CAD-denominated account.
             balance_usd = (balance or 500.0) / USD_CAD_RATE
 
@@ -79,7 +74,6 @@ class TradingCoordinator:
             reward_amt = abs(pattern.target - pattern.entry)
             est_shares = max(1, int(balance_usd * 0.8 / pattern.entry))
 
-            # GAP-299: Ensure estimated risk respects the $2.00 floor for small accounts
             # This prevents the Friction Veto from killing trades before the sizer can floor them.
             if (balance or 0) < 1000:
                 risk_amt = max(risk_amt, 2.0 / est_shares)
@@ -93,13 +87,12 @@ class TradingCoordinator:
                 total_risk_dollars = (risk_amt + spread + comm_per_share)
                 real_rr = total_reward_dollars / total_risk_dollars if total_risk_dollars > 0 else 0
 
-                # GAP-09 FIX: RR-Drag Relaxation for Small Accounts ($500 CAD)
                 # On small accounts, the 1.3 Net RR is a 'Mathematical Wall' due to fixed commission.
                 # If the total dollar risk is < 1.5% of the account, we relax the RR requirement to 1.0.
                 is_small_account = (balance or 0) < 2000.0
                 dollar_risk = total_risk_dollars * est_shares
 
-                # Compare USD risk against USD balance for consistent ratio (GAP-154 Alignment)
+                # Compare USD risk against USD balance for consistent ratio
                 risk_pct = (dollar_risk / balance_usd) if (balance_usd > 0) else 0.05
 
                 threshold = 1.3
@@ -144,7 +137,6 @@ class TradingCoordinator:
                 self._semaphore = asyncio.Semaphore(CONCURRENCY_LIMIT)
             async with self._semaphore:
 
-                # ── PILLAR 4: NEURAL DISPATCHER (Samvid v1.0-beta) ──
                 async def _poll_safe(name, func):
                     """Imperial Dispatcher (Sync -> Thread | Async -> Native)"""
                     try:
@@ -166,7 +158,6 @@ class TradingCoordinator:
                 proposal_id = str(uuid.uuid4())[:8]
                 if task: task.log(f"QUORUM_INIT: Starting 7-Agent Sovereign Audit for {symbol}.")
 
-                # --- LIVE QUORUM STREAM (Samvid v1.0-beta) ---
                 if self.brain.bus:
                     await self.brain.bus.publish("consensus.update", {
                         "symbol": symbol,
@@ -181,20 +172,16 @@ class TradingCoordinator:
                     logger.warning("Coordinator: Skill 'vetting' is LOCKED. Matrix is in Training Mode.")
                     return False
 
-                # GAP-84: Coordinate Heartbeat
                 if self.brain.dms:
                     self.brain.dms.record_heartbeat("COORDINATOR")
 
-                # ── CONTEXT GENERATION (UTC-BASE: GAP-29 FIX) ──
                 timestamp = datetime.now(timezone.utc).isoformat()
                 account_value = await self.brain.get_safe_buying_power("ibkr")
                 pattern = proposal["pattern"]
 
-                # Samvid v1.0-beta: Use machine-learned 'lambda' for sizing (the Sovereign Alpha)
                 alpha_val = proposal.get("lambda", pattern.confidence / 100.0)
 
-                # ── PILLAR 2: DATA HYDRATION ──
-                # Fetch OHLCV early to support Impact Oracle and Agent A (GAP-17/20)
+                # Fetch OHLCV early to support Impact Oracle and Agent A
                 ohlcv_1m = await self.brain._fetch_ohlcv(symbol)
                 if (ohlcv_1m is None or isinstance(ohlcv_1m, str) or len(ohlcv_1m) < 20) and not is_probe:
                      logger.warning(f"Coordinator [{proposal_id}] 🛑 DATA VETO: Insufficient OHLCV for {symbol}.")
@@ -231,7 +218,6 @@ class TradingCoordinator:
                     shares = int(sizing.get("step8_shares", 0))
                     pos_value = sizing.get("position_value", 0.0)
 
-                    # GAP-44: Imperial Risk Notification (Transparency Protocol)
                     total_mod = sizing.get("total_multiplier", 1.0)
                     if total_mod < 0.9 and not is_probe:
                          logger.warning(
@@ -251,11 +237,11 @@ class TradingCoordinator:
                     "pattern": pattern,
                     "regime": self.brain.current_regime,
                     "account_value": account_value,
-                    "balance": account_value, # GAP-405 Compatibility
+                    "balance": account_value, #
                     "is_probe": is_probe,
                     "shares": shares,
                     "new_position_value": pos_value,
-                    "proposed_value": pos_value, # GAP-405 Compatibility
+                    "proposed_value": pos_value, #
                     "total_position_value": sum(getattr(p, 'qty', 0) * getattr(p, 'current_price', getattr(p, 'entry_price', 0)) for p in self.brain.positions),
                     "positions": self.brain.positions,
                     "proposal_id": proposal_id,
@@ -265,7 +251,6 @@ class TradingCoordinator:
                     "commission": max(COMMISSION_PER_ROUND_TRIP, (shares or 1) * 0.01)
                 }
 
-                # ── PHASE 0: DETERMINISTIC MATH VETO (Samvid v1.0-beta Sovereign) ──
                 # Probes use synthetic geometry — skip data-quality vetoes for wiring tests
                 if not is_probe:
                     math_val = await self.brain.mind_math._tool_validate_geometry(
@@ -279,7 +264,6 @@ class TradingCoordinator:
                         logger.warning(f"Coordinator [{proposal_id}] 🛑 MATH VETO: {math_val['reason']}")
                         return False
 
-                # ── PHASE 0.5: QUANT CONSENSUS VETO (Samvid v1.0-beta Imperial) ──
                 try:
                     if not is_probe:
                         ohlcv_data = await self.brain._fetch_ohlcv(symbol)
@@ -297,7 +281,6 @@ class TradingCoordinator:
                 except Exception as qe:
                     logger.warning(f"Coordinator: QuantGate logic error: {qe}")
 
-                # ── PHASE 0: MARGIN & LIQUIDITY SHIELD (Samvid v1.0-beta) ──
                 if self.brain.mode != "paper":
                     try:
                         cushion = await self.brain.get_ibkr_cushion()
@@ -307,15 +290,12 @@ class TradingCoordinator:
                     except Exception as me:
                         logger.warning(f"Coordinator: Margin Shield offline, proceeding with caution: {me}")
 
-                # ── PHASE 1: AGENT QUORUM COLLECTION ──────────────────────
                 logger.info(f"Coordinator [{proposal_id}] polling 7-Agent Quorum...")
 
-                # ── PHASE 1: AGENT A (SOVEREIGN ALPHA VALIDATION) ──
                 # Mandatory gate: Every trade must pass through the Agent A defensive fortress.
                 # Runs under Neural Semaphore as it performs 75Y Atlas matching and Neural Lambda calibration.
                 async def poll_agent_a():
                     try:
-                        # ── PROBE SHORT-CIRCUIT ──
                         # Probes test wiring, not trade quality. Agent A auto-approves.
                         if is_probe:
                             return {
@@ -351,7 +331,7 @@ class TradingCoordinator:
                         resistances = [float(np.percentile(closes, 90)), float(np.max(closes))]
                         timeframes = [("1m", ohlcv_1m)]
 
-                        # Trend 5d/1m (Aligned with brain.py GAP-20 fix)
+                        # Trend 5d/1m
                         trend_5d = "bull"
                         trend_1m = "bull"
                         try:
@@ -436,7 +416,6 @@ class TradingCoordinator:
                         "timestamp": time.time() * 1000
                     })
 
-                # ── PILLAR 7: AGENT QUORUM RE-CENTERING (Imperial Guards) ────
                 async def poll_agent_d():
                     """Agent D: Historical Learning & Significance Mind."""
                     try:
@@ -498,7 +477,6 @@ class TradingCoordinator:
                             "agent": "Swarm_Predictor", "vote": "YES", "confidence": 0.5,
                             "reason": "Swarm Offline (Deferred to Quorum)", "timestamp": timestamp
                         }
-
 
 
                 # STAGE 1: Parallel CPU Quorum
@@ -563,7 +541,6 @@ class TradingCoordinator:
                         if not background_success:
                             logger.warning("Coordinator: Background Conviction Stale/Missing. Reverting to Parallel Neural Gate...")
 
-                            # GAP-08/09 FIX: Parallel Intelligence Burst with 30.0s Hard Timeout (Laptop Optimized)
                             # Uses _poll_neural_safe to manage VRAM contention serialy but gathered in parallel.
                             names = [n for n, _ in gated_agents]
                             funcs = [f for _, f in gated_agents]
@@ -591,7 +568,6 @@ class TradingCoordinator:
                 if not is_probe:
                     self.exoskeleton.store_cortex_cache(symbol, pattern.entry, decision, all_votes, shares)
 
-                # GAP-218 FIX: Spawn Task with full pattern metadata if not already provided
                 if task is None and not is_probe:
                     task = self.brain.task_manager.spawn_trade(symbol, pattern.to_dict())
 
@@ -623,7 +599,6 @@ class TradingCoordinator:
                 order_side = "BUY" if is_long else "SELL"
                 urgency = "HIGH" if self.brain.current_regime in ["VOLATILE", "TRENDING"] else "LOW"
 
-                # ── BROKER ROUTING (Samvid v1.0-beta APEX) ──
                 if self.brain.active_broker == "MAINTENANCE":
                      if task: task.log("MAINTENANCE_VETO: Market rollover detected. Aborting.")
                      logger.warning(f"Coordinator [{proposal_id}] 🛡️ MAINTENANCE STAND-DOWN: Market rollover in progress. Order skipped.")
@@ -726,14 +701,12 @@ class TradingCoordinator:
                  reason = decision.get('reason', 'Consensus No')
                  logger.info(f"Coordinator [{proposal_id}] 🛡️ VETO: {symbol} rejected by decision engine. Reason: {reason}")
 
-                 # GAP-241 FIX: Alert User on Veto
                  await send_telegram_alert(
                      f"🛡️ *VETO: {symbol}*\n"
                      f"Reason: {reason}\n"
                      f"ID: {proposal_id}"
                  )
 
-                 # --- BUG #12 FIX: Shadow Trade Monitoring ---
                  # Log the rejected proposal as a 'Shadow Trade' for post-mortem calibration.
                  try:
                      from system_types import Position
@@ -768,7 +741,7 @@ class TradingCoordinator:
             logger.error(f"Coordinator Error inside Sovereign Lifecycle: {e}", exc_info=True)
             return False
         finally:
-            # --- v1.0-beta FIX: Use discard() to avoid KeyError if already removed ---
+            # Use discard() to avoid KeyError if already removed
             self._pending_vets.discard(symbol)
             # Add to a local 'cooldown' in the brain to prevent the scanner from re-submitting for 30s
             if hasattr(self.brain, "_vetting_cooldowns"):

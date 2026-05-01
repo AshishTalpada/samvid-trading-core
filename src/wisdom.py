@@ -12,7 +12,6 @@ logger = logging.getLogger(__name__)
 
 class WisdomRepository:
     """
-    Samvid v1.0-beta 'Wisdom' Repository (Agent L).
     Implements 'Session Wisdom Preservation' directly from the Claude-Code memdir pattern.
     Stores and retrieves 'Post-Mortem' markdown analytics for every trade.
     """
@@ -27,7 +26,7 @@ class WisdomRepository:
     def load_all_wisdom(self) -> str:
         """
         Loads the most recent post-mortems into a high-context string.
-        GAP-63 FIX: Optimized file scanning to avoid startup hangs.
+        Optimized file scanning to avoid startup hangs.
         """
         full_context = ""
         scent_path = self.memory_dir / "SESSION_DENSITY_SCENT.md"
@@ -49,7 +48,6 @@ class WisdomRepository:
             logger.error(f"Wisdom: Directory iteration failed: {e}")
             return full_context
 
-        # 2. Sort and Limit to Top 50 (Samvid v1.0-beta)
         # We only read the files we actually intend to use
         for wf, _mtime in sorted(wisdom_data, key=lambda x: x[1], reverse=True)[:50]:
             try:
@@ -63,12 +61,10 @@ class WisdomRepository:
         Recursively summarizes recent wisdom into a high-density 'Density Scent' file.
         """
         all_wisdom = self.load_all_wisdom()
-        # GAP-62 FIX: Increased threshold to 5000 to avoid aggressive 'Amnesia'
         if len(all_wisdom) < 5000:
             return  # Only thin if context is bloating
 
         logger.info("📚 Wisdom: Initiating Context Thinning (Density Scent Generation)...")
-        # GAP-110 FIX: Explicitly forbid removal of Alpha/Technical findings
         prompt = (
             f"TASK: RECURSIVE ALPHA-PRESERVING SUMMARIZATION\nCONTEXT:\n{all_wisdom}\n\n"
             "INSTRUCTION: Synthesize these post-mortems into a 10-bullet 'Density Scent'.\n"
@@ -98,10 +94,8 @@ class WisdomRepository:
 - **Outcome**: {outcome} (PnL: ${pnl:,.2f})
 - **Catalyst Score**: {pos.catalyst_score:.1f}
 - **Dhatu State**: {pos.dhatu_state}
-
 ## COGNITIVE REASONING:
 {reasoning}
-
 ## SOVEREIGN INSIGHT:
 - If PnL < 0: Why was the signal faulty? Was there a regime shift or an 'Abhava' condition missed?
 - If PnL > 0: What was the primary alpha-driver? Did it reach the first R-Multiple target cleanly?
@@ -115,7 +109,6 @@ class WisdomRepository:
 
 class SkillTreeManager:
     """
-    Samvid v1.0-beta 'Autonomy Skill Tree' (Agent M).
     Manages the 'unlocked' capabilities of the Matrix based on performance.
     """
 
@@ -136,7 +129,7 @@ class SkillTreeManager:
             return self._get_default_skills()
 
     def _get_default_skills(self) -> dict[str, Any]:
-        """GAP-111 FIX: Scaled thresholds for realistic account progress."""
+        """Return default skill configuration with scaled thresholds for realistic account progress."""
         return {
             "autonomy_level": 1,
             "unlocked": ["discovery", "analysis", "vetting"],
@@ -154,7 +147,7 @@ class SkillTreeManager:
             logger.info(f"✨ SKILL UNLOCKED: The Matrix has learned '{skill}' mastery. ✨")
 
     def _save(self) -> None:
-        """GAP-112 FIX: Atomic save protocol for skills configuration."""
+        """Atomically save skills configuration to disk."""
         try:
             temp_path = self.path.with_suffix(".tmp")
             with open(temp_path, "w", encoding="utf-8") as f:

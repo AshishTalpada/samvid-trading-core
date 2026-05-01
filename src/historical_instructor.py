@@ -7,7 +7,6 @@ logger = logging.getLogger(__name__)
 
 class HistoricalInstructor:
     """
-    Samvid v1.0-beta Sovereign Instructor.
     Validates century-scale models using the backtest engine.
     """
     def __init__(self):
@@ -19,7 +18,6 @@ class HistoricalInstructor:
 
     def run_sanity_check(self, symbol: str = "SPY"):
         """
-        GAP-52: Non-Circular Sanity Check.
         Uses a fixed-rule 'Baseline Observer' to verify if the model is actually
         finding alpha or just agreeing with itself.
         """

@@ -26,7 +26,7 @@ class ExitDecision:
 
 
 class ExitIntelligence:
-    """Cost-Aware High-RR Exit Engine (Sovereign v1.0-beta)"""
+    """Cost-Aware High-RR Exit Engine: dynamically manages exits based on P&L and slippage."""
 
     def __init__(self, config: dict | None = None) -> None:
         self.config = config or {}
@@ -53,11 +53,9 @@ class ExitIntelligence:
         side = position.get("side", "long")
         qty = position.get("quantity", 0.0)
 
-        # Audit Fix [C5]: Zero-Quantity Guard
         if qty == 0:
             return ExitDecision(action=ExitAction.HOLD, priority=0, reason="Zero quantity position detected")
 
-        # --- GAP-38: Dhatu-Adaptive Multiples (Samvid v1.0-beta) ---
         partial_r_target = 1.5
         trail_activation_r = 1.0
         trail_tightness = 0.5 # R-distance
@@ -118,7 +116,6 @@ class ExitIntelligence:
                          metadata={"runner_setup": True}
                      )
             else:
-                 # GAP-205: Notify the Bus/Brain that we reached target but skipped due to costs
                  return ExitDecision(
                      action=ExitAction.HOLD,
                      priority=2,

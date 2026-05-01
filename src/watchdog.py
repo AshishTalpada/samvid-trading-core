@@ -13,7 +13,7 @@ DB_PATH = "data/trading.db"
 CHECK_INTERVAL = 30          # Check every 30 seconds (tightened from 60)
 LIVENESS_TIMEOUT = 120       # Task is live-locked if heartbeat > 120s stale
 SILENCE_TIMEOUT = 60         # System crashed if > 60s total silence (matches DMS)
-MEMORY_THRESHOLD_MB = 1200   # GAP-75: Restart if RAM > 1.2GB to purge leaks (Fallback)
+MEMORY_THRESHOLD_MB = 1200
 
 def get_dynamic_memory_threshold() -> float:
     """Calculates a safe memory threshold based on total system RAM (70% or max 2GB)."""
@@ -94,7 +94,6 @@ def check_task_liveness() -> dict:
 def check_memory_usage() -> float:
     try:
         import psutil
-        # GAP-93 FIX: Ghost PID detection
         # If the main.pid file is missing, we attempt to find the process by name
         pid_file = "data/main.pid"
         target_pid = None
@@ -112,7 +111,7 @@ def check_memory_usage() -> float:
                     cmdline = proc.info['cmdline'] or []
                     if any("src/main.py" in arg for arg in cmdline):
                         target_pid = proc.info['pid']
-                        logger.info(f"Watchdog: Ghost PID {target_pid} discovered via process scan (GAP-93).")
+                        logger.info(f"Watchdog: Ghost PID {target_pid} discovered via process scan.")
                         break
 
         if target_pid and psutil.pid_exists(target_pid):
@@ -125,7 +124,7 @@ def check_memory_usage() -> float:
         return 0.0
 
 
-from typing import Set  # pyre-ignore[21]
+from typing import Set
 
 restart_history: Set[float] = set()
 
@@ -163,7 +162,6 @@ def run_watchdog():
                 logger.critical(f"MEMORY DEPLETION DETECTED: Engine consuming {mem_usage:.1f}MB (Threshold: {mem_limit:.1f}MB)")
 
             if should_restart:
-                # GAP-24 FIX: Throttled Restart with Exponential Backoff
                 now = time.time()
                 recent_restarts = [t for t in restart_history if now - t < 3600] # 60 min window
 
@@ -178,7 +176,7 @@ def run_watchdog():
                 last_restart = max(restart_history) if restart_history else 0
 
                 if now - last_restart < wait_time:
-                    logger.warning(f"RESTART THROTTLED (GAP-24): Backoff active. Next attempt in {wait_time - (now - last_restart):.0f}s.")
+                    logger.warning(f"RESTART THROTTLED: Backoff active. Next attempt in {wait_time - (now - last_restart):.0f}s.")
                     should_restart = False
 
                 if should_restart:
@@ -203,8 +201,7 @@ def run_watchdog():
                             try:
                                 logger.info(f"Watchdog: Terminating stale main process (PID: {pid_to_kill})...")
                                 subprocess.run(["taskkill", "/F", "/PID", pid_to_kill], capture_output=True)
-                                # GAP-94: Increased graceful wait for port release
-                                logger.info("Watchdog: Waiting 10s for port release (GAP-94)...")
+                                logger.info("Watchdog: Waiting 10s for port release...")
                                 time.sleep(10)
                             except Exception as e:
                                 logger.error(f"Watchdog: Failed to kill process {pid_to_kill}: {e}")

@@ -1,9 +1,7 @@
-# pyre-ignore-all-errors[21]
 """
 Agent D — Self-Learning Mind: Calibration & Continuous Improvement
 ===================================================================
 Implements all 8 learning capabilities from EVERYTHING_FINAL.md:
-
 1. RegimeClassifier       — Market regime detection (M-04)
 2. StatisticalSignificanceGate — M-04 Law of Large Numbers enforcement
 3. EdgeCrowdingDetector   — M-05 Nash equilibrium monitor (monthly)
@@ -12,34 +10,33 @@ Implements all 8 learning capabilities from EVERYTHING_FINAL.md:
 6. PartialExitRules       — F9 per-pattern exit rules
 7. ResolutionWindowCalibrator — F10 empirical window calibration
 8. CalibrationPipeline    — Weekly + monthly + walk-forward validation
-
 Critical rules enforced:
 - M-04: ConditionalExpectancyMatrix active from n >= 1 (Bayesian Warm-Start)
 - M-04: can_adapt() returns False for INSUFFICIENT data (n < 20)
 - F9: Partial exits defined per pattern — BullFlag, H&S, FallingWedge, etc.
 - F10: Resolution windows start at 2× theoretical, calibrate after 30 trades
 - P-01: Entropy monitor detects system decay — triggers urgent maintenance
-- Samvid v1.0-beta: Bayesian priors integrated for cold-start stall bypass
-- Samvid v1.0-beta: LiveRecursiveEvolution (Recursive Back-Prop) Active
+- Bayesian priors integrated for cold-start stall bypass
+- LiveRecursiveEvolution (Recursive Back-Prop) active
 """
 
-from __future__ import annotations  # pyre-ignore[21]
+from __future__ import annotations
 
 import json
-import logging  # pyre-ignore[21]
-import math  # pyre-ignore[21]
-import statistics  # pyre-ignore[21]
+import logging
+import math
+import statistics
 import time
-from dataclasses import dataclass  # pyre-ignore[21]
-from datetime import datetime  # pyre-ignore[21]
+from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict  # pyre-ignore[21]
+from typing import Any, Dict
 
 
 class LiveRecursiveEvolution:
     """
-    Sovereign v1.0-beta Stable Evolution Engine.
-    GAP-43 FIX: Implements 'Learning Inertia' to prevent Luck-Based Weight Drift.
+Stable Evolution Engine.
+    Implements 'Learning Inertia' to prevent Luck-Based Weight Drift.
     Ensures that as pattern maturity (n_count) grows, individual noisy outcomes
     have diminishing impact on the core belief system.
     """
@@ -54,7 +51,7 @@ class LiveRecursiveEvolution:
         # outcome: 1=WIN, -1=LOSS, 0=BE
         if pnl > 0.0001: outcome = 1.0
         elif pnl < -0.0001: outcome = -1.0
-        else: return # Break-even doesn't shift the weight state (Samvid v1.0-beta)
+        else: return # Break-even doesn't shift the weight state
 
         if not (self.atlas and getattr(self.atlas, "atlas_data", {})):
             return
@@ -63,7 +60,6 @@ class LiveRecursiveEvolution:
         n_count = len(patterns)
         if n_count == 0: return
 
-        # --- LEARNING INERTIA (Samvid v1.0-beta) ---
         # As n increases, the impact of 1 trade (alpha) decreases.
         # Base alpha 0.4 (40% impact for 1st trade) -> alpha 0.01 (1% impact for 400th trade)
         base_alpha = 0.4
@@ -87,7 +83,7 @@ class LiveRecursiveEvolution:
             recency_decay = 1.0 / (1.0 + (i / 50.0))
             current_multiplier = 1.0 + (alpha * outcome * recency_decay)
 
-            # CAP: min 0.1, max 3.0 (Sovereign v1.0-beta)
+            # CAP: min 0.1, max 3.0
             new_weight = data[1] * current_multiplier
             data[1] = min(3.0, max(0.1, new_weight))
             patterns[idx] = tuple(data)
@@ -98,7 +94,6 @@ class LiveRecursiveEvolution:
 class RegimeClassifier:
     """
     Classifies the current market regime using VIX, breadth, and momentum.
-
     The regime affects position sizing, pattern selection, and risk tolerance.
     Agent B uses the regime as a modifier in the catalyst scoring chain (F3 Step 2).
     """
@@ -117,13 +112,11 @@ class RegimeClassifier:
     ) -> str:
         """
         Classify market regime.
-
         Args:
             vix: VIX level (fear index)
             spy_above_200ma: Is SPY trading above its 200-day moving average?
             breadth: Market breadth (advance/decline ratio, 0.0 to 1.0)
             momentum: Price momentum (-1.0 to +1.0, positive = bullish)
-
         Returns:
             One of: BULL / BEAR / VOLATILE / CHOPPY / TRENDING
         """
@@ -139,7 +132,6 @@ class RegimeClassifier:
         if spy_above_200ma and breadth > 0.55 and momentum > 0.001:
             return "BULL"
 
-        # SOVEREIGN Overdrive: Lowered momentum pivot (Eliminating GAP-34 bottleneck)
         if abs(momentum) > 0.0005:
             return "TRENDING"
 
@@ -161,19 +153,15 @@ class RegimeClassifier:
         return modifiers.get(regime, 0.70)
 
 
-# =============================================================================
 # 2. STATISTICAL SIGNIFICANCE GATE  (M-04 Law of Large Numbers)
-# =============================================================================
 
 
 class StatisticalSignificanceGate:
     """
     Enforces M-04: statistical significance before any calibration decisions.
-
     The system NEVER makes adaptations based on INSUFFICIENT or PRELIMINARY data.
     This prevents overfitting to small samples — the most common error in
     trading system design.
-
     Rating thresholds:
         n < 20:   INSUFFICIENT — cannot make any statistical claims
         n 20-50:  PRELIMINARY  — use with extreme caution, wide CI
@@ -190,7 +178,6 @@ class StatisticalSignificanceGate:
     def rate_data(self, n: int) -> str:
         """
         Rate the statistical significance of a dataset with n samples.
-
         Returns:
             'INSUFFICIENT' | 'PRELIMINARY' | 'MODERATE' | 'RELIABLE' | 'STRONG'
         """
@@ -213,10 +200,8 @@ class StatisticalSignificanceGate:
     ) -> tuple[float, float]:
         """
         Calculate Wilson confidence interval for a win rate.
-
         Uses Wilson score interval (more accurate than normal approximation
         for small samples and extreme probabilities).
-
         Returns:
             (lower_bound, upper_bound) as fractions
         """
@@ -241,7 +226,6 @@ class StatisticalSignificanceGate:
     def format_stat(self, win_rate: float, n: int) -> str:
         """
         Format a statistic with confidence interval and data rating.
-
         Example output: "WR=78% +-8% (n=47, PRELIMINARY)"
         """
         rating = self.rate_data(n)
@@ -259,7 +243,6 @@ class StatisticalSignificanceGate:
     def can_adapt(self, n: int) -> bool:
         """
         Returns True if sample size is sufficient to make adaptations.
-
         Agent D CANNOT make adaptations on INSUFFICIENT data (n < 20).
         For PRELIMINARY data (20-50), adaptations are permitted but throttled.
         This is the M-04 gate — it protects against overfitting.
@@ -267,21 +250,16 @@ class StatisticalSignificanceGate:
         return n >= self.INSUFFICIENT_THRESHOLD
 
 
-# =============================================================================
 # 3. EDGE CROWDING DETECTOR  (M-05 Nash Equilibrium)
-# =============================================================================
 
 
 class EdgeCrowdingDetector:
     """
     Detects when too many participants are exploiting the same pattern,
     eliminating the edge (M-05 Nash equilibrium monitor).
-
     Run MONTHLY on every active pattern.
-
     When a pattern becomes CROWDED, reduce allocation BEFORE the edge disappears
     completely — exit the game before Nash equilibrium is reached.
-
     Crowding signals:
     1. Win rate is declining over time (others front-running)
     2. Average R is declining (less profit per win)
@@ -302,14 +280,12 @@ class EdgeCrowdingDetector:
     ) -> str:
         """
         Detect edge crowding for a pattern.
-
         Args:
             pattern: Pattern name (e.g. "BULL_FLAG")
             win_rates: List of win rates over rolling periods
             avg_rs: List of average R values over rolling periods
             slippages: List of average slippage values
             volumes: List of average breakout volume ratios
-
         Returns:
             'CROWDED' | 'WARNING' | 'CLEAR'
         """
@@ -358,21 +334,17 @@ class EdgeCrowdingDetector:
         return self._is_declining([-x for x in series])
 
 
-# =============================================================================
 # 4. SYSTEM ENTROPY MONITOR  (P-01 Second Law of Thermodynamics)
-# =============================================================================
 
 
 class SystemEntropyMonitor:
     """
     Monitors whether the system is maintaining order or decaying (P-01).
-
     P-01 (Second Law of Thermodynamics applied to trading):
     A trading edge is an ORDERED STATE in a disordered market.
     Without continuous energy input (monitoring, adaptation, learning),
     the edge DECAYS toward zero. This is not a possibility — it is a
     PHYSICAL LAW applied to information systems.
-
     Entropy levels:
         HIGH ENTROPY: System is decaying urgently — immediate maintenance needed
         RISING:       Entropy increasing — schedule maintenance within 1 week
@@ -391,13 +363,11 @@ class SystemEntropyMonitor:
     ) -> str:
         """
         Calculate system entropy from multiple sources.
-
         Args:
             wr_trend: Win rate trend (negative = declining = entropy rising)
             cal_drift: Calibration error trend (positive = drift = entropy rising)
             param_age_days: How stale are the parameters? (90 days = -1.0)
             regime_accuracy: Regime model accuracy trend
-
         Returns:
             'HIGH ENTROPY' | 'RISING' | 'LOW'
         """
@@ -417,7 +387,6 @@ class SystemEntropyMonitor:
         signals.append(regime_accuracy)
 
         # Combined entropy score: negative = decaying, positive = thriving
-        # Samvid v1.0-beta: Empty list safety guard
         if not signals:
             return "LOW"
         entropy = sum(signals) / len(signals)
@@ -439,9 +408,7 @@ class SystemEntropyMonitor:
         return actions.get(entropy_level, "UNKNOWN")
 
 
-# =============================================================================
 # 5. CONDITIONAL EXPECTANCY MATRIX
-# =============================================================================
 
 
 @dataclass
@@ -462,7 +429,6 @@ class ExpectancyData:
     data_rating: str = "INSUFFICIENT"
 
     def __post_init__(self):
-        # Samvid v1.0-beta: Safety floor on denominator to prevent division-by-zero explosions
         if self.weighted_n > 0.0001:
             self.win_rate = self.weighted_wins / self.weighted_n
             self.avg_r = self.weighted_r / self.weighted_n
@@ -478,8 +444,7 @@ class ConditionalExpectancyMatrix:
     """
     Builds a matrix of expected win rates conditioned on:
     pattern × regime × session
-
-    Samvid v1.0-beta: Bayesian Warm-Start.
+    Bayesian Warm-Start.
     Activates from trade #1 by using historical priors.
     As live trades increase, the prior's influence decays.
     """
@@ -545,7 +510,7 @@ class ConditionalExpectancyMatrix:
     ) -> dict[str, ExpectancyData]:
         """
         Build or update the expectancy matrix while minimizing RAM.
-        Samvid v1.0-beta: Supports streaming iterators and incremental updates.
+        Supports streaming iterators and incremental updates.
         """
         self.activated = True
 
@@ -655,7 +620,6 @@ class ConditionalExpectancyMatrix:
     ) -> float:
         """
         Get the calibrated win rate for a specific condition combination.
-
         Returns default if matrix not activated or insufficient data for key.
         """
         if not self.activated:
@@ -665,7 +629,6 @@ class ConditionalExpectancyMatrix:
         key = f"{pattern}|{regime}|{session}"
         data = self.matrix.get(key)
 
-        # Samvid v1.0-beta: Session-Blindness Guard
         # If no session-specific data exists, fallback to RTH (the wisdom anchor)
         if data is None and session != "RTH":
             fallback_key = f"{pattern}|{regime}|RTH"
@@ -677,9 +640,7 @@ class ConditionalExpectancyMatrix:
         return data.win_rate
 
 
-# =============================================================================
 # 6. PARTIAL EXIT RULES  (F9 — per pattern)
-# =============================================================================
 
 
 @dataclass
@@ -694,10 +655,8 @@ class ExitLevel:
 class PartialExitRules:
     """
     Defines partial exit rules per pattern (F9 solution).
-
     Each pattern has specific exit levels based on its typical behavior.
     These start as theoretical values and get calibrated after 30+ trades.
-
     F9 rules per pattern:
     - BullFlag:       +1R->BE, +1.5R->50% out, +2R->75%, target->all
     - HeadShoulders:  +1R->BE, target->100% (trend trade, let it run)
@@ -716,12 +675,10 @@ class PartialExitRules:
     ) -> list[ExitLevel]:
         """
         Get partial exit levels for a pattern.
-
         Args:
             pattern:      Pattern name (e.g. "BULL_FLAG")
             entry_price:  Trade entry price
             r_size:       Price distance of 1R (entry - stop in dollars)
-
         Returns:
             List of ExitLevel objects defining when to exit portions
         """
@@ -740,7 +697,6 @@ class PartialExitRules:
 
         fn = rules.get(pattern_upper, self._default_exits)
 
-        # Samvid v1.0-beta: Directional Parity (F9-Short Fix)
         # We pass a Directional Multiplier (1 for LONG, -1 for SHORT)
         # to ensure exits project correctly in price space.
         mult = -1.0 if direction.upper() == "SHORT" else 1.0
@@ -802,19 +758,15 @@ class PartialExitRules:
         ]
 
 
-# =============================================================================
 # 7. RESOLUTION WINDOW CALIBRATOR  (F10)
-# =============================================================================
 
 
 class ResolutionWindowCalibrator:
     """
     Calibrates how many days a pattern typically takes to resolve (F10).
-
     F10 Solution: START with 2x theoretical resolution windows.
     After 30 trades per pattern per instrument, replace with
     MEASURED resolution windows from actual data.
-
     This prevents the system from using book-theory timeframes that
     don't match how the pattern actually behaves in current markets.
     """
@@ -844,16 +796,13 @@ class ResolutionWindowCalibrator:
     ) -> int:
         """
         Get resolution window for a pattern+instrument combination.
-
         F10 Logic:
         - If fewer than 30 trades: use 2x theoretical window
         - If 30+ trades: use measured average hold time
-
         Args:
             pattern:       Pattern name
             instrument:    Instrument ticker (e.g. "SPY")
             trade_history: All completed trades
-
         Returns:
             Resolution window in days
         """
@@ -906,9 +855,7 @@ class ResolutionWindowCalibrator:
         return windows
 
 
-# =============================================================================
 # 8. CALIBRATION PIPELINE
-# =============================================================================
 
 
 @dataclass
@@ -944,10 +891,8 @@ class ValidationResult:
 class CalibrationPipeline:
     """
     Runs weekly calibration, monthly audits, and walk-forward validation.
-
     The system gets smarter after every trade because of this class.
     Without regular calibration, the system thermodynamically decays (P-01).
-
     Weekly:  Win rate tracking, confidence intervals, entropy check
     Monthly: Full edge crowding audit (Nash equilibrium check), parameter review
     Walk-forward: Required before any live trading
@@ -961,13 +906,10 @@ class CalibrationPipeline:
     def weekly_calibration(self, trade_history: list[dict]) -> dict:
         """
         Run weekly calibration.
-
         Calculates: win rate with CI, data rating, entropy score,
         regime distribution, basic crowding check.
-
         Args:
             trade_history: All completed trades
-
         Returns:
             CalibrationReport as dict
         """
@@ -1038,13 +980,10 @@ class CalibrationPipeline:
     def monthly_audit(self, trade_history: list[dict]) -> dict:
         """
         Run full monthly audit.
-
         Includes: all weekly metrics + edge crowding per pattern (M-05)
         + parameter age check + full entropy analysis.
-
         Args:
             trade_history: All completed trades
-
         Returns:
             Full audit report as dict
         """
@@ -1113,16 +1052,12 @@ class CalibrationPipeline:
     ) -> dict:
         """
         Walk-forward validation — required before live trading.
-
         Splits trade history into in-sample (calibration) and
         out-of-sample (test) windows to verify the edge isn't overfitted.
-
         Passes if out-of-sample win rate is within 10% of in-sample.
-
         Args:
             trade_history: All completed trades (should have 200+ for meaningful results)
             window:        Size of out-of-sample test window
-
         Returns:
             ValidationResult as dict
         """
@@ -1182,22 +1117,18 @@ class CalibrationPipeline:
         return vars(result)
 
 
-# =============================================================================
 # CONVENIENCE FUNCTION — used by brain.py
-# =============================================================================
 
 
 def run_after_trade(trade_result: dict, n_total: int, n_wins: int, recent_trades: list[dict]) -> dict:
     """
     Run Agent D's learning cycle after every completed trade.
-    Optimized for RAM (Samvid v1.0-beta).
-
+    Optimized for RAM.
     Args:
         trade_result: The completed trade
         n_total:      Total historical trades
         n_wins:       Total historical wins
         recent_trades: Last 50-200 trades for trend observation
-
     Returns:
         Dict with entropy_level, data_rating, matrix_active status
     """
@@ -1228,18 +1159,16 @@ def run_after_trade(trade_result: dict, n_total: int, n_wins: int, recent_trades
     }
 
 
-# =============================================================================
 # LIVE LEARNING ENGINE — real-time matrix updates via SharedIntelligenceBus
-# =============================================================================
 
-import asyncio as _asyncio  # pyre-ignore[21]
-import logging as _logging  # pyre-ignore[21]
-import sqlite3 as _sqlite3  # pyre-ignore[21]
+import asyncio as _asyncio
+import logging as _logging
+import sqlite3 as _sqlite3
 from collections import deque as _deque
 from typing import TYPE_CHECKING as _TYPE_CHECK
 
 if _TYPE_CHECK:
-    from intelligence_bus import SharedIntelligenceBus  # pyre-ignore[21]
+    from intelligence_bus import SharedIntelligenceBus
 
 _lld_logger = _logging.getLogger(__name__ + ".live")
 
@@ -1247,7 +1176,6 @@ _lld_logger = _logging.getLogger(__name__ + ".live")
 class LiveLearningEngine:
     """
     Persistent, event-driven learning engine for Agent D.
-
     Responsibilities:
       1. Subscribes to "trade.exit" events on the SharedIntelligenceBus
       2. Maintains a running list of all trades (persisted to SQLite)
@@ -1256,7 +1184,6 @@ class LiveLearningEngine:
          immediately react (e.g. adjust min_catalyst per pattern)
       5. On startup, reloads existing trade history from SQLite so the
          matrix survives system restarts
-
     M-04 Gate: matrix only activates at n >= 200 trades.
     After that, calibration.update payloads include per-pattern win rates
     that Brain uses to fine-tune its confidence thresholds.
@@ -1299,7 +1226,6 @@ class LiveLearningEngine:
         self._ensure_table()
         self._load_history()
 
-    # ── DB helpers ──────────────────────────────────────────────────────
 
     def _ensure_table(self) -> None:
         """Create the agent_d_trades table if it doesn't exist."""
@@ -1314,7 +1240,7 @@ class LiveLearningEngine:
             _lld_logger.warning(f"LiveLearningEngine: cannot ensure table: {e}")
 
     def _load_history(self) -> None:
-        """Load historical trade metrics from SQLite without bloating RAM (Samvid v1.0-beta)."""
+        """Load historical trade metrics from SQLite without bloating RAM."""
         try:
             conn = _sqlite3.connect(self.db_path, timeout=60)
             conn.execute("PRAGMA journal_mode=WAL;")
@@ -1404,7 +1330,6 @@ class LiveLearningEngine:
         except Exception as e:
             _lld_logger.warning(f"LiveLearningEngine: batch persist failed: {e}")
 
-    # ── Event processing ─────────────────────────────────────────────────
 
     async def _handle_trade_exit(self, payload: dict) -> None:
         """
@@ -1473,11 +1398,9 @@ class LiveLearningEngine:
                 )
 
         # Publish calibration.update so Brain can tune thresholds live
-        # GAP-43 FIX: Learning Inertia (Only update weights every 10 trades for stability)
         if not is_dirty and (n % 10 == 0 or n < 10):
             await self._publish_calibration()
 
-        # --- EVOLUTIONARY CHECKPOINT (Samvid v1.0-beta) ---
         # Persist dynamic priors after EVERY trade to ensure 100% learning durability.
         # This prevents 'Amnesia' if the system crashes between the 50-trade cycles.
         if self._matrix.activated and not is_dirty:
@@ -1532,7 +1455,6 @@ class LiveLearningEngine:
             },
         )
 
-    # ── Async runner ─────────────────────────────────────────────────────
 
     async def run(self) -> None:
         """
@@ -1546,7 +1468,6 @@ class LiveLearningEngine:
         _lld_logger.info("LiveLearningEngine: Starting — subscribed to trade.exit")
         q = self.bus.subscribe("trade.exit", maxsize=200)
 
-        # ── Memory Bootstrap ──
         if self._matrix.activated:
             await self._publish_calibration()
 
@@ -1556,7 +1477,6 @@ class LiveLearningEngine:
 
         while True:
             try:
-                # GAP-84: Agent D Heartbeat (Pillar 6)
                 if self.dms:
                     self.dms.record_heartbeat("AGENT_D")
 
@@ -1629,7 +1549,6 @@ class LiveLearningEngine:
 
     def evaluate_proposal(self, pattern_name: str, regime: str, session: str = "RTH") -> Dict[str, Any]:
         """
-        Standardized consensus evaluation for Samvid v1.0-beta.
         Provides Agent D's vote based on historical performance data.
         """
         win_rate = self.get_win_rate(pattern_name, regime, session)
@@ -1659,3 +1578,4 @@ class LiveLearningEngine:
             "win_rate": win_rate,
             "data_rating": rating
         }
+

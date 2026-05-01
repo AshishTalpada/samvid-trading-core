@@ -1,16 +1,15 @@
-# pyre-ignore-all-errors[21]
 import inspect
 import logging
 import os
-from datetime import datetime, timedelta  # pyre-ignore[21]
+from datetime import datetime, timedelta
 from datetime import time as dt_time
 
-import MetaTrader5 as mt5  # pyre-ignore[21]
+import MetaTrader5 as mt5
 import numpy as np
 
 logger = logging.getLogger(__name__)
 
-from config import FTMO_DAILY_LIMIT, FTMO_DRAWDOWN_LIMIT, MAX_TRADES_PER_DAY  # pyre-ignore[21]
+from config import FTMO_DAILY_LIMIT, FTMO_DRAWDOWN_LIMIT, MAX_TRADES_PER_DAY
 from vault import Vault
 
 
@@ -23,7 +22,7 @@ class MT5Connection:
         self._server = ""
 
     async def is_connected(self) -> bool:
-        """Check if terminal is connected and authorized. (GAP-30/203 Reconnect Hardening)"""
+        """Check if terminal is connected and authorized."""
         import asyncio as _asyncio
         info = await _asyncio.to_thread(mt5.terminal_info)
         if info is None:
@@ -32,13 +31,13 @@ class MT5Connection:
             if _time.time() - self._last_init_time > 30:
                 logger.warning(f"MT5: Connection lost > 30s (Login: {self._login}). Attempting Sovereign Re-initialization...")
                 if self._login > 0:
-                    # Fix GAP-203: Await the async connect call
+                    # Await the async connect call
                     await self.connect(self._login, self._pw, self._server)
             return False
         return True
 
     async def connect(self, login: int, pw: str, server: str, path: str = "") -> bool:
-        """Connect to MT5 trading server with login credentials. (GAP-33/203 Hardening)"""
+        """Connect to MT5 trading server with login credentials."""
         import asyncio as _asyncio
         import time as _time
         self._login = login
@@ -46,14 +45,12 @@ class MT5Connection:
         self._server = server
         self._last_init_time = _time.time()
 
-        # GAP-203 FIX: Attempt to start terminal if path is provided
         success = await _asyncio.to_thread(mt5.initialize, path=path, server=server, login=login, password=pw)
 
         if not success and not path:
             # Try to find path autonomously if first attempt failed
             found_path = Vault.get("MT5_PATH")
             if found_path:
-                # GAP-291 FIX: Normalize path if it points to a directory instead of the executable
                 effective_path = str(found_path)
                 if os.path.isdir(effective_path):
                     potential_exe = os.path.join(effective_path, "terminal64.exe")
@@ -81,9 +78,6 @@ class MT5Connection:
 
     def place_order(self, sym: str, dir: str, vol: float, sl: float, tp: float) -> int:
         """Place an order on MT5 platform."""
-        # =====================================================================
-        # Samvid v1.0-beta HARDENED LOCK: Synchronized with Sovereign Panic Protocols
-        # =====================================================================
         AUTHORIZED_CALLERS = {
             "sovereign_decision_engine",
             "_place_mt5_order",
@@ -207,12 +201,8 @@ class MT5Connection:
 
 
 class FTMOComplianceLayer:
-    # ═══════════════════════════════════════════════════════════════════
-    # Samvid v1.0-beta Standard Challenge Settings
     # CRITICAL: These MUST match src/config.py exactly
     # Any divergence = FTMO challenge failure
-    # ═══════════════════════════════════════════════════════════════════
-    # Samvid v1.0-beta Standard Challenge Settings (Synchronized with src.config)
     DAILY_LIMIT: float = FTMO_DAILY_LIMIT
     DRAWDOWN_LIMIT: float = FTMO_DRAWDOWN_LIMIT
     MAX_TRADES: int = MAX_TRADES_PER_DAY
@@ -260,7 +250,7 @@ class FTMOComplianceLayer:
 class MT5PositionSizer:
     async def calculate(self, symbol: str, entry_price: float, stop_price: float, **kwargs) -> dict:
         """
-        Standardized sizing interface for MT5 (GAP-01).
+        Standardized sizing interface for MT5.
         Matches PositionSizingChain signature.
         """
         # 1. Resolve Risk Amount (Default 1% of account if not provided)
@@ -287,11 +277,8 @@ class MT5PositionSizer:
 
     def calculate_lots(self, risk_amount: float, entry_price: float, stop_price: float, symbol: str) -> float:
         """Calculate the lot size for a trade based on risk management.
-        Institutional Single Order Routing (Sovereign v1.0-beta).
+        Institutional Single Order Routing.
         """
-        # =====================================================================
-        # Samvid v1.0-beta HARDENED LOCK: Expanded authorized callers
-        # =====================================================================
         AUTHORIZED_CALLERS = {
             "_place_mt5_order",
             "sovereign_decision_engine",
@@ -344,7 +331,6 @@ class MT5PositionSizer:
         # Bound lots
         lots = max(min_lot, min(max_lot, lots))
 
-        # GAP-228 FIX: Integer lot enforcement for specific assets (Indices/Commodities)
         # If step_lot is 1.0, ensure we return a pure integer to avoid '0.0 lots' errors on some brokers.
         if step_lot >= 1.0:
             return float(int(round(lots)))

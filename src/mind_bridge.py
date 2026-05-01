@@ -36,14 +36,14 @@ class DialogueMessage:
 
 class MindBridge:
     """
-    The Nervous System (Bridge) for the Samvid v1.0-beta Architecture.
+    The inter-agent communication bridge enabling tool calls and message routing.
     Inspired by Claude-Code's MCP Client and SharedIntelligenceBus.
     Provides a communication layer for the 'Trading Mind' and the 'Healing Mind'.
     """
 
     def __init__(self, bus=None, initial_context: str | None = None) -> None:
         self.bus = bus
-        self.initial_context = initial_context  # Samvid v1.0-beta Wisdom Seed
+        self.initial_context = initial_context
         self.dialogue_history: list[DialogueMessage] = []
         self.tools: dict[str, Callable] = {}
         self._lock: asyncio.Lock | None = None  # Lazy-init: created on first async use
@@ -58,7 +58,6 @@ class MindBridge:
             "experiment": asyncio.Queue(maxsize=100),
         }
 
-        # --- NEW: TEAMMATE MAILBOX (Samvid v1.0-beta) ---
         self.teammate_mailbox: list[DialogueMessage] = []  # Persistent context
         self.call_telemetry: list[dict] = []  # Audit log for tools
 
@@ -68,7 +67,7 @@ class MindBridge:
         logger.info(f"MindBridge: Tool '{name}' registered.")
 
     async def broadcast(self, sender: str, content: str, metadata: dict | None = None) -> None:
-        """Broadcast a message between the minds (Wrapped in Samvid v1.0-beta Encoding Shield)."""
+        """Broadcast a message between the minds (Wrapped in Shield)."""
         safe_content = str(content)
         msg = DialogueMessage(sender=sender, content=safe_content, metadata=metadata or {})
         if self._lock is None:
@@ -93,12 +92,12 @@ class MindBridge:
 
     async def call_tool(self, tool_name: str, **kwargs) -> dict[str, Any]:
         """Invoke an autonomous healing or diagnostic tool."""
-        # 0. SECURITY GUARDRAIL: Verify Tool Signature (GAP-64)
+        # 0. SECURITY GUARDRAIL: Verify Tool Signature
         if not MindMacros.is_tool_signed(tool_name):
             logger.critical(f"MindBridge: UNAUTHORIZED tool call blocked: {tool_name}")
             return {"error": "Unauthorized: Tool not in Signed Allowlist"}
 
-        # 0.1 DOUBLE HANDSHAKE (GAP-64 FIX)
+        # 0.1 DOUBLE HANDSHAKE
         if tool_name in MindMacros.SENSITIVE_TOOLS:
             justification = kwargs.get("justification")
             if not justification or len(str(justification)) < 10:

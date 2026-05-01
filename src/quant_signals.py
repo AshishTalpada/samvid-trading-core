@@ -1,5 +1,4 @@
 """
-Samvid v1.0-beta — Quantitative Signal Library
 Replaces LLM agent opinions with statistically validated signals.
 Each signal is independently testable and has a known theoretical basis.
 """
@@ -25,15 +24,12 @@ class SignalResult:
     meta: dict = field(default_factory=dict)
 
     def to_vote(self) -> str:
-        # SOVEREIGN Overdrive: Enhanced sensitivity (Eliminating GAP-34 bottleneck)
         if self.score > 0.05 and self.confidence > 0.5:
             return 'BUY'
         if self.score < -0.05 and self.confidence > 0.5:
             return 'SELL'
         return 'NEUTRAL'
 
-
-# ── AGENT A REPLACEMENT: HMM Regime Filter ─────────────────────────────────
 
 class RegimeFilter:
     """
@@ -53,7 +49,6 @@ class RegimeFilter:
         try:
             from hmmlearn import hmm
 
-            # GAP-21 HARDENING: Increased floor to 500 bars + Variance check
             returns = np.diff(np.log(np.abs(prices) + 1e-10)).reshape(-1, 1)
             returns = returns[np.isfinite(returns).all(axis=1)]
 
@@ -113,8 +108,6 @@ class RegimeFilter:
             return SignalResult("regime", 0.0, 0.2, "NEUTRAL")
 
 
-# ── AGENT B REPLACEMENT: Multi-Factor Alpha Model ──────────────────────────
-
 class MultiFactorAlpha:
     """
     Combines momentum, mean-reversion, volume surge into a composite score.
@@ -131,7 +124,6 @@ class MultiFactorAlpha:
             'vol_regime':     0.15,
             'volume_surge':   0.15,
         }
-        # Samvid v1.0-beta: Kalman state for vol smoothing
         self._vol_kalman = None
         self._vol_P = 1.0
 
@@ -142,7 +134,6 @@ class MultiFactorAlpha:
         try:
             returns = np.diff(np.log(prices + 1e-10))
 
-            # GAP-20 FIX: Timeframe-Aware Momentum (Calibrated for 1m execution)
             # We use meaningful intraday windows since true multi-day data isn't always in buffer.
             # 1. 'Intraday Mid-term' (60-bar / 1-hour window)
             lookback_mid = min(len(returns), 60)
@@ -203,8 +194,6 @@ class MultiFactorAlpha:
             return SignalResult("multi_factor", 0.0, 0.1, "NEUTRAL")
 
 
-# ── AGENT C REPLACEMENT: Kalman Filter Entry Timing ─────────────────────────
-
 class KalmanEntryTimer:
     """
     Kalman filter estimates the 'true' price. Deviation from estimate = entry signal.
@@ -214,7 +203,6 @@ class KalmanEntryTimer:
     def __init__(self, process_noise: float = 1e-4, observation_noise: float = 1e-2):
         self.Q = process_noise       # process noise
         self.R = observation_noise   # observation noise
-        # GAP-22 FIX: Per-symbol state tracking to prevent drift/contamination
         self._states: dict[str, dict] = {}
 
     def _get_state(self, symbol: str) -> dict:
@@ -239,7 +227,7 @@ class KalmanEntryTimer:
 
     def compute(self, symbol: str, prices: np.ndarray) -> SignalResult:
         """
-        Incremental Kalman computation (GAP-22 Optimization).
+        Incremental Kalman computation.
         Only runs the loop if it's a new symbol or history is missing.
         """
         if len(prices) < 10:
@@ -277,8 +265,6 @@ class KalmanEntryTimer:
             return SignalResult("kalman_entry", 0.0, 0.2, "NEUTRAL")
 
 
-# ── AGENT D REPLACEMENT: Kelly Criterion Position Sizer ─────────────────────
-
 class KellyPositionSizer:
     """
     Mathematically optimal position sizing using Kelly Criterion.
@@ -300,7 +286,6 @@ class KellyPositionSizer:
             b = avg_win / avg_loss
             p, q = win_rate, 1.0 - win_rate
 
-            # GAP-233 FIX: Avoid division by zero if r_r_ratio (b) is zero or negative
             if b <= 0:
                 return SignalResult("kelly", 0.0, 0.5, "NEUTRAL",
                                     {"position_usd": 0, "kelly_f": 0})
@@ -325,8 +310,6 @@ class KellyPositionSizer:
             logger.error(f"KellyPositionSizer error: {e}")
             return SignalResult("kelly", 0.0, 0.3, "NEUTRAL", {"position_usd": 0})
 
-
-# ── CONSENSUS AGGREGATOR ────────────────────────────────────────────────────
 
 class QuantConsensus:
     """
@@ -360,7 +343,6 @@ class QuantConsensus:
                     with open(p) as f:
                         data = json.load(f)
 
-                    # GAP-182: Log metadata for auditability
                     version = data.get("version", "UNKNOWN")
                     trained_at = data.get("trained_at", "UNKNOWN")
                     logger.info(f"QuantConsensus: Sourcing weights from {p} (Version: {version}, Trained: {trained_at})")

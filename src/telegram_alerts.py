@@ -1,16 +1,14 @@
-import asyncio  # pyre-ignore[21]
+import asyncio
 import logging
 
-import aiohttp  # pyre-ignore[21]
+import aiohttp
 
-from vault import Vault  # pyre-ignore[21]
+from vault import Vault
 
 logger = logging.getLogger("telegram")
 
-# GAP-79: Signal Idempotency Gate
 _alert_cache: dict[str, float] = {} # {msg_hash: last_sent_timestamp}
 _alert_lock = asyncio.Lock()
-# GAP-174: Global Rate Limit (max 20 msgs / min)
 _last_sent_times: list[float] = []
 _rate_limit_max = 20
 _rate_limit_window = 60.0
@@ -19,11 +17,9 @@ _shared_session: aiohttp.ClientSession | None = None
 
 async def send_telegram_alert(message: str) -> None:
     """
-    Sends a Telegram alert with Elite Signal Sterilization (Samvid v1.0-beta).
+    Sends a Telegram alert with Elite Signal Sterilization.
     Blocks routine pattern noise and 'Phantom' calls.
     """
-    # ── ELITE SIGNAL GATE (Sovereign Sterilization v1.0-beta) ──
-    # GAP-50 FIX: Allow critical system state transitions and errors
     allowed_prefixes = [
         "[EXECUTION]", "🚨", "⚠️", "🚀", "🛑", "🔴", "🟢", "🟢", "⚪", "📢", "☣️",
         "SYSTEM CRITICAL", "TRADE FULLY CLOSED", "REJECTED", "🏛️",
@@ -38,18 +34,16 @@ async def send_telegram_alert(message: str) -> None:
         logger.debug(f"Sterilization: Suppressing non-essential signal: {message[:50]}...")
         return
 
-    # GAP-79: Deduplication (30s window)
     import hashlib
     msg_hash = hashlib.md5(message.encode()).hexdigest()  # nosec B324
     async with _alert_lock:
         now = asyncio.get_event_loop().time()
 
-        # --- GAP-174: Global Rate Limiting (Samvid v1.0-beta) ---
         global _last_sent_times
         # Prune times outside the window
         _last_sent_times = [t for t in _last_sent_times if now - t < _rate_limit_window]
         if len(_last_sent_times) >= _rate_limit_max:
-             logger.warning(f"GAP-174: Telegram Global Rate Limit Hit ({_rate_limit_max} msgs/min). Suppressing alert.")
+             logger.warning(f"Telegram Global Rate Limit Hit ({_rate_limit_max} msgs/min). Suppressing alert.")
              return
 
         last_sent = _alert_cache.get(msg_hash, 0)
@@ -69,7 +63,6 @@ async def send_telegram_alert(message: str) -> None:
     if not token or not chat_id:
         return
 
-    # GAP-190 FIX: Randomized User-Agent
     import random
     agents = [
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
@@ -78,7 +71,6 @@ async def send_telegram_alert(message: str) -> None:
     ]
     headers = {"User-Agent": random.choice(agents)}
 
-    # GAP-145/150: Mandatory Secret Redaction (Sovereign Shield)
     redacted_message = message
     secrets = Vault.get_all_redactable_values()
     for s in secrets:
@@ -89,11 +81,8 @@ async def send_telegram_alert(message: str) -> None:
     url = f"{base_url}/bot{token.strip()}/sendMessage"
     payload = {"chat_id": str(chat_id).strip(), "text": redacted_message, "parse_mode": "HTML"}
 
-    # GAP-215 FIX: Proxy Support
     proxy = Vault.get("TELEGRAM_PROXY")
 
-    # GAP-51 FIX: Exponential Retry for critical delivery
-    # Samvid v1.0-beta: Use ONE session for all retries to prevent TCP/memory leak
     max_retries = 3
     base_delay = 2
 

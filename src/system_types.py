@@ -27,7 +27,7 @@ class TradePhase(Enum):
 @dataclass
 class Position:
     """
-    Sovereign Position-State Entity (Samvid v1.0-beta Hardening).
+    Sovereign Position-State Entity.
     Decoupled from Brain/Coordinator to prevent circular imports.
     """
 
@@ -52,7 +52,6 @@ class Position:
     sl_pct: float = 0.01
     tp_pct: float = 0.02
 
-    # --- TRUE COST TRACKING (Samvid v1.0-beta) ---
     shares_remaining: float = 0.0
     commission_cost: float = 0.0
     slippage_cost: float = 0.0
@@ -61,20 +60,17 @@ class Position:
     mfe: float = 0.0
     mae: float = 0.0
     runner_active: bool = False
-    # --- REAL-TIME STATE (Samvid v1.0-beta) ---
     unrealized_pnl: float = 0.0
     current_price: float = 0.0
 
-    db_id: int = 0 # Persistent DB RowID for precision tracking (Samvid v1.0-beta)
+    db_id: int = 0 # Persistent DB RowID for precision tracking
 
     status: str = "OPEN"
     task_id: str = "N/A"
     meta: dict[str, Any] = field(default_factory=dict)
 
     def __post_init__(self):
-        # GAP-211 FIX: Handle legacy rows where shares_remaining is missing or 0
         # If the position is live (qty != 0) but tracking is 0, sync them.
-        # GAP-199: Support negative qty for SHORT positions.
         if self.shares_remaining == 0.0 and self.qty != 0.0:
             self.shares_remaining = abs(self.qty)
 
