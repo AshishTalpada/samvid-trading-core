@@ -101,7 +101,9 @@ class SovereignDecisionEngine:
 
             # Processing Vote
             if vote == "YES":
-                yes_votes += 1.5 if agent == "Agent_D" else 1
+                # Agent_D is the Historical Learning engine — it knows your REAL edge.
+                # Weight it 2x: it is the only agent whose vote is grounded in live P&L data.
+                yes_votes += 2.0 if agent == "Agent_D" else 1
             elif vote == "NO":
                 no_votes += 1
             else:
@@ -110,10 +112,12 @@ class SovereignDecisionEngine:
 
             total_confidence += out["confidence"]
 
-        # Normalize confidence by the TOTAL number of required agents (11).
-        # This prevents a single agent with 99% confidence from overriding a cluster-wide silence.
+        # Normalize confidence by ACTIVE voters only.
+        # Dividing by the total required_agents count (11) unfairly penalizes cycles
+        # where agents timed out or abstained — their 0.0 fallback confidence
+        # would artificially drag down the average and kill valid trades.
         active_voters = len(agent_outputs) - abstain_votes
-        avg_confidence = total_confidence / len(self.required_agents) if len(self.required_agents) > 0 else 0.0
+        avg_confidence = total_confidence / active_voters if active_voters > 0 else 0.0
 
         # --- PHASE 4: QUORUM LOGIC IMPLEMENTATION (Triangulation Protocol) ---
 
