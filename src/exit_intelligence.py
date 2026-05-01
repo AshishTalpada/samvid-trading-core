@@ -35,7 +35,9 @@ class ExitIntelligence:
         self.vix_spike_threshold = self.config.get("vix_spike_threshold", 0.15)
         self.safety_factor = 2.0  # Require expected profit to be 2x slippage+comm
 
-    def evaluate(self, position: dict, market: dict, account: dict, dhatu_state: str = "Sthiti") -> ExitDecision:
+    def evaluate(
+        self, position: dict, market: dict, account: dict, dhatu_state: str = "Sthiti"
+    ) -> ExitDecision:
         """
         Evaluate exit conditions in strict priority order (PROFITABILITY CORRECTED):
         P1: Hard stop hit -> EXIT (immediate)
@@ -54,11 +56,13 @@ class ExitIntelligence:
         qty = position.get("quantity", 0.0)
 
         if qty == 0:
-            return ExitDecision(action=ExitAction.HOLD, priority=0, reason="Zero quantity position detected")
+            return ExitDecision(
+                action=ExitAction.HOLD, priority=0, reason="Zero quantity position detected"
+            )
 
         partial_r_target = 1.5
         trail_activation_r = 1.0
-        trail_tightness = 0.5 # R-distance
+        trail_tightness = 0.5  # R-distance
 
         if dhatu_state == "Chala":
             # Volatile: Take partials early, trail tight
@@ -67,9 +71,9 @@ class ExitIntelligence:
             trail_tightness = 0.3
             logger.debug("ExitIntelligence [REWIRE]: Chala regime detected -> Tightening targets.")
         elif dhatu_state == "Vriddhi":
-             # Super-Trend: Let it run
-             partial_r_target = 2.0
-             trail_tightness = 0.7
+            # Super-Trend: Let it run
+            partial_r_target = 2.0
+            trail_tightness = 0.7
 
         commission_est = position.get("commission", 2.0)
         slippage_est = position.get("slippage", current_price * 0.0005 * qty)
@@ -81,7 +85,8 @@ class ExitIntelligence:
             initial_risk = current_price * 0.01
 
         r_multiple = (
-            ((current_price - entry_price) / initial_risk) if side == "long"
+            ((current_price - entry_price) / initial_risk)
+            if side == "long"
             else ((entry_price - current_price) / initial_risk)
         )
 
@@ -91,7 +96,7 @@ class ExitIntelligence:
         # Priority 1: Hard Stop Loss
         decision = self._check_stop_loss(position, current_price, side)
         if decision:
-             return decision
+            return decision
 
         # Priority 2: Targets and Partial Exits (Proactive Profit Locking)
         mfe_r = position.get("mfe_r", 0.0)
@@ -100,28 +105,32 @@ class ExitIntelligence:
 
         # --- SUB-PRIORITY 2.1: Hard Take Profit ---
         if side == "long" and take_profit > 0 and current_price >= take_profit:
-            return ExitDecision(action=ExitAction.EXIT, priority=2, reason=f"Target Hit: ${take_profit}")
+            return ExitDecision(
+                action=ExitAction.EXIT, priority=2, reason=f"Target Hit: ${take_profit}"
+            )
         if side == "short" and take_profit > 0 and current_price <= take_profit:
-            return ExitDecision(action=ExitAction.EXIT, priority=2, reason=f"Target Hit: ${take_profit}")
+            return ExitDecision(
+                action=ExitAction.EXIT, priority=2, reason=f"Target Hit: ${take_profit}"
+            )
 
         # --- SUB-PRIORITY 2.2: Partial Scale-Out (Adaptive Runner Setup) ---
         if mfe_r >= partial_r_target and r_multiple >= partial_r_target:
             if is_profitable_enough:
                 if not runner_active:
-                     return ExitDecision(
-                         action=ExitAction.PARTIAL,
-                         priority=2,
-                         reason=f"Adaptive Partial at +{r_multiple:.1f}R in {dhatu_state} regime",
-                         pct_out=0.5,
-                         metadata={"runner_setup": True}
-                     )
+                    return ExitDecision(
+                        action=ExitAction.PARTIAL,
+                        priority=2,
+                        reason=f"Adaptive Partial at +{r_multiple:.1f}R in {dhatu_state} regime",
+                        pct_out=0.5,
+                        metadata={"runner_setup": True},
+                    )
             else:
-                 return ExitDecision(
-                     action=ExitAction.HOLD,
-                     priority=2,
-                     reason=f"SKIPPED_EXIT: Partial target reached (+{r_multiple:.1f}R) but expected profit (${expected_profit:.2f}) < cost threshold (${(total_costs * self.safety_factor):.2f})",
-                     metadata={"skipped_exit": True}
-                 )
+                return ExitDecision(
+                    action=ExitAction.HOLD,
+                    priority=2,
+                    reason=f"SKIPPED_EXIT: Partial target reached (+{r_multiple:.1f}R) but expected profit (${expected_profit:.2f}) < cost threshold (${(total_costs * self.safety_factor):.2f})",
+                    metadata={"skipped_exit": True},
+                )
 
         # Priority 3: Trailing Stop Logic (Reactive Profit Protection)
         if mfe_r > trail_activation_r:
@@ -131,15 +140,29 @@ class ExitIntelligence:
 
             # If current price touches broken trailing stop
             if side == "long" and current_price <= current_stop and current_stop > entry_price:
-                 return ExitDecision(action=ExitAction.EXIT, priority=3, reason="Trailing stop hit", pct_out=1.0)
+                return ExitDecision(
+                    action=ExitAction.EXIT, priority=3, reason="Trailing stop hit", pct_out=1.0
+                )
             elif side == "short" and current_price >= current_stop and current_stop < entry_price:
-                 return ExitDecision(action=ExitAction.EXIT, priority=3, reason="Trailing stop hit", pct_out=1.0)
+                return ExitDecision(
+                    action=ExitAction.EXIT, priority=3, reason="Trailing stop hit", pct_out=1.0
+                )
 
             # Tighten trail
             if side == "long" and new_trail > current_stop:
-                return ExitDecision(action=ExitAction.TIGHTEN, priority=3, reason="Trailing active after +1R", new_stop=new_trail)
+                return ExitDecision(
+                    action=ExitAction.TIGHTEN,
+                    priority=3,
+                    reason="Trailing active after +1R",
+                    new_stop=new_trail,
+                )
             if side == "short" and new_trail < current_stop:
-                return ExitDecision(action=ExitAction.TIGHTEN, priority=3, reason="Trailing active after +1R", new_stop=new_trail)
+                return ExitDecision(
+                    action=ExitAction.TIGHTEN,
+                    priority=3,
+                    reason="Trailing active after +1R",
+                    new_stop=new_trail,
+                )
 
         # Priority 4: Cost-Aware Profit Protection / Emergency
         decision = self._check_daily_loss(account)
@@ -165,7 +188,9 @@ class ExitIntelligence:
             confidence=1.0,
         )
 
-    def _check_stop_loss(self, position: dict, current_price: float, side: str) -> ExitDecision | None:
+    def _check_stop_loss(
+        self, position: dict, current_price: float, side: str
+    ) -> ExitDecision | None:
         stop_loss = position.get("stop_loss")
         if stop_loss is None:
             return None
@@ -182,7 +207,9 @@ class ExitIntelligence:
             return None
         daily_loss_pct = abs(daily_pnl) / account_value if daily_pnl < 0 else 0
         if daily_loss_pct >= self.daily_loss_limit:
-            return ExitDecision(action=ExitAction.EXIT, priority=4, reason="Daily loss budget exceeded")
+            return ExitDecision(
+                action=ExitAction.EXIT, priority=4, reason="Daily loss budget exceeded"
+            )
         return None
 
     def _check_belief_collapse(self, position: dict, market: dict) -> ExitDecision | None:
@@ -190,7 +217,12 @@ class ExitIntelligence:
         if belief is None:
             belief = market.get("belief")
         if belief is not None and belief < self.belief_threshold:
-            return ExitDecision(action=ExitAction.EXIT, priority=5, reason="Bayesian belief collapsed", confidence=belief)
+            return ExitDecision(
+                action=ExitAction.EXIT,
+                priority=5,
+                reason="Bayesian belief collapsed",
+                confidence=belief,
+            )
         return None
 
     def _check_vix_spike(self, position: dict, market: dict) -> ExitDecision | None:
@@ -204,6 +236,15 @@ class ExitIntelligence:
             initial_stop = position.get("initial_stop") or position.get("stop_loss")
             if initial_stop:
                 distance = abs(current_price - initial_stop) * 0.5
-                new_stop = current_price - distance if position.get("side", "long") == "long" else current_price + distance
-                return ExitDecision(action=ExitAction.TIGHTEN, priority=5, reason="Volatility tightening", new_stop=new_stop)
+                new_stop = (
+                    current_price - distance
+                    if position.get("side", "long") == "long"
+                    else current_price + distance
+                )
+                return ExitDecision(
+                    action=ExitAction.TIGHTEN,
+                    priority=5,
+                    reason="Volatility tightening",
+                    new_stop=new_stop,
+                )
         return None

@@ -20,7 +20,7 @@ class DialogueMessage:
 
     sender: str
     content: str
-    timestamp: datetime = field(default_factory=lambda: __import__('time_sync').TimeSync.now())
+    timestamp: datetime = field(default_factory=lambda: __import__("time_sync").TimeSync.now())
     metadata: dict[str, Any] = field(default_factory=dict)
 
     def to_json(self) -> str:
@@ -101,9 +101,15 @@ class MindBridge:
         if tool_name in MindMacros.SENSITIVE_TOOLS:
             justification = kwargs.get("justification")
             if not justification or len(str(justification)) < 10:
-                logger.warning(f"MindBridge: SENSITIVE tool '{tool_name}' blocked - Missing/Weak Justification.")
-                return {"error": "DoubleHandshake Failed: Sensitive tools require a detailed justification string."}
-            logger.info(f"MindBridge: [SECURITY_AUDIT] Sensitive tool '{tool_name}' HANDSHAKE ACCEPTED. Reason: {justification}")
+                logger.warning(
+                    f"MindBridge: SENSITIVE tool '{tool_name}' blocked - Missing/Weak Justification."
+                )
+                return {
+                    "error": "DoubleHandshake Failed: Sensitive tools require a detailed justification string."
+                }
+            logger.info(
+                f"MindBridge: [SECURITY_AUDIT] Sensitive tool '{tool_name}' HANDSHAKE ACCEPTED. Reason: {justification}"
+            )
 
         if tool_name not in self.tools:
             logger.error(f"MindBridge: Tool '{tool_name}' not found.")
@@ -135,7 +141,7 @@ class MindBridge:
             return {
                 "error": str(e),
                 "traceback": tb,
-                "locals": {k: str(v) for k, v in kwargs.items()} # Capture call context
+                "locals": {k: str(v) for k, v in kwargs.items()},  # Capture call context
             }
 
     async def get_next_message(self, target: str) -> DialogueMessage:

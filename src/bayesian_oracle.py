@@ -2,6 +2,7 @@
 Upgrades DhatuOracle with proper Bayesian regime inference.
 P(regime|evidence) updated on every new data point.
 """
+
 from __future__ import annotations
 
 import logging
@@ -23,8 +24,8 @@ class BayesianState:
 
 
 REGIME_DHATU_MAP = {
-    "BULL":     "Vriddhi (Growth)",
-    "BEAR":     "Kshaya (Decay)",
+    "BULL": "Vriddhi (Growth)",
+    "BEAR": "Kshaya (Decay)",
     "SIDEWAYS": "Sthira (Stable)",
     "HIGH_VOL": "Chala (Volatile)",
 }
@@ -34,14 +35,14 @@ REGIME_DHATU_MAP = {
 # Each row: [BULL, BEAR, SIDEWAYS, HIGH_VOL]
 LIKELIHOODS = {
     # (feature, bucket): [P(feat=bucket|BULL), P(feat=bucket|BEAR), P(feat=bucket|SIDEWAYS), P(feat=bucket|HIGH_VOL)]
-    "momentum_positive":    [0.70, 0.20, 0.45, 0.40],
-    "momentum_negative":    [0.30, 0.80, 0.55, 0.60],
-    "vix_low":              [0.65, 0.15, 0.55, 0.05],
-    "vix_high":             [0.15, 0.70, 0.20, 0.90],
-    "volume_expanding":     [0.60, 0.55, 0.30, 0.65],
-    "volume_contracting":   [0.40, 0.45, 0.70, 0.35],
-    "breadth_positive":     [0.72, 0.18, 0.48, 0.35],
-    "breadth_negative":     [0.28, 0.82, 0.52, 0.65],
+    "momentum_positive": [0.70, 0.20, 0.45, 0.40],
+    "momentum_negative": [0.30, 0.80, 0.55, 0.60],
+    "vix_low": [0.65, 0.15, 0.55, 0.05],
+    "vix_high": [0.15, 0.70, 0.20, 0.90],
+    "volume_expanding": [0.60, 0.55, 0.30, 0.65],
+    "volume_contracting": [0.40, 0.45, 0.70, 0.35],
+    "breadth_positive": [0.72, 0.18, 0.48, 0.35],
+    "breadth_negative": [0.28, 0.82, 0.52, 0.65],
 }
 
 REGIMES = ["BULL", "BEAR", "SIDEWAYS", "HIGH_VOL"]
@@ -62,8 +63,7 @@ class BayesianOracle:
         self._history: list[BayesianState] = []
         self._update_count: int = 0
 
-    def update(self, prices: np.ndarray, volumes: np.ndarray,
-               vix: float = 15.0) -> BayesianState:
+    def update(self, prices: np.ndarray, volumes: np.ndarray, vix: float = 15.0) -> BayesianState:
         """
         Bayesian update: P(regime|evidence) ∝ P(evidence|regime) * P(regime)
         """
@@ -75,17 +75,17 @@ class BayesianOracle:
 
         # MAP estimate
         best_regime = max(posteriors, key=posteriors.__getitem__)
-        confidence  = posteriors[best_regime]
+        confidence = posteriors[best_regime]
 
         # Decay priors toward uniform slightly to avoid over-certainty
         self._priors = {r: 0.95 * posteriors[r] + 0.05 * 0.25 for r in REGIMES}
 
         state = BayesianState(
-            regime     = best_regime,
-            confidence = round(confidence, 4),
-            posteriors = {r: round(v, 4) for r, v in posteriors.items()},
-            dhatu      = REGIME_DHATU_MAP.get(best_regime, "Sthiti (Persistence)"),
-            summary    = self._build_summary(best_regime, confidence, evidence),
+            regime=best_regime,
+            confidence=round(confidence, 4),
+            posteriors={r: round(v, 4) for r, v in posteriors.items()},
+            dhatu=REGIME_DHATU_MAP.get(best_regime, "Sthiti (Persistence)"),
+            summary=self._build_summary(best_regime, confidence, evidence),
         )
         self._history.append(state)
         if len(self._history) > 500:
@@ -93,8 +93,7 @@ class BayesianOracle:
         self._update_count += 1
         return state
 
-    def _extract_evidence(self, prices: np.ndarray, volumes: np.ndarray,
-                           vix: float) -> list[str]:
+    def _extract_evidence(self, prices: np.ndarray, volumes: np.ndarray, vix: float) -> list[str]:
         """Convert raw market data into discrete evidence buckets."""
         evidence = []
         if len(prices) >= 21:
@@ -137,8 +136,10 @@ class BayesianOracle:
 
     def _build_summary(self, regime: str, conf: float, evidence: list[str]) -> str:
         ev_str = ", ".join(evidence[:3])
-        return (f"Bayesian Oracle: {regime} @ {conf:.1%} | "
-                f"Evidence: {ev_str} | Updates: {self._update_count}")
+        return (
+            f"Bayesian Oracle: {regime} @ {conf:.1%} | "
+            f"Evidence: {ev_str} | Updates: {self._update_count}"
+        )
 
     def _get_initial_state(self) -> BayesianState:
         """Returns a neutral initial state for cold-starts."""
@@ -147,7 +148,7 @@ class BayesianOracle:
             confidence=0.25,
             posteriors=dict(self._priors),
             dhatu="Sthiti (Persistence)",
-            summary="Bayesian Oracle: Cold Start | Awaiting Market Scents..."
+            summary="Bayesian Oracle: Cold Start | Awaiting Market Scents...",
         )
 
     @property
@@ -158,13 +159,17 @@ class BayesianOracle:
         """Returns dict compatible with existing api_server state format."""
         s = self.current_state
         if s is None:
-            return {"dhatu": "Sthiti (Persistence)", "confidence": 0.0,
-                    "regime": "UNKNOWN", "summary": "No data yet"}
+            return {
+                "dhatu": "Sthiti (Persistence)",
+                "confidence": 0.0,
+                "regime": "UNKNOWN",
+                "summary": "No data yet",
+            }
         return {
-            "dhatu":       s.dhatu,
-            "confidence":  s.confidence,
-            "regime":      s.regime,
-            "theme":       s.regime,
-            "summary":     s.summary,
-            "posteriors":  s.posteriors,
+            "dhatu": s.dhatu,
+            "confidence": s.confidence,
+            "regime": s.regime,
+            "theme": s.regime,
+            "summary": s.summary,
+            "posteriors": s.posteriors,
         }

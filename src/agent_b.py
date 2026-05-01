@@ -152,8 +152,9 @@ class DhatuClassifier:
         # ABHAVA detection: tracking what is ABSENT
         # Case A: Price moves significantly without an underlying catalyst (Gap Fade)
         # Case B: Strong catalyst exists but price fails to respond (Exhaustion/Absence of Reaction)
-        is_abhava = (not has_catalyst and abs(price_change) > 0.005) or \
-                    (has_catalyst and abs(price_change) < 0.0005 and volume_ratio > 1.2)
+        is_abhava = (not has_catalyst and abs(price_change) > 0.005) or (
+            has_catalyst and abs(price_change) < 0.0005 and volume_ratio > 1.2
+        )
 
         if is_abhava:
             state_name = "Abhava"
@@ -232,7 +233,7 @@ class DhatuClassifier:
         h_life = max(0.1, self.sutra_decay_halflife)
 
         if age_hours > 1.0:
-             h_life = min(h_life, 2.0) # Force 2h max halflife for old news
+            h_life = min(h_life, 2.0)  # Force 2h max halflife for old news
 
         decay_constant = math.log(2) / h_life
         freshness = math.exp(-decay_constant * age_hours)
@@ -315,7 +316,9 @@ class BayesianBeliefTracker:
         """Get current belief probability."""
         return self._belief
 
-    def update(self, evidence_type: str, value: float | None = None, dhatu_state: str = "Sthira") -> str:
+    def update(
+        self, evidence_type: str, value: float | None = None, dhatu_state: str = "Sthira"
+    ) -> str:
         """
         Update belief based on new evidence using Adaptive Bayesian Likelihoods.
         Likelihoods are scaled based on the current Dhatu state to prevent 'Drift'.
@@ -324,15 +327,19 @@ class BayesianBeliefTracker:
         if value is not None:
             likelihood = value
         elif hasattr(self, "BASE_LIKELIHOODS") and evidence_type in self.BASE_LIKELIHOODS:
-             likelihood = self.BASE_LIKELIHOODS[evidence_type]
+            likelihood = self.BASE_LIKELIHOODS[evidence_type]
         elif hasattr(self, "LIKELIHOODS") and evidence_type in self.LIKELIHOODS:
-             likelihood = self.LIKELIHOODS[evidence_type]
+            likelihood = self.LIKELIHOODS[evidence_type]
         else:
             # Fallback to local dict if class attr not yet updated in this run
             temp_lik = {
-                "price_toward_small": 0.58, "price_toward_medium": 0.72, "price_toward_large": 0.85,
-                "price_against_small": 0.45, "price_against_medium": 0.30, "volume_confirming": 0.68,
-                "vix_declining": 0.62
+                "price_toward_small": 0.58,
+                "price_toward_medium": 0.72,
+                "price_toward_large": 0.85,
+                "price_against_small": 0.45,
+                "price_against_medium": 0.30,
+                "volume_confirming": 0.68,
+                "vix_declining": 0.62,
             }
             likelihood = temp_lik.get(evidence_type, 0.5)
 
@@ -425,16 +432,20 @@ class BayesianBeliefTracker:
                 # 2. Dhatu Classification
                 # Note: We use local instances to keep evaluate_proposal pure and stateless
                 classifier = DhatuClassifier()
-                state = classifier.classify({
-                    "price_change": price_change,
-                    "volatility": volatility,
-                    "volume_ratio": vol_ratio,
-                    "has_catalyst": True # Default assumption for proposal vetting
-                })
+                state = classifier.classify(
+                    {
+                        "price_change": price_change,
+                        "volatility": volatility,
+                        "volume_ratio": vol_ratio,
+                        "has_catalyst": True,  # Default assumption for proposal vetting
+                    }
+                )
 
                 # 3. Evidence Updates
                 is_long = context.get("is_long", True)
-                direction_match = (is_long and price_change > 0) or (not is_long and price_change < 0)
+                direction_match = (is_long and price_change > 0) or (
+                    not is_long and price_change < 0
+                )
 
                 if direction_match:
                     temp_tracker.update("price_toward_small", dhatu_state=state.name)
@@ -447,14 +458,16 @@ class BayesianBeliefTracker:
                 # 4. ABHAVA Integration
                 # Convert last 5 bars to history list for detector
                 history = []
-                for i in range(max(0, len(ohlcv)-5), len(ohlcv)):
+                for i in range(max(0, len(ohlcv) - 5), len(ohlcv)):
                     p_curr = float(ohlcv["close"][i])
-                    p_prev = float(ohlcv["close"][i-1]) if i > 0 else p_curr
-                    history.append({
-                        "price_change": (p_curr - p_prev) / (p_prev + 1e-10),
-                        "volume_ratio": float(ohlcv["volume"][i]) / (avg_vol + 1e-10),
-                        "has_catalyst": True
-                    })
+                    p_prev = float(ohlcv["close"][i - 1]) if i > 0 else p_curr
+                    history.append(
+                        {
+                            "price_change": (p_curr - p_prev) / (p_prev + 1e-10),
+                            "volume_ratio": float(ohlcv["volume"][i]) / (avg_vol + 1e-10),
+                            "has_catalyst": True,
+                        }
+                    )
 
                 abhava_det = ABHAVADetector()
                 is_abhava = abhava_det.detect(history)
@@ -470,7 +483,7 @@ class BayesianBeliefTracker:
                     "vote": vote,
                     "confidence": belief,
                     "reason": f"Dhatu: {state.name} | Belief: {belief:.2f} | ABHAVA: {is_abhava}",
-                    "timestamp": datetime.now(timezone.utc).isoformat()
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
                 }
             except Exception as e:
                 # Fallback on calculation error
@@ -481,7 +494,7 @@ class BayesianBeliefTracker:
                     "vote": vote,
                     "confidence": belief,
                     "reason": f"Agent B Fallback (Error: {str(e)[:30]})",
-                    "timestamp": datetime.now(timezone.utc).isoformat()
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
                 }
 
         # Original fallback logic
@@ -493,7 +506,7 @@ class BayesianBeliefTracker:
             "vote": vote,
             "confidence": belief,
             "reason": f"Bayesian Belief (Default): {belief:.2f}",
-            "timestamp": context.get("timestamp", datetime.now(timezone.utc).isoformat())
+            "timestamp": context.get("timestamp", datetime.now(timezone.utc).isoformat()),
         }
 
 
@@ -662,7 +675,7 @@ class InformationDecayModel:
 
         # Calculate decay constant
         if age_hours > 1.0:
-             effective_halflife = min(effective_halflife, 2.0) # Force 2h max halflife for old news
+            effective_halflife = min(effective_halflife, 2.0)  # Force 2h max halflife for old news
 
         decay_constant = math.log(2) / effective_halflife
 
@@ -820,10 +833,10 @@ class CatalystScorer:
             "vote": "YES" if passes_budget else "NO",
             "confidence": min(0.99, score / 100.0) if score > 0 else 0.0,
             "signal_strength": min(2.0, score / budget_min) if budget_min > 0 else 1.0,
-            "risk_flag": score < (budget_min * 1.05), # Tight margin flag
+            "risk_flag": score < (budget_min * 1.05),  # Tight margin flag
             "reason": f"Catalyst Score {score:.2f} (Min: {budget_min}) | Dhatu: {dhatu_state.name if dhatu_state else 'None'}",
             "catalyst_score": score,
-            "dhatu_state": dhatu_state.name if dhatu_state else "None"
+            "dhatu_state": dhatu_state.name if dhatu_state else "None",
         }
 
     def score_with_details(

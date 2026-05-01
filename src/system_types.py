@@ -63,7 +63,7 @@ class Position:
     unrealized_pnl: float = 0.0
     current_price: float = 0.0
 
-    db_id: int = 0 # Persistent DB RowID for precision tracking
+    db_id: int = 0  # Persistent DB RowID for precision tracking
 
     status: str = "OPEN"
     task_id: str = "N/A"
@@ -73,4 +73,3 @@ class Position:
         # If the position is live (qty != 0) but tracking is 0, sync them.
         if self.shares_remaining == 0.0 and self.qty != 0.0:
             self.shares_remaining = abs(self.qty)
-

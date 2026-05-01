@@ -6,6 +6,7 @@ Falls back to pure NumPy if Numba is not installed (CI-safe).
 Import pattern:
     from quant_math import ema_array, rsi_array, atr_array, kalman_update
 """
+
 from __future__ import annotations
 
 import logging
@@ -17,25 +18,33 @@ logger = logging.getLogger(__name__)
 # ── Numba JIT bootstrap ────────────────────────────────────────────────────────
 try:
     from numba import njit  # type: ignore
+
     _NUMBA_AVAILABLE = True
     logger.info("quant_math: Numba JIT enabled — math running at native speed.")
 except ImportError as e:
-    logger.warning(f"quant_math: Numba not installed or import failed: {e}. Running pure NumPy (slower). pip install numba")
+    logger.warning(
+        f"quant_math: Numba not installed or import failed: {e}. Running pure NumPy (slower). pip install numba"
+    )
     _NUMBA_AVAILABLE = False
 except Exception as e:
-    logger.warning(f"quant_math: Unexpected error importing numba: {e}. Running pure NumPy (slower).")
+    logger.warning(
+        f"quant_math: Unexpected error importing numba: {e}. Running pure NumPy (slower)."
+    )
     _NUMBA_AVAILABLE = False
 
     def njit(*args, **kwargs):  # type: ignore  # noqa: E302
         """No-op decorator when Numba is unavailable."""
+
         def decorator(fn):
             return fn
+
         if args and callable(args[0]):
             return args[0]
         return decorator
 
 
 # ── EMA ────────────────────────────────────────────────────────────────────────
+
 
 @njit(cache=True)
 def ema_array(prices: np.ndarray, period: int) -> np.ndarray:
@@ -62,6 +71,7 @@ def ema_scalar(prev_ema: float, price: float, alpha: float) -> float:
 
 
 # ── RSI ────────────────────────────────────────────────────────────────────────
+
 
 @njit(cache=True)
 def rsi_array(prices: np.ndarray, period: int = 14) -> np.ndarray:
@@ -98,9 +108,11 @@ def rsi_array(prices: np.ndarray, period: int = 14) -> np.ndarray:
 
 # ── ATR ────────────────────────────────────────────────────────────────────────
 
+
 @njit(cache=True)
-def atr_array(highs: np.ndarray, lows: np.ndarray, closes: np.ndarray,
-              period: int = 14) -> np.ndarray:
+def atr_array(
+    highs: np.ndarray, lows: np.ndarray, closes: np.ndarray, period: int = 14
+) -> np.ndarray:
     """
     Wilder's Average True Range over full OHLC arrays.
     Returns ATR array; first `period` values are NaN.
@@ -118,7 +130,7 @@ def atr_array(highs: np.ndarray, lows: np.ndarray, closes: np.ndarray,
         lc = abs(lows[i] - closes[i - 1])
         tr[i] = max(hl, hc, lc)
 
-    atr = np.mean(tr[1:period + 1])
+    atr = np.mean(tr[1 : period + 1])
     out[period] = atr
     alpha = 1.0 / period
     for i in range(period + 1, n):
@@ -130,9 +142,11 @@ def atr_array(highs: np.ndarray, lows: np.ndarray, closes: np.ndarray,
 
 # ── Bollinger Bands ────────────────────────────────────────────────────────────
 
+
 @njit(cache=True)
-def bollinger_bands(prices: np.ndarray, period: int = 20,
-                    k: float = 2.0) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+def bollinger_bands(
+    prices: np.ndarray, period: int = 20, k: float = 2.0
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Returns (upper, middle, lower) Bollinger Band arrays."""
     n = len(prices)
     upper = np.full(n, np.nan)
@@ -140,7 +154,7 @@ def bollinger_bands(prices: np.ndarray, period: int = 20,
     lower = np.full(n, np.nan)
 
     for i in range(period - 1, n):
-        window = prices[i - period + 1:i + 1]
+        window = prices[i - period + 1 : i + 1]
         mu = np.mean(window)
         sigma = np.std(window)
         middle[i] = mu
@@ -152,9 +166,11 @@ def bollinger_bands(prices: np.ndarray, period: int = 20,
 
 # ── MACD ───────────────────────────────────────────────────────────────────────
 
+
 @njit(cache=True)
-def macd_array(prices: np.ndarray, fast: int = 12, slow: int = 26,
-               signal: int = 9) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+def macd_array(
+    prices: np.ndarray, fast: int = 12, slow: int = 26, signal: int = 9
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """
     Returns (macd_line, signal_line, histogram) arrays.
     All NaN until slow + signal bars have elapsed.
@@ -169,9 +185,11 @@ def macd_array(prices: np.ndarray, fast: int = 12, slow: int = 26,
 
 # ── Kalman Filter ──────────────────────────────────────────────────────────────
 
+
 @njit(cache=True)
-def kalman_update(x: float, p: float, price: float,
-                  q: float = 1e-4, r: float = 1e-2) -> tuple[float, float]:
+def kalman_update(
+    x: float, p: float, price: float, q: float = 1e-4, r: float = 1e-2
+) -> tuple[float, float]:
     """
     One-step scalar Kalman filter update.
     Returns (new_x, new_P): updated state estimate and error covariance.
@@ -184,6 +202,7 @@ def kalman_update(x: float, p: float, price: float,
 
 
 # ── MultiFactorAlpha core ──────────────────────────────────────────────────────
+
 
 @njit(cache=True)
 def multi_factor_score(
@@ -236,20 +255,23 @@ def multi_factor_score(
         vol_surge = 0.0
 
     # Normalise
-    f_mom_mid   = max(-1.0, min(1.0, mom_mid   * 80.0))
+    f_mom_mid = max(-1.0, min(1.0, mom_mid * 80.0))
     f_mom_short = max(-1.0, min(1.0, mom_short * 150.0))
-    f_mean_rev  = max(-1.0, min(1.0, mean_rev  * 0.5))
+    f_mean_rev = max(-1.0, min(1.0, mean_rev * 0.5))
 
-    score = (w_mom_mid   * f_mom_mid
-           + w_mom_short * f_mom_short
-           + w_mean_rev  * f_mean_rev
-           + w_vol_regime * vol_regime
-           + w_vol_surge  * vol_surge)
+    score = (
+        w_mom_mid * f_mom_mid
+        + w_mom_short * f_mom_short
+        + w_mean_rev * f_mean_rev
+        + w_vol_regime * vol_regime
+        + w_vol_surge * vol_surge
+    )
 
     return max(-1.0, min(1.0, float(score)))
 
 
 # ── Warm-up trigger (Numba compiles on first call) ────────────────────────────
+
 
 def warmup() -> None:
     """

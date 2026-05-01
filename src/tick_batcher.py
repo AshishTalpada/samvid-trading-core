@@ -16,6 +16,7 @@ Usage:
     # Start the flush loop as a background task:
     asyncio.create_task(TICK_BATCHER.run(bus))
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -34,6 +35,7 @@ logger = logging.getLogger("TickBatcher")
 @dataclass
 class TickBatch:
     """Aggregated tick data for a single symbol over a flush interval."""
+
     symbol: str
     count: int = 0
     last_price: float = 0.0
@@ -42,7 +44,7 @@ class TickBatch:
     high: float = 0.0
     low: float = float("inf")
     total_volume: float = 0.0
-    vwap_num: float = 0.0          # price * volume sum for VWAP
+    vwap_num: float = 0.0  # price * volume sum for VWAP
     ts_first: float = field(default_factory=time.monotonic)
     ts_last: float = field(default_factory=time.monotonic)
 
@@ -69,17 +71,17 @@ class TickBatch:
 
     def to_dict(self) -> dict:
         return {
-            "symbol":       self.symbol,
-            "count":        self.count,
-            "price":        self.last_price,
-            "bid":          self.bid,
-            "ask":          self.ask,
-            "high":         self.high,
-            "low":          self.low if self.low < float("inf") else self.last_price,
-            "volume":       self.total_volume,
-            "vwap":         round(self.vwap, 4),
-            "spread_bps":   round(self.spread_bps, 2),
-            "ts":           self.ts_last,
+            "symbol": self.symbol,
+            "count": self.count,
+            "price": self.last_price,
+            "bid": self.bid,
+            "ask": self.ask,
+            "high": self.high,
+            "low": self.low if self.low < float("inf") else self.last_price,
+            "volume": self.total_volume,
+            "vwap": round(self.vwap, 4),
+            "spread_bps": round(self.spread_bps, 2),
+            "ts": self.ts_last,
         }
 
 
@@ -109,8 +111,9 @@ class TickBatcher:
         self._drop_count = 0
         self._running = False
 
-    def push(self, symbol: str, price: float,
-             bid: float = 0.0, ask: float = 0.0, size: float = 0.0) -> None:
+    def push(
+        self, symbol: str, price: float, bid: float = 0.0, ask: float = 0.0, size: float = 0.0
+    ) -> None:
         """
         Non-blocking tick ingestion. Called from ibkr_streamer.on_tick().
         Thread-safe via Python's GIL for dict mutation.
@@ -121,7 +124,9 @@ class TickBatcher:
 
         # Force-flush if a symbol is generating extreme tick volume
         if self._batches[symbol].count >= self._buffer_depth:
-            logger.debug(f"TickBatcher: Force-flush triggered for {symbol} (depth={self._buffer_depth})")
+            logger.debug(
+                f"TickBatcher: Force-flush triggered for {symbol} (depth={self._buffer_depth})"
+            )
 
     async def _flush(self, bus: "SharedIntelligenceBus | None") -> None:
         """Swap the batch dict atomically and publish each symbol's batch."""

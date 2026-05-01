@@ -7,7 +7,7 @@ from vault import Vault
 
 logger = logging.getLogger("telegram")
 
-_alert_cache: dict[str, float] = {} # {msg_hash: last_sent_timestamp}
+_alert_cache: dict[str, float] = {}  # {msg_hash: last_sent_timestamp}
 _alert_lock = asyncio.Lock()
 _last_sent_times: list[float] = []
 _rate_limit_max = 20
@@ -21,20 +21,39 @@ async def send_telegram_alert(message: str) -> None:
     Blocks routine pattern noise and 'Phantom' calls.
     """
     allowed_prefixes = [
-        "[EXECUTION]", "🚨", "⚠️", "🚀", "🛑", "🔴", "🟢", "🟢", "⚪", "📢", "☣️",
-        "SYSTEM CRITICAL", "TRADE FULLY CLOSED", "REJECTED", "🏛️",
-        "SOVEREIGN", "MAIN", "BRAIN", "STATUS"
+        "[EXECUTION]",
+        "🚨",
+        "⚠️",
+        "🚀",
+        "🛑",
+        "🔴",
+        "🟢",
+        "🟢",
+        "⚪",
+        "📢",
+        "☣️",
+        "SYSTEM CRITICAL",
+        "TRADE FULLY CLOSED",
+        "REJECTED",
+        "🏛️",
+        "SOVEREIGN",
+        "MAIN",
+        "BRAIN",
+        "STATUS",
     ]
 
     msg_upper = message.upper()
     is_elite = any(prefix.upper() in msg_upper for prefix in allowed_prefixes)
-    is_error = any(term in msg_upper for term in ["ERROR", "FAILED", "EXCEPTION", "CRITICAL", "FATAL"])
+    is_error = any(
+        term in msg_upper for term in ["ERROR", "FAILED", "EXCEPTION", "CRITICAL", "FATAL"]
+    )
 
     if not (is_elite or is_error):
         logger.debug(f"Sterilization: Suppressing non-essential signal: {message[:50]}...")
         return
 
     import hashlib
+
     msg_hash = hashlib.md5(message.encode()).hexdigest()  # nosec B324
     async with _alert_lock:
         now = asyncio.get_event_loop().time()
@@ -43,19 +62,24 @@ async def send_telegram_alert(message: str) -> None:
         # Prune times outside the window
         _last_sent_times = [t for t in _last_sent_times if now - t < _rate_limit_window]
         if len(_last_sent_times) >= _rate_limit_max:
-             logger.warning(f"Telegram Global Rate Limit Hit ({_rate_limit_max} msgs/min). Suppressing alert.")
-             return
+            logger.warning(
+                f"Telegram Global Rate Limit Hit ({_rate_limit_max} msgs/min). Suppressing alert."
+            )
+            return
 
         last_sent = _alert_cache.get(msg_hash, 0)
-        if now - last_sent < 30: # 30 seconds idempotency
-            logger.debug(f"Deduplication: Suppressing duplicate signal ({now - last_sent:.1f}s since last)")
+        if now - last_sent < 30:  # 30 seconds idempotency
+            logger.debug(
+                f"Deduplication: Suppressing duplicate signal ({now - last_sent:.1f}s since last)"
+            )
             return
         _alert_cache[msg_hash] = now
         _last_sent_times.append(now)
 
         # Cleanup old cache entries (older than 1 hour)
         to_del = [k for k, t in _alert_cache.items() if now - t > 3600]
-        for k in to_del: del _alert_cache[k]
+        for k in to_del:
+            del _alert_cache[k]
 
     token = Vault.get("TELEGRAM_BOT_TOKEN")
     chat_id = Vault.get("TELEGRAM_CHAT_ID")
@@ -64,10 +88,11 @@ async def send_telegram_alert(message: str) -> None:
         return
 
     import random
+
     agents = [
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
         "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36",
-        "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
+        "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
     ]
     headers = {"User-Agent": random.choice(agents)}
 
@@ -97,10 +122,10 @@ async def send_telegram_alert(message: str) -> None:
                 # Pass randomized headers per request to the shared session
                 async with session.post(url, json=payload, proxy=proxy, headers=headers) as resp:
                     if resp.status == 200:
-                            return
-                    elif resp.status == 429: # Rate limit
-                            await asyncio.sleep(10)
-                            continue
+                        return
+                    elif resp.status == 429:  # Rate limit
+                        await asyncio.sleep(10)
+                        continue
             except Exception as e:
                 if attempt == max_retries - 1:
                     logger.error(f"Failed to send telegram alert after {max_retries} attempts: {e}")

@@ -40,9 +40,9 @@ class APIServer:
         self._state_cache_ts: float = 0.0
         self._state_lock = asyncio.Lock()
         self._http_semaphore = asyncio.Semaphore(10)  # Max 10 concurrent /state callers
-        self.active_connections: dict[WebSocket, asyncio.Queue] = {} # {WS: Queue}
+        self.active_connections: dict[WebSocket, asyncio.Queue] = {}  # {WS: Queue}
 
-        self._last_tick_broadcast: dict[str, float] = {} # symbol -> ts
+        self._last_tick_broadcast: dict[str, float] = {}  # symbol -> ts
 
         @asynccontextmanager
         async def lifespan(app: FastAPI):
@@ -75,6 +75,7 @@ class APIServer:
 
     def _setup_health_check(self) -> None:
         """Standardized health check endpoint for monitoring and uptime verification."""
+
         @self.app.get("/health")
         async def health_check(key: str = Depends(self._verify_api_key)):
             # Check basic components
@@ -82,7 +83,9 @@ class APIServer:
             components = {
                 "system": "CONNECTED" if self.system else "DISCONNECTED",
                 "bus": "UP" if hasattr(self.system, "bus") and self.system.bus else "DOWN",
-                "db": "CONNECTED" if hasattr(self.system, "db_conn") and self.system.db_conn else "OFFLINE"
+                "db": "CONNECTED"
+                if hasattr(self.system, "db_conn") and self.system.db_conn
+                else "OFFLINE",
             }
             if any(v in ["DISCONNECTED", "DOWN", "OFFLINE"] for v in components.values()):
                 status = "DEGRADED"
@@ -91,7 +94,7 @@ class APIServer:
                 "status": status,
                 "timestamp": datetime.now().isoformat(),
                 "components": components,
-                "version": "Sovereign-1.0"
+                "version": "Sovereign-1.0",
             }
 
     def _subscribe_to_bus(self) -> None:
@@ -120,7 +123,7 @@ class APIServer:
             "type": "news.hft",
             "timestamp": datetime.now().isoformat(),
             "data": payload,
-            "meta": {"nodes": ["news_harvester", "intel_bus"]}
+            "meta": {"nodes": ["news_harvester", "intel_bus"]},
         }
         for _ws, q in self.active_connections.items():
             try:
@@ -135,13 +138,13 @@ class APIServer:
             "type": "candle.batch",
             "timestamp": datetime.now().isoformat(),
             "data": payload,
-            "meta": {"nodes": ["pipeline", "sqlite", "intel_bus"]}
+            "meta": {"nodes": ["pipeline", "sqlite", "intel_bus"]},
         }
         for _ws, q in self.active_connections.items():
             try:
                 q.put_nowait(msg)
             except asyncio.QueueFull:
-                pass # Drop for this specific slow client
+                pass  # Drop for this specific slow client
 
     async def _broadcast_apex_telemetry(self, payload: dict) -> None:
         """Push live trading telemetry data to the frontend dashboard."""
@@ -151,7 +154,7 @@ class APIServer:
             "type": "apex.telemetry",
             "timestamp": datetime.now().isoformat(),
             "data": payload,
-            "meta": {"nodes": ["apex_overlay", "intel_bus"]}
+            "meta": {"nodes": ["apex_overlay", "intel_bus"]},
         }
         for _ws, q in self.active_connections.items():
             try:
@@ -161,12 +164,13 @@ class APIServer:
 
     async def _broadcast_pulse(self, payload: dict) -> None:
         """Forward telemetry pulses (Agent A scans) to frontend."""
-        if not self.active_connections: return
+        if not self.active_connections:
+            return
         msg = {
             "type": "system.pulse",
             "timestamp": datetime.now().isoformat(),
             "data": payload,
-            "meta": {"nodes": ["brain", "intel_bus"]}
+            "meta": {"nodes": ["brain", "intel_bus"]},
         }
         for _ws, q in self.active_connections.items():
             try:
@@ -181,7 +185,7 @@ class APIServer:
             "type": "system.state",
             "timestamp": datetime.now().isoformat(),
             "data": payload,
-            "meta": {"nodes": payload.get("nodes", ["intel_bus", "brain"])}
+            "meta": {"nodes": payload.get("nodes", ["intel_bus", "brain"])},
         }
         for _ws, q in self.active_connections.items():
             try:
@@ -209,14 +213,14 @@ class APIServer:
 
         symbol = payload.get("symbol", "ALL")
         now = time.time()
-        if now - self._last_tick_broadcast.get(symbol, 0) < 0.01: # 100Hz Limit
-             return
+        if now - self._last_tick_broadcast.get(symbol, 0) < 0.01:  # 100Hz Limit
+            return
         self._last_tick_broadcast[symbol] = now
         msg = {
             "type": "tick.hft",
             "timestamp": datetime.now().isoformat(),
             "data": payload,
-            "meta": {"nodes": ["ibkr", "questdb", "pipeline", "intel_bus"]}
+            "meta": {"nodes": ["ibkr", "questdb", "pipeline", "intel_bus"]},
         }
         for _ws, q in self.active_connections.items():
             try:
@@ -232,7 +236,7 @@ class APIServer:
             "type": "oracle.state",
             "timestamp": datetime.now().isoformat(),
             "data": payload,
-            "meta": {"nodes": ["oracle", "intel_bus", "swarm", "consensus"]}
+            "meta": {"nodes": ["oracle", "intel_bus", "swarm", "consensus"]},
         }
         for _ws, q in self.active_connections.items():
             try:
@@ -247,7 +251,7 @@ class APIServer:
             "type": "calibration.update",
             "timestamp": datetime.now().isoformat(),
             "data": payload,
-            "meta": {"nodes": ["agent_d", "pipeline", "sqlite", "intel_bus"]}
+            "meta": {"nodes": ["agent_d", "pipeline", "sqlite", "intel_bus"]},
         }
         for _ws, q in self.active_connections.items():
             try:
@@ -260,12 +264,16 @@ class APIServer:
             return
         sender = payload.get("sender", "unknown")
         # Map sender to node ID
-        node_id = f"mind_{sender}" if sender not in ["agent_a", "agent_b", "agent_c", "agent_d", "agent_e"] else sender
+        node_id = (
+            f"mind_{sender}"
+            if sender not in ["agent_a", "agent_b", "agent_c", "agent_d", "agent_e"]
+            else sender
+        )
         msg = {
             "type": "mind.dialogue",
             "timestamp": datetime.now().isoformat(),
             "data": payload,
-            "meta": {"nodes": [node_id, "intel_bus"]}
+            "meta": {"nodes": [node_id, "intel_bus"]},
         }
         for _ws, q in self.active_connections.items():
             try:
@@ -281,7 +289,7 @@ class APIServer:
             "type": "consensus.update",
             "timestamp": datetime.now().isoformat(),
             "data": payload,
-            "meta": {"nodes": ["consensus", "intel_bus"] + payload.get("nodes", [])}
+            "meta": {"nodes": ["consensus", "intel_bus"] + payload.get("nodes", [])},
         }
         for _ws, q in self.active_connections.items():
             try:
@@ -312,12 +320,14 @@ class APIServer:
         """Dependency to check for valid API Key in headers."""
         secret = Vault.get("API_SERVER_KEY")
         if not secret:
-             # If no key is set, we allow local access but warn
-             logger.warning("API Server: No API_SERVER_KEY found in Vault. Defaulting to OPEN session (Insecure).")
-             return
+            # If no key is set, we allow local access but warn
+            logger.warning(
+                "API Server: No API_SERVER_KEY found in Vault. Defaulting to OPEN session (Insecure)."
+            )
+            return
 
         if x_sovereign_key != secret:
-             raise HTTPException(status_code=403, detail="Invalid Sovereign API Key")
+            raise HTTPException(status_code=403, detail="Invalid Sovereign API Key")
 
     def _setup_routes(self) -> None:
         @self.app.get("/state")
@@ -341,12 +351,14 @@ class APIServer:
         @self.app.websocket("/ws")
         async def websocket_endpoint(websocket: WebSocket, token: str = Query(None)) -> None:
             from time_sync import TimeSync
+
             secret = Vault.get("API_SERVER_KEY")
             if secret:
                 ts = int(TimeSync.now().timestamp()) // 30
                 valid = False
                 import hashlib
                 import hmac
+
                 # Allow for significant clock drift (up to 5 mins) between frontend and backend
                 for offset in range(-10, 11):
                     msg = str(ts + offset).encode()
@@ -358,13 +370,17 @@ class APIServer:
                 if not valid:
                     msg0 = str(ts).encode()
                     exp0 = hmac.new(secret.encode(), msg0, hashlib.sha256).hexdigest()
-                    logger.warning(f"API Server: WebSocket REJECTED. Recv: {token[:8]}... Exp(0): {exp0[:8]}... (TS: {ts})")
+                    logger.warning(
+                        f"API Server: WebSocket REJECTED. Recv: {token[:8]}... Exp(0): {exp0[:8]}... (TS: {ts})"
+                    )
                     await websocket.close(code=1008)
                     return
 
             # 3. ACCEPT HANDSHAKE (Only if authorized)
             await websocket.accept()
-            logger.info(f"API Server: WebSocket connection ACCEPTED (Client: {websocket.client.host if websocket.client else 'unknown'})")
+            logger.info(
+                f"API Server: WebSocket connection ACCEPTED (Client: {websocket.client.host if websocket.client else 'unknown'})"
+            )
 
             # Create a dedicated sender task for this specific client
             async def _ws_writer():
@@ -386,11 +402,12 @@ class APIServer:
             try:
                 # 1. Provide an immediate full-state sync upon connection
                 await self._safe_send_json(
-                    websocket, {
+                    websocket,
+                    {
                         "type": "full_state",
                         "data": self._get_full_state(),
-                        "meta": {"nodes": ["api_server", "intel_bus", "brain"]}
-                    }
+                        "meta": {"nodes": ["api_server", "intel_bus", "brain"]},
+                    },
                 )
 
                 # 2. Stay alive and listen for optional client commands
@@ -417,6 +434,7 @@ class APIServer:
         """Return a 1-second cached state snapshot. Prevents redundant DB reads.
         Uses a simple double-check pattern safe for single-threaded asyncio."""
         import time
+
         now = time.monotonic()
         # Fast path — read under no lock since asyncio is single-threaded
         if now - self._state_cache_ts < 1.0 and self._state_cache:
@@ -558,34 +576,84 @@ class APIServer:
                     "consecutive_losses": getattr(
                         getattr(brain, "loss_tracker", None), "consecutive_losses", 0
                     ),
-                    "drawdown_level": getattr(getattr(getattr(brain, "ibkr_drawdown", None), "level", None), "value", "NORMAL"),
+                    "drawdown_level": getattr(
+                        getattr(getattr(brain, "ibkr_drawdown", None), "level", None),
+                        "value",
+                        "NORMAL",
+                    ),
                     "gap": {
                         "drawdown": {
                             "ibkr": {
-                                "level": getattr(getattr(getattr(brain, "ibkr_drawdown", None), "level", None), "value", "NORMAL"),
-                                "peak": getattr(getattr(brain, "ibkr_drawdown", None), "peak_equity", 0.0),
-                                "current": getattr(getattr(brain, "ibkr_drawdown", None), "current_equity", 0.0),
-                                "allowed": getattr(getattr(brain, "ibkr_drawdown", None), "is_trading_allowed", lambda: True)(),
+                                "level": getattr(
+                                    getattr(getattr(brain, "ibkr_drawdown", None), "level", None),
+                                    "value",
+                                    "NORMAL",
+                                ),
+                                "peak": getattr(
+                                    getattr(brain, "ibkr_drawdown", None), "peak_equity", 0.0
+                                ),
+                                "current": getattr(
+                                    getattr(brain, "ibkr_drawdown", None), "current_equity", 0.0
+                                ),
+                                "allowed": getattr(
+                                    getattr(brain, "ibkr_drawdown", None),
+                                    "is_trading_allowed",
+                                    lambda: True,
+                                )(),
                             },
                             "prop": {
-                                "level": getattr(getattr(getattr(brain, "prop_drawdown", None), "level", None), "value", "NORMAL"),
-                                "peak": getattr(getattr(brain, "prop_drawdown", None), "peak_equity", 0.0),
-                                "current": getattr(getattr(brain, "prop_drawdown", None), "current_equity", 0.0),
-                                "allowed": getattr(getattr(brain, "prop_drawdown", None), "is_trading_allowed", lambda: True)(),
+                                "level": getattr(
+                                    getattr(getattr(brain, "prop_drawdown", None), "level", None),
+                                    "value",
+                                    "NORMAL",
+                                ),
+                                "peak": getattr(
+                                    getattr(brain, "prop_drawdown", None), "peak_equity", 0.0
+                                ),
+                                "current": getattr(
+                                    getattr(brain, "prop_drawdown", None), "current_equity", 0.0
+                                ),
+                                "allowed": getattr(
+                                    getattr(brain, "prop_drawdown", None),
+                                    "is_trading_allowed",
+                                    lambda: True,
+                                )(),
                             },
                         },
                         "escalation": {
-                            "losses": getattr(getattr(brain, "loss_tracker", None), "consecutive_losses", 0),
-                            "streak": getattr(getattr(brain, "loss_tracker", None), "win_streak", 0),
-                            "paper_forced": getattr(getattr(brain, "loss_tracker", None), "paper_mode_forced", False),
-                            "audit_required": getattr(getattr(brain, "loss_tracker", None), "audit_required", False),
-                            "allowed": getattr(getattr(brain, "loss_tracker", None), "is_trading_allowed", lambda: True)(),
+                            "losses": getattr(
+                                getattr(brain, "loss_tracker", None), "consecutive_losses", 0
+                            ),
+                            "streak": getattr(
+                                getattr(brain, "loss_tracker", None), "win_streak", 0
+                            ),
+                            "paper_forced": getattr(
+                                getattr(brain, "loss_tracker", None), "paper_mode_forced", False
+                            ),
+                            "audit_required": getattr(
+                                getattr(brain, "loss_tracker", None), "audit_required", False
+                            ),
+                            "allowed": getattr(
+                                getattr(brain, "loss_tracker", None),
+                                "is_trading_allowed",
+                                lambda: True,
+                            )(),
                         },
                         "budget": {
-                            "max_trades": getattr(getattr(brain, "morning_budget", None), "max_trades", 3),
-                            "min_catalyst": getattr(getattr(brain, "morning_budget", None), "min_catalyst", 0.5),
-                        "max_risk": getattr(getattr(brain, "morning_budget", None), "max_risk_per_trade_pct", 0.01),
-                            "regime": getattr(getattr(brain, "morning_budget", None), "regime", "UNKNOWN"),
+                            "max_trades": getattr(
+                                getattr(brain, "morning_budget", None), "max_trades", 3
+                            ),
+                            "min_catalyst": getattr(
+                                getattr(brain, "morning_budget", None), "min_catalyst", 0.5
+                            ),
+                            "max_risk": getattr(
+                                getattr(brain, "morning_budget", None),
+                                "max_risk_per_trade_pct",
+                                0.01,
+                            ),
+                            "regime": getattr(
+                                getattr(brain, "morning_budget", None), "regime", "UNKNOWN"
+                            ),
                         },
                         "evolution": {},
                     },
@@ -598,95 +666,100 @@ class APIServer:
                         ev_conn.execute("PRAGMA journal_mode=WAL;")
                         ev_conn.execute("PRAGMA busy_timeout = 60000;")
                         ev_cursor = ev_conn.cursor()
-                        ev_cursor.execute("SELECT parameter_name, parameter_value, confidence, last_updated FROM brain_optimization")
+                        ev_cursor.execute(
+                            "SELECT parameter_name, parameter_value, confidence, last_updated FROM brain_optimization"
+                        )
                         rows = ev_cursor.fetchall()
                         brain_data["gap"]["evolution"] = {
-                            r[0]: {
-                                "value": r[1],
-                                "confidence": r[2],
-                                "last_updated": r[3]
-                            } for r in rows
+                            r[0]: {"value": r[1], "confidence": r[2], "last_updated": r[3]}
+                            for r in rows
                         }
                         ev_conn.close()
                     except Exception as e:
                         logger.warning(f"API Server: Evolution data fetch failed: {e}")
 
                 brain_data["minds"] = {
-                        "architect": "ACTIVE" if hasattr(brain, "mind_architect") else "STANDBY",
-                        "evolution": "ACTIVE" if hasattr(brain, "mind_evolution") else "STANDBY",
-                        "observer": "ACTIVE" if hasattr(brain, "mind_observer") else "STANDBY",
-                        "experiment": "ACTIVE" if hasattr(brain, "mind_experiment") else "STANDBY",
-                        "ultrathink": "ACTIVE" if hasattr(brain, "mind_ultrathink") else "STANDBY",
-                        "system": "ACTIVE" if hasattr(brain, "mind_system") else "STANDBY",
-                        "ghost": "ACTIVE" if hasattr(brain, "mind_ghost") else "STANDBY",
+                    "architect": "ACTIVE" if hasattr(brain, "mind_architect") else "STANDBY",
+                    "evolution": "ACTIVE" if hasattr(brain, "mind_evolution") else "STANDBY",
+                    "observer": "ACTIVE" if hasattr(brain, "mind_observer") else "STANDBY",
+                    "experiment": "ACTIVE" if hasattr(brain, "mind_experiment") else "STANDBY",
+                    "ultrathink": "ACTIVE" if hasattr(brain, "mind_ultrathink") else "STANDBY",
+                    "system": "ACTIVE" if hasattr(brain, "mind_system") else "STANDBY",
+                    "ghost": "ACTIVE" if hasattr(brain, "mind_ghost") else "STANDBY",
                 }
 
                 brain_data["agents"] = {
-                        "agent_a": {
-                            "status": "SYNCHRONIZED" if scan_stats else "SCANNING",
-                            "last_action": "Processing HFT flow" if scan_stats else "Synchronizing nodes...",
-                        },
-                        "agent_b": {
-                            "status": "ACTIVE",
-                            "classifier": "DhatuClassifier V3",
-                            "modifier": f"{(getattr(brain, '_oracle_risk_modifier', 1.0) * 100):.0f}% Base",
-                            "freeze": getattr(brain, "_oracle_freeze", False),
-                            "last_action": "Evaluating Macro Bias",
-                        },
-                        "agent_c": {
-                            "status": "ACTIVE" if getattr(self.system, "mt5_client", None) else "STANDBY",
-                            "blackswan": "ACTIVE" if blackswan_active else "Watching",
-                            "guard": pg_reserve,
-                            "mt5": "Connected"
-                            if getattr(self.system, "mt5_client", None)
-                            else "Standby",
-                            "vix_protocol": "Active"
-                            if getattr(brain, "exit_intelligence", None)
-                            else "Standby",
-                            "last_action": "Monitoring Safety Escalaion",
-                        },
-                        "agent_d": {
-                            "status": "SYNCHRONIZED" if hasattr(brain, "live_learner") else "INITIALIZING",
-                            "memory": f"{memory_size} Trades",
-                            "top_pattern": top_pattern,
-                            "threshold_gate": "SignificanceGate"
-                            if hasattr(brain, "live_learner")
-                            else "OFFLINE",
-                            "calibration": "LivePipeline"
-                            if hasattr(brain, "live_learner")
-                            else "OFFLINE",
-                            "learned_rates": getattr(brain, "_learned_win_rates", {}),
-                            "last_action": "Optimizing Expectancy Matrix",
-                        },
-                        "agent_e": {
-                            "status": "ACTIVE",
-                            "last_action": "Monitoring Sector Skew",
-                        },
-                        "agent_f": {
-                            "status": "ACTIVE",
-                            "last_action": "Analyzing Volatility Surfaces",
-                        },
-                        "agent_g": {
-                            "status": "ACTIVE",
-                            "last_action": "Mapping Neural Topology",
-                        },
-                        "risk_guard": {
-                            "status": "ARMED",
-                            "last_action": "Verifying Margin Safety",
-                        },
-                        "dhatu_oracle": {
-                            "status": "SENSING",
-                            "last_action": "Scanning Macro Horizons",
-                        },
-                        "swarm_predictor": {
-                            "status": "COLLECTIVE",
-                            "last_action": "Aggregating Social Scent",
-                        },
-                        "mind_ultrathink": {
-                            "status": "REASONING",
-                            "last_action": "Deep Cycle Analysis",
-                        }
-                    }
+                    "agent_a": {
+                        "status": "SYNCHRONIZED" if scan_stats else "SCANNING",
+                        "last_action": "Processing HFT flow"
+                        if scan_stats
+                        else "Synchronizing nodes...",
+                    },
+                    "agent_b": {
+                        "status": "ACTIVE",
+                        "classifier": "DhatuClassifier V3",
+                        "modifier": f"{(getattr(brain, '_oracle_risk_modifier', 1.0) * 100):.0f}% Base",
+                        "freeze": getattr(brain, "_oracle_freeze", False),
+                        "last_action": "Evaluating Macro Bias",
+                    },
+                    "agent_c": {
+                        "status": "ACTIVE"
+                        if getattr(self.system, "mt5_client", None)
+                        else "STANDBY",
+                        "blackswan": "ACTIVE" if blackswan_active else "Watching",
+                        "guard": pg_reserve,
+                        "mt5": "Connected"
+                        if getattr(self.system, "mt5_client", None)
+                        else "Standby",
+                        "vix_protocol": "Active"
+                        if getattr(brain, "exit_intelligence", None)
+                        else "Standby",
+                        "last_action": "Monitoring Safety Escalaion",
+                    },
+                    "agent_d": {
+                        "status": "SYNCHRONIZED"
+                        if hasattr(brain, "live_learner")
+                        else "INITIALIZING",
+                        "memory": f"{memory_size} Trades",
+                        "top_pattern": top_pattern,
+                        "threshold_gate": "SignificanceGate"
+                        if hasattr(brain, "live_learner")
+                        else "OFFLINE",
+                        "calibration": "LivePipeline"
+                        if hasattr(brain, "live_learner")
+                        else "OFFLINE",
+                        "learned_rates": getattr(brain, "_learned_win_rates", {}),
+                        "last_action": "Optimizing Expectancy Matrix",
+                    },
+                    "agent_e": {
+                        "status": "ACTIVE",
+                        "last_action": "Monitoring Sector Skew",
+                    },
+                    "agent_f": {
+                        "status": "ACTIVE",
+                        "last_action": "Analyzing Volatility Surfaces",
+                    },
+                    "agent_g": {
+                        "status": "ACTIVE",
+                        "last_action": "Mapping Neural Topology",
+                    },
+                    "risk_guard": {
+                        "status": "ARMED",
+                        "last_action": "Verifying Margin Safety",
+                    },
+                    "dhatu_oracle": {
+                        "status": "SENSING",
+                        "last_action": "Scanning Macro Horizons",
+                    },
+                    "swarm_predictor": {
+                        "status": "COLLECTIVE",
+                        "last_action": "Aggregating Social Scent",
+                    },
+                    "mind_ultrathink": {
+                        "status": "REASONING",
+                        "last_action": "Deep Cycle Analysis",
+                    },
+                }
 
             # 4. System Health (Granular Component Feedback)
             health_data = {
@@ -694,18 +767,27 @@ class APIServer:
                 "dms": "ACTIVE" if hasattr(self.system, "dms") and self.system.dms else "OFFLINE",
                 "up_time": int(
                     (
-                        datetime.now().astimezone() - getattr(self.system, "start_time", datetime.now()).astimezone()
+                        datetime.now().astimezone()
+                        - getattr(self.system, "start_time", datetime.now()).astimezone()
                     ).total_seconds()
                 ),
                 "latency_ms": 0.45,
                 "components": {
-                    "ibkr": "ONLINE" if self.system.ibkr_client and self.system.ibkr_client.isConnected() else "OFFLINE",
-                    "mt5": "ONLINE" if self.system.mt5_client and self.system.mt5_client.terminal_info() else "OFFLINE",
-                    "qdb": "ONLINE" if self.system.questdb and self.system.questdb.is_active else "OFFLINE",
+                    "ibkr": "ONLINE"
+                    if self.system.ibkr_client and self.system.ibkr_client.isConnected()
+                    else "OFFLINE",
+                    "mt5": "ONLINE"
+                    if self.system.mt5_client and self.system.mt5_client.terminal_info()
+                    else "OFFLINE",
+                    "qdb": "ONLINE"
+                    if self.system.questdb and self.system.questdb.is_active
+                    else "OFFLINE",
                     "dhatu": "ONLINE" if self.system.dhatu_oracle else "OFFLINE",
-                    "brain": "ONLINE" if self.system.trading_brain and self.system.trading_brain.is_running else "OFFLINE",
+                    "brain": "ONLINE"
+                    if self.system.trading_brain and self.system.trading_brain.is_running
+                    else "OFFLINE",
                     "sovereign": "ONLINE",
-                }
+                },
             }
 
             return {
@@ -781,4 +863,3 @@ class APIServer:
                     logger.error(f"Error stopping API Server task {attr}: {e}")
 
         logger.info("API Server stopped.")
-

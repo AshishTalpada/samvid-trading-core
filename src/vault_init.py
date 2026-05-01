@@ -17,11 +17,13 @@ import json
 def check_vault_service():
     """Verify keyring backend is available and usable before initialization."""
     import keyring
+
     backend = keyring.get_keyring()
     if "fail" in str(backend).lower():
-         print("❌ CRITICAL: No secure keyring backend found. Secrets cannot be stored safely.")
-         sys.exit(1)
+        print("❌ CRITICAL: No secure keyring backend found. Secrets cannot be stored safely.")
+        sys.exit(1)
     print(f"✓ Keyring service detected: {type(backend).__name__}")
+
 
 def initialize_vault():
     check_vault_service()
@@ -49,7 +51,7 @@ def initialize_vault():
         "MT5_PATH",
         "MT5_LOGIN",
         "MT5_PASSWORD",
-        "MT5_SERVER"
+        "MT5_SERVER",
     ]
 
     if "--batch" in sys.argv:
@@ -75,11 +77,11 @@ def initialize_vault():
         existing = Vault.get(key)
         prompt = f"Enter value for {key}"
         if existing:
-             prompt += " (Existing present. Overwrite? [y/N])"
-             choice = input(prompt).strip().lower()
-             if choice != 'y':
-                 continue
-             prompt = f"Enter NEW value for {key}"
+            prompt += " (Existing present. Overwrite? [y/N])"
+            choice = input(prompt).strip().lower()
+            if choice != "y":
+                continue
+            prompt = f"Enter NEW value for {key}"
 
         val = getpass.getpass(f"{prompt}: ").strip()
         if val:
@@ -91,6 +93,7 @@ def initialize_vault():
 
     print("-" * 50)
     print("✅ Vault Initialization Complete.")
+
 
 if __name__ == "__main__":
     initialize_vault()

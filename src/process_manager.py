@@ -18,6 +18,7 @@ Usage in main.py:
 
 Note: Default single-process mode is unchanged. This is opt-in.
 """
+
 from __future__ import annotations
 
 import logging
@@ -33,16 +34,18 @@ logger = logging.getLogger("ProcessManager")
 
 # ── IPC Message ───────────────────────────────────────────────────────────────
 
+
 class IpcMessage:
     __slots__ = ("topic", "payload", "ts")
 
     def __init__(self, topic: str, payload: Any):
-        self.topic   = topic
+        self.topic = topic
         self.payload = payload
-        self.ts      = time.monotonic()
+        self.ts = time.monotonic()
 
 
 # ── IPC Bus (multiprocessing-safe) ────────────────────────────────────────────
+
 
 class IpcBus:
     """
@@ -79,6 +82,7 @@ class IpcBus:
     async def dispatch_loop(self) -> None:
         """asyncio coroutine: drain queue and invoke local handlers."""
         import asyncio
+
         while True:
             msg = self.drain_one(timeout=0.001)
             if msg is None:
@@ -96,15 +100,18 @@ class IpcBus:
 
 # ── Worker entrypoints ────────────────────────────────────────────────────────
 
+
 def _pin_to_core(core: int) -> None:
     """Pin current process to a specific CPU core (Linux/Windows)."""
     try:
         p = mp.current_process()
         if sys.platform == "win32":
             import ctypes
+
             mask = 1 << core
             ctypes.windll.kernel32.SetProcessAffinityMask(  # type: ignore
-                ctypes.windll.kernel32.GetCurrentProcess(), mask  # type: ignore
+                ctypes.windll.kernel32.GetCurrentProcess(),
+                mask,  # type: ignore
             )
         else:
             os.sched_setaffinity(0, {core})
@@ -113,8 +120,7 @@ def _pin_to_core(core: int) -> None:
         logger.warning(f"ProcessManager: Core pinning failed (non-fatal): {e}")
 
 
-def streamer_worker(q_out: "mp.Queue[IpcMessage]", symbols: list[str],
-                    config: dict) -> None:
+def streamer_worker(q_out: "mp.Queue[IpcMessage]", symbols: list[str], config: dict) -> None:
     """
     Process 0 — STREAMER
     Runs ibkr_streamer + TickBatcher. Publishes tick.batch → q_out.
@@ -129,11 +135,12 @@ def streamer_worker(q_out: "mp.Queue[IpcMessage]", symbols: list[str],
     async def _main() -> None:
         try:
             from ibkr_streamer import IBKRStreamer
+
             streamer = IBKRStreamer(
                 host=config.get("ibkr_host", "localhost"),
                 port=config.get("ibkr_port", 4002),
                 client_id=config.get("client_id", 99),
-                bus=None,   # raw ticks go to TICK_BATCHER, not bus
+                bus=None,  # raw ticks go to TICK_BATCHER, not bus
             )
             batcher_task = asyncio.create_task(TICK_BATCHER.run(bus))
             await streamer.run(symbols)
@@ -144,8 +151,7 @@ def streamer_worker(q_out: "mp.Queue[IpcMessage]", symbols: list[str],
     asyncio.run(_main())
 
 
-def brain_worker(q_in: "mp.Queue[IpcMessage]", q_out: "mp.Queue[IpcMessage]",
-                 config: dict) -> None:
+def brain_worker(q_in: "mp.Queue[IpcMessage]", q_out: "mp.Queue[IpcMessage]", config: dict) -> None:
     """
     Process 1 — BRAIN
     Runs all Agents + decision logic. Reads from q_in, writes signals to q_out.
@@ -153,12 +159,13 @@ def brain_worker(q_in: "mp.Queue[IpcMessage]", q_out: "mp.Queue[IpcMessage]",
     _pin_to_core(1)
     import asyncio
 
-    bus_in  = IpcBus(q_in)
+    bus_in = IpcBus(q_in)
     bus_out = IpcBus(q_out)
 
     async def _main() -> None:
         try:
             from quant_math import warmup
+
             warmup()
 
             # Brain subscribes to tick.batch from streamer
@@ -186,10 +193,10 @@ def executor_worker(q_in: "mp.Queue[IpcMessage]", config: dict) -> None:
     async def _on_signal(payload: dict) -> None:
         """Route an execution signal to IBKR."""
         try:
-            symbol    = payload.get("symbol")
+            symbol = payload.get("symbol")
             direction = payload.get("direction")
-            shares    = payload.get("shares", 0)
-            price     = payload.get("price", 0.0)
+            shares = payload.get("shares", 0)
+            price = payload.get("price", 0.0)
             logger.info(f"EXECUTOR: Received signal {direction} {shares}x {symbol} @ {price:.2f}")
             # Hook into existing agent_c_ibkr here
         except Exception as e:
@@ -205,6 +212,7 @@ def executor_worker(q_in: "mp.Queue[IpcMessage]", config: dict) -> None:
 
 # ── ProcessManager ────────────────────────────────────────────────────────────
 
+
 class ProcessManager:
     """
     Spawns and manages the three isolated trading processes.
@@ -213,12 +221,12 @@ class ProcessManager:
 
     def __init__(self, symbols: list[str] | None = None, config: dict | None = None):
         self._symbols = symbols or []
-        self._config  = config  or {}
+        self._config = config or {}
         self._procs: list[mp.Process] = []
 
         # Shared inter-process queues
         self._q_stream_brain: "mp.Queue[IpcMessage]" = mp.Queue(maxsize=20_000)
-        self._q_brain_exec:   "mp.Queue[IpcMessage]" = mp.Queue(maxsize=5_000)
+        self._q_brain_exec: "mp.Queue[IpcMessage]" = mp.Queue(maxsize=5_000)
 
     def start_all(self) -> None:
         """Spawn all three processes."""
@@ -248,7 +256,7 @@ class ProcessManager:
             logger.info(f"ProcessManager: Spawned '{p.name}' (PID {p.pid})")
             self._procs.append(p)
 
-        signal.signal(signal.SIGINT,  self._shutdown)
+        signal.signal(signal.SIGINT, self._shutdown)
         signal.signal(signal.SIGTERM, self._shutdown)
 
     def wait(self) -> None:

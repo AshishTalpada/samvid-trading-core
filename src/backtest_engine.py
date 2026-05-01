@@ -2,6 +2,7 @@
 Validates edge with statistical rigour before deploying capital.
 Run: python -m src.backtest_engine
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -24,7 +25,7 @@ class Trade:
     exit_price: float
     entry_idx: int
     exit_idx: int
-    side: str          # 'LONG' | 'SHORT'
+    side: str  # 'LONG' | 'SHORT'
     commission: float = 1.0  # IBKR/MT5 estimated round-trip
     pnl_pct: float = 0.0
     pnl_usd: float = 0.0
@@ -32,12 +33,13 @@ class Trade:
 
     def __post_init__(self):
         from decimal import Decimal
+
         d_entry = Decimal(str(self.entry_price))
         d_exit = Decimal(str(self.exit_price))
         d_size = Decimal(str(self.size_usd))
         d_comm = Decimal(str(self.commission))
 
-        direction = Decimal("1") if self.side == 'LONG' else Decimal("-1")
+        direction = Decimal("1") if self.side == "LONG" else Decimal("-1")
 
         # Use a small epsilon for division to avoid ZeroDivisionError
         self.pnl_pct = float(direction * (d_exit - d_entry) / (d_entry + Decimal("1e-12")))
@@ -77,7 +79,7 @@ class WalkForwardResult:
 
     @property
     def profit_factor(self) -> float:
-        gross_win  = sum(t.pnl_usd for t in self.trades if t.pnl_usd > 0)
+        gross_win = sum(t.pnl_usd for t in self.trades if t.pnl_usd > 0)
         gross_loss = abs(sum(t.pnl_usd for t in self.trades if t.pnl_usd <= 0))
         return gross_win / (gross_loss + 1e-10)
 
@@ -93,12 +95,14 @@ class WalkForwardResult:
         if not self.trades:
             return 0.0
         equity = np.cumsum([t.pnl_usd for t in self.trades])
-        peak   = np.maximum.accumulate(equity)
-        dd     = (equity - peak) / (np.abs(peak) + 1e-10)
+        peak = np.maximum.accumulate(equity)
+        dd = (equity - peak) / (np.abs(peak) + 1e-10)
         return float(np.min(dd))
 
 
-async def load_ohlcv_from_db(db_path: str, symbol: str) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, list[str]]:
+async def load_ohlcv_from_db(
+    db_path: str, symbol: str
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, list[str]]:
     """
     Load OHLCV from SQLite.
     Returns (opens, highs, lows, closes, volumes, timestamps).
@@ -106,6 +110,7 @@ async def load_ohlcv_from_db(db_path: str, symbol: str) -> tuple[np.ndarray, np.
     """
     async with _db_lock:
         try:
+
             def _load():
                 conn = sqlite3.connect(db_path, timeout=60.0)
                 conn.execute("PRAGMA journal_mode=WAL;")
@@ -114,7 +119,7 @@ async def load_ohlcv_from_db(db_path: str, symbol: str) -> tuple[np.ndarray, np.
                 cursor.execute(
                     "SELECT timestamp, open, high, low, close, volume FROM ohlcv "
                     "WHERE symbol=? ORDER BY timestamp ASC",
-                    (symbol,)
+                    (symbol,),
                 )
                 rows = cursor.fetchall()
                 conn.close()
@@ -125,9 +130,9 @@ async def load_ohlcv_from_db(db_path: str, symbol: str) -> tuple[np.ndarray, np.
             if not rows:
                 return np.array([]), np.array([]), np.array([]), np.array([]), []
             timestamps = [r[0] for r in rows]
-            opens  = np.array([float(r[1]) for r in rows])
-            highs  = np.array([float(r[2]) for r in rows])
-            lows   = np.array([float(r[3]) for r in rows])
+            opens = np.array([float(r[1]) for r in rows])
+            highs = np.array([float(r[2]) for r in rows])
+            lows = np.array([float(r[3]) for r in rows])
             closes = np.array([float(r[4]) for r in rows])
             return opens, highs, lows, closes, timestamps
         except Exception as e:
@@ -145,33 +150,36 @@ class WalkForwardEngine:
     def __init__(
         self,
         db_path: str = "trading.db",
-        train_bars: int = 1000,   # ~5 months of 1min bars per session
-        test_bars:  int = 200,    # ~1 month out-of-sample
-        stop_loss_pct: float = 0.015,   # 1.5% stop
-        take_profit_pct: float = 0.030, # 3.0% target (2:1 R:R)
+        train_bars: int = 1000,  # ~5 months of 1min bars per session
+        test_bars: int = 200,  # ~1 month out-of-sample
+        stop_loss_pct: float = 0.015,  # 1.5% stop
+        take_profit_pct: float = 0.030,  # 3.0% target (2:1 R:R)
         initial_capital: float = 500.0,
         slippage_pct: float = 0.0005,  # 0.05% slippage (5 bps)
-        spread_pct: float = 0.0010,    # 0.10% average bid/ask spread
-        commission: float = 1.0        # $1 per trade estimate
+        spread_pct: float = 0.0010,  # 0.10% average bid/ask spread
+        commission: float = 1.0,  # $1 per trade estimate
     ):
         from quant_signals import QuantConsensus
-        self.db_path        = db_path
-        self.train_bars     = train_bars
-        self.test_bars      = test_bars
-        self.stop_loss_pct  = stop_loss_pct
+
+        self.db_path = db_path
+        self.train_bars = train_bars
+        self.test_bars = test_bars
+        self.stop_loss_pct = stop_loss_pct
         self.take_profit_pct = take_profit_pct
-        self.capital        = initial_capital
-        self.SLIPPAGE_PCT   = slippage_pct
-        self.SPREAD_PCT     = spread_pct
+        self.capital = initial_capital
+        self.SLIPPAGE_PCT = slippage_pct
+        self.SPREAD_PCT = spread_pct
         self.COMMISSION_USD = commission
-        self.consensus      = QuantConsensus()
+        self.consensus = QuantConsensus()
 
     async def run(self, symbol: str) -> list[WalkForwardResult]:
         result_tuple = await load_ohlcv_from_db(self.db_path, symbol)
         opens, highs, lows, closes, timestamps = result_tuple
 
         if len(closes) < self.train_bars + self.test_bars:
-            logger.warning(f"{symbol}: insufficient data ({len(closes)} bars). Need {self.train_bars + self.test_bars}")
+            logger.warning(
+                f"{symbol}: insufficient data ({len(closes)} bars). Need {self.train_bars + self.test_bars}"
+            )
             return []
 
         results: list[WalkForwardResult] = []
@@ -179,19 +187,19 @@ class WalkForwardEngine:
 
         while start + self.train_bars + self.test_bars <= len(closes):
             train_end = start + self.train_bars
-            test_end  = train_end + self.test_bars
+            test_end = train_end + self.test_bars
 
-            train_closes  = closes[start:train_end]
-            test_closes   = closes[train_end:test_end]
-            test_highs    = highs[train_end:test_end]
-            test_lows     = lows[train_end:test_end]
+            train_closes = closes[start:train_end]
+            test_closes = closes[train_end:test_end]
+            test_highs = highs[train_end:test_end]
+            test_lows = lows[train_end:test_end]
 
             # Fit models on training window
             self.consensus.fit(train_closes)
 
             # Simulate on test window
             win_rate = 0.5  # initial estimate, updates after first trades
-            avg_win  = self.stop_loss_pct * 2.0
+            avg_win = self.stop_loss_pct * 2.0
             avg_loss = self.stop_loss_pct
 
             result = WalkForwardResult(symbol=symbol, window_start=train_end, window_end=test_end)
@@ -203,9 +211,13 @@ class WalkForwardEngine:
                 v_window = np.concatenate([train_closes[-100:], test_closes[:i]])
 
                 consensus = self.consensus.evaluate(
-                    symbol, p_window, v_window,
-                    win_rate=win_rate, avg_win=avg_win, avg_loss=avg_loss,
-                    portfolio_value=equity
+                    symbol,
+                    p_window,
+                    v_window,
+                    win_rate=win_rate,
+                    avg_win=avg_win,
+                    avg_loss=avg_loss,
+                    portfolio_value=equity,
                 )
 
                 phase = consensus["phase"]
@@ -213,7 +225,7 @@ class WalkForwardEngine:
                     i += 1
                     continue
 
-                side      = "LONG" if phase == "BUY" else "SHORT"
+                side = "LONG" if phase == "BUY" else "SHORT"
                 direction = 1 if side == "LONG" else -1
 
                 # Entry at next bar Close (conservative proxy for Next Open)
@@ -222,15 +234,15 @@ class WalkForwardEngine:
                 entry = entry_raw * (1 + friction) if side == "LONG" else entry_raw * (1 - friction)
 
                 size_usd = max(10.0, min(consensus["position_usd"], equity * 0.10))
-                stop     = entry * (1 - direction * self.stop_loss_pct)
-                target   = entry * (1 + direction * self.take_profit_pct)
+                stop = entry * (1 - direction * self.stop_loss_pct)
+                target = entry * (1 + direction * self.take_profit_pct)
 
                 # Find exit — check intra-bar HIGH/LOW first (realistic stop/target triggering)
                 exit_price = None
-                exit_idx   = i + 1
+                exit_idx = i + 1
                 for j in range(i + 2, min(i + 61, len(test_closes))):
-                    bar_high  = float(test_highs[j])
-                    bar_low   = float(test_lows[j])
+                    bar_high = float(test_highs[j])
+                    bar_low = float(test_lows[j])
                     friction = self.SLIPPAGE_PCT + (self.SPREAD_PCT / 2.0)
 
                     if side == "LONG":
@@ -256,18 +268,25 @@ class WalkForwardEngine:
 
                 if exit_price is None:
                     exit_price = float(test_closes[min(i + 60, len(test_closes) - 1)])
-                    exit_idx   = min(i + 60, len(test_closes) - 1)
+                    exit_idx = min(i + 60, len(test_closes) - 1)
 
-                trade = Trade(symbol=symbol, entry_price=entry, exit_price=exit_price,
-                              entry_idx=i, exit_idx=exit_idx, side=side, size_usd=size_usd,
-                              commission=self.COMMISSION_USD)
+                trade = Trade(
+                    symbol=symbol,
+                    entry_price=entry,
+                    exit_price=exit_price,
+                    entry_idx=i,
+                    exit_idx=exit_idx,
+                    side=side,
+                    size_usd=size_usd,
+                    commission=self.COMMISSION_USD,
+                )
                 result.trades.append(trade)
                 equity += trade.pnl_usd
 
                 # Update rolling stats for Kelly sizing
                 if result.n_trades >= 5:
                     win_rate = result.win_rate
-                    avg_win  = result.avg_win  or avg_win
+                    avg_win = result.avg_win or avg_win
                     avg_loss = result.avg_loss or avg_loss
 
                 i = exit_idx + 1  # no overlapping trades
@@ -289,16 +308,24 @@ def aggregate_results(results: list[WalkForwardResult]) -> dict:
     if not results:
         return {"error": "No results"}
 
-    all_trades  = [t for r in results for t in r.trades]
+    all_trades = [t for r in results for t in r.trades]
     all_pnl_pct = np.array([t.pnl_pct for t in all_trades]) if all_trades else np.array([0.0])
 
-    total_trades  = len(all_trades)
+    total_trades = len(all_trades)
     total_pnl_usd = sum(t.pnl_usd for t in all_trades)
-    win_rate      = sum(1 for t in all_trades if t.pnl_usd > 0) / (total_trades + 1e-10)
-    avg_win       = float(np.mean([t.pnl_usd for t in all_trades if t.pnl_usd > 0])) if any(t.pnl_usd > 0 for t in all_trades) else 0
-    avg_loss      = float(np.mean([abs(t.pnl_usd) for t in all_trades if t.pnl_usd <= 0])) if any(t.pnl_usd <= 0 for t in all_trades) else 1
+    win_rate = sum(1 for t in all_trades if t.pnl_usd > 0) / (total_trades + 1e-10)
+    avg_win = (
+        float(np.mean([t.pnl_usd for t in all_trades if t.pnl_usd > 0]))
+        if any(t.pnl_usd > 0 for t in all_trades)
+        else 0
+    )
+    avg_loss = (
+        float(np.mean([abs(t.pnl_usd) for t in all_trades if t.pnl_usd <= 0]))
+        if any(t.pnl_usd <= 0 for t in all_trades)
+        else 1
+    )
 
-    gross_win  = sum(t.pnl_usd for t in all_trades if t.pnl_usd > 0)
+    gross_win = sum(t.pnl_usd for t in all_trades if t.pnl_usd > 0)
     gross_loss = abs(sum(t.pnl_usd for t in all_trades if t.pnl_usd <= 0))
     profit_factor = gross_win / (gross_loss + 1e-10)
 
@@ -306,47 +333,60 @@ def aggregate_results(results: list[WalkForwardResult]) -> dict:
 
     # t-statistic: is the mean return statistically different from 0?
     from scipy import stats as sp_stats
+
     t_stat, p_value = sp_stats.ttest_1samp(all_pnl_pct, 0) if len(all_pnl_pct) > 1 else (0.0, 1.0)
 
     # Max drawdown across all windows
     equity_curve = np.cumsum([t.pnl_usd for t in all_trades])
     peak = np.maximum.accumulate(equity_curve)
-    max_dd = float(np.min((equity_curve - peak) / (np.abs(peak) + 1e-10))) if len(equity_curve) > 0 else 0.0
+    max_dd = (
+        float(np.min((equity_curve - peak) / (np.abs(peak) + 1e-10)))
+        if len(equity_curve) > 0
+        else 0.0
+    )
 
-    verdict = "❌ NO EDGE" if sharpe < 0.5 else "⚠️ WEAK EDGE" if sharpe < 1.0 else "✅ DEPLOYABLE EDGE" if sharpe < 1.5 else "🚀 STRONG EDGE"
+    verdict = (
+        "❌ NO EDGE"
+        if sharpe < 0.5
+        else "⚠️ WEAK EDGE"
+        if sharpe < 1.0
+        else "✅ DEPLOYABLE EDGE"
+        if sharpe < 1.5
+        else "🚀 STRONG EDGE"
+    )
 
     result = {
-        "verdict":         verdict,
-        "sharpe":          round(sharpe, 3),
-        "t_statistic":     round(float(t_stat), 3),
-        "p_value":         round(float(p_value), 4),
+        "verdict": verdict,
+        "sharpe": round(sharpe, 3),
+        "t_statistic": round(float(t_stat), 3),
+        "p_value": round(float(p_value), 4),
         "statistically_significant": bool(p_value < 0.05),
-        "total_trades":    total_trades,
-        "win_rate":        round(win_rate, 4),
-        "profit_factor":   round(profit_factor, 3),
-        "avg_win_usd":     round(avg_win, 2),
-        "avg_loss_usd":    round(avg_loss, 2),
-        "total_pnl_usd":   round(total_pnl_usd, 2),
-        "max_drawdown":    round(max_dd, 4),
-        "n_windows":       len(results),
+        "total_trades": total_trades,
+        "win_rate": round(win_rate, 4),
+        "profit_factor": round(profit_factor, 3),
+        "avg_win_usd": round(avg_win, 2),
+        "avg_loss_usd": round(avg_loss, 2),
+        "total_pnl_usd": round(total_pnl_usd, 2),
+        "max_drawdown": round(max_dd, 4),
+        "n_windows": len(results),
         "per_window_sharpe": [round(r.sharpe, 3) for r in results],
     }
 
     return result
 
 
-async def run_phase1_validation(db_path: str = "trading.db",
-                                 symbols: Optional[list[str]] = None,
-                                 capital: float = 500.0) -> None:
+async def run_phase1_validation(
+    db_path: str = "trading.db", symbols: Optional[list[str]] = None, capital: float = 500.0
+) -> None:
     """
     Run full Phase 1 validation.
     """
     if symbols is None:
         symbols = ["SPY", "QQQ", "IWM"]
 
-    print("\n" + "="*65)
+    print("\n" + "=" * 65)
     print("  PHASE 1: WALK-FORWARD EDGE VALIDATION")
-    print("="*65)
+    print("=" * 65)
 
     all_symbol_results = {}
 
@@ -378,32 +418,33 @@ async def run_phase1_validation(db_path: str = "trading.db",
             print(f"  per_window_sharpe: {stats['per_window_sharpe']}")
 
     # Overall verdict
-    print("\n" + "="*65)
+    print("\n" + "=" * 65)
     print("  OVERALL PHASE 1 VERDICT")
-    print("="*65)
+    print("=" * 65)
     if all_symbol_results:
         avg_sharpe = np.mean([v["sharpe"] for v in all_symbol_results.values()])
-        sig_count  = sum(1 for v in all_symbol_results.values() if v["statistically_significant"])
+        sig_count = sum(1 for v in all_symbol_results.values() if v["statistically_significant"])
         print(f"  Average Sharpe across symbols: {avg_sharpe:.3f}")
         print(f"  Statistically significant symbols: {sig_count}/{len(all_symbol_results)}")
 
         if avg_sharpe >= 1.0 and sig_count >= (len(all_symbol_results) // 2 + 1):
-             print("\n  ✅ PHASE 1 PASSED — Edge is real. Proceed to Phase 2 (Live Paper Trading).")
-             return True
+            print("\n  ✅ PHASE 1 PASSED — Edge is real. Proceed to Phase 2 (Live Paper Trading).")
+            return True
         elif avg_sharpe >= 0.5:
-             print("\n  ⚠️  EDGE EXISTS BUT WEAK — Tune signal weights before live deployment.")
-             return False
+            print("\n  ⚠️  EDGE EXISTS BUT WEAK — Tune signal weights before live deployment.")
+            return False
         else:
-             print("\n  ❌ NO SIGNIFICANT EDGE — Do not deploy live capital.")
-             return False
+            print("\n  ❌ NO SIGNIFICANT EDGE — Do not deploy live capital.")
+            return False
     else:
         print("\n  ❌ CRITICAL: No results generated. Check database integrity.")
         return False
-    print("="*65 + "\n")
+    print("=" * 65 + "\n")
 
 
 if __name__ == "__main__":
     import sys
+
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
     db = sys.argv[1] if len(sys.argv) > 1 else "trading.db"
     syms = sys.argv[2:] if len(sys.argv) > 2 else None
