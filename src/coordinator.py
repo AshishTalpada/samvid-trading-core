@@ -9,7 +9,7 @@ import numpy as np
 import pandas as pd
 from dateutil import parser as dtparser
 
-from apex_overlay import ApexExoskeleton
+from resilience_layer import ApexExoskeleton
 
 if TYPE_CHECKING:
     from brain import TradingBrain
