@@ -97,6 +97,7 @@ from system_types import Position
 from vault import Vault
 from wisdom import SkillTreeManager, WisdomRepository
 from workload_manager import WorkloadManager
+from portfolio_analyzer import PORTFOLIO_ANALYZER
 
 if TYPE_CHECKING:
     import sqlite3
@@ -2011,6 +2012,19 @@ class TradingBrain:
                     if pos in self.positions:
                         self.positions.remove(pos)
                 self.closed_positions.append(pos)
+                
+                # --- RECORD FOR DASHBOARD ---
+                PORTFOLIO_ANALYZER.record_close(
+                    symbol=pos.symbol,
+                    side="LONG" if pos.qty > 0 else "SHORT",
+                    quantity=abs(pos.qty),
+                    entry_price=pos.entry_price,
+                    exit_price=adjusted_exit_price,
+                    pnl_usd=realized_net_pnl,
+                    ts_entry=pos.entry_time,
+                    ts_exit=now
+                )
+
                 # Reset failure count on successful full exit
                 self._exit_failure_count[symbol] = 0
 

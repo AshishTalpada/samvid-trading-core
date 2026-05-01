@@ -203,3 +203,13 @@ class LivePortfolioAnalyzer:
             f"(${s['pnl_usd']:+.2f}) | WR: {s['win_rate']} | Sharpe: {s['live_sharpe']} | "
             f"MaxDD: {s['max_drawdown']}"
         )
+
+
+# Global instance for live session tracking (starting capital matches typical prop firm account or config)
+try:
+    from config import ACCOUNT_SIZE
+    starting_capital = ACCOUNT_SIZE
+except ImportError:
+    starting_capital = 100_000.0
+
+PORTFOLIO_ANALYZER = LivePortfolioAnalyzer(starting_capital=starting_capital)
