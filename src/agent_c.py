@@ -196,6 +196,7 @@ class EvolutionManager:
                 if total == 0:
                     continue
 
+                avg_pnl = (g_wins - g_losses) / total
                 wr = wins / total if total > 0 else 0.0
                 pf = g_wins / g_losses if g_losses > 0 else (g_wins if g_wins > 0 else 1.0)
                 expectancy = (wr * (g_wins / wins if wins > 0 else 0)) - (
@@ -206,6 +207,7 @@ class EvolutionManager:
                     "wr": round(wr, 2),
                     "n": total,
                     "pf": round(pf, 2),
+                    "avg_pnl": round(avg_pnl, 2),
                     "expectancy": round(expectancy, 2),
                 }
 
