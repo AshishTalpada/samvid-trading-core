@@ -185,9 +185,9 @@ class DrawdownLadder:
         # SOLUTION 2: Eliminate Martingale (2.0x) and replace with Tapered Risk
         modifiers = {
             DrawdownLevel.NORMAL: 1.0,
-            DrawdownLevel.YELLOW: 0.50,   # 50% Reduction
-            DrawdownLevel.ORANGE: 0.25,   # 75% Reduction
-            DrawdownLevel.RED: 0.10,      # 90% Reduction (Capital Preservation)
+            DrawdownLevel.YELLOW: 0.50,  # 50% Reduction
+            DrawdownLevel.ORANGE: 0.25,  # 75% Reduction
+            DrawdownLevel.RED: 0.10,  # 90% Reduction (Capital Preservation)
             DrawdownLevel.CIRCUIT_BREAKER: 0.0,
         }
         return modifiers.get(self.level, 0.0)
@@ -195,7 +195,7 @@ class DrawdownLadder:
     def is_trading_allowed(self) -> bool:
         """Check if trading is permitted (Overridden for Sovereign Strike)."""
         if self.level == DrawdownLevel.CIRCUIT_BREAKER:
-             return False
+            return False
         # Red/Orange levels no longer block trading—they tighten the filter.
         return True
 
@@ -323,11 +323,11 @@ class MorningBudget:
 
         # Base config by regime
         regime_config = {
-            "BULL":     {"max_trades": 20, "min_catalyst": 55, "risk_pct": 0.02},
+            "BULL": {"max_trades": 20, "min_catalyst": 55, "risk_pct": 0.02},
             "TRENDING": {"max_trades": 15, "min_catalyst": 58, "risk_pct": 0.018},
-            "CHOPPY":   {"max_trades": 10, "min_catalyst": 58, "risk_pct": 0.015},
+            "CHOPPY": {"max_trades": 10, "min_catalyst": 58, "risk_pct": 0.015},
             "VOLATILE": {"max_trades": 10, "min_catalyst": 60, "risk_pct": 0.01},
-            "BEAR":     {"max_trades": 8,  "min_catalyst": 58, "risk_pct": 0.005},
+            "BEAR": {"max_trades": 8, "min_catalyst": 58, "risk_pct": 0.005},
         }
 
         config = regime_config.get(regime, regime_config["CHOPPY"])
@@ -414,7 +414,6 @@ class TradingBrain:
     drawdown ladders, consecutive loss tracking, and morning risk budget
     """
 
-
     async def transition_to(self, new_state: TradingState) -> None:
         """
         Ensures state changes are logged, validated, and published.
@@ -428,11 +427,14 @@ class TradingBrain:
             logger.info(f"🧠 BRAIN STATE TRANSITION: {old_state.name} ➔ {new_state.name}")
 
             if self.bus:
-                await self.bus.publish("system.state", {
-                    "old": old_state.name,
-                    "new": new_state.name,
-                    "timestamp": datetime.now(timezone.utc).isoformat()
-                })
+                await self.bus.publish(
+                    "system.state",
+                    {
+                        "old": old_state.name,
+                        "new": new_state.name,
+                        "timestamp": datetime.now(timezone.utc).isoformat(),
+                    },
+                )
 
     def __init__(
         self,
@@ -460,14 +462,14 @@ class TradingBrain:
         self.last_tick_prices: dict[str, float] = {}
         self.last_tick_bids: dict[str, float] = {}
         self.last_tick_asks: dict[str, float] = {}
-        self._last_tick_price: dict[str, float] = {} # Internal shadow for snapshotting
+        self._last_tick_price: dict[str, float] = {}  # Internal shadow for snapshotting
         self._last_tick_time: dict[str, datetime] = {}
         self.new_tick_event = asyncio.Event()
         # SPY Momentum Buffer (stores last 200 prices for zero-latency regime detection)
 
         from collections import deque
-        self.spy_buffer = deque(maxlen=200)
 
+        self.spy_buffer = deque(maxlen=200)
 
         # Mode selection — respects FORCED_PAPER_MODE safety lock from config.
         # Modes:
@@ -553,6 +555,7 @@ class TradingBrain:
 
         # --- Agent C MT5 (Forex) ---
         from agent_c_mt5 import MT5Connection, MT5PositionSizer
+
         self.mt5_conn = MT5Connection()
         self.mt5_sizer = MT5PositionSizer()
         # --- Broker Selection (Vault Powered) ---
@@ -570,18 +573,15 @@ class TradingBrain:
         _db_path = "data/trading.db"
         self.db_path = _db_path  # Needed by session_restorer.restore_peak_equity
         self.live_learner = LiveLearningEngine(
-            db_path=_db_path,
-            bus=bus,
-            evolution_engine=self.recursive_evolution,
-            dms=self.dms
+            db_path=_db_path, bus=bus, evolution_engine=self.recursive_evolution, dms=self.dms
         )
 
         # --- HFT HARDENING ---
         self._qdb_circuit_broken = False
         self._qdb_last_failure_time = 0.0
         self._qdb_failure_count = 0
-        self._hot_cache: dict[str, pd.DataFrame] = {} # symbol -> OHLCV df
-        self._hot_cache_time: dict[str, float] = {} # symbol -> monotonic ts
+        self._hot_cache: dict[str, pd.DataFrame] = {}  # symbol -> OHLCV df
+        self._hot_cache_time: dict[str, float] = {}  # symbol -> monotonic ts
 
         # --- Exit Intelligence ---
         self.exit_engine = ExitIntelligence({"belief_threshold": 0.35})
@@ -630,6 +630,7 @@ class TradingBrain:
         self._quant_fitted = False
 
         from coordinator import TradingCoordinator
+
         self.coordinator = TradingCoordinator(self.bridge, self)
         self.task_manager = TaskManager()
 
@@ -643,14 +644,33 @@ class TradingBrain:
             self.current_regime = capsule.get("regime", "CHOPPY")
             self.conviction_state = capsule.get("conviction_state", {})
             self.session_pnl = capsule.get("session_pnl", 0.0)
-            logger.info(f"Brain: Cognitive Capsule inhaled. Regime: {self.current_regime} | PnL: ${self.session_pnl:.2f}")
-
+            logger.info(
+                f"Brain: Cognitive Capsule inhaled. Regime: {self.current_regime} | PnL: ${self.session_pnl:.2f}"
+            )
 
         # --- Cognitive Conviction State (SOLUTION 5: Async Pipeline) ---
         self.conviction_state = {
-            "Dhatu_Oracle": {"agent": "Dhatu_Oracle", "vote": "YES", "confidence": 0.5, "reason": "Initializing", "timestamp": datetime.now(timezone.utc).isoformat()},
-            "Swarm_Predictor": {"agent": "Swarm_Predictor", "vote": "YES", "confidence": 0.5, "reason": "Initializing", "timestamp": datetime.now(timezone.utc).isoformat()},
-            "Mind_Ultrathink": {"agent": "Mind_Ultrathink", "vote": "YES", "confidence": 0.5, "reason": "Initializing", "timestamp": datetime.now(timezone.utc).isoformat()}
+            "Dhatu_Oracle": {
+                "agent": "Dhatu_Oracle",
+                "vote": "YES",
+                "confidence": 0.5,
+                "reason": "Initializing",
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+            },
+            "Swarm_Predictor": {
+                "agent": "Swarm_Predictor",
+                "vote": "YES",
+                "confidence": 0.5,
+                "reason": "Initializing",
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+            },
+            "Mind_Ultrathink": {
+                "agent": "Mind_Ultrathink",
+                "vote": "YES",
+                "confidence": 0.5,
+                "reason": "Initializing",
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+            },
         }
 
         # Legacy aliases for backward compatibility (Fixes TraderMind Error)
@@ -663,9 +683,17 @@ class TradingBrain:
         self.bridge.register_tool("get_open_positions", self._tool_get_open_positions)
 
         self.last_scan_stats = {
-            "cycle": 0, "watchlist": 0, "scanned": 0, "no_data": 0, "stale": 0,
-            "too_short": 0, "patterns_detected": 0, "patterns_approved": 0,
-            "patterns_rejected": 0, "pending": 0, "regime": "UNKNOWN",
+            "cycle": 0,
+            "watchlist": 0,
+            "scanned": 0,
+            "no_data": 0,
+            "stale": 0,
+            "too_short": 0,
+            "patterns_detected": 0,
+            "patterns_approved": 0,
+            "patterns_rejected": 0,
+            "pending": 0,
+            "regime": "UNKNOWN",
         }
 
         self.decision_engine = SovereignDecisionEngine(bus=self.bus)
@@ -675,9 +703,12 @@ class TradingBrain:
         # current_regime already set via capsule
         self.last_regime_update: datetime | None = None  # Tracking for periodic refresh
         from config import BRAIN_SCAN_INTERVAL
+
         self.scan_interval = BRAIN_SCAN_INTERVAL  # Configurable SETO Pulse
         self.MAX_ORDER_VALUE_USD = 50000.0
-        self.evolution_manager = EvolutionManager(main_db_path=self.db_path, dms=self.dms)  # Agent C's learning engine
+        self.evolution_manager = EvolutionManager(
+            main_db_path=self.db_path, dms=self.dms
+        )  # Agent C's learning engine
         self.evolution_manager.load_optimizations()
 
         # --- DYNAMIC MT5 INJECTION ---
@@ -686,6 +717,7 @@ class TradingBrain:
 
         if _ml and "YOUR_MT5" not in str(_ml).upper() and str(_ml).lower() != "none":
             from agent_c_mt5 import FTMOComplianceLayer, MT5PositionSizer
+
             self.ftmo_compliance = FTMOComplianceLayer()
             self.mt5_sizer = MT5PositionSizer()
             logger.info("MindBrain: MT5 Cognitive Layer ENGAGED (Institutional Mode).")
@@ -709,9 +741,8 @@ class TradingBrain:
         self.last_scan_time: datetime | None = None
         self._vetting_cooldowns: dict[str, datetime] = {}  # Symbol -> last vet time
 
-        self._exit_failure_count: dict[str, int] = {} # Symbol -> Strike Count
-        self._exit_last_attempt: dict[str, datetime] = {} # Symbol -> Last Re-attempt
-
+        self._exit_failure_count: dict[str, int] = {}  # Symbol -> Strike Count
+        self._exit_last_attempt: dict[str, datetime] = {}  # Symbol -> Last Re-attempt
 
         # Check if we have a persisted state to recover from after a crash
         # Dispatched as a background task to prevent blocking the boot dashboard
@@ -732,22 +763,32 @@ class TradingBrain:
                         try:
                             # Safely reconstruct Position from legacy dict
                             from dataclasses import fields
+
                             valid_keys = {f.name for f in fields(Position)}
                             filtered_data = {k: v for k, v in p_data.items() if k in valid_keys}
                             self.positions.append(Position(**filtered_data))
-                        except Exception: pass
+                        except Exception:
+                            pass
 
-                self.ibkr_drawdown.peak_equity = state.get("peak_equity", self.ibkr_drawdown.peak_equity)
+                self.ibkr_drawdown.peak_equity = state.get(
+                    "peak_equity", self.ibkr_drawdown.peak_equity
+                )
                 if "loss_tracker" in state:
-                    self.loss_tracker.consecutive_losses = state["loss_tracker"].get("consecutive_losses", 0)
+                    self.loss_tracker.consecutive_losses = state["loss_tracker"].get(
+                        "consecutive_losses", 0
+                    )
 
-                logger.info(f"MindBrain: Legacy state thawed in background. {len(self.positions)} positions restored.")
+                logger.info(
+                    f"MindBrain: Legacy state thawed in background. {len(self.positions)} positions restored."
+                )
         except Exception as e:
             logger.error(f"MindBrain: Background thaw failure: {e}")
 
         # Always restore peak_equity from DB (survives even if .session.bin is missing)
         try:
-            await asyncio.to_thread(self.session_restorer.restore_peak_equity, self.db_path, self.ibkr_drawdown)
+            await asyncio.to_thread(
+                self.session_restorer.restore_peak_equity, self.db_path, self.ibkr_drawdown
+            )
         except Exception:
             pass
 
@@ -768,7 +809,7 @@ class TradingBrain:
         win_rate = 0.5
         avg_win = avg_loss = 1.0
         if closed:
-            pnls = [getattr(p, 'realized_pnl', getattr(p, 'net_pnl', 0)) for p in closed[-50:]]
+            pnls = [getattr(p, "realized_pnl", getattr(p, "net_pnl", 0)) for p in closed[-50:]]
             wins = [p for p in pnls if p > 0]
             losses = [abs(p) for p in pnls if p <= 0]
             win_rate = len(wins) / (len(pnls) + 1e-10)
@@ -777,13 +818,16 @@ class TradingBrain:
 
         # Use DrawdownLadder peak_equity (the most accurate live account value)
         portfolio_value = float(
-            self.ibkr_drawdown.peak_equity
-            or self._last_account_value.get("ibkr", 500.0)
+            self.ibkr_drawdown.peak_equity or self._last_account_value.get("ibkr", 500.0)
         )
 
         consensus = self._quant_consensus.evaluate(
-            symbol, prices, volumes,
-            win_rate=win_rate, avg_win=avg_win, avg_loss=avg_loss,
+            symbol,
+            prices,
+            volumes,
+            win_rate=win_rate,
+            avg_win=avg_win,
+            avg_loss=avg_loss,
             portfolio_value=float(portfolio_value),
         )
 
@@ -791,13 +835,18 @@ class TradingBrain:
         quant_phase = consensus["phase"]
         regime_veto = consensus["regime_veto"]
 
-        opposite = (side == "LONG" and quant_phase == "SELL") or \
-                   (side == "SHORT" and quant_phase == "BUY")
+        opposite = (side == "LONG" and quant_phase == "SELL") or (
+            side == "SHORT" and quant_phase == "BUY"
+        )
 
         if regime_veto:
             return {"approved": False, "reason": "quant_regime_veto", "consensus": consensus}
         if opposite and consensus["confidence"] > 0.6:
-            return {"approved": False, "reason": f"quant_opposing_{quant_phase}", "consensus": consensus}
+            return {
+                "approved": False,
+                "reason": f"quant_opposing_{quant_phase}",
+                "consensus": consensus,
+            }
 
         # Approved — enrich with Kelly sizing
         return {
@@ -815,8 +864,7 @@ class TradingBrain:
             agent = self.coordinator.agents["agent_c_ibkr"]
             if hasattr(agent, "get_margin_cushion"):
                 return agent.get_margin_cushion()
-        return 1.0 # Default to safe
-
+        return 1.0  # Default to safe
 
     async def _on_hft_tick(self, payload: dict) -> None:
         """Cache incoming ticks for high-frequency pricing updates."""
@@ -832,11 +880,24 @@ class TradingBrain:
         impact = float(payload.get("impact", 0.0))
 
         # The Scent: Keywords that move the world
-        IMPACT_KEYWORDS = ["FED", "CPI", "FOMC", "POWELL", "INFLATION", "RATE", "CRASH", "WAR", "HALT", "TREASURY"]
+        IMPACT_KEYWORDS = [
+            "FED",
+            "CPI",
+            "FOMC",
+            "POWELL",
+            "INFLATION",
+            "RATE",
+            "CRASH",
+            "WAR",
+            "HALT",
+            "TREASURY",
+        ]
         is_hft_impact = any(k in headline for k in IMPACT_KEYWORDS) or impact > 0.6
 
         if is_hft_impact:
-            logger.info(f"🚨 BRAIN: News Action Triggered -> {headline[:60]}... (Sent: {sentiment:.2f}, Imp: {impact:.2f})")
+            logger.info(
+                f"🚨 BRAIN: News Action Triggered -> {headline[:60]}... (Sent: {sentiment:.2f}, Imp: {impact:.2f})"
+            )
 
             # Apply Neural Bias to the next scan cycle
             # Base risk is set by oracle; news provides a transient ±15% shift.
@@ -845,17 +906,21 @@ class TradingBrain:
                 target_modifier = self._oracle_risk_modifier * (1.0 + shift_size)
                 # Sane bounds
                 self._oracle_risk_modifier = max(0.5, min(1.8, target_modifier))
-                logger.info(f"🧠 BRAIN: News-Driven Risk Shift active (Transient Modifier: {self._oracle_risk_modifier:.2f})")
+                logger.info(
+                    f"🧠 BRAIN: News-Driven Risk Shift active (Transient Modifier: {self._oracle_risk_modifier:.2f})"
+                )
 
             # Force an immediate scan of the watchlist
             self.new_candle_event.set()
 
     async def _decay_risk_modifier(self):
         """Gradually decays the oracle risk modifier back towards baseline (Oracle State)."""
-        if not self.dhatu_oracle: return
+        if not self.dhatu_oracle:
+            return
 
         current_state = self.dhatu_oracle.get_current_state()
-        if not current_state: return
+        if not current_state:
+            return
 
         baseline = float(current_state.risk_modifier)
 
@@ -876,6 +941,7 @@ class TradingBrain:
 
         # --- SOVEREIGN SHIELD: PANIC LIQUIDATION ---
         from config import PANIC_LIQUIDATE
+
         if PANIC_LIQUIDATE:
             logger.critical("🛑 PANIC SWITCH DETECTED: Initiating Total Portfolio Liquidation...")
             await self._panic_liquidate_all()
@@ -901,7 +967,7 @@ class TradingBrain:
             # Restore thresholds, win rates, and cognitive mission board
             self._learned_win_rates = previous_state.get("win_rates", {})
             self.session_stats = previous_state.get("session_stats", self.session_stats)
-            if hasattr(self, 'trading_brain'):
+            if hasattr(self, "trading_brain"):
                 self.trading_brain.session_pnl = previous_state.get("session_pnl", 0.0)
             logger.info("TradingBrain: Quantum Thaw SUCCESS — System state restored.")
 
@@ -958,7 +1024,9 @@ class TradingBrain:
                 # If we get here, the main task finished or errored.
                 # If is_running is still True, we must restart.
                 if self.is_running:
-                    logger.warning("TradingBrain: Main task exited prematurely. Restarting cycle...")
+                    logger.warning(
+                        "TradingBrain: Main task exited prematurely. Restarting cycle..."
+                    )
                     self._main_task = asyncio.create_task(self._run_loop())
                     await asyncio.sleep(5)
                 else:
@@ -986,7 +1054,11 @@ class TradingBrain:
                         self.dms.record_heartbeat()
                     if self.mind_ghost:
                         await self.mind_ghost.update_heartbeat("ENGINE")
-                        if hasattr(self, "ibkr_client") and self.ibkr_client and self.ibkr_client.isConnected():
+                        if (
+                            hasattr(self, "ibkr_client")
+                            and self.ibkr_client
+                            and self.ibkr_client.isConnected()
+                        ):
                             await self.mind_ghost.update_heartbeat("IBKR")
                         if hasattr(self, "mt5_client") and self.mt5_client:
                             await self.mind_ghost.update_heartbeat("MT5")
@@ -996,7 +1068,9 @@ class TradingBrain:
                         continue
 
                     if self._scan_cycle % 50 == 0:
-                        logger.info(f"[SOVEREIGN] Pulse active. Cycle: #{self._scan_cycle} | State: {self.state.name}")
+                        logger.info(
+                            f"[SOVEREIGN] Pulse active. Cycle: #{self._scan_cycle} | State: {self.state.name}"
+                        )
 
                     # Run Adoption/Pruning Protocol every 10 seconds across ALL states
                     if time.monotonic() - self._last_reconciliation > 10:
@@ -1008,11 +1082,15 @@ class TradingBrain:
                     elif self.state == TradingState.SCANNING:
                         await self._decay_risk_modifier()
 
-                        if self.positions and (self._monitoring_task is None or self._monitoring_task.done()):
+                        if self.positions and (
+                            self._monitoring_task is None or self._monitoring_task.done()
+                        ):
                             self._monitoring_task = asyncio.create_task(self._state_positioned())
 
-                        if self.bus and self._scan_cycle % 100 == 0: # Only once every 100 cycles
-                             await self.bus.publish("brain.warmup", {"symbols": ["SPY", "QQQ", "TSLA", "NVDA"]})
+                        if self.bus and self._scan_cycle % 100 == 0:  # Only once every 100 cycles
+                            await self.bus.publish(
+                                "brain.warmup", {"symbols": ["SPY", "QQQ", "TSLA", "NVDA"]}
+                            )
 
                         await self._state_scanning()
                     elif self.state == TradingState.ANALYZING:
@@ -1027,7 +1105,10 @@ class TradingBrain:
                         await self.bus.publish("system.state", {"state": self.state.name})
 
                 except Exception as loop_e:
-                    logger.error(f"SSS-Tier Recovery: Loop anomaly detected: {loop_e}. Forcing reset to SCANNING...", exc_info=True)
+                    logger.error(
+                        f"SSS-Tier Recovery: Loop anomaly detected: {loop_e}. Forcing reset to SCANNING...",
+                        exc_info=True,
+                    )
                     async with self._state_lock:
                         self.state = TradingState.SCANNING
                     await asyncio.sleep(5)
@@ -1039,9 +1120,15 @@ class TradingBrain:
                 logger.info("TradingBrain: System loop cancelled externally.")
                 break
             except Exception as outer_e:
-                logger.error(f"Critical Systemic Friction: {outer_e}. Maintaining Heartbeat...", exc_info=True)
+                logger.error(
+                    f"Critical Systemic Friction: {outer_e}. Maintaining Heartbeat...",
+                    exc_info=True,
+                )
                 from telegram_alerts import send_telegram_alert
-                await send_telegram_alert(f"☣️ *SYSTEM CRITICAL ERROR*\n{outer_e}\nBrain is attempting autonomous healing...")
+
+                await send_telegram_alert(
+                    f"☣️ *SYSTEM CRITICAL ERROR*\n{outer_e}\nBrain is attempting autonomous healing..."
+                )
                 await asyncio.sleep(10)
 
                 # Autonomous Healing Trigger
@@ -1067,9 +1154,9 @@ class TradingBrain:
                     "regime": self.current_regime,
                     "loss_tracker": {
                         "consecutive_losses": self.loss_tracker.consecutive_losses,
-                        "win_streak": self.loss_tracker.win_streak
+                        "win_streak": self.loss_tracker.win_streak,
                     },
-                    "timestamp": datetime.now(timezone.utc).isoformat()
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
                 }
                 await asyncio.to_thread(self.session_restorer.freeze_state, state)
             except Exception as e:
@@ -1090,8 +1177,7 @@ class TradingBrain:
                 # waiting for an LLM mind that may have timed out.
                 try:
                     msg = await asyncio.wait_for(
-                        self.mind_bridge.get_next_message("trader"),
-                        timeout=8.0
+                        self.mind_bridge.get_next_message("trader"), timeout=8.0
                     )
                 except asyncio.TimeoutError:
                     # Queue is empty — no agent sent a message in 8s.
@@ -1136,11 +1222,11 @@ class TradingBrain:
                                 "state": self.state.name if hasattr(self, "state") else "UNKNOWN",
                                 "regime": getattr(self, "current_regime", "UNKNOWN"),
                                 "positions_count": len(getattr(self, "positions", [])),
-                                "pnl_session": self.session_pnl + sum(
+                                "pnl_session": self.session_pnl
+                                + sum(
                                     getattr(p, "unrealized_pnl", 0.0)
                                     for p in getattr(self, "positions", [])
                                 ),
-
                                 "scan_stats": scan_stats,
                                 "consecutive_losses": getattr(
                                     getattr(self, "loss_tracker", None), "consecutive_losses", 0
@@ -1150,7 +1236,14 @@ class TradingBrain:
                                 "oracle_modifier": getattr(self, "_oracle_risk_modifier", 1.0),
                                 "is_running": True,
                             },
-                            "nodes": ["intel_bus", "brain", "agent_a", "agent_b", "agent_c", "agent_d"],
+                            "nodes": [
+                                "intel_bus",
+                                "brain",
+                                "agent_a",
+                                "agent_b",
+                                "agent_c",
+                                "agent_d",
+                            ],
                             "timestamp": datetime.now(timezone.utc).isoformat(),
                         }
                         await self.bus.publish("system.state", state_payload)
@@ -1181,13 +1274,12 @@ class TradingBrain:
         q_freeze = self.bus.subscribe("oracle.freeze", maxsize=10)
         q_calib = self.bus.subscribe("calibration.update", maxsize=50)
         q_candle = self.bus.subscribe("candle.batch", maxsize=10)
-        q_tick = self.bus.subscribe("tick.hft", maxsize=100) # Fast-Lane Pulse
+        q_tick = self.bus.subscribe("tick.hft", maxsize=100)  # Fast-Lane Pulse
         q_news = self.bus.subscribe("news.hft", maxsize=50)
         q_news_gen = self.bus.subscribe("news.event", maxsize=50)
         q_macro = self.bus.subscribe("macro.impact", maxsize=10)
         q_flow = self.bus.subscribe("institutional.flow", maxsize=50)
         q_remote = self.bus.subscribe("command.remote", maxsize=10)
-
 
         logger.info("BrainBusListener: event-driven loop active")
 
@@ -1203,7 +1295,9 @@ class TradingBrain:
 
                         if getattr(self.loss_tracker, "consecutive_losses", 0) >= 5:
                             if new_dhatu != "Abhava":
-                                logger.debug(f"Risk-Off Override: Ignoring Oracle {new_dhatu} due to loss streak.")
+                                logger.debug(
+                                    f"Risk-Off Override: Ignoring Oracle {new_dhatu} due to loss streak."
+                                )
                                 new_dhatu = "Abhava"
 
                         self._oracle_dhatu = new_dhatu
@@ -1264,7 +1358,9 @@ class TradingBrain:
                             self._oracle_risk_modifier *= 0.8
                         elif impact == "BULLISH":
                             self._oracle_risk_modifier = min(1.5, self._oracle_risk_modifier * 1.1)
-                        logger.info(f"🧠 BUS → macro.impact: {impact} | Adjusted Modifier: {self._oracle_risk_modifier:.2f}")
+                        logger.info(
+                            f"🧠 BUS → macro.impact: {impact} | Adjusted Modifier: {self._oracle_risk_modifier:.2f}"
+                        )
 
                     elif label == "institutional.flow":
                         # Order flow awareness
@@ -1280,22 +1376,26 @@ class TradingBrain:
                             self.emergency_halted = True
                         elif cmd == "status":
                             # Broadcast current stats so the Remote can see them
-                            await self.bus.publish("notification.telegram", {
-                                "message": (
-                                    f"📊 <b>TELEMETRY SNAPSHOT</b>\n"
-                                    f"Session PnL: ${self.session_pnl:+.2f}\n"
-                                    f"Open Positions: {len(self.positions)}\n"
-                                    f"State: {self._oracle_dhatu}\n"
-                                    f"Halted: {self.emergency_halted}"
-                                )
-                            })
+                            await self.bus.publish(
+                                "notification.telegram",
+                                {
+                                    "message": (
+                                        f"📊 <b>TELEMETRY SNAPSHOT</b>\n"
+                                        f"Session PnL: ${self.session_pnl:+.2f}\n"
+                                        f"Open Positions: {len(self.positions)}\n"
+                                        f"State: {self._oracle_dhatu}\n"
+                                        f"Halted: {self.emergency_halted}"
+                                    )
+                                },
+                            )
                         elif cmd == "dhatu_override":
                             target = payload.get("target", "ABHAVA")
                             self._oracle_dhatu = target
-                            self._oracle_risk_modifier = 0.0 if target == "ABHAVA" else 0.5 if target == "SHANTI" else 1.0
-                            self._oracle_freeze = (target == "ABHAVA")
+                            self._oracle_risk_modifier = (
+                                0.0 if target == "ABHAVA" else 0.5 if target == "SHANTI" else 1.0
+                            )
+                            self._oracle_freeze = target == "ABHAVA"
                             logger.warning(f"🔄 REMOTE OVERRIDE: Dhatu set to {target}")
-
 
                 except Exception as e:
                     logger.error(f"BrainBusListener error in {label}: {e}")
@@ -1315,7 +1415,6 @@ class TradingBrain:
             _check_queue(q_flow, "institutional.flow"),
         )
 
-
     # HIGH-SPEED REACTOR — processes 10ms ticker data
 
     async def get_current_spread(self, symbol: str) -> dict[str, float]:
@@ -1325,14 +1424,9 @@ class TradingBrain:
 
         # If we have no data, return a default nominal spread (0.01% of price)
         if bid == 0 or ask == 0:
-             return {"bid": 0.0, "ask": 0.0, "spread": 0.0, "mid": 0.0}
+            return {"bid": 0.0, "ask": 0.0, "spread": 0.0, "mid": 0.0}
 
-        return {
-            "bid": bid,
-            "ask": ask,
-            "spread": abs(ask - bid),
-            "mid": (ask + bid) / 2.0
-        }
+        return {"bid": bid, "ask": ask, "spread": abs(ask - bid), "mid": (ask + bid) / 2.0}
 
     async def on_tick(self, data: dict[str, Any]) -> None:
         """
@@ -1354,15 +1448,13 @@ class TradingBrain:
 
         self.new_tick_event.set()
 
-
         # 2. Strike-Zone Evaluation (Additive logic)
         # If we are in SCANNING state and have a high-confidence zone waiting,
         # we trigger the entry IMMEDIATELY on price hit.
         if self.state == TradingState.SCANNING:
-             # This bypasses the 5s/60s sleep in _state_scanning
-             # Logic handled by the 'Sovereign Strike' accelerator block
-             pass
-
+            # This bypasses the 5s/60s sleep in _state_scanning
+            # Logic handled by the 'Sovereign Strike' accelerator block
+            pass
 
     async def _state_standby(self) -> None:
         """Wait for market open + generate morning budget."""
@@ -1435,9 +1527,7 @@ class TradingBrain:
             tick_task = asyncio.create_task(self.new_tick_event.wait())
             try:
                 done, pending = await asyncio.wait(
-                    [candle_task, tick_task],
-                    timeout=5.0,
-                    return_when=asyncio.FIRST_COMPLETED
+                    [candle_task, tick_task], timeout=5.0, return_when=asyncio.FIRST_COMPLETED
                 )
             except (asyncio.TimeoutError, TimeoutError, Exception):
                 _done, _pending = set(), {candle_task, tick_task}
@@ -1452,7 +1542,6 @@ class TradingBrain:
         # Execute the actual pattern discovery logic
         await self._run_scanning_cycle()
 
-
     async def _run_scanning_cycle(self) -> None:
         """
         Sovereign Matrix Scan.
@@ -1464,12 +1553,17 @@ class TradingBrain:
 
         try:
             now = datetime.now(timezone.utc)
-            if self.last_regime_update is None or (now - self.last_regime_update).total_seconds() >= 60:
+            if (
+                self.last_regime_update is None
+                or (now - self.last_regime_update).total_seconds() >= 60
+            ):
                 try:
                     # Use a short timeout so regime detection doesn't stall the scanning pulse
                     new_regime = await asyncio.wait_for(self._detect_regime(), timeout=10.0)
                     if new_regime != self.current_regime:
-                        logger.info(f"[SOVEREIGN] REGIME SHIFT: {self.current_regime} -> {new_regime}")
+                        logger.info(
+                            f"[SOVEREIGN] REGIME SHIFT: {self.current_regime} -> {new_regime}"
+                        )
                         self.current_regime = new_regime
                     self.last_regime_update = now
                 except Exception as e:
@@ -1491,9 +1585,13 @@ class TradingBrain:
             if self.mode in ("paper", "ibkr_paper"):
                 broker_online = True
             elif self.active_broker == "IBKR":
-                broker_online = hasattr(self.ibkr_conn, "is_connected") and self.ibkr_conn.is_connected
+                broker_online = (
+                    hasattr(self.ibkr_conn, "is_connected") and self.ibkr_conn.is_connected
+                )
             elif self.active_broker == "MT5":
-                broker_online = hasattr(self.mt5_conn, "is_connected") and await self.mt5_conn.is_connected()
+                broker_online = (
+                    hasattr(self.mt5_conn, "is_connected") and await self.mt5_conn.is_connected()
+                )
 
             if not broker_online:
                 if self._scan_cycle % 10 == 1:
@@ -1503,8 +1601,13 @@ class TradingBrain:
 
             # Diagnostics
             stats = {
-                "scanned": 0, "no_data": 0, "stale": 0, "too_short": 0,
-                "detected": 0, "approved": 0, "rejected": 0,
+                "scanned": 0,
+                "no_data": 0,
+                "stale": 0,
+                "too_short": 0,
+                "detected": 0,
+                "approved": 0,
+                "rejected": 0,
             }
             stats_lock = asyncio.Lock()
 
@@ -1515,48 +1618,59 @@ class TradingBrain:
             async def _scan_symbol(symbol: str):
                 from mind_ultrathink import LatencyWatchdog
 
-                async with stats_lock: stats["scanned"] += 1
+                async with stats_lock:
+                    stats["scanned"] += 1
 
                 if self._scan_cycle % 10 == 0:
                     logger.info(f"[SCAN] Sovereign Probe: Scanning {symbol}...")
 
                 if self.bus:
-                    await self.bus.publish("system.pulse", {
-                        "type": "telemetry.pulse",
-                        "agent": "agent_a",
-                        "symbol": symbol,
-                        "timestamp": time.time() * 1000
-                    })
+                    await self.bus.publish(
+                        "system.pulse",
+                        {
+                            "type": "telemetry.pulse",
+                            "agent": "agent_a",
+                            "symbol": symbol,
+                            "timestamp": time.time() * 1000,
+                        },
+                    )
 
                 with LatencyWatchdog(f"Scan:{symbol}", threshold_ms=500.0):
                     try:
                         fetch_result = await self._fetch_ohlcv(symbol)
                         if fetch_result is None or isinstance(fetch_result, str):
-                            async with stats_lock: stats["no_data"] += 1
+                            async with stats_lock:
+                                stats["no_data"] += 1
                             return None
 
                         df_pd = fetch_result
                         if len(df_pd) < 50:
-                            async with stats_lock: stats["too_short"] += 1
+                            async with stats_lock:
+                                stats["too_short"] += 1
                             return None
 
                         # --- ATR CALCULATION ---
                         # Essential for MindMath deterministic auditing.
-                        tr = df_pd.select([
-                            pl.max_horizontal([
-                                (pl.col("high") - pl.col("low")).abs(),
-                                (pl.col("high") - pl.col("close").shift(1)).abs(),
-                                (pl.col("low") - pl.col("close").shift(1)).abs()
-                            ]).alias("tr")
-                        ])["tr"]
+                        tr = df_pd.select(
+                            [
+                                pl.max_horizontal(
+                                    [
+                                        (pl.col("high") - pl.col("low")).abs(),
+                                        (pl.col("high") - pl.col("close").shift(1)).abs(),
+                                        (pl.col("low") - pl.col("close").shift(1)).abs(),
+                                    ]
+                                ).alias("tr")
+                            ]
+                        )["tr"]
                         atr_val = float(tr.tail(20).mean()) if len(tr) >= 20 else 0.0
 
-                        patterns = self.pattern_detector.detect_all(df_pd)
+                        # Offload CPU-heavy pattern detection to a thread pool to avoid blocking the event loop
+                        patterns = await asyncio.to_thread(self.pattern_detector.detect_all, df_pd)
                         for p in patterns:
-                            if p: p.atr = atr_val
+                            if p:
+                                p.atr = atr_val
 
                         found = [p for p in patterns if p and p.confidence >= 60.0]
-
 
                         if not found:
                             all_found = [p for p in patterns if p]
@@ -1565,7 +1679,9 @@ class TradingBrain:
                                     stats["detected"] += 1
                                     stats["rejected"] += 1
                                 best_low = max(all_found, key=lambda x: x.confidence)
-                                logger.info(f"Scan [{symbol}]: Pattern {best_low.name} detected but confidence {best_low.confidence}% too low.")
+                                logger.info(
+                                    f"Scan [{symbol}]: Pattern {best_low.name} detected but confidence {best_low.confidence}% too low."
+                                )
                             return None
 
                         best = max(found, key=lambda x: x.confidence)
@@ -1573,7 +1689,9 @@ class TradingBrain:
                             stats["detected"] += 1
                             stats["approved"] += 1
 
-                        logger.info(f"🎯 DISCOVERY: {symbol} matched {best.name} ({best.confidence:.1f}%)")
+                        logger.info(
+                            f"🎯 DISCOVERY: {symbol} matched {best.name} ({best.confidence:.1f}%)"
+                        )
 
                         # --- DECISION LEDGER: record every approved pattern ---
                         try:
@@ -1581,21 +1699,30 @@ class TradingBrain:
                                 symbol=symbol,
                                 pattern=best.name,
                                 confidence=best.confidence,
-                                agent_votes={"agent_a": f"{best.name} ({best.confidence:.1f}%) — R/R {getattr(best, 'r_r_ratio', 0):.1f}x"},
+                                agent_votes={
+                                    "agent_a": f"{best.name} ({best.confidence:.1f}%) — R/R {getattr(best, 'r_r_ratio', 0):.1f}x"
+                                },
                                 triggered_by="agent_a",
                                 meta={
                                     "regime": self.current_regime,
                                     "dhatu": self._oracle_dhatu,
                                     "oracle_modifier": self._oracle_risk_modifier,
-                                }
+                                },
                             )
                         except Exception as _le:
                             logger.debug(f"DecisionLedger entry skipped: {_le}")
 
-                        task = self.task_manager.spawn_trade(symbol, {"pattern": best.name, "conf": best.confidence})
+                        task = self.task_manager.spawn_trade(
+                            symbol, {"pattern": best.name, "conf": best.confidence}
+                        )
                         task.log(f"DISCOVERY_HIT: {best.name} detected.")
 
-                        return {"symbol": symbol, "pattern": best, "lambda": best.confidence / 100.0, "task": task}
+                        return {
+                            "symbol": symbol,
+                            "pattern": best,
+                            "lambda": best.confidence / 100.0,
+                            "task": task,
+                        }
 
                     except Exception as e:
                         logger.warning(f"Error scanning {symbol}: {e}")
@@ -1636,14 +1763,21 @@ class TradingBrain:
                     "regime": self.current_regime,
                 }
 
+            # Routine Memory Maintenance (Every 10 cycles)
+            if self.task_manager and self._scan_cycle % 10 == 0:
+                self.task_manager.purge_dormant_tasks(max_age_minutes=15)
+
             # Prevent 'Information Overload' by clearing buffers when signal density is too high.
             signal_density = stats["detected"] / max(1, stats["scanned"])
             if signal_density > 0.8:
-                logger.warning(f"SYSTEM ENTROPY CRITICAL (Density: {signal_density:.2f}): Performing Cognitive Flush...")
+                logger.warning(
+                    f"SYSTEM ENTROPY CRITICAL (Density: {signal_density:.2f}): Performing Cognitive Flush..."
+                )
                 self.pending_signals.clear()
                 # Also clear old closed positions to free memory
                 if len(self.closed_positions) > 100:
-                    for _ in range(50): self.closed_positions.popleft()
+                    for _ in range(50):
+                        self.closed_positions.popleft()
 
             if discoveries:
                 self.pending_signals = discoveries
@@ -1686,9 +1820,13 @@ class TradingBrain:
             symbol = signal.get("symbol")
             task_obj = signal.get("task")
             task_id = task_obj.id if task_obj else "N/A"
-            logger.info(f"MindBrain: Handing off Task {task_id} ({symbol}) to Coordinator Fortress.")
+            logger.info(
+                f"MindBrain: Handing off Task {task_id} ({symbol}) to Coordinator Fortress."
+            )
 
-            vetting_task = asyncio.create_task(self.coordinator.initiate_trade_lifecycle(symbol, signal))
+            vetting_task = asyncio.create_task(
+                self.coordinator.initiate_trade_lifecycle(symbol, signal)
+            )
             vetting_task.add_done_callback(_task_done)
 
         # Clear the queue and return to scanning immediately
@@ -1701,7 +1839,7 @@ class TradingBrain:
     async def _state_positioned(self) -> None:
         """Monitor active positions using 7-Level Exit Intelligence Engine."""
         # Ensures orphan trades like GOOGL/SMCI are caught even if missed at startup
-        self._sanitize_positions() # Ensure memory is objects, not dicts
+        self._sanitize_positions()  # Ensure memory is objects, not dicts
         await self._reconcile_broker_positions()
 
         logger.debug(f"MONITORING {len(self.positions)} active positions")
@@ -1713,7 +1851,9 @@ class TradingBrain:
                 # Fetch live market data for this position
                 market_data = await self._fetch_market_snapshot(pos.symbol)
                 current_price = (
-                    market_data.get("price") if market_data and market_data.get("price") is not None else pos.entry_price
+                    market_data.get("price")
+                    if market_data and market_data.get("price") is not None
+                    else pos.entry_price
                 )
                 vix = market_data.get("vix", 18.0) if market_data else 18.0
 
@@ -1723,16 +1863,21 @@ class TradingBrain:
 
                 # Check IBKR cache to stop 'Phantom Tightening' logs
                 broker_qty = 0
-                if hasattr(self, 'agent_c_ibkr') and self.agent_c_ibkr.ibkr_conn:
+                if hasattr(self, "agent_c_ibkr") and self.agent_c_ibkr.ibkr_conn:
                     broker_qty = self.agent_c_ibkr.ibkr_conn._positions_cache.get(pos.symbol, 0)
 
-                pos.meta['broker_flat'] = (abs(broker_qty) < 0.1)
+                pos.meta["broker_flat"] = abs(broker_qty) < 0.1
 
                 # MFE / MAE Tracking
                 risk_amt = abs(pos.entry_price - pos.initial_stop)
-                if risk_amt < 0.0001: risk_amt = 0.01 # Prevent ZeroDivision
+                if risk_amt < 0.0001:
+                    risk_amt = 0.01  # Prevent ZeroDivision
 
-                gross_r = ((current_price - pos.entry_price) / risk_amt) if pos.qty > 0 else ((pos.entry_price - current_price) / risk_amt)
+                gross_r = (
+                    ((current_price - pos.entry_price) / risk_amt)
+                    if pos.qty > 0
+                    else ((pos.entry_price - current_price) / risk_amt)
+                )
                 pos.mfe = max(pos.mfe, gross_r)
                 pos.mae = min(pos.mae, gross_r)
 
@@ -1757,7 +1902,7 @@ class TradingBrain:
                     "bayesian_belief": pos.current_belief,
                     "initial_belief": pos.initial_belief,
                     "mfe_r": pos.mfe,
-                    "runner_active": getattr(pos, "runner_active", False)
+                    "runner_active": getattr(pos, "runner_active", False),
                 }
                 market_dict = {
                     "price": current_price,
@@ -1773,16 +1918,20 @@ class TradingBrain:
                 # This checks if the reasons we entered the trade are still valid.
                 thought_dna = await self.mind_ultrathink.heartbeat_vet(pos_dict, market_dict)
                 if thought_dna.get("veto"):
-                    logger.warning(f"🏛️ Sovereign HEARTBEAT VETO: {pos.symbol} — {thought_dna.get('reason')}")
+                    logger.warning(
+                        f"🏛️ Sovereign HEARTBEAT VETO: {pos.symbol} — {thought_dna.get('reason')}"
+                    )
                     exits_triggered.append((pos, "HEARTBEAT_VETO", current_price))
-                    continue # Skip further monitoring for this tick
+                    continue  # Skip further monitoring for this tick
 
                 # Dynamic Stop Adjustment from Thought DNA (Beta Gate)
                 if thought_dna.get("new_stop"):
                     pos.stop_loss = float(thought_dna["new_stop"])
 
                 # 7-level priority evaluation (Standard Engine)
-                decision = self.exit_engine.evaluate(pos_dict, market_dict, account_dict, self._oracle_dhatu)
+                decision = self.exit_engine.evaluate(
+                    pos_dict, market_dict, account_dict, self._oracle_dhatu
+                )
 
                 if decision.action == ExitAction.EXIT:
                     logger.info(f"EXIT P{decision.priority}: {pos.symbol} — {decision.reason}")
@@ -1802,12 +1951,14 @@ class TradingBrain:
                         pos.stop_loss = decision.new_stop
 
                         # Only log if the position actually still exists in reality
-                        if not pos.meta.get('broker_flat', False):
+                        if not pos.meta.get("broker_flat", False):
                             logger.info(
                                 f"TIGHTEN: {pos.symbol} stop ${old_stop:.2f} -> ${pos.stop_loss:.2f}"
                             )
                         else:
-                            logger.debug(f"Sovereign [Quiet-Sync]: Tightened phantom stop for {pos.symbol} (Flat).")
+                            logger.debug(
+                                f"Sovereign [Quiet-Sync]: Tightened phantom stop for {pos.symbol} (Flat)."
+                            )
 
                 elif decision.action == ExitAction.CASCADE:
                     logger.warning(f"CASCADE: {pos.symbol} — correlated exits detected")
@@ -1818,11 +1969,14 @@ class TradingBrain:
 
                 elif decision.action == ExitAction.HOLD:
                     if self.bus:
-                        await self.bus.publish("exit.skipped", {
-                            "symbol": pos.symbol,
-                            "reason": decision.reason,
-                            "timestamp": datetime.now(timezone.utc).isoformat()
-                        })
+                        await self.bus.publish(
+                            "exit.skipped",
+                            {
+                                "symbol": pos.symbol,
+                                "reason": decision.reason,
+                                "timestamp": datetime.now(timezone.utc).isoformat(),
+                            },
+                        )
 
                 # VIX intraday protocol check
                 vix_action = self.vix_protocol.monitor_intraday(vix, vix, vix)
@@ -1866,8 +2020,10 @@ class TradingBrain:
 
         unrealized_pnl = 0.0
         if account_type == "ibkr" and self.ibkr_client and self.ibkr_client.isConnected():
-             acc_vals = self.ibkr_client.accountValues()
-             unrealized_pnl = next((float(x.value) for x in acc_vals if x.tag == "UnrealizedPnL"), 0.0)
+            acc_vals = self.ibkr_client.accountValues()
+            unrealized_pnl = next(
+                (float(x.value) for x in acc_vals if x.tag == "UnrealizedPnL"), 0.0
+            )
 
         return {
             "equity": equity,
@@ -1918,7 +2074,9 @@ class TradingBrain:
                         ticket = int(ticket_str)
                         await asyncio.to_thread(self.mt5_conn.close_position, ticket)
                     except ValueError:
-                        logger.error(f"MT5: Emergency flatten failed for {pos.symbol} (Invalid Ticket)")
+                        logger.error(
+                            f"MT5: Emergency flatten failed for {pos.symbol} (Invalid Ticket)"
+                        )
             except Exception as e:
                 logger.error(f"Failed to flatten {pos.symbol}: {e}")
 
@@ -1941,24 +2099,34 @@ class TradingBrain:
             if self.mode == "paper":
                 broker_online = True
             elif pos.account_type == "ibkr":
-                broker_online = hasattr(self.ibkr_conn, "is_connected") and self.ibkr_conn.is_connected
+                broker_online = (
+                    hasattr(self.ibkr_conn, "is_connected") and self.ibkr_conn.is_connected
+                )
             elif pos.account_type == "mt5":
-                broker_online = hasattr(self.mt5_conn, "is_connected") and await self.mt5_conn.is_connected()
+                broker_online = (
+                    hasattr(self.mt5_conn, "is_connected") and await self.mt5_conn.is_connected()
+                )
 
             if not broker_online:
-                logger.warning(f"DELAYED EXIT [{symbol}]: {pos.account_type} is OFFLINE. Postponing pulse.")
+                logger.warning(
+                    f"DELAYED EXIT [{symbol}]: {pos.account_type} is OFFLINE. Postponing pulse."
+                )
                 return
 
             # Strike-3 Lockout check
             strikes = self._exit_failure_count.get(symbol, 0)
             if strikes >= 3:
-                logger.critical(f"STRIKE-3 LOCKOUT: {symbol} has 3 failed exit attempts. Automated execution HALTED to prevent account damage. HUMAN INTERVENTION REQUIRED.")
+                logger.critical(
+                    f"STRIKE-3 LOCKOUT: {symbol} has 3 failed exit attempts. Automated execution HALTED to prevent account damage. HUMAN INTERVENTION REQUIRED."
+                )
                 return
 
             # Cooldown Dampener (10s)
             last_attempt = self._exit_last_attempt.get(symbol, datetime(1970, 1, 1))
             if (now - last_attempt).total_seconds() < 10:
-                logger.warning(f"DAMPENER ACTIVE: {symbol} exit attempt suppressed. Waiting for cooldown (Last try: {last_attempt.strftime('%H:%M:%S')}).")
+                logger.warning(
+                    f"DAMPENER ACTIVE: {symbol} exit attempt suppressed. Waiting for cooldown (Last try: {last_attempt.strftime('%H:%M:%S')})."
+                )
                 return
 
             # Prevent "Wash Trades" by enforcing a 15-minute minimum hold time
@@ -1979,47 +2147,57 @@ class TradingBrain:
 
             # Handling Partials from
             if exit_type == "PARTIAL":
-                 exit_shares = max(1, abs(int(pos.qty * 0.5)))
+                exit_shares = max(1, abs(int(pos.qty * 0.5)))
             else:
-                 exit_shares = abs(int(pos.qty))
+                exit_shares = abs(int(pos.qty))
 
-            logger.warning(f"EXECUTING {exit_type} FOR {pos.symbol} | PRICE: ${exit_price:.2f} (Attempt: {strikes + 1})")
+            logger.warning(
+                f"EXECUTING {exit_type} FOR {pos.symbol} | PRICE: ${exit_price:.2f} (Attempt: {strikes + 1})"
+            )
 
             if exit_shares > 0 and self.mode != "paper":
                 if pos.account_type == "ibkr":
-                     await self._place_ibkr_order(
-                         pos.symbol, direction, exit_shares, urgency="HIGH", limit_price=exit_price
-                     )
+                    await self._place_ibkr_order(
+                        pos.symbol, direction, exit_shares, urgency="HIGH", limit_price=exit_price
+                    )
                 elif pos.account_type == "mt5" and self.mt5_conn:
-                     logger.warning(f"EXECUTING MT5 EXIT FOR {pos.symbol} (Ticket: {pos.trade_id})")
-                     ticket_str = str(pos.trade_id).replace("RESTORED-", "")
-                     try:
-                         ticket = int(ticket_str)
-                         await asyncio.to_thread(self.mt5_conn.close_position, ticket)
-                     except ValueError:
-                         logger.error(f"MT5: Failed to parse ticket ID from '{pos.trade_id}' for {pos.symbol}")
+                    logger.warning(f"EXECUTING MT5 EXIT FOR {pos.symbol} (Ticket: {pos.trade_id})")
+                    ticket_str = str(pos.trade_id).replace("RESTORED-", "")
+                    try:
+                        ticket = int(ticket_str)
+                        await asyncio.to_thread(self.mt5_conn.close_position, ticket)
+                    except ValueError:
+                        logger.error(
+                            f"MT5: Failed to parse ticket ID from '{pos.trade_id}' for {pos.symbol}"
+                        )
 
             # 2. Mathematical Reflection
             slice_qty = exit_shares if pos.qty > 0 else -exit_shares
             (exit_price - pos.entry_price) * slice_qty
             r_multiple = (
                 (exit_price - pos.entry_price) / abs(pos.entry_price - pos.stop_loss)
-                if abs(pos.entry_price - pos.stop_loss) > 0 else 0
+                if abs(pos.entry_price - pos.stop_loss) > 0
+                else 0
             )
 
             intended_price = getattr(pos, "target", exit_price)
             slippage_pct = abs(exit_price - intended_price) / max(intended_price, 0.01)
-            is_dirty = slippage_pct > 0.005 # 50bps threshold
+            is_dirty = slippage_pct > 0.005  # 50bps threshold
             if is_dirty:
-                logger.warning(f"SLIPPAGE DETECTED: {pos.symbol} fill deviated {slippage_pct:.2%} from target. Trade marked as DIRTY.")
+                logger.warning(
+                    f"SLIPPAGE DETECTED: {pos.symbol} fill deviated {slippage_pct:.2%} from target. Trade marked as DIRTY."
+                )
 
             # --- COMMISSION & SLIPPAGE SIMULATION ---
             commission_cost = max(2.0, exit_shares * 0.005)
             vol_multiplier = 1.0 + (exit_shares / 2000.0)
             slippage_penalty = exit_price * 0.0005 * vol_multiplier
-            adjusted_exit_price = (exit_price - slippage_penalty if slice_qty > 0 else exit_price + slippage_penalty)
+            adjusted_exit_price = (
+                exit_price - slippage_penalty if slice_qty > 0 else exit_price + slippage_penalty
+            )
 
             from decimal import Decimal
+
             d_exit = Decimal(str(adjusted_exit_price))
             d_entry = Decimal(str(pos.entry_price))
             d_qty = Decimal(str(slice_qty))
@@ -2027,12 +2205,18 @@ class TradingBrain:
             d_slip = Decimal(str(pos.slippage_cost))
             d_total_qty = Decimal(str(abs(pos.qty) or 1))
 
-            realized_net_pnl = float((d_exit - d_entry) * d_qty - d_comm - (d_slip * (Decimal(str(exit_shares)) / d_total_qty)))
+            realized_net_pnl = float(
+                (d_exit - d_entry) * d_qty
+                - d_comm
+                - (d_slip * (Decimal(str(exit_shares)) / d_total_qty))
+            )
 
             # 3. Virtual Reflection (Wisdom & Skills)
             self.session_pnl += realized_net_pnl
             if exit_type != "PARTIAL":
-                 await self._log_trade_exit(pos, exit_type, adjusted_exit_price, realized_net_pnl, r_multiple)
+                await self._log_trade_exit(
+                    pos, exit_type, adjusted_exit_price, realized_net_pnl, r_multiple
+                )
 
             # 4. Neural Cleanup & Learning
             if exit_type == "PARTIAL":
@@ -2057,7 +2241,7 @@ class TradingBrain:
                     exit_price=adjusted_exit_price,
                     pnl_usd=realized_net_pnl,
                     ts_entry=pos.entry_time,
-                    ts_exit=now
+                    ts_exit=now,
                 )
 
                 # --- DECISION LEDGER: immutable exit audit trail ---
@@ -2076,7 +2260,7 @@ class TradingBrain:
                             "slippage_pct": round(slippage_pct, 5),
                             "regime": self.current_regime,
                             "pattern": pos.pattern or "",
-                        }
+                        },
                     )
                 except Exception as _le:
                     logger.debug(f"DecisionLedger exit skipped: {_le}")
@@ -2084,29 +2268,33 @@ class TradingBrain:
                 # Reset failure count on successful full exit
                 self._exit_failure_count[symbol] = 0
 
-                if not hasattr(self, "_loss_streak"): self._loss_streak = 0
+                if not hasattr(self, "_loss_streak"):
+                    self._loss_streak = 0
                 if realized_net_pnl < 0:
                     self._loss_streak += 1
                     if self._loss_streak >= 5:
-                        logger.critical(f"🚨 LOSS STREAK DETECTED ({self._loss_streak}). TRIGGERING RISK-OFF REGIME.")
+                        logger.critical(
+                            f"🚨 LOSS STREAK DETECTED ({self._loss_streak}). TRIGGERING RISK-OFF REGIME."
+                        )
                         self.current_regime = "RISK_OFF"
                         # Reset streak after triggering so we can eventually recover
                         self._loss_streak = 0
                 else:
                     self._loss_streak = 0
 
-            if hasattr(self, 'recursive_evolution'):
+            if hasattr(self, "recursive_evolution"):
                 self.recursive_evolution.evolve_live(
                     pattern_name=pos.pattern or pos.meta.get("pattern", "UNKNOWN"),
                     pnl=realized_net_pnl,
                     regime=self.current_regime,
-                    shares_remaining=getattr(pos, "shares_remaining", 0.0)
+                    shares_remaining=getattr(pos, "shares_remaining", 0.0),
                 )
 
             # --- EVENT PUBLISHING (Neural Bus) ---
             if self.bus:
                 await self.bus.publish(
-                    "trade.exit", {
+                    "trade.exit",
+                    {
                         "symbol": pos.symbol,
                         "pnl": realized_net_pnl,
                         "exit_type": exit_type,
@@ -2114,12 +2302,13 @@ class TradingBrain:
                         "pattern": pos.pattern or pos.meta.get("pattern", "UNKNOWN"),
                         "regime": self.current_regime,
                         "r_multiple": r_multiple,
-                        "shares_remaining": getattr(pos, "shares_remaining", 0.0)
-                    }
+                        "shares_remaining": getattr(pos, "shares_remaining", 0.0),
+                    },
                 )
 
             # Telegram Alert (Enhanced for SE-12 Detail)
             from telegram_alerts import send_telegram_alert
+
             icon = "🟢" if realized_net_pnl > 0 else "🔴" if realized_net_pnl < 0 else "⚪"
 
             intent = pos.meta.get("intent", "Sovereign")
@@ -2134,7 +2323,7 @@ class TradingBrain:
                 f"-------------------\n"
                 f"Trade PnL: ${realized_net_pnl:+.2f}\n"
                 f"R-Multiple: {r_multiple:+.2f}x\n"
-                f"Hold Time: {(now - pos.entry_time).total_seconds()/60:.1f}m\n"
+                f"Hold Time: {(now - pos.entry_time).total_seconds() / 60:.1f}m\n"
                 f"-------------------\n"
                 f"📈 SESSION TOTAL: ${self.session_pnl:+.2f}"
             )
@@ -2174,31 +2363,51 @@ class TradingBrain:
                         # Re-sort to chronological order for mean calculation
                         closes = spy_df["close"].iloc[::-1].tolist()
                         if len(closes) >= 20:
-                             momentum = (closes[-1] - closes[-20]) / closes[-20] if closes[-20] != 0 else 0
+                            momentum = (
+                                (closes[-1] - closes[-20]) / closes[-20] if closes[-20] != 0 else 0
+                            )
                         if len(closes) >= 200:
-                             sma_200 = sum(closes[-200:]) / 200
-                             spy_above_200ma = closes[-1] > sma_200
-                             logger.debug(f"True Daily SMA 200 detected: {sma_200:.2f} (Price: {closes[-1]:.2f})")
+                            sma_200 = sum(closes[-200:]) / 200
+                            spy_above_200ma = closes[-1] > sma_200
+                            logger.debug(
+                                f"True Daily SMA 200 detected: {sma_200:.2f} (Price: {closes[-1]:.2f})"
+                            )
                 except Exception as e:
                     logger.debug(f"Regime data fallback (1d): {e}")
 
             # --- Compute breadth: % of watchlist symbols with positive change ---
             breadth = 0.55  # default
             if self.db_conn:
+
                 def _sync_breadth() -> float:
                     try:
                         total = 0
                         positive = 0
-                        major_indices = ["SPY", "QQQ", "IWM", "DIA", "XLK", "NVDA", "MSFT", "AAPL", "TSLA", "META"]
+                        major_indices = [
+                            "SPY",
+                            "QQQ",
+                            "IWM",
+                            "DIA",
+                            "XLK",
+                            "NVDA",
+                            "MSFT",
+                            "AAPL",
+                            "TSLA",
+                            "META",
+                        ]
 
                         for sym in major_indices:
                             if sym in self.last_tick_prices:
                                 total += 1
-                                if (sym in self.last_tick_prices): # placeholder for trend check
-                                     positive += 1
+                                if sym in self.last_tick_prices:  # placeholder for trend check
+                                    positive += 1
                             else:
                                 # Fallback to DB
-                                row = pd.read_sql_query("SELECT close FROM ohlcv WHERE symbol=? ORDER BY timestamp DESC LIMIT 2", self.db_conn, params=(sym,))
+                                row = pd.read_sql_query(
+                                    "SELECT close FROM ohlcv WHERE symbol=? ORDER BY timestamp DESC LIMIT 2",
+                                    self.db_conn,
+                                    params=(sym,),
+                                )
                                 if not row.empty and len(row) >= 2:
                                     total += 1
                                     if row["close"].iloc[0] > row["close"].iloc[1]:
@@ -2219,17 +2428,18 @@ class TradingBrain:
                 f"Regime: {regime} (VIX={vix:.1f}, Mom={momentum:.4f}, Breadth={breadth:.2f}, SPY>200MA={spy_above_200ma})"
             )
             # PERSIST Context for the State Capsule
-            self.session_restorer.save_cognitive_capsule({
-                "regime": regime,
-                "conviction_state": self.conviction_state,
-                "session_pnl": self.session_pnl,
-                "session_stats": self.session_stats,
-                "timestamp": datetime.now(timezone.utc).isoformat()
-            })
+            self.session_restorer.save_cognitive_capsule(
+                {
+                    "regime": regime,
+                    "conviction_state": self.conviction_state,
+                    "session_pnl": self.session_pnl,
+                    "session_stats": self.session_stats,
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                }
+            )
             return regime
         except Exception:
             return "CHOPPY"
-
 
     async def _get_vix(self) -> float:
         """Get current VIX level from database (populated by data pipeline)."""
@@ -2330,12 +2540,14 @@ class TradingBrain:
 
             # If QuestDB has timed out repeatedly, we 'Break the circuit' and skip it for 5 minutes.
             if self._qdb_circuit_broken and (now_mono - self._qdb_last_failure_time) < 300:
-                pass # Skip QuestDB and use SQLite/Cache fallback
+                pass  # Skip QuestDB and use SQLite/Cache fallback
             elif self.qdb.enabled:
                 try:
                     from config import QUESTDB_CONNECT_TIMEOUT_SEC
+
                     df_qdb = await asyncio.wait_for(
-                        self.qdb.fetch_ohlcv_pandas(symbol, timeframe="1m", limit=200), timeout=QUESTDB_CONNECT_TIMEOUT_SEC
+                        self.qdb.fetch_ohlcv_pandas(symbol, timeframe="1m", limit=200),
+                        timeout=QUESTDB_CONNECT_TIMEOUT_SEC,
                     )
                     # Success: Reset failure count
                     self._qdb_failure_count = 0
@@ -2344,9 +2556,13 @@ class TradingBrain:
                     self._qdb_last_failure_time = now_mono
                     if self._qdb_failure_count >= 3:
                         self._qdb_circuit_broken = True
-                        logger.critical("QuestDB SLOWNESS DETECTED. Circuit Broken for 5 minutes. Failing over to SQLite/Cache.")
+                        logger.critical(
+                            "QuestDB SLOWNESS DETECTED. Circuit Broken for 5 minutes. Failing over to SQLite/Cache."
+                        )
                     else:
-                        logger.warning(f"QuestDB timeout for {symbol} ({self._qdb_failure_count}/3) — failing over to SQLite")
+                        logger.warning(
+                            f"QuestDB timeout for {symbol} ({self._qdb_failure_count}/3) — failing over to SQLite"
+                        )
                     df_qdb = None
                 except Exception as q_err:
                     logger.debug(f"QuestDB read error for {symbol}: {q_err}")
@@ -2422,7 +2638,7 @@ class TradingBrain:
                 staleness_limit = 3600 if market_open else 259200
 
                 if os.environ.get("FORCED_MARKET_OPEN") == "1":
-                    staleness_limit = 1_000_000 # Allow very old data for sim
+                    staleness_limit = 1_000_000  # Allow very old data for sim
 
                 if staleness > staleness_limit:
                     staleness_min = staleness / 60
@@ -2435,7 +2651,7 @@ class TradingBrain:
                         # Only log once every 4 hours per symbol to avoid spamming on weekends
                         last_alert = getattr(self, "_last_stale_alert", {})
                         now = time.time()
-                        if now - last_alert.get(symbol, 0) > 14400: # 4 hours
+                        if now - last_alert.get(symbol, 0) > 14400:  # 4 hours
                             logger.warning(
                                 f"STALE (MARKET CLOSED): {symbol} newest bar is "
                                 f"{staleness_min:.0f}min old (>24h) — skipping"
@@ -2456,6 +2672,7 @@ class TradingBrain:
             return final_df
         except Exception as e:
             import traceback
+
             logger.error(f"Error fetching OHLCV for {symbol}: {e}\n{traceback.format_exc()}")
             return None
 
@@ -2560,25 +2777,27 @@ class TradingBrain:
                 logger.error(f"Position restoration failed: {e}")
 
         await asyncio.to_thread(_sync_restore)  # type: ignore
-        self._sanitize_positions() # Pre-emptive purge before first cycle
+        self._sanitize_positions()  # Pre-emptive purge before first cycle
         await self._reconcile_broker_positions()
 
     def _sanitize_positions(self):
         """Imperial Integrity Check: Purges non-object entries from memory pool."""
         valid = []
         for p in self.positions:
-            if hasattr(p, 'symbol') and not isinstance(p, dict):
+            if hasattr(p, "symbol") and not isinstance(p, dict):
                 valid.append(p)
             elif isinstance(p, dict) and "symbol" in p:
                 try:
                     from dataclasses import fields
 
                     from system_types import Position
+
                     field_names = {f.name for f in fields(Position)}
                     filtered = {k: v for k, v in p.items() if k in field_names}
                     valid.append(Position(**filtered))
                     logger.warning(f"🛡️ SANITIZER: Re-hydrated dictionary for {p['symbol']}.")
-                except Exception: continue
+                except Exception:
+                    continue
         self.positions = valid
 
     async def _reconcile_broker_positions(self) -> None:
@@ -2590,7 +2809,7 @@ class TradingBrain:
             # 1. Gather Reality from Brokers
             ibkr_reality = {}
             if self.ibkr_conn and self.ibkr_conn.is_connected:
-                ibkr_reality = self.ibkr_conn._positions_cache # {symbol: qty}
+                ibkr_reality = self.ibkr_conn._positions_cache  # {symbol: qty}
 
                 # Always force a real-time check on the first reconciliation or if cache is empty
                 if not ibkr_reality:
@@ -2612,11 +2831,13 @@ class TradingBrain:
 
             # 3. Memory-to-Reality Mapping
             now_ts = datetime.now(timezone.utc)
-            uptime = (now_ts - self.start_time).total_seconds() if hasattr(self, "start_time") else 0.0
+            uptime = (
+                (now_ts - self.start_time).total_seconds() if hasattr(self, "start_time") else 0.0
+            )
 
             for p in list(self.positions):
                 broker = p.account_type
-                reality = ibkr_reality if broker == 'ibkr' else mt5_reality
+                reality = ibkr_reality if broker == "ibkr" else mt5_reality
                 broker_qty = reality.get(p.symbol, 0.0)
 
                 age_seconds = (now_ts - p.entry_time).total_seconds()
@@ -2624,7 +2845,9 @@ class TradingBrain:
                 # A. The Zero-Sync Purge (Clean up phantom positions)
                 # ONLY purge if: Uptime > 300s, Age > 600s, and Reality is FLAT
                 if uptime > 300 and age_seconds > 600 and abs(broker_qty) < 0.1:
-                    logger.warning(f"🧹 SYNC PURGE [{broker.upper()}]: {p.symbol} is flat in reality. Removing from memory.")
+                    logger.warning(
+                        f"🧹 SYNC PURGE [{broker.upper()}]: {p.symbol} is flat in reality. Removing from memory."
+                    )
                     if p in self.positions:
                         self.positions.remove(p)
                     self._mark_trade_liquidated(p.symbol, broker)
@@ -2632,56 +2855,68 @@ class TradingBrain:
 
                 # B. Quantity & Polarity Sync
                 if abs(p.qty - broker_qty) > 0.00001:
-                    if age_seconds > 60: # 60s grace for fill reflection
+                    if age_seconds > 60:  # 60s grace for fill reflection
                         p.qty = float(broker_qty)
                         self._update_trade_volume(p.symbol, broker, p.qty)
 
             # Triggers a high-visibility audit once per cycle (or on-demand)
             report_lines = [
-                "\n" + "="*80,
+                "\n" + "=" * 80,
                 " ⚖️  SOVEREIGN REALITY HANDSHAKE (Memory vs Broker) ",
-                "="*80,
+                "=" * 80,
                 f" {'Symbol':<10} | {'Broker':<8} | {'Memory Qty':<12} | {'Reality Qty':<12} | {'Status':<10}",
-                "-"*80
+                "-" * 80,
             ]
 
-            all_symbols = set(ibkr_reality.keys()) | set(mt5_reality.keys()) | {p.symbol for p in self.positions}
+            all_symbols = (
+                set(ibkr_reality.keys())
+                | set(mt5_reality.keys())
+                | {p.symbol for p in self.positions}
+            )
             for sym in sorted(all_symbols):
-                for b in ['ibkr', 'mt5']:
-                    reality_map = ibkr_reality if b == 'ibkr' else mt5_reality
-                    if b == 'mt5' and not (self.mt5_conn and await self.mt5_conn.is_connected()): continue
+                for b in ["ibkr", "mt5"]:
+                    reality_map = ibkr_reality if b == "ibkr" else mt5_reality
+                    if b == "mt5" and not (self.mt5_conn and await self.mt5_conn.is_connected()):
+                        continue
 
-                    m_pos = next((p for p in self.positions if p.symbol == sym and p.account_type == b), None)
+                    m_pos = next(
+                        (p for p in self.positions if p.symbol == sym and p.account_type == b), None
+                    )
                     m_qty = m_pos.qty if m_pos else 0.0
                     r_qty = reality_map.get(sym, 0.0)
 
-                    if abs(m_qty) < 0.01 and abs(r_qty) < 0.01: continue
+                    if abs(m_qty) < 0.01 and abs(r_qty) < 0.01:
+                        continue
 
                     status = "✅ MATCH" if abs(m_qty - r_qty) < 0.0001 else "⚠️ DRIFT"
-                    report_lines.append(f" {sym:<10} | {b:<8} | {m_qty:<12.2f} | {r_qty:<12.2f} | {status}")
+                    report_lines.append(
+                        f" {sym:<10} | {b:<8} | {m_qty:<12.2f} | {r_qty:<12.2f} | {status}"
+                    )
 
-            report_lines.append("="*80 + "\n")
+            report_lines.append("=" * 80 + "\n")
             logger.info("\n".join(report_lines))
 
             # 4. Adoption Protocol (Discover unmanaged positions)
-            all_managed = { (p.symbol, p.account_type) for p in self.positions }
+            all_managed = {(p.symbol, p.account_type) for p in self.positions}
 
             # Adopt from IBKR
             for symbol, qty in ibkr_reality.items():
-                if abs(qty) >= 0.1 and (symbol, 'ibkr') not in all_managed:
-                    await self._adopt_orphan(symbol, qty, 'ibkr')
+                if abs(qty) >= 0.1 and (symbol, "ibkr") not in all_managed:
+                    await self._adopt_orphan(symbol, qty, "ibkr")
 
             # Adopt from MT5
             for symbol, qty in mt5_reality.items():
-                if abs(qty) >= 0.01 and (symbol, 'mt5') not in all_managed:
-                    await self._adopt_orphan(symbol, qty, 'mt5')
+                if abs(qty) >= 0.01 and (symbol, "mt5") not in all_managed:
+                    await self._adopt_orphan(symbol, qty, "mt5")
 
         except Exception as e:
             logger.error(f"Sovereign Reconciliation Failed: {e}")
 
     async def _adopt_orphan(self, symbol: str, qty: float, broker: str) -> None:
         """Absorb an unmanaged broker position into the Matrix."""
-        logger.warning(f"🧟 ORPHAN DETECTED [{broker.upper()}]: {symbol} | Qty: {qty}. Initiating Adoption...")
+        logger.warning(
+            f"🧟 ORPHAN DETECTED [{broker.upper()}]: {symbol} | Qty: {qty}. Initiating Adoption..."
+        )
         try:
             # 1. Get current price context
             price = self.last_tick_prices.get(symbol, 0.0)
@@ -2698,7 +2933,7 @@ class TradingBrain:
                 cursor.execute(
                     "SELECT entry_price, stop_price, target_price FROM trades "
                     "WHERE instrument=? AND broker=? AND outcome='OPEN' ORDER BY id DESC LIMIT 1",
-                    (symbol, broker)
+                    (symbol, broker),
                 )
                 db_row = cursor.fetchone()
 
@@ -2714,6 +2949,7 @@ class TradingBrain:
 
             # 3. Construct Position
             from system_types import Position
+
             adopted = Position(
                 symbol=symbol,
                 qty=qty,
@@ -2725,7 +2961,7 @@ class TradingBrain:
                 take_profit=target,
                 trade_id=f"ADOPTED-{broker.upper()}-{symbol}",
                 account_type=broker,
-                meta={"adoption_ts": datetime.now(timezone.utc).isoformat()}
+                meta={"adoption_ts": datetime.now(timezone.utc).isoformat()},
             )
 
             self.positions.append(adopted)
@@ -2736,7 +2972,18 @@ class TradingBrain:
                 cursor.execute(
                     "INSERT INTO trades (timestamp, instrument, direction, quantity, entry_price, outcome, stop_price, target_price, broker, notes) "
                     "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                    (datetime.now(timezone.utc).isoformat(), symbol, direction, qty, price, "OPEN", stop, target, broker, "Sovereign Adoption Protocol v1.0-beta")
+                    (
+                        datetime.now(timezone.utc).isoformat(),
+                        symbol,
+                        direction,
+                        qty,
+                        price,
+                        "OPEN",
+                        stop,
+                        target,
+                        broker,
+                        "Sovereign Adoption Protocol v1.0-beta",
+                    ),
                 )
                 adopted.db_id = cursor.lastrowid
                 self.db_conn.commit()
@@ -2744,9 +2991,12 @@ class TradingBrain:
             logger.info(f"✅ ADOPTED: {symbol} in {broker.upper()} absorbed @ {price:.2f}")
 
             if self.bus:
-                await self.bus.publish("notification.telegram", {
-                    "message": f"🧟 *ORPHAN ADOPTED*\nBroker: {broker.upper()}\nSymbol: {symbol}\nQty: {qty}\nStop: {stop:.2f}"
-                })
+                await self.bus.publish(
+                    "notification.telegram",
+                    {
+                        "message": f"🧟 *ORPHAN ADOPTED*\nBroker: {broker.upper()}\nSymbol: {symbol}\nQty: {qty}\nStop: {stop:.2f}"
+                    },
+                )
 
         except Exception as e:
             logger.error(f"Failed to adopt orphan {symbol} on {broker}: {e}")
@@ -2757,7 +3007,7 @@ class TradingBrain:
             if self.db_conn:
                 self.db_conn.execute(
                     "UPDATE trades SET outcome = 'LIQUIDATED' WHERE instrument = ? AND broker = ? AND outcome = 'OPEN'",
-                    (symbol, broker)
+                    (symbol, broker),
                 )
                 self.db_conn.commit()
         except Exception as e:
@@ -2769,7 +3019,7 @@ class TradingBrain:
             if self.db_conn:
                 self.db_conn.execute(
                     "UPDATE trades SET shares = ? WHERE instrument = ? AND broker = ? AND outcome = 'OPEN'",
-                    (abs(qty), symbol, broker)
+                    (abs(qty), symbol, broker),
                 )
                 self.db_conn.commit()
         except Exception as e:
@@ -2780,7 +3030,7 @@ class TradingBrain:
         try:
             snapshot = {
                 "symbol": symbol,
-                "price": None, # Use None as sentinel for missing price
+                "price": None,  # Use None as sentinel for missing price
                 "price_change_pct": 0.0,
                 "vix": await self._get_vix(),
                 "breadth": 0.55,  # Default
@@ -2789,7 +3039,11 @@ class TradingBrain:
             }
 
             # 0. HFT Replay Acceleration Layer
-            if hasattr(self, "_last_tick_price") and self._last_tick_price and symbol in self._last_tick_price:
+            if (
+                hasattr(self, "_last_tick_price")
+                and self._last_tick_price
+                and symbol in self._last_tick_price
+            ):
                 snapshot["price"] = float(self._last_tick_price[symbol])
             elif symbol in self.last_tick_prices:
                 snapshot["price"] = float(self.last_tick_prices[symbol])
@@ -2802,10 +3056,9 @@ class TradingBrain:
                     prev_close = float(df["close"][-2]) if len(df) > 1 else latest_close
 
                     snapshot["price"] = latest_close
-                    snapshot["price_change_pct"] = (
-                        (latest_close - prev_close) / (prev_close + 1e-10)
+                    snapshot["price_change_pct"] = (latest_close - prev_close) / (
+                        prev_close + 1e-10
                     )
-
 
             return snapshot
         except Exception as e:
@@ -2826,7 +3079,9 @@ class TradingBrain:
         haircut_pct = 0.02 + (vix / 250.0)
         safe_equity = raw_equity * (1.0 - haircut_pct)
 
-        logger.debug(f"Defensive Equity: Raw ${raw_equity:.2f} | VIX {vix:.1f} | Haircut {haircut_pct:.1%} | Safe ${safe_equity:.2f}")
+        logger.debug(
+            f"Defensive Equity: Raw ${raw_equity:.2f} | VIX {vix:.1f} | Haircut {haircut_pct:.1%} | Safe ${safe_equity:.2f}"
+        )
         return safe_equity
 
     async def _get_account_value(self, account_type: str, force_fresh: bool = False) -> float:
@@ -2843,7 +3098,10 @@ class TradingBrain:
                 if hasattr(self.ibkr_client, "isConnected") and self.ibkr_client.isConnected():
                     # Priority: Use NetLiquidation to avoid currency confusion
                     acc_vals = self.ibkr_client.accountValues()
-                    val = next((float(x.value) for x in acc_vals if x.tag == "NetLiquidation"), STARTING_CAPITAL_CAD)
+                    val = next(
+                        (float(x.value) for x in acc_vals if x.tag == "NetLiquidation"),
+                        STARTING_CAPITAL_CAD,
+                    )
             elif account_type == "mt5":
                 import MetaTrader5 as mt5
 
@@ -2863,7 +3121,6 @@ class TradingBrain:
         except Exception as e:
             logger.warning(f"Account check failed (non-fatal): {e}")
             return self._last_account_value.get(account_type, STARTING_CAPITAL_CAD)
-
 
     async def _get_daily_pnl(self, account_type: str) -> float:
         """Get today's P&L."""
@@ -2896,7 +3153,7 @@ class TradingBrain:
         limit_price: float = 0.0,
         stop_price: float = 0.0,
         target_price: float = 0.0,
-        **kwargs # Added for Ghost Expansion
+        **kwargs,  # Added for Ghost Expansion
     ) -> str:
         """
         Place an order via IBKR (paper or live depending on mode).
@@ -2914,21 +3171,33 @@ class TradingBrain:
         # Prevent "Wrong Way" orders and Force-Sync brain memory.
         try:
             # Live query — touches the broker directly to be 100% sure
-            broker_positions = {p.contract.symbol: p.position for p in self.ibkr_client.positions() if p.position != 0}
+            broker_positions = {
+                p.contract.symbol: p.position
+                for p in self.ibkr_client.positions()
+                if p.position != 0
+            }
             broker_qty = broker_positions.get(symbol, 0)
 
             # --- THE SOVEREIGN MIRROR SYNC ---
             # If the signs differ or magnitude is way off, fix memory IMMEDIATELY.
             for p in self.positions:
-                if p.symbol == symbol and (np.sign(p.qty) != np.sign(broker_qty) or abs(p.qty - broker_qty) > 0.1):
-                    logger.warning(f"⚖️ MIRROR SYNC: {symbol} memory error ({p.qty}) corrected to Broker Reality ({broker_qty}).")
+                if p.symbol == symbol and (
+                    np.sign(p.qty) != np.sign(broker_qty) or abs(p.qty - broker_qty) > 0.1
+                ):
+                    logger.warning(
+                        f"⚖️ MIRROR SYNC: {symbol} memory error ({p.qty}) corrected to Broker Reality ({broker_qty})."
+                    )
                     p.qty = float(broker_qty)
 
             if direction == "SELL" and broker_qty < 0:
-                logger.critical(f"🛑 POLARITY SHIELD: Blocked SELL for {symbol} (Short exposure: {broker_qty}). Next cycle will BUY to close.")
+                logger.critical(
+                    f"🛑 POLARITY SHIELD: Blocked SELL for {symbol} (Short exposure: {broker_qty}). Next cycle will BUY to close."
+                )
                 return None
             if direction == "BUY" and broker_qty > 0:
-                logger.critical(f"🛑 POLARITY SHIELD: Blocked BUY for {symbol} (Long exposure: {broker_qty}). Next cycle will SELL to close.")
+                logger.critical(
+                    f"🛑 POLARITY SHIELD: Blocked BUY for {symbol} (Long exposure: {broker_qty}). Next cycle will SELL to close."
+                )
                 return None
         except Exception as guard_e:
             logger.debug(f"Polarity Guard Live Check skipped (Recovery mode active): {guard_e}")
@@ -2941,6 +3210,7 @@ class TradingBrain:
                 warn_msg = f"🛑 ZERO-SHARE SHIELD: Blocked {direction} for {symbol} (Size=0). Check sizer math or Probe logic."
                 logger.warning(warn_msg)
                 from telegram_alerts import send_telegram_alert
+
                 await send_telegram_alert(
                     f"🏛️ *SHIELD VETO: {symbol}*\n"
                     f"Action: Blocked {direction}\n"
@@ -2953,9 +3223,11 @@ class TradingBrain:
             # If we have stop/target geometry, we use the bracket executor
             if stop_price > 0 and target_price > 0:
                 # --- SOVEREIGN PRE-FLIGHT ARMOR ---
-                ok, reason = await asyncio.to_thread(self.ibkr_conn.validate_order_pre_flight, symbol, direction, shares, limit_price)
+                ok, reason = await asyncio.to_thread(
+                    self.ibkr_conn.validate_order_pre_flight, symbol, direction, shares, limit_price
+                )
                 if not ok:
-                    logger.critical(f'🛑 PRE-FLIGHT REJECTION for {symbol}: {reason}')
+                    logger.critical(f"🛑 PRE-FLIGHT REJECTION for {symbol}: {reason}")
                     return None
 
                 exec_token = self.ibkr_conn.generate_exec_token(symbol)
@@ -2969,7 +3241,7 @@ class TradingBrain:
                     stop_loss=stop_price,
                     take_profit=target_price,
                     urgency=urgency,
-                    **kwargs # Pass Ghost Expansion & Exec Token
+                    **kwargs,  # Pass Ghost Expansion & Exec Token
                 )
                 return str(ids[0]) if ids else ""
 
@@ -2981,7 +3253,9 @@ class TradingBrain:
                     symbol, direction, shares, order_type="LMT", limit_price=limit_price, **kwargs
                 )
             else:
-                return await self.ibkr_conn.place_order(symbol, direction, shares, order_type="MKT", **kwargs)
+                return await self.ibkr_conn.place_order(
+                    symbol, direction, shares, order_type="MKT", **kwargs
+                )
         except Exception as e:
             logger.error(f"IBKR order failed: {e}")
             return None
@@ -3018,7 +3292,9 @@ class TradingBrain:
                     "session_stats": self.session_stats,
                 }
                 # Use to_thread to avoid blocking the event loop on Windows file I/O
-                asyncio.create_task(asyncio.to_thread(self.session_restorer.freeze_state, state_to_freeze))
+                asyncio.create_task(
+                    asyncio.to_thread(self.session_restorer.freeze_state, state_to_freeze)
+                )
 
         mt5_equity = await self._get_account_value("mt5")
         self.prop_drawdown.update(mt5_equity)
@@ -3061,14 +3337,16 @@ class TradingBrain:
 
         # 16:00 - 17:00 NY: MAINTENANCE STAND-DOWN
         if hour == 16:
-             logger.debug(f"Sovereign: Maintenance Window detected ({hour}:{minute:02d} NY). Standing down.")
-             return "MAINTENANCE"
+            logger.debug(
+                f"Sovereign: Maintenance Window detected ({hour}:{minute:02d} NY). Standing down."
+            )
+            return "MAINTENANCE"
 
         # IBKR Equities: 9:30 AM - 4:00 PM NY
         if 9 <= hour < 16:
-             if hour == 9 and minute < 30:
-                  return "MT5" # Before Open
-             return "IBKR"
+            if hour == 9 and minute < 30:
+                return "MT5"  # Before Open
+            return "IBKR"
 
         # MT5 Forex: 5:00 PM - 9:00 AM NY (Includes Asian/London sessions)
         return "MT5"
@@ -3078,32 +3356,36 @@ class TradingBrain:
         logger.warning(f"🔄 SOVEREIGN HOT-SWAP: Switching from {self.active_broker} to {target}...")
 
         if target == "MT5":
-             # Shutdown IBKR streams if possible
-             # (In this architecture, we keep connections but skip polling)
-             self.active_broker = "MT5"
-             # Initialize MT5
-             # Vault.get MT5 credentials
-             login = int(Vault.get("MT5_LOGIN", "0"))
-             pw = Vault.get("MT5_PASSWORD", "")
-             srv = Vault.get("MT5_SERVER", "")
-             if login > 0:
-                 success = await asyncio.to_thread(self.mt5_conn.connect, login, pw, srv)
-                 if success:
-                     logger.info("MT5: Connection established for Forex session.")
-                 else:
-                     logger.error("MT5: Connection FAILED. Reverting to IBKR.")
-                     self.active_broker = "IBKR"
+            # Shutdown IBKR streams if possible
+            # (In this architecture, we keep connections but skip polling)
+            self.active_broker = "MT5"
+            # Initialize MT5
+            # Vault.get MT5 credentials
+            login = int(Vault.get("MT5_LOGIN", "0"))
+            pw = Vault.get("MT5_PASSWORD", "")
+            srv = Vault.get("MT5_SERVER", "")
+            if login > 0:
+                success = await asyncio.to_thread(self.mt5_conn.connect, login, pw, srv)
+                if success:
+                    logger.info("MT5: Connection established for Forex session.")
+                else:
+                    logger.error("MT5: Connection FAILED. Reverting to IBKR.")
+                    self.active_broker = "IBKR"
         else:
-             self.active_broker = "IBKR"
-             logger.info("IBKR: Returning to Equities session.")
+            self.active_broker = "IBKR"
+            logger.info("IBKR: Returning to Equities session.")
 
-    async def _place_mt5_order(self, symbol, direction, shares, limit_price, stop_price, target_price, **kwargs):
+    async def _place_mt5_order(
+        self, symbol, direction, shares, limit_price, stop_price, target_price, **kwargs
+    ):
         """Forex Execution Engine for MT5."""
         logger.info(f"MT5: Placing {direction} order for {symbol} ({shares} lots)")
 
         risk_per_trade = getattr(self, "mt5_risk_per_trade", 10.0)
 
-        lots = self.mt5_sizer.calculate_lots(risk_per_trade, limit_price, stop_price, symbol) or 0.01
+        lots = (
+            self.mt5_sizer.calculate_lots(risk_per_trade, limit_price, stop_price, symbol) or 0.01
+        )
 
         order_id = await asyncio.to_thread(
             self.mt5_conn.place_order,
@@ -3111,7 +3393,7 @@ class TradingBrain:
             dir=direction.lower(),
             vol=lots,
             sl=stop_price,
-            tp=target_price
+            tp=target_price,
         )
         return order_id
 
@@ -3128,12 +3410,20 @@ class TradingBrain:
                     direction_str = "LONG" if pos.qty > 0 else "SHORT"
 
                     # Record the 'Intelligence Profile' immediately so we don't forget if we crash.
-                    intel_snap = json.dumps({
-                        "lambda": getattr(self, "current_lambda", 0),
-                        "regime": pos.regime_at_entry,
-                        "vix": self.vix_data.get("VIX", 0) if hasattr(self, "vix_data") else 0,
-                        "swarm_profile": getattr(self.swarm_predictor, "_last_consensus", None).__dict__ if hasattr(self.swarm_predictor, "_last_consensus") and self.swarm_predictor._last_consensus else "None"
-                    }, default=str)
+                    intel_snap = json.dumps(
+                        {
+                            "lambda": getattr(self, "current_lambda", 0),
+                            "regime": pos.regime_at_entry,
+                            "vix": self.vix_data.get("VIX", 0) if hasattr(self, "vix_data") else 0,
+                            "swarm_profile": getattr(
+                                self.swarm_predictor, "_last_consensus", None
+                            ).__dict__
+                            if hasattr(self.swarm_predictor, "_last_consensus")
+                            and self.swarm_predictor._last_consensus
+                            else "None",
+                        },
+                        default=str,
+                    )
 
                     cursor.execute(
                         "INSERT INTO trades (timestamp, instrument, direction, pattern, regime, "
@@ -3151,15 +3441,15 @@ class TradingBrain:
                             pos.take_profit,
                             recorded_shares,
                             pos.r_r_ratio,
-                            pos.catalyst_score, # REMOVED ENCRYPTION FOR LEARNING ENGINE
+                            pos.catalyst_score,  # REMOVED ENCRYPTION FOR LEARNING ENGINE
                             pos.dhatu_state,
-                            pos.initial_belief, # REMOVED ENCRYPTION FOR LEARNING ENGINE
+                            pos.initial_belief,  # REMOVED ENCRYPTION FOR LEARNING ENGINE
                             pos.account_type,
                             pos.account_id,
                             self.mode,
                             "OPEN",
                             0.0,
-                            intel_snap
+                            intel_snap,
                         ),
                     )
                     # Capture the RowID for precise exit tracking (Stop the Race Condition)
@@ -3180,30 +3470,36 @@ class TradingBrain:
             try:
                 # If exit_price is zero/none (Broker lag), recover from the Last Known Price in pipeline
                 if not exit_price or exit_price <= 0:
-                    logger.warning(f"GHOST RECOVERY: {pos.symbol} exit price is 0. Pulling reality from pipeline...")
+                    logger.warning(
+                        f"GHOST RECOVERY: {pos.symbol} exit price is 0. Pulling reality from pipeline..."
+                    )
                     # Assume self.data_pipeline is available as we're in the Brain
                     if hasattr(self, "data_pipeline"):
                         last_tick = self.data_pipeline.get_last_price(pos.symbol)
                         if last_tick:
                             exit_price = last_tick
                             pnl = (exit_price - pos.entry_price) * pos.qty
-                            logger.info(f"Reality Restored: {pos.symbol} price set to ${exit_price:.2f}")
+                            logger.info(
+                                f"Reality Restored: {pos.symbol} price set to ${exit_price:.2f}"
+                            )
 
                 if self.db_conn:
                     cursor = self.db_conn.cursor()
-                    hold_hours = (datetime.now(timezone.utc) - pos.entry_time).total_seconds() / 3600
+                    hold_hours = (
+                        datetime.now(timezone.utc) - pos.entry_time
+                    ).total_seconds() / 3600
                     cursor.execute(
                         "UPDATE trades SET exit_price=?, outcome=?, pnl_dollars=?, r_multiple=?, "
                         "hold_hours=?, belief_at_exit=?, net_pnl=? WHERE rowid=?",
                         (
                             exit_price,
                             exit_type,
-                            pnl, # Plaintext for Learning Engine
+                            pnl,  # Plaintext for Learning Engine
                             r_multiple,
                             hold_hours,
                             pos.current_belief,
-                            pnl, # Net Pnl Sync
-                            getattr(pos, "db_id", 0) # Use the specific ID
+                            pnl,  # Net Pnl Sync
+                            getattr(pos, "db_id", 0),  # Use the specific ID
                         ),
                     )
                     cursor.close()
@@ -3231,39 +3527,54 @@ class TradingBrain:
         elif self.loss_tracker.win_streak >= 3:
             # We are in a groove, maintain or shift to Vriddhi
             if self._oracle_dhatu != "Vriddhi":
-                logger.info(f"🚀 WIN STREAK ({self.loss_tracker.win_streak}): Shifting to VRIDDHI state.")
+                logger.info(
+                    f"🚀 WIN STREAK ({self.loss_tracker.win_streak}): Shifting to VRIDDHI state."
+                )
                 self._oracle_dhatu = "Vriddhi"
 
         await asyncio.to_thread(_sync_log)  # type: ignore
 
     async def _run_phantom_probe(self) -> None:
         """Sovereign Self-Test: Verify system wiring is 100% active."""
-        await asyncio.sleep(60) # Initial grace period
+        await asyncio.sleep(60)  # Initial grace period
         while self.is_running:
             try:
                 if hasattr(self, "coordinator"):
                     logger.info("🧠 Brain: Initiating PHANTOM PROBE (System Wiring Check)...")
                     # Construct a fake proposal
                     from agent_a import PatternResult
+
                     fake_p = {
                         "symbol": "SPY",
                         "pattern": PatternResult(
-                            name="PROBE_PULSE", category="PROBE", entry=500.0, stop=495.0, target=515.0,
+                            name="PROBE_PULSE",
+                            category="PROBE",
+                            entry=500.0,
+                            stop=495.0,
+                            target=515.0,
                             confidence=99.0,  # Must be ≥60 (percentage scale) for Agent A to pass
-                            r_r_ratio=3.0, confirmed=True, lambda_val=50
+                            r_r_ratio=3.0,
+                            confirmed=True,
+                            lambda_val=50,
                         ),
-                        "timestamp": datetime.now(timezone.utc).isoformat()
+                        "timestamp": datetime.now(timezone.utc).isoformat(),
                     }
                     # Run the probe (is_probe=True prevents actual execution)
-                    success = await self.coordinator.initiate_trade_lifecycle("SPY", fake_p, is_probe=True)
+                    success = await self.coordinator.initiate_trade_lifecycle(
+                        "SPY", fake_p, is_probe=True
+                    )
                     if not success:
-                        logger.critical("🚨 PHANTOM PROBE FAILED! System logic returned False (Possible Quorum or Context Block).")
+                        logger.critical(
+                            "🚨 PHANTOM PROBE FAILED! System logic returned False (Possible Quorum or Context Block)."
+                        )
                         if self.dms:
-                             await self.dms._send_telegram_message("📢 <b>[Sovereign Alert]</b>: Phantom Probe Failure. System wiring check returned REJECT.")
+                            await self.dms._send_telegram_message(
+                                "📢 <b>[Sovereign Alert]</b>: Phantom Probe Failure. System wiring check returned REJECT."
+                            )
             except Exception as e:
                 logger.error(f"Phantom Probe Error: {e}")
 
-            await asyncio.sleep(3600) # Once per hour
+            await asyncio.sleep(3600)  # Once per hour
 
     async def _background_conviction_sync(self) -> None:
         """
@@ -3281,11 +3592,12 @@ class TradingBrain:
                     "regime": self.current_regime,
                     "account_value": await self._get_account_value("ibkr"),
                     "vix": await self._get_vix(),
-                    "is_global_poll": True
+                    "is_global_poll": True,
                 }
 
                 # Stage 2: Gated Intelligence (Atomic Parallelization with Watchdogs)
                 from coordinator import TradingCoordinator
+
                 now_iso = datetime.now(timezone.utc).isoformat()
                 new_convictions = {}
 
@@ -3295,41 +3607,48 @@ class TradingBrain:
                         try:
                             res = await asyncio.wait_for(
                                 asyncio.to_thread(self.dhatu_oracle.evaluate_proposal, global_ctx),
-                                timeout=20.0
+                                timeout=20.0,
                             )
                             res["timestamp"] = now_iso
                             new_convictions["Dhatu_Oracle"] = res
                         except (asyncio.TimeoutError, Exception) as e:
-                            logger.warning(f"Brain: Dhatu_Oracle sync latency/error: {type(e).__name__}")
+                            logger.warning(
+                                f"Brain: Dhatu_Oracle sync latency/error: {type(e).__name__}"
+                            )
 
                     # 2. Swarm Poll
                     if self.swarm_predictor:
                         try:
                             res = await asyncio.wait_for(
-                                self.swarm_predictor.evaluate_proposal(global_ctx),
-                                timeout=60.0
+                                self.swarm_predictor.evaluate_proposal(global_ctx), timeout=60.0
                             )
                             res["timestamp"] = now_iso
                             new_convictions["Swarm_Predictor"] = res
                         except (asyncio.TimeoutError, Exception) as e:
                             import traceback
-                            logger.warning(f"Brain: Swarm_Predictor sync latency/error: {type(e).__name__}\n{traceback.format_exc()}")
+
+                            logger.warning(
+                                f"Brain: Swarm_Predictor sync latency/error: {type(e).__name__}\n{traceback.format_exc()}"
+                            )
 
                     # 3. Ultrathink Poll
                     if self.mind_ultrathink:
                         try:
                             res = await asyncio.wait_for(
-                                self.mind_ultrathink.evaluate_proposal(global_ctx),
-                                timeout=20.0
+                                self.mind_ultrathink.evaluate_proposal(global_ctx), timeout=20.0
                             )
                             res["timestamp"] = now_iso
                             new_convictions["Mind_Ultrathink"] = res
                         except (asyncio.TimeoutError, Exception) as e:
-                            logger.warning(f"Brain: Mind_Ultrathink sync latency/error: {type(e).__name__}")
+                            logger.warning(
+                                f"Brain: Mind_Ultrathink sync latency/error: {type(e).__name__}"
+                            )
 
                 # ATOMIC UPDATE: Merge results into state in one go to prevent mid-cycle hallucinations
                 self.conviction_state.update(new_convictions)
-                logger.debug(f"🧠 Brain: Global Conviction State synchronized ({len(new_convictions)} agents).")
+                logger.debug(
+                    f"🧠 Brain: Global Conviction State synchronized ({len(new_convictions)} agents)."
+                )
 
                 logger.debug("🧠 Brain: Global Conviction State synchronized.")
 
@@ -3348,13 +3667,16 @@ class TradingBrain:
 
                 # Directly get positions from IB
                 import ib_insync
+
                 if hasattr(agent, "ib") and agent.ib.isConnected():
                     positions = agent.ib.positions()
                     if not positions:
                         logger.info("🛡️ SHIELD: No positions to liquidate. Clean Slate.")
                         return
 
-                    logger.critical(f"🛡️ SHIELD: Liquidating {len(positions)} positions immediately.")
+                    logger.critical(
+                        f"🛡️ SHIELD: Liquidating {len(positions)} positions immediately."
+                    )
                     for p in positions:
                         contract = p.contract
                         qty = p.position
@@ -3380,7 +3702,9 @@ class TradingBrain:
             "current_regime": getattr(self, "current_regime", "CHOPPY"),
             "dhatu_state": self._oracle_dhatu,
             "is_halted": self.emergency_halted,
-            "last_scan_cycle": self.last_scan_stats.get("cycle", 0) if hasattr(self, "last_scan_stats") else 0
+            "last_scan_cycle": self.last_scan_stats.get("cycle", 0)
+            if hasattr(self, "last_scan_stats")
+            else 0,
         }
 
     async def stop(self) -> None:
@@ -3419,8 +3743,7 @@ class TradingBrain:
             try:
                 # Wait for all cancellations in parallel with a shared timeout
                 await asyncio.wait_for(
-                    asyncio.gather(*cancel_tasks, return_exceptions=True),
-                    timeout=5.0
+                    asyncio.gather(*cancel_tasks, return_exceptions=True), timeout=5.0
                 )
             except asyncio.TimeoutError:
                 logger.warning("TradingBrain: Some tasks failed to cancel within 5s.")
@@ -3429,9 +3752,14 @@ class TradingBrain:
 
         # Stop component-specific minds
         minds = [
-            "mind_architect", "mind_evolution", "mind_observer",
-            "mind_experiment", "mind_ultrathink", "mind_system",
-            "mind_ghost", "mind_math"
+            "mind_architect",
+            "mind_evolution",
+            "mind_observer",
+            "mind_experiment",
+            "mind_ultrathink",
+            "mind_system",
+            "mind_ghost",
+            "mind_math",
         ]
         for mind_attr in minds:
             mind = getattr(self, mind_attr, None)
@@ -3446,5 +3774,3 @@ class TradingBrain:
 
         await self.qdb.stop()
         logger.info("Trading Brain stopped.")
-
-
