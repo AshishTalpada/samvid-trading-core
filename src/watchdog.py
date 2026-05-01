@@ -6,25 +6,30 @@ import time
 from datetime import datetime, timezone
 
 # Setup minimal logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - WATCHDOG - %(levelname)s - %(message)s')
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s - WATCHDOG - %(levelname)s - %(message)s"
+)
 logger = logging.getLogger(__name__)
 
 DB_PATH = "data/trading.db"
-CHECK_INTERVAL = 30          # Check every 30 seconds (tightened from 60)
-LIVENESS_TIMEOUT = 120       # Task is live-locked if heartbeat > 120s stale
-SILENCE_TIMEOUT = 60         # System crashed if > 60s total silence (matches DMS)
+CHECK_INTERVAL = 30  # Check every 30 seconds (tightened from 60)
+LIVENESS_TIMEOUT = 120  # Task is live-locked if heartbeat > 120s stale
+SILENCE_TIMEOUT = 60  # System crashed if > 60s total silence (matches DMS)
 MEMORY_THRESHOLD_MB = 1200
+
 
 def get_dynamic_memory_threshold() -> float:
     """Calculates a safe memory threshold based on total system RAM (70% or max 2GB)."""
     try:
         import psutil
+
         total_gb = psutil.virtual_memory().total / (1024**3)
         # We aim for 70% of system RAM but cap at 2.5GB for this specific engine architecture
         threshold = min(total_gb * 0.7 * 1024, 2500.0)
         return max(1200.0, threshold)
     except Exception:
         return 1200.0
+
 
 # Shared task heartbeat registry — main process writes here; watchdog reads it
 TASK_HEARTBEAT_FILE = "data/task_heartbeats.json"
@@ -71,6 +76,7 @@ def check_task_liveness() -> dict:
     A task is considered live-locked if it hasn't written a heartbeat in LIVENESS_TIMEOUT seconds.
     """
     import json
+
     stale_tasks = {}
     if not os.path.exists(TASK_HEARTBEAT_FILE):
         return stale_tasks
@@ -94,6 +100,7 @@ def check_task_liveness() -> dict:
 def check_memory_usage() -> float:
     try:
         import psutil
+
         # If the main.pid file is missing, we attempt to find the process by name
         pid_file = "data/main.pid"
         target_pid = None
@@ -102,16 +109,19 @@ def check_memory_usage() -> float:
             try:
                 with open(pid_file, "r") as f:
                     target_pid = int(f.read().strip())
-            except Exception: pass
+            except Exception:
+                pass
 
         if not target_pid or not psutil.pid_exists(target_pid):
             # Fallback: Find by process name if file is missing/stale
-            for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
-                if "python" in (proc.info['name'] or "").lower():
-                    cmdline = proc.info['cmdline'] or []
+            for proc in psutil.process_iter(["pid", "name", "cmdline"]):
+                if "python" in (proc.info["name"] or "").lower():
+                    cmdline = proc.info["cmdline"] or []
                     if any("src/main.py" in arg for arg in cmdline):
-                        target_pid = proc.info['pid']
-                        logger.info(f"Watchdog: Ghost PID {target_pid} discovered via process scan.")
+                        target_pid = proc.info["pid"]
+                        logger.info(
+                            f"Watchdog: Ghost PID {target_pid} discovered via process scan."
+                        )
                         break
 
         if target_pid and psutil.pid_exists(target_pid):
@@ -128,6 +138,7 @@ from typing import Set
 
 restart_history: Set[float] = set()
 
+
 def _write_watchdog_pid() -> None:
     """Record Watchdog PID for the main engine to verify connectivity."""
     try:
@@ -138,6 +149,7 @@ def _write_watchdog_pid() -> None:
         logger.info(f"Watchdog PID {pid} recorded to data/watchdog.pid")
     except Exception as e:
         logger.error(f"Failed to write Watchdog PID: {e}")
+
 
 def run_watchdog():
     _write_watchdog_pid()
@@ -159,33 +171,45 @@ def run_watchdog():
             should_restart = not is_alive or stale or (mem_usage > mem_limit)
 
             if mem_usage > mem_limit:
-                logger.critical(f"MEMORY DEPLETION DETECTED: Engine consuming {mem_usage:.1f}MB (Threshold: {mem_limit:.1f}MB)")
+                logger.critical(
+                    f"MEMORY DEPLETION DETECTED: Engine consuming {mem_usage:.1f}MB (Threshold: {mem_limit:.1f}MB)"
+                )
 
             if should_restart:
                 now = time.time()
-                recent_restarts = [t for t in restart_history if now - t < 3600] # 60 min window
+                recent_restarts = [t for t in restart_history if now - t < 3600]  # 60 min window
 
                 # Dynamic Exponential Backoff: 1m, 5m, 15m, 60m
                 attempts = len(recent_restarts)
                 wait_time = 0
-                if attempts == 1: wait_time = 60
-                elif attempts == 2: wait_time = 300
-                elif attempts == 3: wait_time = 900
-                elif attempts >= 4: wait_time = 3600
+                if attempts == 1:
+                    wait_time = 60
+                elif attempts == 2:
+                    wait_time = 300
+                elif attempts == 3:
+                    wait_time = 900
+                elif attempts >= 4:
+                    wait_time = 3600
 
                 last_restart = max(restart_history) if restart_history else 0
 
                 if now - last_restart < wait_time:
-                    logger.warning(f"RESTART THROTTLED: Backoff active. Next attempt in {wait_time - (now - last_restart):.0f}s.")
+                    logger.warning(
+                        f"RESTART THROTTLED: Backoff active. Next attempt in {wait_time - (now - last_restart):.0f}s."
+                    )
                     should_restart = False
 
                 if should_restart:
-                    if len(recent_restarts) >= 6: # Hard panic
-                         logger.critical("🚨 WATCHDOG PANIC: Excessive restarts (6+) in 1h. SYSTEM HALTED to protect account.")
-                         should_restart = False
+                    if len(recent_restarts) >= 6:  # Hard panic
+                        logger.critical(
+                            "🚨 WATCHDOG PANIC: Excessive restarts (6+) in 1h. SYSTEM HALTED to protect account."
+                        )
+                        should_restart = False
 
                     if should_restart:
-                        logger.critical(f"EMERGENCY RESTART INITIATED (Attempt {len(recent_restarts)+1}): Clearing ghosts...")
+                        logger.critical(
+                            f"EMERGENCY RESTART INITIATED (Attempt {len(recent_restarts) + 1}): Clearing ghosts..."
+                        )
                         restart_history.add(now)
 
                         # --- KILL THE GHOSTS ---
@@ -195,12 +219,17 @@ def run_watchdog():
                             try:
                                 with open(pid_file, "r") as f:
                                     pid_to_kill = f.read().strip()
-                            except Exception: pass
+                            except Exception:
+                                pass
 
                         if pid_to_kill:
                             try:
-                                logger.info(f"Watchdog: Terminating stale main process (PID: {pid_to_kill})...")
-                                subprocess.run(["taskkill", "/F", "/PID", pid_to_kill], capture_output=True)
+                                logger.info(
+                                    f"Watchdog: Terminating stale main process (PID: {pid_to_kill})..."
+                                )
+                                subprocess.run(
+                                    ["taskkill", "/F", "/PID", pid_to_kill], capture_output=True
+                                )
                                 logger.info("Watchdog: Waiting 10s for port release...")
                                 time.sleep(10)
                             except Exception as e:
@@ -210,7 +239,9 @@ def run_watchdog():
                         subprocess.Popen([sys.executable, "src/main.py"], cwd=os.getcwd())
                         logger.info("Watchdog: Sovereign Engine REBOOTED.")
                 else:
-                    logger.warning(f"RESTART THROTTLED: Next attempt in {wait_time - (now - last_restart):.0f}s.")
+                    logger.warning(
+                        f"RESTART THROTTLED: Next attempt in {wait_time - (now - last_restart):.0f}s."
+                    )
 
             time.sleep(CHECK_INTERVAL)
         except KeyboardInterrupt:

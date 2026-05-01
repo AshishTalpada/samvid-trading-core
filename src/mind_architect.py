@@ -28,8 +28,8 @@ class MindArchitect:
         self.is_running = False
         self.diagnostic_history: list[dict] = []
         self.tracker = DiagnosticTracker()  # NEW Core
-        self.healing_attempts: dict[str, dict] = {} # Persistent circuit breaker
-        self.sovereign = get_sovereign_logic() # ACCESS TO 500 ABILITIES
+        self.healing_attempts: dict[str, dict] = {}  # Persistent circuit breaker
+        self.sovereign = get_sovereign_logic()  # ACCESS TO 500 ABILITIES
 
         # Register Healing Tools with the Bridge
         self.bridge.register_tool("heal_code", self._tool_heal_code)
@@ -40,6 +40,7 @@ class MindArchitect:
     def is_path_safe_for_edit(self, file_path: str) -> bool:
         """Security Guard: Ensures the file path is within the authorized project directories."""
         from config import PROJECT_PATH
+
         abs_path = os.path.abspath(file_path)
         abs_project = os.path.abspath(PROJECT_PATH)
 
@@ -50,7 +51,7 @@ class MindArchitect:
             os.path.join(abs_project, "src", "config.py"),
             os.path.join(abs_project, "src", "main.py"),
             os.path.join(abs_project, "TRADING.md"),
-            os.path.join(abs_project, ".trading.md")
+            os.path.join(abs_project, ".trading.md"),
         ]
 
         in_allowed_dir = any(abs_path.startswith(d) for d in allowed_dirs)
@@ -111,6 +112,7 @@ class MindArchitect:
         Provides Agent G's 'Healing Mind' structural integrity vote.
         """
         from datetime import datetime
+
         # Check syntax on critical files (at least the brain)
         result = await self._tool_check_syntax("src/brain.py")
 
@@ -121,15 +123,19 @@ class MindArchitect:
             "agent": "Agent_G",
             "vote": vote,
             "confidence": 1.0 if valid else 0.0,
-            "reason": "Sovereign structural integrity verified." if valid else f"🛑 STRUCTURAL VETO: Syntax/Diagnostic failure in core logic! {result.get('summary')}",
-            "timestamp": datetime.now().isoformat()
+            "reason": "Sovereign structural integrity verified."
+            if valid
+            else f"🛑 STRUCTURAL VETO: Syntax/Diagnostic failure in core logic! {result.get('summary')}",
+            "timestamp": datetime.now().isoformat(),
         }
 
     async def _tool_check_syntax(self, file_path: str) -> dict[str, Any]:
-
         """Python-native 'LSP' check for syntax errors."""
         if not self.is_path_safe_for_edit(file_path):
-             return {"valid": False, "error": "Unauthorized path access attempt recorded (SETO Protocol 9)."}
+            return {
+                "valid": False,
+                "error": "Unauthorized path access attempt recorded (SETO Protocol 9).",
+            }
 
         try:
             # Captures baseline before editing, or just checks current state
@@ -149,19 +155,25 @@ class MindArchitect:
         Verifies that the healing didn't introduce new regressions.
         """
         if not self.is_path_safe_for_edit(file_path):
-             logger.critical(f"MindArchitect: BLOCKED unauthorized edit attempt on {file_path}")
-             return {"success": False, "error": "Access Denied: Path outside Sovereign Domain."}
+            logger.critical(f"MindArchitect: BLOCKED unauthorized edit attempt on {file_path}")
+            return {"success": False, "error": "Access Denied: Path outside Sovereign Domain."}
 
         try:
             from time_sync import TimeSync
+
             now = TimeSync.now().timestamp()
             file_key = f"{file_path}:{target}"
             attempt_data = self.healing_attempts.get(file_key, {"count": 0, "last_attempt": 0})
 
             # Check for lockout (3 attempts within 1 hour)
             if attempt_data["count"] >= 3 and (now - attempt_data["last_attempt"]) < 3600:
-                logger.warning(f"MindArchitect: CIRCUIT BREAKER ACTIVE for {file_path}. Lockout for 60m.")
-                return {"success": False, "error": "Neural Circuit Breaker: Too many failed heal attempts. Manual intervention required."}
+                logger.warning(
+                    f"MindArchitect: CIRCUIT BREAKER ACTIVE for {file_path}. Lockout for 60m."
+                )
+                return {
+                    "success": False,
+                    "error": "Neural Circuit Breaker: Too many failed heal attempts. Manual intervention required.",
+                }
 
             # 1. Capture baseline before 'Suture'
             await asyncio.to_thread(self.tracker.capture_baseline, file_path)
@@ -198,19 +210,34 @@ class MindArchitect:
                     # Check for forbidden function calls
                     if isinstance(node, ast.Call):
                         if isinstance(node.func, ast.Name) and node.func.id in FORBIDDEN_CALLS:
-                            logger.critical(f"MindArchitect: BLOCKED HEAL. Forbidden call '{node.func.id}' detected.")
-                            return {"success": False, "error": f"Security Violation: Forbidden logic pattern '{node.func.id}' detected."}
+                            logger.critical(
+                                f"MindArchitect: BLOCKED HEAL. Forbidden call '{node.func.id}' detected."
+                            )
+                            return {
+                                "success": False,
+                                "error": f"Security Violation: Forbidden logic pattern '{node.func.id}' detected.",
+                            }
 
                     # Check for forbidden imports
                     if isinstance(node, ast.Import):
                         for alias in node.names:
                             if alias.name in FORBIDDEN_MODULES:
-                                logger.critical(f"MindArchitect: BLOCKED HEAL. Forbidden import '{alias.name}' detected.")
-                                return {"success": False, "error": f"Security Violation: Forbidden module '{alias.name}' detected."}
+                                logger.critical(
+                                    f"MindArchitect: BLOCKED HEAL. Forbidden import '{alias.name}' detected."
+                                )
+                                return {
+                                    "success": False,
+                                    "error": f"Security Violation: Forbidden module '{alias.name}' detected.",
+                                }
                     if isinstance(node, ast.ImportFrom):
                         if node.module in FORBIDDEN_MODULES:
-                            logger.critical(f"MindArchitect: BLOCKED HEAL. Forbidden import from '{node.module}' detected.")
-                            return {"success": False, "error": f"Security Violation: Forbidden module '{node.module}' detected."}
+                            logger.critical(
+                                f"MindArchitect: BLOCKED HEAL. Forbidden import from '{node.module}' detected."
+                            )
+                            return {
+                                "success": False,
+                                "error": f"Security Violation: Forbidden module '{node.module}' detected.",
+                            }
 
             except Exception as e:
                 logger.error(f"MindArchitect: Integrity scan failed: {e}")
@@ -235,8 +262,13 @@ class MindArchitect:
 
             # 3.2. Complexity Check (Prevent Spaghettification)
             if not self._check_complexity(new_content):
-                logger.critical("MindArchitect: Suture REJECTED. Code complexity exceeded Sovereign Cap.")
-                return {"success": False, "error": "Complexity Guard: Proposed fix is too complex/unreadable."}
+                logger.critical(
+                    "MindArchitect: Suture REJECTED. Code complexity exceeded Sovereign Cap."
+                )
+                return {
+                    "success": False,
+                    "error": "Complexity Guard: Proposed fix is too complex/unreadable.",
+                }
 
             # 3.3. PERMANENT COMMIT: Write to live source
             with open(file_path, "w", encoding="utf-8") as f:
@@ -257,7 +289,10 @@ class MindArchitect:
                 attempt_data["last_attempt"] = now
                 self.healing_attempts[file_key] = attempt_data
 
-                return {"success": False, "error": "Healing introduced regression errors. Rollback performed."}
+                return {
+                    "success": False,
+                    "error": "Healing introduced regression errors. Rollback performed.",
+                }
 
             # Reset count on successful heal
             if file_key in self.healing_attempts:
@@ -271,7 +306,9 @@ class MindArchitect:
 
     async def _tool_audit_pnl(self, session_id: str | None = None) -> dict[str, Any]:
         """Audits the session for 'bleeding' using Ability #164 (Net Liquidation Audit)."""
-        logger.info(f"MindArchitect: Auditing session {session_id or 'CURRENT'} for PnL integrity...")
+        logger.info(
+            f"MindArchitect: Auditing session {session_id or 'CURRENT'} for PnL integrity..."
+        )
 
         # Capability #164 Trigger
         self.sovereign.execute_node("164", {"session": session_id})
@@ -290,7 +327,9 @@ class MindArchitect:
             cursor = conn.cursor()
 
             # Check for trades with abnormal slippage (>5%)
-            cursor.execute("SELECT COUNT(*) FROM trades WHERE ABS(pnl_dollars) > 1000 AND r_multiple < 0")
+            cursor.execute(
+                "SELECT COUNT(*) FROM trades WHERE ABS(pnl_dollars) > 1000 AND r_multiple < 0"
+            )
             outliers = cursor.fetchone()[0]
 
             conn.close()
@@ -298,10 +337,18 @@ class MindArchitect:
             if outliers > 0:
                 # Trigger Ability #231 (Cognitive Audit) for corrective action
                 self.sovereign.execute_node("231", {"recent_pnl": [-1001] * outliers})
-                logger.warning(f"MindArchitect: Audit detected {outliers} PnL outliers. System recalibration recommended.")
-                return {"audit": "VOLATILE", "details": f"{outliers} outliers detected. Risk team notified."}
+                logger.warning(
+                    f"MindArchitect: Audit detected {outliers} PnL outliers. System recalibration recommended."
+                )
+                return {
+                    "audit": "VOLATILE",
+                    "details": f"{outliers} outliers detected. Risk team notified.",
+                }
 
-            return {"audit": "STABLE", "details": "PnL integrity verified. No halluncinated bleeding detected."}
+            return {
+                "audit": "STABLE",
+                "details": "PnL integrity verified. No halluncinated bleeding detected.",
+            }
         except Exception as e:
             logger.error(f"Audit failed: {e}")
             return {"audit": "UNCERTAIN", "error": str(e)}
@@ -317,10 +364,12 @@ class MindArchitect:
             # Basic metric: for/if/while depth
             complexity = 0
             for node in ast.walk(tree):
-                if isinstance(node, (ast.If, ast.For, ast.While, ast.AsyncFor, ast.With, ast.AsyncWith)):
+                if isinstance(
+                    node, (ast.If, ast.For, ast.While, ast.AsyncFor, ast.With, ast.AsyncWith)
+                ):
                     complexity += 1
             # Total decision branches in one file shouldn't spike by +10 in one 'heal'
-            return complexity < 100 # Adjusted for whole-file baseline
+            return complexity < 100  # Adjusted for whole-file baseline
         except Exception:
             return False
 

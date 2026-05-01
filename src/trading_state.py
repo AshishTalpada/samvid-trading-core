@@ -11,6 +11,7 @@ Wire-in:
   - agent_c_ibkr.validate_order_pre_flight() calls TradingStateManager.allow_order()
   - brain.py checks TradingStateManager.state before firing signals
 """
+
 from __future__ import annotations
 
 import logging
@@ -20,9 +21,9 @@ logger = logging.getLogger("TradingState")
 
 
 class TradingState(Enum):
-    ACTIVE = "ACTIVE"       # Normal full trading
-    REDUCING = "REDUCING"   # Close positions only, no new entries
-    HALTED = "HALTED"       # All order submission denied
+    ACTIVE = "ACTIVE"  # Normal full trading
+    REDUCING = "REDUCING"  # Close positions only, no new entries
+    HALTED = "HALTED"  # All order submission denied
 
 
 class TradingStateManager:
@@ -30,6 +31,7 @@ class TradingStateManager:
     Singleton FSM for global trading state.
     All order submission paths must call allow_order() before transmitting.
     """
+
     _state: TradingState = TradingState.ACTIVE
     _reason: str = "System startup"
 

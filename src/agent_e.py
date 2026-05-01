@@ -17,14 +17,35 @@ class CorrelationGuard:
 
         # Base Institutional Sector Map
         self.sector_map = {
-            "AAPL": "TECH", "MSFT": "TECH", "GOOGL": "TECH", "NVDA": "TECH",
-            "AMD": "TECH", "AVGO": "TECH", "SMCI": "TECH", "ARM": "TECH",
-            "PLTR": "TECH", "ADBE": "TECH", "NFLX": "CONSUMER",
-            "JPM": "FINANCE", "GS": "FINANCE", "V": "FINANCE", "MA": "FINANCE",
-            "MSTR": "CRYPTO", "COIN": "CRYPTO", "MARA": "CRYPTO", "RIOT": "CRYPTO",
-            "TSLA": "AUTO", "WMT": "RETAIL", "COST": "RETAIL",
-            "SPY": "INDEX", "QQQ": "INDEX", "IWM": "INDEX", "DIA": "INDEX",
-            "TLT": "BONDS", "GLD": "COMMODITY", "USO": "COMMODITY"
+            "AAPL": "TECH",
+            "MSFT": "TECH",
+            "GOOGL": "TECH",
+            "NVDA": "TECH",
+            "AMD": "TECH",
+            "AVGO": "TECH",
+            "SMCI": "TECH",
+            "ARM": "TECH",
+            "PLTR": "TECH",
+            "ADBE": "TECH",
+            "NFLX": "CONSUMER",
+            "JPM": "FINANCE",
+            "GS": "FINANCE",
+            "V": "FINANCE",
+            "MA": "FINANCE",
+            "MSTR": "CRYPTO",
+            "COIN": "CRYPTO",
+            "MARA": "CRYPTO",
+            "RIOT": "CRYPTO",
+            "TSLA": "AUTO",
+            "WMT": "RETAIL",
+            "COST": "RETAIL",
+            "SPY": "INDEX",
+            "QQQ": "INDEX",
+            "IWM": "INDEX",
+            "DIA": "INDEX",
+            "TLT": "BONDS",
+            "GLD": "COMMODITY",
+            "USO": "COMMODITY",
         }
         self._load_map()
 
@@ -32,6 +53,7 @@ class CorrelationGuard:
         """Load persisted sector map from disk, merging with defaults."""
         import json
         import os
+
         if os.path.exists(self.persist_path):
             try:
                 with open(self.persist_path, "r") as f:
@@ -45,6 +67,7 @@ class CorrelationGuard:
         """Persist discovered sectors to disk for continuity across restarts."""
         import json
         import os
+
         try:
             os.makedirs(os.path.dirname(self.persist_path), exist_ok=True)
             # Only save the non-default ones to keep it clean?
@@ -68,16 +91,17 @@ class CorrelationGuard:
             def _fetch_yf():
                 ticker = yf.Ticker(s)
                 info = ticker.info
-                if not info: return None
+                if not info:
+                    return None
                 return info.get("sector") or info.get("industry") or "OTHER"
 
             sector = await asyncio.to_thread(_fetch_yf)
             if sector:
-                 sector = sector.upper().replace(" ", "_")
-                 self.sector_map[s] = sector
-                 self._save_map()
-                 logger.info(f"CORRELATION: Discovered {s} as {sector}")
-                 return sector
+                sector = sector.upper().replace(" ", "_")
+                self.sector_map[s] = sector
+                self._save_map()
+                logger.info(f"CORRELATION: Discovered {s} as {sector}")
+                return sector
         except Exception as e:
             logger.debug(f"Dynamic sector discovery failed for {s}: {e}")
 
@@ -166,7 +190,9 @@ class CorrelationGuard:
 
         return {s: v / account_value for s, v in exposures.items()}
 
-    async def evaluate_proposal(self, context: Dict[str, Any], agent_name: str = "Agent_E") -> Dict[str, Any]:
+    async def evaluate_proposal(
+        self, context: Dict[str, Any], agent_name: str = "Agent_E"
+    ) -> Dict[str, Any]:
         """
         Provides Agent E's correlation-based vote.
         """
@@ -184,21 +210,27 @@ class CorrelationGuard:
         # This signals 'Thin Ice' to the Coordinator.
         confidence = 1.0
         if is_safe:
-             target_sector = await self.get_sector(symbol)
-             # Recalculate exposure to get the actual %
-             # (This is slightly redundant but ensures confidence accuracy)
-             sector_value = 0.0
-             for pos in positions:
-                 p_sym = pos.get("symbol", "") if isinstance(pos, dict) else getattr(pos, "symbol", "")
-                 p_price = pos.get("current_price", 0) if isinstance(pos, dict) else getattr(pos, "current_price", 0)
-                 p_qty = pos.get("qty", 0) if isinstance(pos, dict) else getattr(pos, "qty", 0)
-                 if (await self.get_sector(p_sym)) == target_sector:
-                     sector_value += float(p_price) * float(p_qty)
+            target_sector = await self.get_sector(symbol)
+            # Recalculate exposure to get the actual %
+            # (This is slightly redundant but ensures confidence accuracy)
+            sector_value = 0.0
+            for pos in positions:
+                p_sym = (
+                    pos.get("symbol", "") if isinstance(pos, dict) else getattr(pos, "symbol", "")
+                )
+                p_price = (
+                    pos.get("current_price", 0)
+                    if isinstance(pos, dict)
+                    else getattr(pos, "current_price", 0)
+                )
+                p_qty = pos.get("qty", 0) if isinstance(pos, dict) else getattr(pos, "qty", 0)
+                if (await self.get_sector(p_sym)) == target_sector:
+                    sector_value += float(p_price) * float(p_qty)
 
-             exposure_pct = float(sector_value + new_value) / float(account_value or 1)
-             limit = min(self.max_sector_exposure, 0.30)
-             if exposure_pct > (limit * 0.8): # Above 24% exposure
-                 confidence = 0.65 # Thin ice
+            exposure_pct = float(sector_value + new_value) / float(account_value or 1)
+            limit = min(self.max_sector_exposure, 0.30)
+            if exposure_pct > (limit * 0.8):  # Above 24% exposure
+                confidence = 0.65  # Thin ice
 
         reason = f"Sector: {target_sector} | "
         if is_safe:
@@ -210,9 +242,8 @@ class CorrelationGuard:
             "agent": agent_name,
             "vote": vote,
             "confidence": confidence,
-
             "signal_strength": 1.0,
             "risk_flag": not is_safe or confidence < 0.7,
             "reason": reason,
-            "sector": target_sector
+            "sector": target_sector,
         }

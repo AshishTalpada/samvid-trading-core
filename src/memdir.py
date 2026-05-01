@@ -67,6 +67,7 @@ class MemoryManager:
         """
         try:
             import stat
+
             if os.path.exists(self.prime_directive_path):
                 # Set to RO for owner/group/others
                 mode = os.stat(self.prime_directive_path).st_mode
@@ -84,7 +85,7 @@ class MemoryManager:
             directive = directive[:4900] + "\n... [TRUNCATED DUE TO BLOAT] ..."
 
         if len(session) > 5000:
-            session = "... [TRUNCATED] ...\n" + session[-4900:] # Keep the latest session context
+            session = "... [TRUNCATED] ...\n" + session[-4900:]  # Keep the latest session context
 
         return (
             "### LONG-TERM MEMORY (TRADING.md)\n"

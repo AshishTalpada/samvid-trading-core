@@ -52,7 +52,9 @@ class QuestDBAdapter:
         self._retry_delay: float = 5.0
 
         # We fence QuestDB's blocking I/O into a private pool to prevent engine starvation.
-        self._executor = concurrent.futures.ThreadPoolExecutor(max_workers=10, thread_name_prefix="QuestDB_IO")
+        self._executor = concurrent.futures.ThreadPoolExecutor(
+            max_workers=10, thread_name_prefix="QuestDB_IO"
+        )
         self._pg_pool: pool.SimpleConnectionPool | None = None
 
     async def start(self) -> None:
@@ -84,7 +86,10 @@ class QuestDBAdapter:
                 batch = []
                 # --- Fix 13: Periodic reconnect from SIMULATED mode ---
                 import time as _time
-                if self.is_simulated and _time.monotonic() > getattr(self, "_next_reconnect_attempt", 0):
+
+                if self.is_simulated and _time.monotonic() > getattr(
+                    self, "_next_reconnect_attempt", 0
+                ):
                     await self._connect()
                     if self._sock is not None:
                         self.is_simulated = False
@@ -125,7 +130,7 @@ class QuestDBAdapter:
                     except (OSError, ConnectionRefusedError) as e:
                         logger.debug(f"QuestDB send failed: {e}")
                         self._sock = None
-                        raise # Re-raise to trigger the existing backoff logic
+                        raise  # Re-raise to trigger the existing backoff logic
                 else:
                     # Log only on first failure and every 10th retry to avoid spam
                     if self._retry_count == 0:
@@ -151,9 +156,11 @@ class QuestDBAdapter:
                 self._retry_count += 1
 
                 if self._retry_count >= 3 and not self.is_simulated:
-                    logger.warning("QuestDB: Persistent connection failure. Switching to SIMULATED mode.")
+                    logger.warning(
+                        "QuestDB: Persistent connection failure. Switching to SIMULATED mode."
+                    )
                     self.is_simulated = True
-                    self._next_reconnect_attempt = _time.monotonic() + 300.0 # Try again in 5 mins
+                    self._next_reconnect_attempt = _time.monotonic() + 300.0  # Try again in 5 mins
 
                 # Exponential backoff capped at 120s
                 self._retry_delay = min(self._retry_delay * 2, 120.0)
@@ -195,6 +202,7 @@ class QuestDBAdapter:
             return
 
         from datetime import datetime, timezone
+
         ts = int(datetime.now(timezone.utc).timestamp() * 1e9)
 
         # Sanitize table name
@@ -245,6 +253,7 @@ class QuestDBAdapter:
         # Prepare ILP string
         # table,tags fields timestamp
         from datetime import datetime, timezone
+
         ts = int(datetime.now(timezone.utc).timestamp() * 1e9)
         safe_symbol = str(symbol).replace(",", "\\,").replace(" ", "\\ ").replace("=", "\\=")
         safe_agent = str(agent_id).replace(",", "\\,").replace(" ", "\\ ").replace("=", "\\=")
@@ -279,6 +288,7 @@ class QuestDBAdapter:
             return
 
         from datetime import datetime, timezone
+
         ts = int(datetime.now(timezone.utc).timestamp() * 1e9)
         safe_symbol = str(symbol).replace(",", "\\,").replace(" ", "\\ ").replace("=", "\\=")
 
@@ -287,7 +297,7 @@ class QuestDBAdapter:
         try:
             self._queue.put_nowait(line)
         except asyncio.QueueFull:
-            pass # Drop ticks during extreme saturation to protect engine heartbeat
+            pass  # Drop ticks during extreme saturation to protect engine heartbeat
 
     def insert_ohlcv(self, df, symbol: str, timeframe: str = "1m") -> None:
         """Stream OHLCV from Polars/Pandas to QuestDB via ILP."""
@@ -313,27 +323,45 @@ class QuestDBAdapter:
             # Polars implementation (Ultra-Fast)
             if hasattr(df, "with_columns"):
                 import polars as pl
+
                 # Vectorize the string construction in Polars C++ core
-                ilp_df = df.with_columns([
-                    (pl.lit("ohlcv,symbol=") + pl.lit(safe_symbol) + pl.lit(",timeframe=") + pl.lit(safe_tf) +
-                     pl.lit(" open=") + pl.col("open").cast(pl.String) +
-                     pl.lit(",high=") + pl.col("high").cast(pl.String) +
-                     pl.lit(",low=") + pl.col("low").cast(pl.String) +
-                     pl.lit(",close=") + pl.col("close").cast(pl.String) +
-                     pl.lit(",volume=") + pl.col("volume").cast(pl.Int64).cast(pl.String) + pl.lit("i ") +
-                     (pl.col("timestamp").cast(pl.Int64)).cast(pl.String)).alias("ilp_line")
-                ])
+                ilp_df = df.with_columns(
+                    [
+                        (
+                            pl.lit("ohlcv,symbol=")
+                            + pl.lit(safe_symbol)
+                            + pl.lit(",timeframe=")
+                            + pl.lit(safe_tf)
+                            + pl.lit(" open=")
+                            + pl.col("open").cast(pl.String)
+                            + pl.lit(",high=")
+                            + pl.col("high").cast(pl.String)
+                            + pl.lit(",low=")
+                            + pl.col("low").cast(pl.String)
+                            + pl.lit(",close=")
+                            + pl.col("close").cast(pl.String)
+                            + pl.lit(",volume=")
+                            + pl.col("volume").cast(pl.Int64).cast(pl.String)
+                            + pl.lit("i ")
+                            + (pl.col("timestamp").cast(pl.Int64)).cast(pl.String)
+                        ).alias("ilp_line")
+                    ]
+                )
                 lines = ilp_df["ilp_line"].to_list()
                 for line in lines:
                     self._queue.put_nowait(line)
             else:
                 # Pandas fallback (Manual but safe)
                 for row in df.itertuples():
-                    ts_val = getattr(row, "timestamp", getattr(row, "Date", getattr(row, "Datetime", time.time())))
+                    ts_val = getattr(
+                        row,
+                        "timestamp",
+                        getattr(row, "Date", getattr(row, "Datetime", time.time())),
+                    )
                     if hasattr(ts_val, "timestamp"):
-                         ts_ns = int(ts_val.timestamp() * 1e9)
+                        ts_ns = int(ts_val.timestamp() * 1e9)
                     else:
-                         ts_ns = int(ts_val) # Assume already ns or unix
+                        ts_ns = int(ts_val)  # Assume already ns or unix
 
                     def _get_f(name):
                         v = getattr(row, name, getattr(row, name.lower(), 0.0))
@@ -346,7 +374,6 @@ class QuestDBAdapter:
             logger.warning(f"QuestDBILP Queue Full: dropped {symbol} OHLCV batch")
         except Exception as e:
             logger.error(f"Error ILP encoding OHLCV for {symbol}: {e}")
-
 
     async def fetch_ohlcv_pandas(
         self, symbol: str, timeframe: str = "1m", limit: int = 200
@@ -456,12 +483,17 @@ class QuestDBAdapter:
                 # In QuestDB, we can drop partitions string-formatted as 'YYYY-MM-DD'
                 # Generate a list of dates older than `days_to_keep`
                 for i in range(days_to_keep, days_to_keep + 14):
-                    stale_date = (pd.Timestamp.now(tz="UTC") - pd.Timedelta(days=i)).strftime("%Y-%m-%d")
+                    stale_date = (pd.Timestamp.now(tz="UTC") - pd.Timedelta(days=i)).strftime(
+                        "%Y-%m-%d"
+                    )
 
                     import re
-                    if not re.match(r'^\d{4}-\d{2}-\d{2}$', stale_date):
-                         logger.error(f"QuestDB: Invalid partition date format detected: {stale_date}")
-                         continue
+
+                    if not re.match(r"^\d{4}-\d{2}-\d{2}$", stale_date):
+                        logger.error(
+                            f"QuestDB: Invalid partition date format detected: {stale_date}"
+                        )
+                        continue
 
                     try:
                         cursor.execute(f"ALTER TABLE ohlcv DROP PARTITION '{stale_date}';")

@@ -16,6 +16,7 @@ from vault import Vault
 class MT5Connection:
     def __init__(self) -> None:
         import time as _time
+
         self._last_init_time = _time.time()
         self._login = 0
         self._pw = ""
@@ -24,12 +25,16 @@ class MT5Connection:
     async def is_connected(self) -> bool:
         """Check if terminal is connected and authorized."""
         import asyncio as _asyncio
+
         info = await _asyncio.to_thread(mt5.terminal_info)
         if info is None:
             # Check if we should attempt re-initialization (>30s since last attempt)
             import time as _time
+
             if _time.time() - self._last_init_time > 30:
-                logger.warning(f"MT5: Connection lost > 30s (Login: {self._login}). Attempting Sovereign Re-initialization...")
+                logger.warning(
+                    f"MT5: Connection lost > 30s (Login: {self._login}). Attempting Sovereign Re-initialization..."
+                )
                 if self._login > 0:
                     # Await the async connect call
                     await self.connect(self._login, self._pw, self._server)
@@ -40,12 +45,15 @@ class MT5Connection:
         """Connect to MT5 trading server with login credentials."""
         import asyncio as _asyncio
         import time as _time
+
         self._login = login
         self._pw = pw
         self._server = server
         self._last_init_time = _time.time()
 
-        success = await _asyncio.to_thread(mt5.initialize, path=path, server=server, login=login, password=pw)
+        success = await _asyncio.to_thread(
+            mt5.initialize, path=path, server=server, login=login, password=pw
+        )
 
         if not success and not path:
             # Try to find path autonomously if first attempt failed
@@ -57,14 +65,19 @@ class MT5Connection:
                     if os.path.exists(potential_exe):
                         effective_path = potential_exe
 
-                logger.info(f"MT5: First init failed. Retrying with resolved path: {effective_path}")
-                success = await _asyncio.to_thread(mt5.initialize, path=effective_path, server=server, login=login, password=pw)
+                logger.info(
+                    f"MT5: First init failed. Retrying with resolved path: {effective_path}"
+                )
+                success = await _asyncio.to_thread(
+                    mt5.initialize, path=effective_path, server=server, login=login, password=pw
+                )
 
         return success
 
     def sync_state(self, login: int, pw: str, server: str) -> None:
         """Synchronize connection state from external orchestrator without re-initializing."""
         import time as _time
+
         self._login = login
         self._pw = pw
         self._server = server
@@ -86,7 +99,7 @@ class MT5Connection:
             "_emergency_flatten",
             "repair_state",
             "_tool_trigger_logic",
-            "run"
+            "run",
         }
         caller_frame = inspect.currentframe().f_back
         caller_name = caller_frame.f_code.co_name if caller_frame else "unknown"
@@ -99,10 +112,19 @@ class MT5Connection:
         # We now verify the module name AND the function name to prevent local spoofing.
         caller_module = caller_frame.f_globals.get("__name__", "unknown")
 
-        AUTHORIZED_MODULES = {"brain", "sovereign_decision_engine", "trading_system", "agent_c_ibkr"}
+        AUTHORIZED_MODULES = {
+            "brain",
+            "sovereign_decision_engine",
+            "trading_system",
+            "agent_c_ibkr",
+        }
 
-        if caller_name not in AUTHORIZED_CALLERS or (caller_module not in AUTHORIZED_MODULES and not caller_module.startswith("src.")):
-            logger.critical(f"UNAUTHORIZED EXECUTION ATTEMPT! Caller '{caller_module}.{caller_name}' bypassed Sovereign Engine! REJECTING ORDER.")
+        if caller_name not in AUTHORIZED_CALLERS or (
+            caller_module not in AUTHORIZED_MODULES and not caller_module.startswith("src.")
+        ):
+            logger.critical(
+                f"UNAUTHORIZED EXECUTION ATTEMPT! Caller '{caller_module}.{caller_name}' bypassed Sovereign Engine! REJECTING ORDER."
+            )
             return 0
         d = dir.lower()
         order_type = mt5.ORDER_TYPE_BUY if d == "buy" else mt5.ORDER_TYPE_SELL
@@ -114,7 +136,7 @@ class MT5Connection:
         try:
             rates = mt5.copy_rates_from_pos(sym, mt5.TIMEFRAME_M1, 0, 5)
             if rates is not None and len(rates) > 0:
-                atr_5 = np.mean([abs(r['high'] - r['low']) for r in rates])
+                atr_5 = np.mean([abs(r["high"] - r["low"]) for r in rates])
                 # Convert ATR to points (simplistic proxy)
                 info = mt5.symbol_info(sym)
                 if info and info.point > 0:
@@ -127,6 +149,7 @@ class MT5Connection:
         # Bug 35 FIX: Order ID Collision Guard
         # Instead of a static magic number, we use a unique ID per execution cycle.
         import uuid as _uuid
+
         magic_id = _uuid.uuid4().int % 2147483647
 
         request = {
@@ -224,12 +247,13 @@ class FTMOComplianceLayer:
     def best_day_rule(self, today: float, others: list[float]) -> bool:
         """Validate today's profit against best day rule."""
         if not others:
-            return True # No history to violate the rule
+            return True  # No history to violate the rule
         return today <= (2 / 3) * sum(others)
 
     def prague_midnight_reset(self) -> None:
         """Handle daily reset according to Prague timezone."""
         from datetime import timezone as _timezone
+
         # Prague is CET/CEST (UTC+1/UTC+2)
         utc_now = datetime.now(_timezone.utc)
         # simplistic CET check
@@ -256,7 +280,13 @@ class MT5PositionSizer:
         # 1. Resolve Risk Amount (Default 1% of account if not provided)
         # In brain.py _state_scanning, it doesn't pass risk_amount directly,
         # so we fetch balance here.
-        account = self._conn.get_account_info() if hasattr(self, '_conn') else mt5.account_info()._asdict() if mt5.account_info() else {}
+        account = (
+            self._conn.get_account_info()
+            if hasattr(self, "_conn")
+            else mt5.account_info()._asdict()
+            if mt5.account_info()
+            else {}
+        )
         balance = account.get("balance", 500.0)
 
         # Risk 1% by default, or use a provided modifier
@@ -267,15 +297,17 @@ class MT5PositionSizer:
 
         return {
             "shares": lots,
-            "step8_shares": lots, # Coordinator compatibility
+            "step8_shares": lots,  # Coordinator compatibility
             "lots": lots,
             "proposed_value": lots * entry_price,
-            "position_value": lots * entry_price, # Coordinator compatibility
+            "position_value": lots * entry_price,  # Coordinator compatibility
             "risk_dollars": risk_amount if lots > 0 else 0,
-            "steps": {"final": risk_amount}
+            "steps": {"final": risk_amount},
         }
 
-    def calculate_lots(self, risk_amount: float, entry_price: float, stop_price: float, symbol: str) -> float:
+    def calculate_lots(
+        self, risk_amount: float, entry_price: float, stop_price: float, symbol: str
+    ) -> float:
         """Calculate the lot size for a trade based on risk management.
         Institutional Single Order Routing.
         """
@@ -285,18 +317,20 @@ class MT5PositionSizer:
             "initiate_trade_lifecycle",
             "flat_all_positions",
             "repair_state",
-            "run"
+            "run",
         }
         caller_frame = inspect.currentframe().f_back
         caller_name = caller_frame.f_code.co_name if caller_frame else "unknown"
         if caller_name not in AUTHORIZED_CALLERS:
-             # Try one more level up if it's an async wrapper
-             caller_frame = caller_frame.f_back if caller_frame else None
-             caller_name = caller_frame.f_code.co_name if caller_frame else "unknown"
+            # Try one more level up if it's an async wrapper
+            caller_frame = caller_frame.f_back if caller_frame else None
+            caller_name = caller_frame.f_code.co_name if caller_frame else "unknown"
 
         if caller_name not in AUTHORIZED_CALLERS:
-             logger.critical(f"UNAUTHORIZED EXECUTION ATTEMPT! Caller '{caller_name}' bypassed Sovereign Engine! REJECTING SIZING.")
-             return 0.0
+            logger.critical(
+                f"UNAUTHORIZED EXECUTION ATTEMPT! Caller '{caller_name}' bypassed Sovereign Engine! REJECTING SIZING."
+            )
+            return 0.0
 
         tick_info = mt5.symbol_info(symbol)
         if tick_info is None:
@@ -342,6 +376,7 @@ class DrawdownHysteresis:
     def should_resume(self, last_dd_time: datetime, current_dd: float) -> bool:
         """Determine if trading can be resumed based on drawdown recovery."""
         from datetime import timezone as _timezone
+
         time_since_dd = datetime.now(_timezone.utc) - last_dd_time
         recovery_time_threshold = timedelta(hours=1)  # example threshold
         return current_dd < 0.05 and time_since_dd > recovery_time_threshold

@@ -42,7 +42,7 @@ class SpreadTracker:
         self._ema_period = ema_period
         self._alpha = 2.0 / (ema_period + 1)
         self._threshold_bps = wide_threshold_bps
-        self._spreads_bps: dict[str, float] = {}    # EMA spread per symbol
+        self._spreads_bps: dict[str, float] = {}  # EMA spread per symbol
         self._raw_buf: dict[str, deque] = defaultdict(lambda: deque(maxlen=ema_period))
 
     def update(self, symbol: str, bid: float, ask: float) -> float | None:
@@ -74,7 +74,9 @@ class SpreadTracker:
         threshold = threshold_bps if threshold_bps is not None else self._threshold_bps
         spread = self.current_bps(symbol)
         if spread > threshold:
-            logger.debug(f"SpreadTracker: {symbol} spread {spread:.1f}bps > threshold {threshold:.1f}bps — WIDE")
+            logger.debug(
+                f"SpreadTracker: {symbol} spread {spread:.1f}bps > threshold {threshold:.1f}bps — WIDE"
+            )
             return True
         return False
 
@@ -114,8 +116,8 @@ class IBKRStreamer:
         self.is_running = False
         self._loop_count = 0
         self.dropped_ticks = 0
-        self._tick_cache: dict[str, dict] = {}   # live bid/ask/last per symbol
-        self.spread_tracker = SPREAD_TRACKER      # shared singleton
+        self._tick_cache: dict[str, dict] = {}  # live bid/ask/last per symbol
+        self.spread_tracker = SPREAD_TRACKER  # shared singleton
 
         # Persistent Async Stream for QuestDB ILP
         self._qdb_writer: asyncio.StreamWriter | None = None
@@ -129,6 +131,7 @@ class IBKRStreamer:
         """Connect to IBKR TWS/Gateway and QuestDB ILP."""
         # 1. Connect to QuestDB (Persistent ILP Session)
         from config import QUESTDB_ENABLED
+
         if QUESTDB_ENABLED:
             try:
                 _reader, writer = await asyncio.open_connection(self.qdb_host, self.qdb_ilp_port)
@@ -145,8 +148,7 @@ class IBKRStreamer:
                     f"IBKRStreamer: QuestDB ILP connection failed: {e}. Ticks will log to console only."
                 )
         else:
-             logger.info("IBKRStreamer: QuestDB ingestion DISABLED in config.")
-
+            logger.info("IBKRStreamer: QuestDB ingestion DISABLED in config.")
 
         max_attempts = 5
         for attempt in range(max_attempts):
@@ -158,17 +160,25 @@ class IBKRStreamer:
 
                     self.ib.reqMarketDataType(3)
 
-                    logger.info(f"IBKRStreamer: Connected to TWS at {host}:{self.port} (Delayed Data Active)")
+                    logger.info(
+                        f"IBKRStreamer: Connected to TWS at {host}:{self.port} (Delayed Data Active)"
+                    )
                     return
                 except Exception as e:
-                    logger.debug(f"IBKRStreamer: Attempt {attempt+1}/{max_attempts} failed for {host}:{self.port}: {e}")
+                    logger.debug(
+                        f"IBKRStreamer: Attempt {attempt + 1}/{max_attempts} failed for {host}:{self.port}: {e}"
+                    )
                     self.ib.disconnect()
 
-            wait_time = min(2 ** attempt, 30) # Exponential backoff
-            logger.warning(f"IBKRStreamer: Connection attempt {attempt+1}/{max_attempts} failed for {self.host}:{self.port}. Retrying in {wait_time}s...")
+            wait_time = min(2**attempt, 30)  # Exponential backoff
+            logger.warning(
+                f"IBKRStreamer: Connection attempt {attempt + 1}/{max_attempts} failed for {self.host}:{self.port}. Retrying in {wait_time}s..."
+            )
             await asyncio.sleep(wait_time)
 
-        logger.error("IBKRStreamer: All connection attempts failed. Ticks will be missing for this session.")
+        logger.error(
+            "IBKRStreamer: All connection attempts failed. Ticks will be missing for this session."
+        )
 
     async def _qdb_drain_worker(self) -> None:
         """Background worker to periodically drain the QuestDB buffer."""
@@ -177,7 +187,7 @@ class IBKRStreamer:
                 if self._qdb_writer and not self._qdb_writer.is_closing():
                     async with self._qdb_lock:
                         await self._qdb_writer.drain()
-                await asyncio.sleep(0.05) # Drain 20 times a second
+                await asyncio.sleep(0.05)  # Drain 20 times a second
             except asyncio.CancelledError:
                 break
             except Exception:
@@ -215,7 +225,9 @@ class IBKRStreamer:
 
             # Reject ticks that are older than 500ms to prevent trading on 'Cold' price data.
             if ticker.time:
-                ticker_age = (datetime.now(timezone.utc) - ticker.time.replace(tzinfo=timezone.utc)).total_seconds()
+                ticker_age = (
+                    datetime.now(timezone.utc) - ticker.time.replace(tzinfo=timezone.utc)
+                ).total_seconds()
                 if ticker_age > 0.5:
                     logger.debug(f"IBKR: {symbol} tick stale ({ticker_age:.2f}s). Skipping.")
                     continue
@@ -228,12 +240,16 @@ class IBKRStreamer:
             # 1. Spread Check: Reject hallucinations in low liquidity
             if bid > 0 and ask > 0:
                 if bid > ask:
-                    logger.warning(f"⚠️ HALLUCINATION VETO: {symbol} Bid (${bid}) > Ask (${ask}). Broken broker state. Skipping.")
+                    logger.warning(
+                        f"⚠️ HALLUCINATION VETO: {symbol} Bid (${bid}) > Ask (${ask}). Broken broker state. Skipping."
+                    )
                     continue
 
                 spread_pct = (ask - bid) / bid
                 if spread_pct > 0.05:
-                    logger.warning(f"⚠️ LIQUIDITY VETO: {symbol} spread too wide ({spread_pct:.1%}). Hallucination rejected.")
+                    logger.warning(
+                        f"⚠️ LIQUIDITY VETO: {symbol} spread too wide ({spread_pct:.1%}). Hallucination rejected."
+                    )
                     continue
 
             # 2. Price Discovery: Favor 'last', then 'bid/ask mean' if spread is tight
@@ -248,7 +264,9 @@ class IBKRStreamer:
             if target_price <= 0:
                 continue
 
-            last_size = ticker.lastSize if (ticker.lastSize and ticker.lastSize > 0) else ticker.bidSize
+            last_size = (
+                ticker.lastSize if (ticker.lastSize and ticker.lastSize > 0) else ticker.bidSize
+            )
 
             # Push to TickBatcher — batched at 10Hz, prevents Bayesian/Dhatu firing 100x/s
             TICK_BATCHER.push(symbol, target_price, bid, ask, float(last_size or 0))
@@ -257,7 +275,7 @@ class IBKRStreamer:
             safe_symbol = str(symbol).replace(",", "\\,").replace(" ", "\\ ").replace("=", "\\=")
 
             if self.qdb_adapter and self.qdb_adapter.enabled:
-                 self.qdb_adapter.log_tick(symbol, target_price, last_size or 0)
+                self.qdb_adapter.log_tick(symbol, target_price, last_size or 0)
             elif self._qdb_writer and not self._qdb_writer.is_closing():
                 try:
                     # Non-blocking write to QuestDB
@@ -269,25 +287,32 @@ class IBKRStreamer:
 
             if self.bus is not None:
                 try:
-                    self._bus_queue.put_nowait({
-                        "symbol": symbol,
-                        "price": target_price,
-                        "bid": bid if bid > 0 else target_price,
-                        "ask": ask if ask > 0 else target_price,
-                        "size": last_size,
-                        "ts": datetime.now(timezone.utc).isoformat(),
-                    })
+                    self._bus_queue.put_nowait(
+                        {
+                            "symbol": symbol,
+                            "price": target_price,
+                            "bid": bid if bid > 0 else target_price,
+                            "ask": ask if ask > 0 else target_price,
+                            "size": last_size,
+                            "ts": datetime.now(timezone.utc).isoformat(),
+                        }
+                    )
                 except asyncio.QueueFull:
                     self.dropped_ticks += 1
                     if self.dropped_ticks % 100 == 0:
-                         logger.warning(f"IBKRStreamer: SILENT TICK DROP! (Total: {self.dropped_ticks}) - Bus Saturation.")
-                         if self.dropped_ticks >= 500 and self.bus:
-                             self.bus.publish_sync("system.alert", {
-                                 "type": "LATENCY_CRITICAL",
-                                 "source": "IBKRStreamer",
-                                 "dropped_ticks": self.dropped_ticks,
-                                 "message": "Critical Tick Drop detected. Market visibility may be compromised."
-                             })
+                        logger.warning(
+                            f"IBKRStreamer: SILENT TICK DROP! (Total: {self.dropped_ticks}) - Bus Saturation."
+                        )
+                        if self.dropped_ticks >= 500 and self.bus:
+                            self.bus.publish_sync(
+                                "system.alert",
+                                {
+                                    "type": "LATENCY_CRITICAL",
+                                    "source": "IBKRStreamer",
+                                    "dropped_ticks": self.dropped_ticks,
+                                    "message": "Critical Tick Drop detected. Market visibility may be compromised.",
+                                },
+                            )
                     pass
             logger.debug(f"TICK [{symbol}]: {target_price} (B: {bid}, A: {ask}) @ {last_size}")
 
@@ -295,12 +320,12 @@ class IBKRStreamer:
         # 2104: Farm connection OK
         # 10167/10168/10089: Informational warnings about delayed data/subscriptions
         if errorCode in (2104, 2106, 2158, 2157, 10167, 10168, 10089):
-             logger.debug(f"IBKRStreamer [INFO]: {errorCode} - {errorString}")
-             return
+            logger.debug(f"IBKRStreamer [INFO]: {errorCode} - {errorString}")
+            return
 
         if errorCode >= 2100 and errorCode <= 2110:
-             logger.debug(f"IBKRStreamer [INFO]: {errorCode} - {errorString}")
-             return
+            logger.debug(f"IBKRStreamer [INFO]: {errorCode} - {errorString}")
+            return
 
         logger.error(f"IBKRStreamer [CRITICAL ERROR]: {reqId} {errorCode} {errorString}")
 
@@ -327,9 +352,17 @@ class IBKRStreamer:
                         continue
 
                 # Start background workers (Cleanup previous if exist)
-                if hasattr(self, "_publisher_task") and self._publisher_task and not self._publisher_task.done():
+                if (
+                    hasattr(self, "_publisher_task")
+                    and self._publisher_task
+                    and not self._publisher_task.done()
+                ):
                     self._publisher_task.cancel()
-                if hasattr(self, "_drain_task") and self._drain_task and not self._drain_task.done():
+                if (
+                    hasattr(self, "_drain_task")
+                    and self._drain_task
+                    and not self._drain_task.done()
+                ):
                     self._drain_task.cancel()
 
                 self._publisher_task = asyncio.create_task(self._bus_publisher())
@@ -344,9 +377,7 @@ class IBKRStreamer:
                 self.ib.pendingTickersEvent.connect(self.on_tick)
                 logger.info("IBKRStreamer: Event listeners active.")
 
-                contracts = [
-                    Stock(symbol=s, exchange="SMART", currency="USD") for s in symbols
-                ]
+                contracts = [Stock(symbol=s, exchange="SMART", currency="USD") for s in symbols]
 
                 # 2. Subscribe to all symbols
                 current_tickers = {t.contract.symbol for t in self.ib.tickers()}
@@ -356,7 +387,9 @@ class IBKRStreamer:
                             self.ib.reqMktData(contract, "233", False, False)
                             logger.info(f"IBKRStreamer: Subscribed to {contract.symbol}")
                         except Exception as e:
-                            logger.error(f"IBKRStreamer: Subscription error for {contract.symbol}: {e}")
+                            logger.error(
+                                f"IBKRStreamer: Subscription error for {contract.symbol}: {e}"
+                            )
 
                 # 3. Keep-alive loop with Reconnect Watchdog
                 logger.info("IBKRStreamer: Matrix Pulse Monitoring active.")
@@ -365,9 +398,13 @@ class IBKRStreamer:
                     self._loop_count += 1
 
                     # If market is open and we haven't seen a tick in 180s, something is wrong.
-                    seconds_since_tick = (datetime.now(timezone.utc) - self._last_tick_time).total_seconds()
+                    seconds_since_tick = (
+                        datetime.now(timezone.utc) - self._last_tick_time
+                    ).total_seconds()
                     if seconds_since_tick > 180 and self.is_running:
-                        logger.warning(f"IBKRStreamer: SILENT DATA GAP detected ({seconds_since_tick:.0f}s). Re-initializing...")
+                        logger.warning(
+                            f"IBKRStreamer: SILENT DATA GAP detected ({seconds_since_tick:.0f}s). Re-initializing..."
+                        )
                         break
 
                 if not self.ib.isConnected():
@@ -380,9 +417,12 @@ class IBKRStreamer:
                 logger.error(f"IBKRStreamer: Runtime error in main loop: {e}")
                 await asyncio.sleep(5)
             finally:
-                if hasattr(self, "_publisher_task") and self._publisher_task: self._publisher_task.cancel()
-                if hasattr(self, "_drain_task") and self._drain_task: self._drain_task.cancel()
-                if hasattr(self, "_batcher_task") and self._batcher_task: self._batcher_task.cancel()
+                if hasattr(self, "_publisher_task") and self._publisher_task:
+                    self._publisher_task.cancel()
+                if hasattr(self, "_drain_task") and self._drain_task:
+                    self._drain_task.cancel()
+                if hasattr(self, "_batcher_task") and self._batcher_task:
+                    self._batcher_task.cancel()
                 try:
                     self.ib.pendingTickersEvent.disconnect(self.on_tick)
                 except Exception:

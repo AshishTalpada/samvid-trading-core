@@ -3,6 +3,7 @@ src/position_cache.py — Persisted Single Source of Truth for Open Positions
 Replaces scattered state in brain.py._positions and agent_c_ibkr._positions_cache.
 Survives crashes — reloaded on startup.
 """
+
 from __future__ import annotations
 
 import json
@@ -20,12 +21,12 @@ _CACHE_PATH = os.path.join("data", "positions.json")
 @dataclass
 class CachedPosition:
     symbol: str
-    side: str               # "LONG" | "SHORT"
+    side: str  # "LONG" | "SHORT"
     quantity: float
     entry_price: float
     stop_loss: float
     take_profit: float
-    entry_time: str         # ISO format
+    entry_time: str  # ISO format
     task_id: str
     broker_order_id: Optional[str] = None
     slippage_cost: float = 0.0
@@ -60,7 +61,9 @@ class PositionCache:
         """Register a new open position."""
         self._positions[pos.symbol] = pos
         self._flush()
-        logger.info(f"PositionCache: ✅ Added {pos.symbol} {pos.side} x{pos.quantity} @ ${pos.entry_price:.2f}")
+        logger.info(
+            f"PositionCache: ✅ Added {pos.symbol} {pos.side} x{pos.quantity} @ ${pos.entry_price:.2f}"
+        )
 
     def update(self, symbol: str, **kwargs) -> None:
         """Update fields on an existing position (e.g. slippage_cost after fill)."""
@@ -124,7 +127,9 @@ class PositionCache:
                 data = json.load(f)
             self._positions = {k: CachedPosition(**v) for k, v in data.items()}
             if self._positions:
-                logger.info(f"PositionCache: ✓ Restored {len(self._positions)} open positions from disk.")
+                logger.info(
+                    f"PositionCache: ✓ Restored {len(self._positions)} open positions from disk."
+                )
         except Exception as e:
             logger.error(f"PositionCache: Load failed ({e}). Starting empty.")
 

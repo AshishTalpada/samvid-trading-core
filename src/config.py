@@ -37,7 +37,7 @@ CORRELATION_THRESHOLD = 0.7  # F13
 # DO NOT MODIFY without updating agent_c_mt5.py FTMOComplianceLayer
 FTMO_DAILY_LIMIT = 0.04  # 4% daily loss limit (safety buffer below FTMO's 5%)
 FTMO_DRAWDOWN_LIMIT = 0.08  # 8% maximum drawdown (safety buffer below FTMO's 10%)
-MAX_TRADES_PER_DAY = 2           # FTMO challenge limit — DO NOT INCREASE
+MAX_TRADES_PER_DAY = 2  # FTMO challenge limit — DO NOT INCREASE
 IBKR_MAX_TRADES_PER_DAY = int(Vault.get("IBKR_MAX_TRADES_PER_DAY", "20"))  # IBKR paper/live
 FTMO_ACCOUNT_SIZE = 25000
 FTMO_BEST_DAY_RATIO = 2.0 / 3.0
@@ -111,14 +111,14 @@ VOLUME_THRESHOLDS = {
 TRADING_INSTRUMENTS = ["SPY", "QQQ", "MSFT", "NVDA", "XAUUSD", "US100"]
 
 # --- EMERGENCY PANIC SWITCH ---
-PANIC_LIQUIDATE = False # Set to True to force-close all positions on startup
+PANIC_LIQUIDATE = False  # Set to True to force-close all positions on startup
 
 # Capital Calibration: Set to $500 for Live Account Alignment
 STARTING_CAPITAL_CAD = float(Vault.get("TOTAL_CAPITAL", "500.0"))
-IBKR_ALLOCATION_CAD = STARTING_CAPITAL_CAD * 0.40 # Reduced to 40% for safer margin
+IBKR_ALLOCATION_CAD = STARTING_CAPITAL_CAD * 0.40  # Reduced to 40% for safer margin
 FTMO_ALLOCATION_CAD = STARTING_CAPITAL_CAD * 0.49
-RISK_PER_TRADE_PCT = 0.005 # 0.5% - Institutional fractional form
-COMMISSION_PER_ROUND_TRIP = 1.0 # Standard IBKR minimum
+RISK_PER_TRADE_PCT = 0.005  # 0.5% - Institutional fractional form
+COMMISSION_PER_ROUND_TRIP = 1.0  # Standard IBKR minimum
 
 # USD -> CAD conversion rate for cross-border asset execution.
 USD_CAD_RATE = float(Vault.get("USD_CAD_RATE", "1.35"))
@@ -130,8 +130,8 @@ MAX_TOTAL_INVESTMENT_CAD = 30000
 
 # DMS
 DMS_HEARTBEAT_INTERVAL = 60
-DMS_TIMEOUT_SECONDS = 600 # 10 minutes
-DMS_MAX_RETRY_BLIPS = 3   # Number of blips allowed before panic
+DMS_TIMEOUT_SECONDS = 600  # 10 minutes
+DMS_MAX_RETRY_BLIPS = 3  # Number of blips allowed before panic
 IBKR_MAX_RECONNECT_ATTEMPTS = 5
 
 DATA_INGESTION_INTERVAL = int(Vault.get("DATA_INGESTION_INTERVAL", "40"))
@@ -145,9 +145,12 @@ QUESTDB_PG_PORT = 8812  # psycopg2 queries for brain OHLCV reads
 QUESTDB_USER = Vault.get("QUESTDB_USER", "admin")
 QUESTDB_PASSWORD = Vault.get("QUESTDB_PASSWORD", "quest")
 QUESTDB_CONNECT_TIMEOUT_SEC = 15.0  # Increased to 15s to resolve failover timeouts
+
+
 def _validate_config():
     """Ensure critical constants are sane before startup."""
     import logging
+
     _log = logging.getLogger("config")
 
     # 1. IBKR Account Validation
@@ -166,6 +169,7 @@ def _validate_config():
     # 4. Currency Conversion Sanity
     if USD_CAD_RATE < 1.0 or USD_CAD_RATE > 2.0:
         _log.warning(f"Suspect USD_CAD_RATE ({USD_CAD_RATE}). Expected range: 1.0 - 2.0.")
+
 
 # Auto-run validation on import
 _validate_config()

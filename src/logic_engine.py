@@ -10,6 +10,7 @@ from config import COMMISSION_PER_ROUND_TRIP, STARTING_CAPITAL_CAD
 
 logger = logging.getLogger(__name__)
 
+
 class SovereignLogicEngine:
     """
     The Single Source of Truth for the 500-Ability Sovereign Mind.
@@ -19,9 +20,11 @@ class SovereignLogicEngine:
     def __init__(self):
         # Resolve path relative to this file so it works regardless of CWD
         _here = os.path.dirname(os.path.abspath(__file__))
-        self.capabilities_path = os.path.normpath(os.path.join(_here, "..", "data", "capabilities.json"))
+        self.capabilities_path = os.path.normpath(
+            os.path.join(_here, "..", "data", "capabilities.json")
+        )
         self.active_layer = "Layer_2_Cognitive"
-        self.node_states = {} # NodeID -> State (ENABLED/DISABLED/CALIBRATING)
+        self.node_states = {}  # NodeID -> State (ENABLED/DISABLED/CALIBRATING)
         self._initialize_node_states()
 
     def _initialize_node_states(self):
@@ -29,7 +32,8 @@ class SovereignLogicEngine:
             with open(self.capabilities_path, "r") as f:
                 caps = json.load(f)
                 for layer, nodes in caps.items():
-                    if layer == "Status": continue
+                    if layer == "Status":
+                        continue
                     for node_id, node_name in nodes.items():
                         # Every single one of the 500 nodes is initialized as ENABLED
                         self.node_states[node_id] = {
@@ -37,7 +41,7 @@ class SovereignLogicEngine:
                             "layer": layer,
                             "active": True,
                             "prowess": 1.0,
-                            "last_sync": datetime.now().isoformat()
+                            "last_sync": datetime.now().isoformat(),
                         }
             logger.info("SovereignLogicEngine: 500 Abilities synchronized and active.")
         except Exception as e:
@@ -55,11 +59,11 @@ class SovereignLogicEngine:
 
         # MASTER DISPATCHER
         _dispatch = {
-            "15":  self._logic_15_hft_footprint,
-            "17":  self._logic_17_abhava,
-            "31":  self._logic_31_antifragility,
-            "40":  self._logic_40_circadian,
-            "48":  self._logic_48_trap,
+            "15": self._logic_15_hft_footprint,
+            "17": self._logic_17_abhava,
+            "31": self._logic_31_antifragility,
+            "40": self._logic_40_circadian,
+            "48": self._logic_48_trap,
             "104": self._logic_104_regime_prediction,
             "151": self._logic_151_kelly,
             "154": self._logic_154_drawdown_breaker,
@@ -68,7 +72,7 @@ class SovereignLogicEngine:
             "164": self._logic_164_liquidation_audit,
             "166": self._logic_166_blackswan,
             "231": self._logic_231_audit,
-            "6":   self._logic_6_sector,
+            "6": self._logic_6_sector,
             "452": self._logic_452_optimism,
             "152": self._logic_152_hedge,
             "460": lambda ctx: {"status": "SUCCESS", "consensus": True},
@@ -81,7 +85,8 @@ class SovereignLogicEngine:
         node_name = node["name"]
         # Strip trailing ID suffixes like _152 or _Node_001
         import re
-        base_name = re.sub(r'(_Node)?(_\d+)?$', '', node_name).lower()
+
+        base_name = re.sub(r"(_Node)?(_\d+)?$", "", node_name).lower()
 
         _base_dispatch = {
             "hedge": self._logic_152_hedge,
@@ -113,6 +118,7 @@ class SovereignLogicEngine:
     def _logic_151_kelly(self, ctx: Dict[str, Any]) -> Dict[str, Any]:
         """Fee-Aware Kelly Criterion (Bug #20 FIX)."""
         from vault import Vault
+
         win_prob = ctx.get("win_prob", 0.5)
         rr = ctx.get("r_r_ratio", 2.0)
         # BUG #20 FIX: Dynamically read commission from Vault
@@ -124,7 +130,10 @@ class SovereignLogicEngine:
         final_sizing = max(0, kelly_f * 0.2)
         fee_drag = commission / account_value
         if final_sizing < fee_drag:
-            return {"decision": "SKIP", "reason": f"Fee Drag (${commission}) inhibits Kelly Sizing."}
+            return {
+                "decision": "SKIP",
+                "reason": f"Fee Drag (${commission}) inhibits Kelly Sizing.",
+            }
         return {"decision": "Sized", "frac": final_sizing}
 
     def _logic_104_regime_prediction(self, ctx: Dict[str, Any]) -> Dict[str, Any]:
@@ -167,9 +176,12 @@ class SovereignLogicEngine:
     def _logic_154_drawdown_breaker(self, ctx: Dict[str, Any]) -> Dict[str, Any]:
         """Hard Equity Floor protection."""
         equity = ctx.get("account_value", 0)
-        floor = STARTING_CAPITAL_CAD * 0.90 # Soft 10% Drawdown Floor
+        floor = STARTING_CAPITAL_CAD * 0.90  # Soft 10% Drawdown Floor
         if equity < floor:
-             return {"status": "HALT", "reason": f"NAV ${equity:,.2f} below equity floor ${floor:,.2f}"}
+            return {
+                "status": "HALT",
+                "reason": f"NAV ${equity:,.2f} below equity floor ${floor:,.2f}",
+            }
         return {"status": "SUCCESS"}
 
     def _logic_155_slippage(self, ctx: Dict[str, Any]) -> Dict[str, Any]:
@@ -180,8 +192,11 @@ class SovereignLogicEngine:
         target = ctx.get("target", 1.05)
         spread = entry * 0.0002
         expected_pnl = abs(target - entry)
-        if spread > (expected_pnl * 0.15): # If spread eats 15% of profit, skip
-             return {"status": "REJECT", "reason": f"Spread friction ${spread:.4f} too high for target ${expected_pnl:.4f}"}
+        if spread > (expected_pnl * 0.15):  # If spread eats 15% of profit, skip
+            return {
+                "status": "REJECT",
+                "reason": f"Spread friction ${spread:.4f} too high for target ${expected_pnl:.4f}",
+            }
         return {"status": "SUCCESS"}
 
     def _logic_166_blackswan(self, ctx: Dict[str, Any]) -> Dict[str, Any]:
@@ -202,13 +217,18 @@ class SovereignLogicEngine:
             words = headline.split()
             try:
                 idx = words.index(next(w for w in words if found_trigger in w))
-                if idx > 0 and words[idx-1] in negations:
-                    logger.debug(f"Black-Swan: Negated trigger '{found_trigger}' detected — Veto suppressed.")
+                if idx > 0 and words[idx - 1] in negations:
+                    logger.debug(
+                        f"Black-Swan: Negated trigger '{found_trigger}' detected — Veto suppressed."
+                    )
                     return {"veto": False}
             except Exception:
                 pass
 
-            return {"veto": True, "reason": f"Black-Swan keyword in headline: '{found_trigger}' (Context: {headline[:40]})"}
+            return {
+                "veto": True,
+                "reason": f"Black-Swan keyword in headline: '{found_trigger}' (Context: {headline[:40]})",
+            }
 
         return {"veto": False}
 
@@ -217,23 +237,28 @@ class SovereignLogicEngine:
         bid = ctx.get("bid", 0.0)
         ask = ctx.get("ask", 0.0)
         vol = ctx.get("volume", 0.0)
-        if bid <= 0 or ask <= 0: return {"status": "INCONCLUSIVE"}
+        if bid <= 0 or ask <= 0:
+            return {"status": "INCONCLUSIVE"}
 
         spread = abs(ask - bid)
-        if spread == 0: return {"status": "MAX_TENSION", "signal": "BUY_PRESSURE"}
+        if spread == 0:
+            return {"status": "MAX_TENSION", "signal": "BUY_PRESSURE"}
 
         # TENSION = VOLUME / SPREAD^2
-        tension = vol / (spread ** 2) if spread >0 else 1000
+        tension = vol / (spread**2) if spread > 0 else 1000
         if tension > 5000:
-             return {"status": "HFT_CONGESTION", "tension": tension, "action": "CAUTION"}
+            return {"status": "HFT_CONGESTION", "tension": tension, "action": "CAUTION"}
         return {"status": "NORMAL"}
 
     def _logic_164_liquidation_audit(self, ctx: Dict[str, Any]) -> Dict[str, Any]:
         """Ensures NAV is sufficient for the proposed exposure."""
         equity = ctx.get("account_value", STARTING_CAPITAL_CAD)
         exposure = ctx.get("total_exposure", 0.0)
-        if exposure > (equity * 3.0): # Hard cap at 3x leverage for small accounts
-            return {"status": "VETO", "reason": f"Leverage {exposure/equity:.1f}x exceeds 3x cap."}
+        if exposure > (equity * 3.0):  # Hard cap at 3x leverage for small accounts
+            return {
+                "status": "VETO",
+                "reason": f"Leverage {exposure / equity:.1f}x exceeds 3x cap.",
+            }
         return {"status": "SUCCESS"}
 
     def _logic_40_circadian(self, ctx: Dict[str, Any]) -> Dict[str, Any]:
@@ -242,11 +267,11 @@ class SovereignLogicEngine:
         now_et = datetime.now(timezone.utc).astimezone(et_tz)
         hour = ctx.get("hour", now_et.hour)
 
-        if 9 <= hour < 10:    # Opening volatility
+        if 9 <= hour < 10:  # Opening volatility
             return {"session": "OPEN", "risk_mult": 0.7, "note": "Reduce size at open"}
-        elif 11 <= hour < 13: # Lunch lull
+        elif 11 <= hour < 13:  # Lunch lull
             return {"session": "LULL", "risk_mult": 0.5, "note": "Avoid lunch lull"}
-        elif 15 <= hour < 16: # Power hour
+        elif 15 <= hour < 16:  # Power hour
             return {"session": "POWER", "risk_mult": 1.2, "note": "Increase size power hour"}
         return {"session": "NORMAL", "risk_mult": 1.0}
 
@@ -288,10 +313,17 @@ class SovereignLogicEngine:
         volatility = ctx.get("volatility_index", 20.0)
 
         if exposure > 50000 and volatility > 30:
-            return {"action": "HEDGE", "instrument": "SH", "size_pct": 0.15, "reason": "High exposure/volatility balance."}
+            return {
+                "action": "HEDGE",
+                "instrument": "SH",
+                "size_pct": 0.15,
+                "reason": "High exposure/volatility balance.",
+            }
         return {"action": "NONE"}
 
+
 _CORE_INSTANCE = None
+
 
 def get_sovereign_logic():
     """Lazy-load the logic engine to prevent startup hangs."""
@@ -300,5 +332,6 @@ def get_sovereign_logic():
         _CORE_INSTANCE = SovereignLogicEngine()
     return _CORE_INSTANCE
 
+
 # Compatibility alias - will trigger load on first access
-SOVEREIGN_CORE = None # Replaced by get_sovereign_logic in dependent files
+SOVEREIGN_CORE = None  # Replaced by get_sovereign_logic in dependent files
