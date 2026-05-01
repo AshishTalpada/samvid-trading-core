@@ -17,7 +17,7 @@ class MindArchitect:
     Agent G: The Healing Mind.
     Focuses on code stability, diagnostic audits, and autonomous 'Self-Healing'.
     Utilizes patterns from Claude-Code: FileEdit, LSP, and Error Classification.
-    Samvid v1.0-beta: Baseline-aware diagnostic verification.
+    Baseline-aware diagnostic verification.
     """
 
     def __init__(self, bridge: MindBridge, vault: Vault | None = None) -> None:
@@ -27,7 +27,7 @@ class MindArchitect:
         self.vault = vault
         self.is_running = False
         self.diagnostic_history: list[dict] = []
-        self.tracker = DiagnosticTracker()  # NEW Samvid v1.0-beta Diagnostic Core
+        self.tracker = DiagnosticTracker()  # NEW Core
         self.healing_attempts: dict[str, dict] = {} # Persistent circuit breaker
         self.sovereign = get_sovereign_logic() # ACCESS TO 500 ABILITIES
 
@@ -62,7 +62,7 @@ class MindArchitect:
     async def start(self) -> None:
         """Launch the Healing Mind process."""
         self.is_running = True
-        logger.info("MindArchitect (Agent G): Healing process active (v1.0-beta).")
+        logger.info("MindArchitect (Agent G): Healing process active.")
         asyncio.create_task(self._monitor_heartbeat())
         asyncio.create_task(self._process_dialogue())
 
@@ -108,7 +108,6 @@ class MindArchitect:
 
     async def evaluate_proposal(self, context: dict[str, Any]) -> dict[str, Any]:
         """
-        Standardized consensus evaluation for Samvid v1.0-beta.
         Provides Agent G's 'Healing Mind' structural integrity vote.
         """
         from datetime import datetime
@@ -128,7 +127,7 @@ class MindArchitect:
 
     async def _tool_check_syntax(self, file_path: str) -> dict[str, Any]:
 
-        """Python-native 'LSP' check for syntax errors (Samvid v1.0-beta Baseline-Aware)."""
+        """Python-native 'LSP' check for syntax errors."""
         if not self.is_path_safe_for_edit(file_path):
              return {"valid": False, "error": "Unauthorized path access attempt recorded (SETO Protocol 9)."}
 
@@ -147,14 +146,13 @@ class MindArchitect:
     ) -> dict[str, Any]:
         """
         Self-Correction 'Suture' (Inspired by FileEditTool).
-        Samvid v1.0-beta: Verifies that the healing didn't introduce new regressions.
+        Verifies that the healing didn't introduce new regressions.
         """
         if not self.is_path_safe_for_edit(file_path):
              logger.critical(f"MindArchitect: BLOCKED unauthorized edit attempt on {file_path}")
              return {"success": False, "error": "Access Denied: Path outside Sovereign Domain."}
 
         try:
-            # --- NEURAL CIRCUIT BREAKER (Samvid v1.0-beta) ---
             from time_sync import TimeSync
             now = TimeSync.now().timestamp()
             file_key = f"{file_path}:{target}"
@@ -189,7 +187,7 @@ class MindArchitect:
 
             new_content = content.replace(target, replacement)
 
-            # 2. SEVERE INTEGRITY CHECK (GAP-42 Mitigation)
+            # 2. SEVERE INTEGRITY CHECK
             # Scan for forbidden dynamic logic loading patterns
             FORBIDDEN_CALLS = {"exec", "eval", "__import__"}
             FORBIDDEN_MODULES = {"importlib", "pickle", "marshal"}
@@ -227,7 +225,6 @@ class MindArchitect:
                 )
                 return {"success": False, "error": f"Syntax error in replacement: {e}"}
 
-            # 3. Apply the Suture (Samvid v1.0-beta: Staged-then-Applied)
             # 3.1. Write to Staging for Auditability
             staging_dir = os.path.join("data", "staging")
             os.makedirs(staging_dir, exist_ok=True)
@@ -279,7 +276,7 @@ class MindArchitect:
         # Capability #164 Trigger
         self.sovereign.execute_node("164", {"session": session_id})
 
-        # Original v1.0-beta Audit Logic
+        # Audit Logic
         try:
             import os
             import sqlite3

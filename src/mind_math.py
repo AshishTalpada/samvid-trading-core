@@ -27,11 +27,10 @@ class MindMath:
         Vetoes trades with inverted stops, zero R:R, or ATR violations.
         """
         from decimal import Decimal, getcontext
-        # Samvid v1.0-beta: Set precision for institutional math (9 places for micro-cap assets)
         getcontext().prec = 28
 
         try:
-            # 1. Convert to Decimal to prevent floating point drift (GAP-155 Remediation)
+            # 1. Convert to Decimal to prevent floating point drift
             d_entry = Decimal(str(entry_price))
             d_stop = Decimal(str(stop_price))
             d_target = Decimal(str(target_price))
@@ -60,7 +59,7 @@ class MindMath:
             if rr_ratio < Decimal("1.5"):
                 return {"valid": False, "reason": f"Deterministic VETO: R:R ratio {float(rr_ratio):.2f} below 1.5 Sovereign Floor."}
 
-            # 4. ATR Validity Check (GAP-48 Remediation)
+            # 4. ATR Validity Check
             if d_atr is not None:
                 # 4.1 Zero ATR Check: Prevent trading in stagnant/illiquid pools
                 if d_atr <= (d_entry * Decimal("1e-7")) or d_atr <= 0:

@@ -1,15 +1,11 @@
-# pyre-ignore-all-errors[21]
 """
 src/api_cache.py - Thread-Safe TTL In-Memory Cache
-
 Prevents redundant API calls (Gemini 429, yfinance rate limits) by
 caching responses with automatic time-based expiry.
-
 Usage:
     cache = TTLCache(default_ttl=300)
     cache.set("SPY_price", 560.25, ttl=60)
     val = cache.get("SPY_price")  # Returns 560.25 or None if expired
-
     # Async fetch-or-cache pattern:
     val = await cache.get_or_fetch("SPY_price", fetch_spy_price, ttl=60)
 """
@@ -27,7 +23,6 @@ logger = logging.getLogger(__name__)
 class TTLCache:
     """
     Thread-safe in-memory cache with per-key TTL expiry.
-
     Designed for high-frequency trading systems where:
     - API rate limits (429) must be avoided
     - Data freshness windows are well-defined (e.g. 5min for tickers, 10min for LLM)
@@ -43,11 +38,10 @@ class TTLCache:
         self._misses = 0
         self._is_running = True
 
-        # GAP-46: Periodic Scavenger (Anti-Zombie Task)
         self._cleanup_task = asyncio.create_task(self._cleanup_loop())
 
     async def _cleanup_loop(self) -> None:
-        """Background loop to periodically prune stale entries (Samvid v1.0-beta)."""
+        """Background loop to periodically prune stale entries."""
         while self._is_running:
             try:
                 await asyncio.sleep(60) # Scavenge every minute
@@ -90,7 +84,7 @@ class TTLCache:
                 return None
             value, expires_at = entry
             if time.monotonic() > expires_at:
-                del self._store[key]  # pyre-ignore[16]
+                del self._store[key]
                 self._misses += 1
                 return None
             self._hits += 1
@@ -113,7 +107,6 @@ class TTLCache:
     ) -> Any:
         """
         Return cached value if fresh; otherwise call fetch_fn, cache result, and return it.
-
         This is the primary interface for DhatuOracle ingestion methods.
         """
         cached = await self.get(key)
@@ -144,7 +137,7 @@ class TTLCache:
         if not self._store:
             return
         oldest_key = min(self._store, key=lambda k: self._store[k][1])
-        del self._store[oldest_key]  # pyre-ignore[16]
+        del self._store[oldest_key]
 
     @property
     def stats(self) -> dict[str, int]:

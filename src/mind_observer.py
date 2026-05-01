@@ -33,7 +33,7 @@ class MindObserver:
         self._task = asyncio.create_task(self._run_observation_loop())
 
     def stop(self) -> None:
-        """Gracefully stop the Observation Mind (Samvid v1.0-beta)."""
+        """Gracefully stop the Observation Mind."""
         self.is_running = False
         if self._task and not self._task.done():
             self._task.cancel()
@@ -56,7 +56,7 @@ class MindObserver:
                 sentiment_val = payload.get("avg_sentiment", 0.0)
                 headlines = payload.get("headlines", [])
 
-                # Convert numeric sentiment to classification with HYSTERESIS (GAP-69 Fix)
+                # Convert numeric sentiment to classification with HYSTERESIS
                 # We require a stronger move to flip states (0.3 -> 0.2 buffer)
                 new_sentiment = self.current_market_sentiment
                 if sentiment_val > 0.35:
@@ -66,8 +66,7 @@ class MindObserver:
                 elif -0.2 < sentiment_val < 0.2:
                     new_sentiment = "NEUTRAL"
 
-                # Debounce: Prevent 'Sentiment Oscillation Bomb' (GAP-69)
-                # GAP-11 FIX: Use Sovereign TimeSync for global consistency
+                # Debounce: Prevent 'Sentiment Oscillation Bomb'
                 from time_sync import TimeSync
                 now = TimeSync.now().timestamp()
                 if new_sentiment != self.current_market_sentiment and (now - self._last_broadcast_time > 300):
@@ -94,7 +93,6 @@ class MindObserver:
 
     async def _tool_fetch_sentiment(self) -> dict[str, Any]:
         """Simulates fetching global sentiment from external feeds (MCP-compatible)."""
-        # GAP-68 FIX: Replaced hardcoded 'BULLISH' fraud with actual sensed state
         from time_sync import TimeSync
         return {
             "sentiment": self.current_market_sentiment,
@@ -103,7 +101,7 @@ class MindObserver:
         }
 
     async def _tool_scan_environment(self) -> dict[str, Any]:
-        """Scans the local database for staleness or 'Dirty Data' (GAP-254)."""
+        """Scans the local database for staleness or 'Dirty Data'."""
         if not self.qdb or not self.qdb.enabled:
              return {"status": "OFFLINE", "reason": "QuestDB not active"}
 

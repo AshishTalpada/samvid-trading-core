@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 
 class MindGhost:
     """
-    Agent J: The Ghost Monitor (Samvid v1.0-beta).
+    Agent J: The Ghost Monitor.
     Focuses on 'Sub-Second UI/API Auditing' and 'Ghost State Monitoring'.
     Inspired by Claude-Code's tmuxSocket.ts and terminalPanel.ts.
     Detects when a service (like IBKR) is 'Hanging' but hasn't 'Crashed'.
@@ -22,10 +22,9 @@ class MindGhost:
         self.is_running = False
         self.latency_threshold_ms = 500  # 500ms threshold for 'Hanging'
         self.last_api_heartbeat = time.time()
-        self.startup_time = time.time()  # For grace period (Samvid v1.0-beta Extended)
+        self.startup_time = time.time()  # For grace period
         self.ghost_mirror: dict[str, Any] = {}  # Internal 'Mirror' of service states
 
-        # --- Samvid v1.0-beta PILLAR 4: EXPONENTIAL BACKOFF (Agent J) ---
         self.retry_counts: dict[str, int] = {}
         self.backoff_base = 2.0
         # Track when next probe is allowed per service (exponential backoff)
@@ -35,10 +34,9 @@ class MindGhost:
     async def start(self) -> None:
         """Launch the Ghost Monitor."""
         self.is_running = True
-        logger.info("MindGhost (Agent J): Ghost Monitoring active (Samvid v1.0-beta).")
+        logger.info("MindGhost (Agent J): Ghost Monitoring active.")
         task = asyncio.create_task(self._ghost_audit_loop())
 
-        # GAP-167: Supervisor Monitoring (Heartbeat)
         def _ghost_dead_callback(t: asyncio.Task) -> None:
             if self.is_running: # If it wasn't a clean stop
                 try:
@@ -70,12 +68,10 @@ class MindGhost:
             try:
                 current_time = TimeSync.now().timestamp()
 
-                # Samvid v1.0-beta: 120-second Grace Period on startup (Allows for slow IBKR handshakes)
                 if current_time - self.startup_time < 120:
                     await asyncio.sleep(1.0)
                     continue
 
-                # 1. Handshake Verification (Samvid v1.0-beta Bus-Driven)
                 # If we're still waiting for a handshake, check if the system heartbeats are active
                 if self.last_api_heartbeat <= self.startup_time:
                     # If we catch a bus event or a mirror update, sync the heartbeat
@@ -83,9 +79,7 @@ class MindGhost:
                         self.last_api_heartbeat = current_time
                         logger.info("MindGhost: Handshake confirmed via Global Matrix. Audit mode ENGAGED.")
 
-                # 2. API Heartbeat Audit (Samvid v1.0-beta Adaptive Patience)
                 if self.last_api_heartbeat > self.startup_time:
-                    # GAP-38 FIX: Increased timeout to 60s (from 30s) to allow for heavy vetting cycles
                     if current_time - self.last_api_heartbeat > 60.0:
                         logger.error(f"MindGhost: API HEARTBEAT LOST! (Last: {int(current_time - self.last_api_heartbeat)}s ago). Service may be hanging.")
                         await self._trigger_ghost_reset("IBKR")
@@ -99,7 +93,6 @@ class MindGhost:
 
                 # 3. ACTIVE SOCKET PROBE with exponential backoff (IBKR ONLY)
                 if int(current_time) % 30 == 0:
-                    # GAP-264 FIX: Tick-gate to prevent double-probing within the same second
                     if getattr(self, "_last_probe_tick", 0) != int(current_time):
                         self._last_probe_tick = int(current_time)
 
@@ -108,7 +101,6 @@ class MindGhost:
                             if current_time < next_ok:
                                 continue  # still in backoff window
 
-                            # GAP-264 FIX: Offload blocking socket I/O to thread
                             if not await asyncio.to_thread(self._probe_port, port):
                                 fail_count = self.ghost_mirror.get(f"{service}_probe_fail", 0) + 1
                                 self.ghost_mirror[f"{service}_probe_fail"] = fail_count
@@ -154,7 +146,7 @@ class MindGhost:
 
         await asyncio.sleep(backoff_delay)
 
-        # FINAL PATIENCE GAP: Reduced for HFT (GAP-38)
+        # FINAL PATIENCE GAP: Reduced for HFT
         await asyncio.sleep(5.0)
 
         # Call the reboot_service tool on Agent I via the Bridge

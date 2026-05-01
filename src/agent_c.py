@@ -1,7 +1,5 @@
-# pyre-ignore-all-errors[21]
 """
 src/agent_c.py - Evolutionary Intelligence (The Feedback Loop)
-
 This component enables the system to "learn" by:
 1. Snapshotting the exact market state (features) when a trade/pattern is detected.
 2. Mapping subsequent P&L back to those features.
@@ -31,14 +29,12 @@ class EvolutionManager:
         self.main_db_path = main_db_path
         self.dms = dms
         if db_path is None:
-            # GAP-11: Robust path resolution relative to project root
             project_root = Path(__file__).resolve().parent.parent
             self.db_path = str(project_root / "data" / "evolution.db")
         else:
             self.db_path = db_path
 
         self._init_db()
-        # GAP-209 FIX: Persistent connection for high-frequency snapshots
         self.conn = sqlite3.connect(self.db_path, timeout=60.0, check_same_thread=False)
         self.conn.execute("PRAGMA journal_mode=WAL;")
         self.conn.execute("PRAGMA busy_timeout = 60000;")
@@ -129,14 +125,12 @@ class EvolutionManager:
             main_db_path = self.main_db_path
 
         try:
-            # Audit Fix [C3]: Parameterized/Safe ATTACH DATABASE
             from pathlib import Path
             safe_db_path = str(Path(main_db_path).resolve())
             if not Path(safe_db_path).exists():
                 logger.error(f"EvolutionManager: Main DB not found at {safe_db_path}")
                 return {"error": "Main DB not found"}
 
-            # GAP-209: Reuse persistent connection with ATTACH
             try:
                 self.conn.execute(f"ATTACH DATABASE '{safe_db_path}' AS main_db")
             except sqlite3.OperationalError as e:
@@ -324,7 +318,6 @@ class EvolutionManager:
         elif pf < 1.0 or dd > 0.08:
             new_risk = round(current_risk - 0.01, 4)
 
-        # GAP-286 FIX: Clamp to Sanctity Bounds to avoid VETO crashes
         bounds = RiskInvariants.SANCTITY_BOUNDS.get("SYSTEM_MAX_RISK")
         if bounds:
             new_risk = max(bounds.min_val, min(bounds.max_val, new_risk))
@@ -343,7 +336,6 @@ class EvolutionManager:
         elif sortino > 1.5 and pf > 2.0:
             new_exit = round(current_exit + 0.05, 2)
 
-        # GAP-287 FIX: Clamp to Sanctity Bounds
         e_bounds = RiskInvariants.SANCTITY_BOUNDS.get("BELIEF_EXIT_THRESHOLD")
         if e_bounds:
             new_exit = max(e_bounds.min_val, min(e_bounds.max_val, new_exit))
@@ -361,7 +353,7 @@ class EvolutionManager:
             # 1. Update Runtime Memory
             setattr(config, key, value)
 
-            # 2. Persist to DB using standardized GAP-44 schema
+            # 2. Persist to DB
             try:
                 conn = sqlite3.connect(self.db_path, timeout=60.0)
                 conn.execute("PRAGMA journal_mode=WAL;")
@@ -420,7 +412,6 @@ class EvolutionManager:
         logger.info("Evolution: Recursive Feedback loop active (1-hour pulse).")
         while True:
             try:
-                # GAP-84: Agent C Heartbeat
                 if self.dms:
                     self.dms.record_heartbeat("AGENT_C")
 

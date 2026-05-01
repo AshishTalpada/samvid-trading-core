@@ -1,8 +1,7 @@
-# pyre-ignore-all-errors[21]
-import logging  # pyre-ignore[21]
-import os  # pyre-ignore[21]
+import logging
+import os
 
-import keyring  # pyre-ignore[21]
+import keyring
 
 logger = logging.getLogger(__name__)
 
@@ -14,7 +13,7 @@ class Vault:
     """
 
     SERVICE_NAME = "TradingSystemV3"
-    _cache: dict[str, str] = {} # GAP-81 FIX: In-memory cache to bypass keyring latency
+    _cache: dict[str, str] = {}
     _cache_initialized = False
     SENSITIVE_KEYS = {
         "ANTHROPIC_API_KEY",
@@ -49,7 +48,7 @@ class Vault:
 
     @staticmethod
     def _is_sensitive(key: str) -> bool:
-        """Heuristic check for sensitive key names (GAP-10 Hardening)."""
+        """Returns True if the key name matches known sensitive credential patterns."""
         k = key.upper()
         if k in Vault.SENSITIVE_KEYS:
             return True
@@ -59,18 +58,12 @@ class Vault:
 
     @staticmethod
     def get(key: str, default: str | None = None) -> str | None:
-        """
-        Retrieve a secret (Samvid v1.0-beta Universal String-Shield).
-        Ensures the return value is projects-wide safe for SDKs and lengths.
-        """
-        # 0. Check Cache First (GAP-81)
+        """Retrieve a secret from Windows Vault, falling back to environment variables."""
         if key in Vault._cache:
             return Vault._cache[key]
 
-        # 1. Try Windows Vault
         try:
-            # GAP-82 FIX: Use a timeout/block guard for Windows Vault
-            # keying.get_password can hang if the service is under high load.
+            # get_password can hang under high load — failures fall through to env.
             val = keyring.get_password(Vault.SERVICE_NAME, key)
             if val is not None:
                 final_val = str(val).strip()
@@ -79,8 +72,7 @@ class Vault:
         except Exception as e:
             logger.debug(f"Vault access error for {key}: {e}")
 
-        # GAP-10 FIX: No silent fallback to plaintext .env for sensitive keys.
-        # This prevents credential leakage if the Vault is uninitialized.
+        # No silent fallback to plaintext .env for sensitive keys — prevents credential leakage.
         if Vault._is_sensitive(key):
             # Strict mode: Warn if sensitive keys are read from .env instead of the vault.
             env_val = os.getenv(key, default)
@@ -120,7 +112,6 @@ class Vault:
         return list(set(values))  # Unique values only
 
 
-
 if __name__ == "__main__":
     import sys
     # Basic CLI for managing secrets
@@ -142,4 +133,5 @@ if __name__ == "__main__":
             exists = "✓" if keyring.get_password(Vault.SERVICE_NAME, k) else " "
             print(f" [{exists}] {k}")
     else:
+        print("Invalid command or arguments.")
         print("Invalid command or arguments.")
