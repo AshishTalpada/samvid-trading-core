@@ -73,8 +73,10 @@ from config import (
     QUESTDB_ENABLED,
     STARTING_CAPITAL_CAD,
 )
+from decision_ledger import LEDGER
 from exit_intelligence import ExitAction, ExitIntelligence
 from intelligence_bus import SharedIntelligenceBus
+from llm_circuit_breaker import HEAVY_BREAKER, LIGHT_BREAKER  # noqa: F401
 from memdir import MemoryManager
 from mind_architect import MindArchitect
 from mind_bridge import MindBridge
@@ -1078,11 +1080,29 @@ class TradingBrain:
         """
         Agent F: The Executioner's Cognitive Layer.
         Participates in SETO 'Twin-Mind' discussion and evolution.
+        LLM Circuit Breaker: If get_next_message blocks for >8s, the mind
+        is assumed unresponsive and the loop continues without it.
         """
         logger.info("TraderMind: Participation loop active.")
         while self.is_running:
             try:
-                msg = await self.mind_bridge.get_next_message("trader")
+                # Circuit breaker: never block the trading loop indefinitely
+                # waiting for an LLM mind that may have timed out.
+                try:
+                    msg = await asyncio.wait_for(
+                        self.mind_bridge.get_next_message("trader"),
+                        timeout=8.0
+                    )
+                except asyncio.TimeoutError:
+                    # LLM mind unresponsive — log via breaker and continue loop
+                    LIGHT_BREAKER._record_failure()
+                    logger.warning(
+                        f"TraderMind: get_next_message timed out (8s). "
+                        f"CB state: {LIGHT_BREAKER.state}. Continuing loop."
+                    )
+                    await asyncio.sleep(1)
+                    continue
+
                 # Trader logic to respond to architect's queries or suggestions
                 if "heal" in msg.content.lower():
                     logger.info(
@@ -1557,6 +1577,23 @@ class TradingBrain:
 
                         logger.info(f"🎯 DISCOVERY: {symbol} matched {best.name} ({best.confidence:.1f}%)")
 
+                        # --- DECISION LEDGER: record every approved pattern ---
+                        try:
+                            LEDGER.record_entry(
+                                symbol=symbol,
+                                pattern=best.name,
+                                confidence=best.confidence,
+                                agent_votes={"agent_a": f"{best.name} ({best.confidence:.1f}%) — R/R {getattr(best, 'r_r_ratio', 0):.1f}x"},
+                                triggered_by="agent_a",
+                                meta={
+                                    "regime": self.current_regime,
+                                    "dhatu": self._oracle_dhatu,
+                                    "oracle_modifier": self._oracle_risk_modifier,
+                                }
+                            )
+                        except Exception as _le:
+                            logger.debug(f"DecisionLedger entry skipped: {_le}")
+
                         task = self.task_manager.spawn_trade(symbol, {"pattern": best.name, "conf": best.confidence})
                         task.log(f"DISCOVERY_HIT: {best.name} detected.")
 
@@ -2024,6 +2061,27 @@ class TradingBrain:
                     ts_entry=pos.entry_time,
                     ts_exit=now
                 )
+
+                # --- DECISION LEDGER: immutable exit audit trail ---
+                try:
+                    LEDGER.record_exit(
+                        symbol=pos.symbol,
+                        exit_type=exit_type,
+                        pnl_usd=realized_net_pnl,
+                        r_multiple=r_multiple,
+                        triggered_by="exit_intelligence",
+                        agent_votes={"exit_intelligence": exit_type},
+                        override="DIRTY_FILL" if is_dirty else "",
+                        meta={
+                            "entry_price": pos.entry_price,
+                            "exit_price": adjusted_exit_price,
+                            "slippage_pct": round(slippage_pct, 5),
+                            "regime": self.current_regime,
+                            "pattern": pos.pattern or "",
+                        }
+                    )
+                except Exception as _le:
+                    logger.debug(f"DecisionLedger exit skipped: {_le}")
 
                 # Reset failure count on successful full exit
                 self._exit_failure_count[symbol] = 0
