@@ -1,9 +1,133 @@
 import asyncio
 import logging
+from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass
+class FailedOrder:
+    """An order that failed to transmit and is queued for retry."""
+    symbol: str
+    direction: str
+    shares: int
+    price: float
+    attempt: int = 0
+    max_attempts: int = 3
+    reason: str = ""
+    ts_first_fail: datetime = field(default_factory=datetime.utcnow)
+    task_id: str = ""
+
+
+class DeadLetterQueue:
+    """
+    Retry queue for failed order submissions.
+    Uses exponential back-off: 1s → 2s → 4s before final escalation.
+    After max_attempts, triggers TradingState.HALTED to prevent silent capital risk.
+
+    Wire-in:
+        from resilience_layer import DEAD_LETTER_QUEUE
+        # On order failure in agent_c_ibkr:
+        DEAD_LETTER_QUEUE.enqueue(order)
+        # Start the retry worker as a background task:
+        asyncio.create_task(DEAD_LETTER_QUEUE.run(retry_fn=agent_c.place_order))
+    """
+
+    def __init__(self, max_attempts: int = 3):
+        self._queue: asyncio.Queue[FailedOrder] = asyncio.Queue(maxsize=200)
+        self._max_attempts = max_attempts
+        self._retry_count = 0
+        self._escalation_count = 0
+
+    def enqueue(self, symbol: str, direction: str, shares: int,
+                price: float, reason: str = "", task_id: str = "") -> None:
+        """Add a failed order to the retry queue."""
+        order = FailedOrder(
+            symbol=symbol, direction=direction, shares=shares,
+            price=price, reason=reason, task_id=task_id,
+            max_attempts=self._max_attempts,
+        )
+        try:
+            self._queue.put_nowait(order)
+            logger.warning(
+                f"DLQ: ⚠ Order queued for retry — {direction} {shares}x {symbol} "
+                f"@ ${price:.2f} | Reason: {reason}"
+            )
+        except asyncio.QueueFull:
+            logger.error(f"DLQ: Queue FULL — dropping {symbol} order. Escalating.")
+            self._escalate(order, "DLQ queue full — order dropped.")
+
+    async def run(self, retry_fn: Callable) -> None:
+        """
+        Background worker. retry_fn should match signature:
+            async def retry_fn(symbol, direction, shares, price) -> bool
+        Returns True on success, False on failure.
+        """
+        logger.info("DLQ: Retry worker started.")
+        while True:
+            order = await self._queue.get()
+            order.attempt += 1
+
+            # Exponential back-off: 1s, 2s, 4s
+            delay = 2 ** (order.attempt - 1)
+            await asyncio.sleep(delay)
+
+            try:
+                success = await retry_fn(
+                    order.symbol, order.direction, order.shares, order.price
+                )
+            except Exception as e:
+                success = False
+                order.reason = str(e)
+
+            if success:
+                self._retry_count += 1
+                logger.info(
+                    f"DLQ: ✅ Retry #{order.attempt} SUCCESS — "
+                    f"{order.direction} {order.shares}x {order.symbol}"
+                )
+            elif order.attempt >= order.max_attempts:
+                self._escalate(order, f"Max retries ({order.max_attempts}) exhausted.")
+            else:
+                # Re-queue for another attempt
+                await self._queue.put(order)
+                logger.warning(
+                    f"DLQ: Retry #{order.attempt} failed for {order.symbol}. "
+                    f"Re-queuing (attempt {order.attempt + 1}/{order.max_attempts})."
+                )
+
+            self._queue.task_done()
+
+    def _escalate(self, order: FailedOrder, reason: str) -> None:
+        """Final escalation: halt trading and log critical alert."""
+        self._escalation_count += 1
+        full_reason = (
+            f"DLQ ESCALATION: {order.direction} {order.shares}x {order.symbol} "
+            f"@ ${order.price:.2f} — {reason}"
+        )
+        logger.critical(f"🚨 {full_reason}")
+
+        # Halt trading to prevent further capital risk
+        try:
+            from trading_state import TradingStateManager
+            TradingStateManager.halt(full_reason)
+        except Exception as e:
+            logger.error(f"DLQ: Could not trigger TradingState.HALTED: {e}")
+
+    @property
+    def stats(self) -> dict:
+        return {
+            "queue_depth":       self._queue.qsize(),
+            "retry_successes":   self._retry_count,
+            "escalations":       self._escalation_count,
+        }
+
+
+# Module-level singleton
+DEAD_LETTER_QUEUE = DeadLetterQueue()
+
 
 class ApexExoskeleton:
     """
