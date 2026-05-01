@@ -21,7 +21,7 @@ class MindArchitect:
     """
 
     def __init__(self, bridge: MindBridge, vault: Vault | None = None) -> None:
-        from sovereign_logic import get_sovereign_logic
+        from logic_engine import get_sovereign_logic
 
         self.bridge = bridge
         self.vault = vault
