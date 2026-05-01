@@ -19,6 +19,7 @@ from fastapi import (
 )
 from fastapi.middleware.cors import CORSMiddleware
 
+from decision_ledger import LEDGER
 from portfolio_analyzer import PORTFOLIO_ANALYZER
 from vault import Vault
 
@@ -323,6 +324,19 @@ class APIServer:
         async def get_state(key: str = Depends(self._verify_api_key)):
             async with self._http_semaphore:
                 return self._get_cached_state()
+
+        @self.app.get("/ledger")
+        async def get_ledger(
+            n: int = Query(50, ge=1, le=500),
+            key: str = Depends(self._verify_api_key),
+        ):
+            """Return the last N decision audit trail entries."""
+            return {"entries": LEDGER.recent(n)}
+
+        @self.app.get("/ledger/stats")
+        async def get_ledger_stats(key: str = Depends(self._verify_api_key)):
+            """Return aggregate stats from the decision ledger."""
+            return LEDGER.summary_stats()
 
         @self.app.websocket("/ws")
         async def websocket_endpoint(websocket: WebSocket, token: str = Query(None)) -> None:
