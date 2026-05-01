@@ -147,25 +147,55 @@ class EvolutionManager:
             cursor = self.conn.cursor()
 
             # Calculate metrics per Dhatu state (Refined for Expectancy)
+            # FIX: pnl_dollars is encrypted! We cannot use SQL SUM() or AVG() on it.
+            # We must fetch the raw data and aggregate in Python.
             cursor.execute("""
                 SELECT
                     s.dhatu_state,
-                    COUNT(*) as total,
-                    SUM(CASE WHEN t.pnl_dollars > 0 THEN 1 ELSE 0 END) as wins,
-                    AVG(t.pnl_dollars) as avg_pnl,
-                    SUM(CASE WHEN t.pnl_dollars > 0 THEN t.pnl_dollars ELSE 0 END) as gross_wins,
-                    SUM(CASE WHEN t.pnl_dollars < 0 THEN ABS(t.pnl_dollars) ELSE 0 END) as gross_losses
+                    t.pnl_dollars
                 FROM decision_snapshots s
                 JOIN main_db.trades t ON s.trade_id = t.id
-                GROUP BY s.dhatu_state
             """)
 
             rows = cursor.fetchall()
+            stats_raw = {}
+            from database_security import DatabaseSecurity
+
+            for state, pnl_raw in rows:
+                if state not in stats_raw:
+                    stats_raw[state] = {"total": 0, "wins": 0, "gross_wins": 0.0, "gross_losses": 0.0}
+
+                if pnl_raw is None:
+                    continue
+
+                try:
+                    if isinstance(pnl_raw, str) and pnl_raw.startswith("gAAAAA"):
+                        p = DatabaseSecurity.decrypt_float(pnl_raw)
+                    else:
+                        p = float(pnl_raw)
+                except Exception:
+                    continue
+
+                stats_raw[state]["total"] += 1
+                if p > 0:
+                    stats_raw[state]["wins"] += 1
+                    stats_raw[state]["gross_wins"] += p
+                else:
+                    stats_raw[state]["gross_losses"] += abs(p)
+
             stats = {}
             best_state = "None"
             best_expectancy = -999.0
 
-            for state, total, wins, _avg_pnl, g_wins, g_losses in rows:
+            for state, data in stats_raw.items():
+                total = data["total"]
+                wins = data["wins"]
+                g_wins = data["gross_wins"]
+                g_losses = data["gross_losses"]
+
+                if total == 0:
+                    continue
+
                 wr = wins / total if total > 0 else 0.0
                 pf = g_wins / g_losses if g_losses > 0 else (g_wins if g_wins > 0 else 1.0)
                 expectancy = (wr * (g_wins / wins if wins > 0 else 0)) - (
