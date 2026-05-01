@@ -1,29 +1,28 @@
-# pyre-ignore-all-errors[21]
 """
 src/dhatu_oracle.py - Dhatu Omniscience Global Knowledge Graph
 """
 
 import asyncio
 import json
-import logging  # pyre-ignore[21]
+import logging
 import math
 import os
 import re
 import time
-from dataclasses import dataclass, field  # pyre-ignore[21]
-from datetime import datetime, timedelta  # pyre-ignore[21]
-from typing import TYPE_CHECKING, Any, Dict  # pyre-ignore[21]
+from dataclasses import dataclass, field
+from datetime import datetime, timedelta
+from typing import TYPE_CHECKING, Any, Dict
 
-import httpx  # pyre-ignore[21]
-import numpy as np  # pyre-ignore[21]
+import httpx
+import numpy as np
 import websockets
 
-from api_cache import TTLCache  # pyre-ignore[21]
-from database_security import Vault  # pyre-ignore[21]
+from api_cache import TTLCache
+from database_security import Vault
 from telegram_alerts import send_telegram_alert
 
 if TYPE_CHECKING:
-    from intelligence_bus import SharedIntelligenceBus  # pyre-ignore[21]
+    from intelligence_bus import SharedIntelligenceBus
 
 from datetime import timezone
 
@@ -35,12 +34,10 @@ def _short_exc(exc: BaseException, limit: int = 180) -> str:
     if len(msg) <= limit:
         return msg
     stop_idx: int = limit - 3
-    return msg[:stop_idx] + "..."  # pyre-ignore[6]
+    return msg[:stop_idx] + "..."
 
 
-# =============================================================================
 # 6-VERTICAL VARIABLE TAXONOMY
-# =============================================================================
 
 GEOPOLITICAL_KEYWORDS: list[str] = [
     "diplomacy",
@@ -329,9 +326,7 @@ MARKET_MECHANICS_KEYWORDS: list[str] = [
 ]
 
 
-# =============================================================================
 # CAUSATION GRAPH (Gemini Output Structure)
-# =============================================================================
 
 
 @dataclass
@@ -363,9 +358,7 @@ class CausationGraph:
         return round(1.0 - self.uncertainty_score, 3)
 
 
-# =============================================================================
 # DHATU ORACLE STATE (Claude Output)
-# =============================================================================
 
 # Dhatu state → Agent B action protocol mapping
 DHATU_PROTOCOL_MAP: dict[str, dict[str, Any]] = {
@@ -445,14 +438,12 @@ class OracleState:
 
     @property
     def is_fresh(self) -> bool:
-        """Oracle state is considered fresh for 10 minutes (GAP-32 Hardening)."""
+        """Oracle state is considered fresh for 10 minutes."""
         now = datetime.now(timezone.utc)
         return (now - self.generated_at) < timedelta(minutes=10)
 
 
-# =============================================================================
 # NEURAL NEWS INTELLIGENCE (AGENT B - THE READER)
-# =============================================================================
 
 class NewsHarvester:
     """
@@ -492,7 +483,7 @@ class NewsHarvester:
         BULL_WORDS = [
             "BEAT", "UPGRADE", "RAISE", "POSITIVE", "GROWTH", "WIN", "SURGE", "PROFIT",
             "BULLISH", "SUCCESS", "EXPAND", "BUY", "OUTPERFORM", "RECOVERY", "BOOM", "HIKE",
-            "SHORT SQUEEZE" # GAP-25 FIX: Short Squeeze is explicitly Bullish
+            "SHORT SQUEEZE"
         ]
         BEAR_WORDS = [
             "MISS", "DOWNGRADE", "LOWER", "NEGATIVE", "FALL", "LOSS", "DROP", "PLUNGE",
@@ -510,7 +501,6 @@ class NewsHarvester:
         self._running = True
         logger.info("NewsHarvester: Neural Reading Hub active.")
 
-        # Samvid v1.0-beta: Persistent Client for connection pooling
         async with httpx.AsyncClient(timeout=httpx.Timeout(60.0, connect=30.0)) as client:
             while self._running:
                 try:
@@ -523,20 +513,17 @@ class NewsHarvester:
                         if resp.status_code == 200:
                             data = resp.json()
                             processed = 0
-                            # GAP-27: API Bloat - Limit processing to top 10 items
                             for item in data[:10]:
                                     h = str(item.get("headline", ""))
                                     s_text = str(item.get("summary", ""))
                                     full_text = f"{h} {s_text}".upper()
 
-                                    # GAP-236 FIX: Scan both Headline and Body (Summary)
                                     is_dot = any(k.upper() in full_text for k in GEOPOLITICAL_KEYWORDS + MACRO_KEYWORDS)
                                     if (is_dot) and h not in self._last_headlines and processed < 5:
                                         self._last_headlines.add(h)
                                         processed += 1
                                         distilled = await self._distill_headline(f"{h} | {s_text}")
 
-                                        # ── NEURAL DELTA DETECTION (SE-11 Port) ──
                                         # Capture shift from 'last sentiment' to 'this headline'
                                         if distilled["impact"] > 0.6:
                                              self.status_summary = f"Synthesizing {h[:15]}..."
@@ -565,9 +552,7 @@ class NewsHarvester:
                     logger.error(f"🚨 NewsHarvester: Neural Hub failure: {e}")
                     await asyncio.sleep(60)
 
-# =============================================================================
 # TRADINGVIEW NEWS SCENT (THE IMPERIAL FEED)
-# =============================================================================
 
 class TVNewsScent:
     """
@@ -594,7 +579,6 @@ class TVNewsScent:
         """
         results = []
         try:
-            # Samvid v1.0-beta: Robust length-prefixed parsing (replaces brittle split)
             ptr = 0
             while ptr < len(raw_data):
                 if not raw_data[ptr:].startswith('~m~'):
@@ -632,7 +616,6 @@ class TVNewsScent:
 
         while self._running:
             try:
-                # Samvid v1.0-beta: Explicit Handshake Mapping
                 target_url = self.url
                 target_headers = headers
                 async with websockets.connect(
@@ -680,26 +663,21 @@ class TVNewsScent:
             except Exception as e:
                 logger.error(f"⚠️ TVNewsScent: Neural Scent blip (Check Origin/Proxy): {e}")
 
-            # Samvid v1.0-beta: Mandatory Neural Cooling (Prevents machine-gun reconnects)
             # Replaces the unstable fixed sleep inside the except block.
             await asyncio.sleep(15)
 
-# =============================================================================
 # DHATU ORACLE — THE GLOBAL BRAIN
-# =============================================================================
 
 
 class DhatuOracle:
     """
     Multi-stage LLM pipeline that synthesizes 500+ global variables into
     a single Dhatu state and risk protocol for the execution engine.
-
     Pipeline:
       Step 1: Ingest from 6 vertical sources (news, central banks, etc.)
       Step 2: Gemini 2.0 Flash builds the Causation Graph
       Step 3: Claude 3.5 Opus maps graph → Dhatu State
       Step 4: Publish OracleState to Agent B every ~15 minutes
-
     Requires:
       GOOGLE_API_KEY  (for Gemini)
       ANTHROPIC_API_KEY (for Claude)
@@ -717,7 +695,7 @@ class DhatuOracle:
         self._google_key = google_api_key
         self._anthropic_key = anthropic_api_key
         self._current_state: OracleState | None = None
-        self._refresh_interval_minutes = 10 # Reduced for GAP-32
+        self._refresh_interval_minutes = 10 # Reduced
         self._bus: SharedIntelligenceBus | None = bus
         _ob = (ollama_base_url or "http://127.0.0.1:11434/v1").rstrip("/")
         if not _ob.endswith("/v1"):
@@ -726,12 +704,10 @@ class DhatuOracle:
         self._local_model = ollama_model
         self._gemini_model = gemini_model
 
-        # GAP-32: Interruptible refresh for 'Flash' events
         self._flash_event = asyncio.Event()
         self._flash_keywords = {"CRASH", "HALT", "WAR", "EXPLOSION", "LIQUIDATION", "PANIC", "FLASH", "CIRCUIT"}
         self._last_flash_time = 0.0 # Throttler
 
-        # GAP-70: Anti-Injection Sanitizer
         self._forbidden_neural = ["IGNORE ALL", "SYSTEM:", "USER:", "PREVIOUS INSTRUCTIONS", "SETTING:"]
 
         # TTL caches to prevent 429 rate-limit errors
@@ -742,8 +718,6 @@ class DhatuOracle:
         self._load_persisted_state()
         self._news_scent = TVNewsScent(bus=bus)
         self._news_harvester = NewsHarvester(bus=bus)
-        # Samvid v1.0-beta: Live News Intelligence Buffer (Captures all dots)
-        # Samvid v1.0-beta: Live Intelligence Buffers
         self._news_buffer: list[str] = []
         self._macro_buffer: list[str] = []
         self._flow_buffer: list[str] = []
@@ -754,20 +728,17 @@ class DhatuOracle:
             self._bus.on("institutional.flow", self._on_flow_received)
         self._background_tasks: list[asyncio.Task] = []
 
-        # --- BAYESIAN REWARD MECHANISM (Samvid v1.0-beta Native Integration) ---
         from bayesian_oracle import BayesianOracle
         self._bayesian_oracle = BayesianOracle()
 
-        # Samvid v1.0-beta: Persistent Ollama client — eliminates per-call AsyncClient alloc (~30 MB each)
         self._ollama_client: "httpx.AsyncClient | None" = None
 
     async def _on_news_received(self, data: dict) -> None:
-        """Capture news headlines into the short-term memory buffer (Hardened GAP-70/32)."""
+        """Capture news headlines into the short-term memory buffer."""
         h_raw = data.get("headline")
         s = data.get("source", "UNKNOWN")
         if not h_raw: return
 
-        # GAP-70 FIX: Neural Injection Shield
         h_up = h_raw.upper()
         h = h_raw
         if any(f in h_up for f in self._forbidden_neural):
@@ -780,10 +751,8 @@ class DhatuOracle:
             if len(self._news_buffer) > 100:
                 self._news_buffer.pop(0)
 
-            # GAP-32: Trigger 'Flash Refresh' with Throttle
             found_k = [k for k in self._flash_keywords if k in h_up]
             if found_k:
-                # GAP-80 Hardening: Negation awareness (Semantic Drift Protection)
                 negators = ["NOT ", "NO ", "NEVER ", "FALSE ", "DENIES ", "REJECTS ", "UNLIKELY "]
                 is_negated = any(neg + k in h_up for k in found_k for neg in negators)
 
@@ -897,9 +866,7 @@ class DhatuOracle:
         except Exception as e:
             logger.debug(f"DhatuOracle: No persisted state found or failed to load: {e}")
 
-    # ------------------------------------------------------------------
     # Public API — consumed by Agent B
-    # ------------------------------------------------------------------
 
     def get_current_state(self) -> OracleState | None:
         """Return the current Oracle state (or None if not yet initialised)."""
@@ -914,7 +881,6 @@ class DhatuOracle:
 
     def evaluate_proposal(self, context: Dict[str, Any]) -> Dict[str, Any]:
         """
-        Standardized consensus evaluation for Samvid v1.0-beta.
         Provides the Dhatu Oracle's macro-perspective vote.
         """
         modifier = self.get_risk_modifier()
@@ -930,7 +896,7 @@ class DhatuOracle:
             reason += f" | {self._current_state.causation_summary}"
 
 
-        # --- PREDATOR RE-WIRE: PROPORTIONAL SCALING (v1.0-beta) ---
+        # --- PREDATOR RE-WIRE: PROPORTIONAL SCALING ---
         # Instead of blocking everything below 0.70, we allow the system to strike with
         # reduced size. We only VETO in extreme 'Abhava' or Liquidity Collapse.
         if modifier < 0.40:
@@ -958,9 +924,7 @@ class DhatuOracle:
             return str(state.dhatu_state)
         return "Sthiti"  # Persistence — neutral default
 
-    # ------------------------------------------------------------------
     # Continuous Refresh Loop
-    # ------------------------------------------------------------------
 
     async def run_continuous(self) -> None:
         """Main Oracle loop — refreshes state every ~15 minutes."""
@@ -989,12 +953,10 @@ class DhatuOracle:
 
         while True:
             try:
-                # ── HEARTBEAT PULSE (Samvid v1.0-beta) ──
                 # If we have a bus with a DMS registered, record our existence
                 if self._bus and hasattr(self._bus, 'dms') and self._bus.dms:
                     self._bus.dms.record_heartbeat()
 
-                # GAP-32: Interruptible Sleep (Normal refresh OR Flash wake-up)
                 try:
                     await asyncio.wait_for(
                         self._flash_event.wait(),
@@ -1021,7 +983,6 @@ class DhatuOracle:
                         f"confidence={state.confidence:.0%}"
                     )
 
-                # ── Broadcast Latest State for all Subscribers ──
                 if self._bus is not None:
                     # 1. Hard-stop signal for Abhava (capital preservation) or
                     # Viyoga (separation / sell all equities).
@@ -1067,14 +1028,12 @@ class DhatuOracle:
                 # Wait before retry on failure
                 await asyncio.sleep(60)
 
-    # ------------------------------------------------------------------
     # Stage 1: Ingestion
-    # ------------------------------------------------------------------
 
     async def _fetch_yf_ticker_data(self, symbol: str, name: str) -> list[str]:
         """Helper to fetch latest price, change %, and latest news for a given ticker."""
         try:
-            import yfinance as yf  # pyre-ignore[21]
+            import yfinance as yf
 
             loop = asyncio.get_event_loop()
             ticker = await loop.run_in_executor(None, yf.Ticker, symbol)
@@ -1112,7 +1071,6 @@ class DhatuOracle:
                         logger.info(f"📰 YF_ORACLE: [{name}] {title}")
                         snippets.append(f"NEWS [{name}]: {title}")
 
-            # Samvid v1.0-beta: Explicitly free Ticker to release internal HTTP session + cached DFs
             del ticker
             del df
 
@@ -1168,7 +1126,7 @@ class DhatuOracle:
 
     async def fetch_macro_snapshot(self) -> dict[str, Any] | None:
         """
-        Synthesizes macro signals into a structured dictionary. (GAP-28 FIX)
+        Synthesizes macro signals into a structured dictionary.
         Returns None if no signals are available to prevent 'Ghosting' (treating empty as safe).
         """
         logger.debug("DhatuOracle: Compiling macro snapshot...")
@@ -1222,7 +1180,7 @@ class DhatuOracle:
 
     async def _ingest_corporate(self) -> list[str]:
         """
-        Ingest corporate signals with breadth expansion (Samvid v1.0-beta / GAP-41 FIX).
+        Ingest corporate signals with breadth expansion.
         Check SPY (Cap-Weighted), RSP (Equal-Weighted), and IWM (Small-Cap).
         """
         logger.debug("DhatuOracle: Ingesting corporate breadth data...")
@@ -1240,7 +1198,7 @@ class DhatuOracle:
 
     async def _ingest_tech(self) -> list[str]:
         """
-        Ingest technology/cyber signals with sector expansion (GAP-41 FIX).
+        Ingest technology/cyber signals with sector expansion.
         Includes QQQ (Growth), SMH (Chips), and IGV (Software).
         """
         logger.debug("DhatuOracle: Ingesting tech/cyber sector data...")
@@ -1270,24 +1228,21 @@ class DhatuOracle:
             results.extend(r or [])
         return results
 
-    # ------------------------------------------------------------------
     # Stage 2: Gemini — Causation Graph
-    # ------------------------------------------------------------------
 
     async def _call_ollama(self, prompt: str, system_prompt: str = "") -> str | None:
-        """DEPRECATED: Ollama has been removed to preserve RAM and speed (Samvid v1.0-beta)."""
+        """DEPRECATED: Ollama has been removed to preserve RAM and speed."""
         return None
 
     async def _rule_based_synthesis(self, signals: list[str]) -> OracleState:
         """
         Deterministic fallback synthesis.
-        GAP-80 FIX: Implements Absolute Value Parsing to prevent Semantic Drift.
+        Implements Absolute Value Parsing to prevent Semantic Drift.
         """
-        logger.info("DhatuOracle: Executing Rule-Based Deterministic Fallback (v1.0-beta Semantic)")
+        logger.info("DhatuOracle: Executing Rule-Based Deterministic Fallback")
 
         def extract_val(text: str) -> float | None:
             # Pattern for: Ticker (SYM): -123.45 (change: +1.2%)
-            # GAP-80 Fix: Include optional minus sign
             m = re.search(r":\s*(-?[\d\.]+)", text)
             return float(m.group(1)) if m else None
 
@@ -1347,7 +1302,7 @@ class DhatuOracle:
             action_protocol=protocol["action"],
             risk_modifier=float(protocol["risk_modifier"]),
             causation_summary=(
-                f"Rule-Based Fallback v1.0-beta: Score {score}. "
+                f"Rule-Based Fallback: Score {score}. "
                 f"VIX Absolute: {vix_abs:.2f}."
             ),
             confidence=0.35,
@@ -1360,15 +1315,11 @@ class DhatuOracle:
     ) -> CausationGraph:
         """
         Multi-tier Graph Synthesis:
-        Tier 1: Heuristic Engine (Samvid v1.0-beta)
+        Tier 1: Heuristic Engine
         Tier 2: Global Resonance
         """
-        # GAP-88 FIX: Pointing broken LLM-stub to the robust heuristic engine
         return await self._synthesize_oracle_state(all_signals)
 
-    # =========================================================================
-    # EFFORT-SCALED MACRO PROCESSOR (Samvid v1.0-beta)
-    # =========================================================================
 
     def _evaluate_effort_needs(self, vix: float, uncertainty: float) -> str:
         """
@@ -1430,7 +1381,7 @@ class DhatuOracle:
                   edges.append(CausationEdge("SYSTEMIC_FAILURE", "LIQUIDITY_CRUNCH", "Sovereign Event Horizontal", 1.0))
                   macro_score -= 20 # Absolute Veto triggering logic
 
-        # --- BULLISH TRIGGERS (GAP-88 RESTORATION) ---
+        # --- BULLISH TRIGGERS ---
         if "NASDAQ_UP" in all_text and "YIELD_DOWN" in all_text:
              macro_score += 8
              edges.append(CausationEdge("GOLDILOCKS", "EQUITY_EXPANSION", "Monetary Ease Resonance", 0.9))
@@ -1478,15 +1429,13 @@ class DhatuOracle:
             uncertainty_score=float(data.get("uncertainty_score", 0.5)),
         )
 
-    # ------------------------------------------------------------------
     # Stage 3: Claude — Dhatu State Mapping
-    # ------------------------------------------------------------------
 
     async def _map_to_dhatu_state(
         self, graph: CausationGraph, all_signals: list[str]
     ) -> OracleState:
         """
-        Samvid v1.0-beta: Semantic Archetype Resonance.
+        Semantic Archetype Resonance.
         Actual reasoning without Ollama via Vector Similarity.
         """
         logger.info("DhatuOracle: Initiating Semantic Resonance Chain...")
@@ -1543,7 +1492,6 @@ class DhatuOracle:
             confidence = 0.5
             reasoning = "Rule-based fallback active."
 
-        # Samvid v1.0-beta: Extract protocol details from map
         protocol = DHATU_PROTOCOL_MAP.get(state_name, DHATU_PROTOCOL_MAP["Sthiti"])
 
         return OracleState(
@@ -1559,9 +1507,7 @@ class DhatuOracle:
         """Deprecated: Replaced by deterministic state mapping."""
         return OracleState(dhatu_state="Sthiti", reasoning="Deprecated")
 
-    # ------------------------------------------------------------------
     # Full Synthesis Cycle
-    # ------------------------------------------------------------------
 
     async def _full_synthesis_cycle(self) -> OracleState | None:
         """Run all layers with tiered fallback and return the final OracleState."""
@@ -1581,7 +1527,6 @@ class DhatuOracle:
             if isinstance(r, list):
                 all_signals.extend(r)
 
-        # Samvid v1.0-beta: Inject Live Intelligence Buffers
         if self._news_buffer:
             all_signals.extend(self._news_buffer)
             self._news_buffer = [] # Clear
@@ -1603,7 +1548,7 @@ class DhatuOracle:
         # Layer 3: Dhatu State Mapping
         state = await self._map_to_dhatu_state(graph, all_signals)
 
-        # --- BAYESIAN CONFIDENCE BLENDING (GAP-54) ---
+        # --- BAYESIAN CONFIDENCE BLENDING ---
         if state is not None:
              try:
                  # Extract most recent price/vix data from internal cache or synthesis

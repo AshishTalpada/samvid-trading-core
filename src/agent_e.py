@@ -1,13 +1,11 @@
-# pyre-ignore-all-errors[21]
 """
-src/agent_e.py - Sector Correlation Guard (v1.0-beta)
-==============================================
+src/agent_e.py - Sector Correlation Guard
 Prevents portfolio over-exposure to a single market sector.
 Implements rule: Max 30% allocation per sector.
 """
 
-import logging  # pyre-ignore[21]
-from typing import Any, Dict  # pyre-ignore[21]
+import logging
+from typing import Any, Dict
 
 logger = logging.getLogger(__name__)
 
@@ -17,7 +15,7 @@ class CorrelationGuard:
         self.max_sector_exposure = max_sector_exposure
         self.persist_path = "data/sector_map.json"
 
-        # Base Institutional Sector Map (GAP-42 Expansion)
+        # Base Institutional Sector Map
         self.sector_map = {
             "AAPL": "TECH", "MSFT": "TECH", "GOOGL": "TECH", "NVDA": "TECH",
             "AMD": "TECH", "AVGO": "TECH", "SMCI": "TECH", "ARM": "TECH",
@@ -28,10 +26,10 @@ class CorrelationGuard:
             "SPY": "INDEX", "QQQ": "INDEX", "IWM": "INDEX", "DIA": "INDEX",
             "TLT": "BONDS", "GLD": "COMMODITY", "USO": "COMMODITY"
         }
-        self._load_map() # GAP-44: Sync discovered sectors from disk
+        self._load_map()
 
     def _load_map(self) -> None:
-        """GAP-44: Load persisted sector map from disk."""
+        """Load persisted sector map from disk, merging with defaults."""
         import json
         import os
         if os.path.exists(self.persist_path):
@@ -44,7 +42,7 @@ class CorrelationGuard:
                 logger.error(f"CORRELATION: Map load failure: {e}")
 
     def _save_map(self) -> None:
-        """GAP-44: Persist discovered sectors to disk."""
+        """Persist discovered sectors to disk for continuity across restarts."""
         import json
         import os
         try:
@@ -57,7 +55,7 @@ class CorrelationGuard:
             logger.error(f"CORRELATION: Map save failure: {e}")
 
     async def get_sector(self, symbol: str) -> str:
-        """Get the sector for a symbol with dynamic fallback (GAP-88 Fix)."""
+        """Get the sector for a symbol with dynamic fallback."""
         s = symbol.upper()
         if s in self.sector_map:
             return self.sector_map[s]
@@ -69,7 +67,6 @@ class CorrelationGuard:
 
             def _fetch_yf():
                 ticker = yf.Ticker(s)
-                # GAP-43: Enhanced Discovery for OTC/New symbols
                 info = ticker.info
                 if not info: return None
                 return info.get("sector") or info.get("industry") or "OTHER"
@@ -78,7 +75,7 @@ class CorrelationGuard:
             if sector:
                  sector = sector.upper().replace(" ", "_")
                  self.sector_map[s] = sector
-                 self._save_map() # GAP-44: Persist immediately
+                 self._save_map()
                  logger.info(f"CORRELATION: Discovered {s} as {sector}")
                  return sector
         except Exception as e:
@@ -129,7 +126,6 @@ class CorrelationGuard:
         # Resulting exposure IF WE ADDED the new position
         exposure_pct = float(sector_value + new_position_value) / float(account_value)
 
-        # GAP-06 & GAP-89 FIX: Enforce 30% Sector Cap (Institutional standard)
         limit = min(self.max_sector_exposure, 0.30)
         if exposure_pct >= limit:
             logger.warning(
@@ -172,7 +168,6 @@ class CorrelationGuard:
 
     async def evaluate_proposal(self, context: Dict[str, Any], agent_name: str = "Agent_E") -> Dict[str, Any]:
         """
-        Standardized consensus evaluation for Samvid v1.0-beta.
         Provides Agent E's correlation-based vote.
         """
 
@@ -185,7 +180,6 @@ class CorrelationGuard:
         is_safe = await self.check_exposure(symbol, positions, account_value, new_value)
 
         vote = "YES" if is_safe else "NO"
-        # GAP-45: Proportional Confidence for Meta-Voters
         # If we are close to the limit (e.g. 25% vs 30%), lower confidence.
         # This signals 'Thin Ice' to the Coordinator.
         confidence = 1.0

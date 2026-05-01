@@ -1,5 +1,4 @@
 """
-Samvid v1.0-beta — Bayesian Oracle
 Upgrades DhatuOracle with proper Bayesian regime inference.
 P(regime|evidence) updated on every new data point.
 """
@@ -52,7 +51,6 @@ class BayesianOracle:
     """
     Bayesian regime classifier. Updates beliefs on every new market observation.
     Provides calibrated confidence scores (not LLM hallucinations).
-
     Usage:
         oracle = BayesianOracle()
         state = oracle.update(prices, volumes, vix)
@@ -128,7 +126,6 @@ class BayesianOracle:
             # Unnormalized update
             unnorm = {r: posteriors[r] * likelihoods[r] for r in REGIMES}
 
-            # GAP-140 FIX: Zero-safety guard to prevent Bayesian collapse (hallucination)
             total = sum(unnorm.values())
             if total < 1e-15:
                 # If all likelihoods are zero, don't update this step

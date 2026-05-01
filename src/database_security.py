@@ -10,7 +10,7 @@ logger = logging.getLogger(__name__)
 
 class DatabaseSecurity:
     """
-    Handles column-level encryption for sensitive trading data (GAP-85/88 Hardened).
+    Handles column-level encryption for sensitive trading data.
     Uses Fernet for AES-128-CBC + HMAC-SHA256 integrity.
     """
 
@@ -26,14 +26,14 @@ class DatabaseSecurity:
                 raise RuntimeError("System integrity compromised: DB_ENCRYPTION_KEY not found.")
 
             cls._fernet = Fernet(key.encode())
-            # Derive a secondary HMAC key for extra layer of integrity (GAP-88)
+            # Derive a secondary HMAC key for extra layer of integrity
             cls._hmac_key = hashlib.sha256(key.encode() + b"HMAC_INTEGRITY").digest()
 
         return cls._fernet
 
     @classmethod
     def _generate_hmac(cls, data: bytes) -> str:
-        """GAP-88: Generate HMAC for integrity check."""
+        """Generate an HMAC signature for data integrity verification."""
         if cls._hmac_key is None: cls._get_fernet()
         return hmac.new(cls._hmac_key, data, hashlib.sha256).hexdigest()
 
@@ -44,13 +44,12 @@ class DatabaseSecurity:
             return ""
         f = cls._get_fernet()
         encrypted = f.encrypt(data.encode())
-        # GAP-88: Prefix the encrypted data with its HMAC
         h = cls._generate_hmac(encrypted)
         return f"{h}:{encrypted.decode()}"
 
     @classmethod
     def decrypt(cls, encrypted_data: str) -> str:
-        """Decrypt with mandatory HMAC verification (GAP-88)."""
+        """Decrypt with mandatory HMAC verification."""
         if not encrypted_data:
             return ""
 
@@ -84,7 +83,7 @@ class DatabaseSecurity:
 
     @classmethod
     def rotate_key(cls, new_key: str) -> None:
-        """GAP-84: Support for rotating the master encryption key."""
+        """Rotate the master encryption key and re-encrypt all stored data."""
         # Implementation would involve decrypting all DB records with old key
         # and re-encrypting with new key.
         # For now, we clear the cache so the new key is used for subsequent operations.

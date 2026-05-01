@@ -1,32 +1,26 @@
-# pyre-ignore-all-errors[21]
 """
 src/openbb_provider.py - OpenBB Multi-Source Financial Data Provider
-
 Wraps the OpenBB SDK to provide a unified data access layer for:
   - Equity OHLCV (historical + real-time)
   - Technical indicators (RSI, MACD, Bollinger Bands, ATR)
   - Macro economic data (Treasury yields, DXY, VIX)
   - News & sentiment aggregation
   - Crypto & Forex data
-
 Designed as a drop-in enhancement for the existing yfinance-based DataPipeline.
 Falls back gracefully when OpenBB is not installed or PAT is unavailable.
 """
 
-import asyncio  # pyre-ignore[21]
-import logging  # pyre-ignore[21]
-from datetime import datetime, timedelta  # pyre-ignore[21]
-from typing import Any  # pyre-ignore[21]
+import asyncio
+import logging
+from datetime import datetime, timedelta
+from typing import Any
 
-from vault import Vault  # pyre-ignore[21]
+from vault import Vault
 
 logger = logging.getLogger(__name__)
 
-# ---------------------------------------------------------------------------
-# Safe OpenBB import — DEFERRED until initialization (Samvid v1.0-beta)
 # Previously loaded at module scope, consuming 500+ MB of RAM and taking
 # minutes to import. Now lazy-loaded only when initialize() is called.
-# ---------------------------------------------------------------------------
 _OPENBB_AVAILABLE = None  # None = not yet checked, True/False = checked
 obb = None  # type: ignore[assignment]
 
@@ -50,7 +44,6 @@ def _try_load_openbb():
 class OpenBBProvider:
     """
     Multi-source financial data provider powered by the OpenBB SDK.
-
     If OpenBB is not installed or the PAT is invalid the provider silently
     returns ``None`` / empty results so callers can fall back to yfinance.
     """
@@ -64,7 +57,7 @@ class OpenBBProvider:
         self._initialized = False
         import os
         self._disabled_by_env = os.getenv("SOVEREIGN_DISABLE_OPENBB", "0") == "1"
-        self._load_lock = asyncio.Lock() # GAP-58: Global Mutator Lock
+        self._load_lock = asyncio.Lock()
 
         # Note: We do not eagerly load OpenBB here. We do it in initialize().
 
@@ -85,9 +78,7 @@ class OpenBBProvider:
         self._initialized = True
         logger.info(f"✓ OpenBB Provider initialized (pre-warming SDK, provider={self._provider})")
 
-    # ------------------------------------------------------------------
     # Public helpers
-    # ------------------------------------------------------------------
 
     @property
     def is_available(self) -> bool:
@@ -110,7 +101,7 @@ class OpenBBProvider:
 
     async def _ensure_obb(self) -> bool:
         """
-        Samvid v1.0-beta: Non-blocking lazy loader for the OpenBB SDK.
+        Non-blocking lazy loader for the OpenBB SDK.
         All fetch methods call this instead of checking `is_available` directly.
         The 5-minute OpenBB import is run in a thread pool, so it never blocks
         the event loop. After first successful load the result is cached globally.
@@ -127,8 +118,7 @@ class OpenBBProvider:
                 return _OPENBB_AVAILABLE
 
             try:
-                # GAP-57: Speed-Aware Fallback
-                # Increased for GAP-293: OpenBB takes ~15-30s to load on first use.
+                # OpenBB takes ~15-30s to load on first use, increased timeout accordingly.
                 # We allow 30s for the initial ingestion to avoid yfinance fallback.
                 logger.info("OpenBB: SDK ingestion initiated (30s speed-gate active)...")
                 loaded = await asyncio.wait_for(asyncio.to_thread(_try_load_openbb), timeout=30.0)
@@ -142,12 +132,10 @@ class OpenBBProvider:
                 logger.error(f"OpenBB Loader Error: {e}")
                 _OPENBB_AVAILABLE = False
                 return False
-        # One-time Credential Sync after first successful load (Samvid v1.0-beta)
         try:
             from vault import Vault
             pat = Vault.get("OPENBB_PAT")
 
-            # Samvid v1.0-beta: Activate PAT if available (Prioritize Hub Sync)
             # This enables 'Active PAT' mode requested by the user.
             if pat:
                 try:
@@ -184,9 +172,7 @@ class OpenBBProvider:
 
         return True
 
-    # ------------------------------------------------------------------
     # Equity OHLCV
-    # ------------------------------------------------------------------
 
     async def fetch_ohlcv(
         self,
@@ -196,14 +182,13 @@ class OpenBBProvider:
     ) -> Any | None:
         """
         Fetch historical OHLCV data and return as a Polars DataFrame.
-
         Returns ``None`` on error so the caller can fall back to yfinance.
         """
         if not await self._ensure_obb():
             return None
 
         try:
-            import polars as pl  # pyre-ignore[21]
+            import polars as pl
 
             start_date = (datetime.now() - timedelta(days=period_days)).strftime("%Y-%m-%d")
 
@@ -228,7 +213,7 @@ class OpenBBProvider:
             df_pd.reset_index(inplace=True)
 
             # Rename 'date' → 'timestamp' to match pipeline convention
-            for col in ("date", "datetime", "time"): # GAP-59: Added 'time' support
+            for col in ("date", "datetime", "time"):
                 if col in df_pd.columns:
                     df_pd.rename(columns={col: "timestamp"}, inplace=True)
                     break
@@ -241,9 +226,7 @@ class OpenBBProvider:
             logger.debug(f"OpenBB OHLCV fetch failed for {symbol}: {e}")
             return None
 
-    # ------------------------------------------------------------------
     # Current price
-    # ------------------------------------------------------------------
 
     async def get_current_price(self, symbol: str) -> float | None:
         """Return the latest closing price or ``None``."""
@@ -276,16 +259,13 @@ class OpenBBProvider:
             logger.debug(f"OpenBB price quote failed for {symbol}: {e}")
             return None
 
-    # ------------------------------------------------------------------
     # Technical indicators (computed from OHLCV)
-    # ------------------------------------------------------------------
 
     async def fetch_technical_indicators(
         self, symbol: str, period_days: int = 365
     ) -> dict[str, Any]:
         """
         Calculate RSI, MACD, Bollinger Bands, ATR for *symbol*.
-
         Returns a dict with keys: rsi, macd, macd_signal, bb_upper,
         bb_lower, bb_width, atr.  Empty dict on failure.
         """
@@ -293,11 +273,10 @@ class OpenBBProvider:
             return {}
 
         try:
-            import numpy as np  # pyre-ignore[21]
+            import numpy as np
 
-            # GAP-21: Input Validation - Cap period_days to prevent calculation lag
             if period_days > 100:
-                logger.warning(f"RSI/Technical period {period_days} too high, capping at 100 to prevent lag (Samvid v1.0-beta).")
+                logger.warning(f"RSI/Technical period {period_days} too high, capping at 100 to prevent lag.")
                 period_days = 100
 
             start = (datetime.now() - timedelta(days=period_days)).strftime("%Y-%m-%d")
@@ -316,7 +295,6 @@ class OpenBBProvider:
             if df.empty or len(df) < 30:
                 return {}
 
-            # GAP-54: Market Holiday / Gap Hardening
             # Indicators can produce NaNs at the start or during gaps.
             # We enforce forward-filling to ensure continuity during low-liquidity/holidays.
             close = df["close"].ffill().bfill()
@@ -371,14 +349,11 @@ class OpenBBProvider:
             logger.debug(f"OpenBB technical indicators failed for {symbol}: {e}")
             return {}
 
-    # ------------------------------------------------------------------
     # Macro economic snapshot
-    # ------------------------------------------------------------------
 
     async def fetch_macro_data(self) -> dict[str, Any]:
         """
         Fetch a macro snapshot: VIX, DXY, 10Y yield, oil, gold.
-
         Returns a dict of key→value pairs.  Empty dict on failure.
         """
         if not await self._ensure_obb():
@@ -415,14 +390,11 @@ class OpenBBProvider:
         logger.debug(f"OpenBB macro snapshot: {macro}")
         return macro
 
-    # ------------------------------------------------------------------
     # News
-    # ------------------------------------------------------------------
 
     async def fetch_news(self, symbol: str, limit: int = 10) -> list[dict[str, str]]:
         """
         Fetch recent news for *symbol* via OpenBB.
-
         Returns a list of dicts with keys: headline, summary, source, url, published_at.
         """
         if not await self._ensure_obb():
@@ -476,9 +448,7 @@ class OpenBBProvider:
             logger.debug(f"OpenBB news fetch failed: {e}")
             return []
 
-    # ------------------------------------------------------------------
     # Crypto
-    # ------------------------------------------------------------------
 
     async def fetch_crypto_ohlcv(self, symbol: str = "BTCUSD", period_days: int = 90) -> Any | None:
         """Fetch crypto OHLCV — returns Polars DataFrame or None."""
@@ -486,7 +456,7 @@ class OpenBBProvider:
             return None
 
         try:
-            import polars as pl  # pyre-ignore[21]
+            import polars as pl
 
             start = (datetime.now() - timedelta(days=period_days)).strftime("%Y-%m-%d")
 
@@ -506,7 +476,7 @@ class OpenBBProvider:
 
             df_pd.columns = df_pd.columns.str.lower()
             df_pd.reset_index(inplace=True)
-            for col in ("date", "datetime", "time"): # GAP-59: Added 'time' support
+            for col in ("date", "datetime", "time"):
                 if col in df_pd.columns:
                     df_pd.rename(columns={col: "timestamp"}, inplace=True)
                     break

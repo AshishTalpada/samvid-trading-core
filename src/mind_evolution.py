@@ -28,11 +28,9 @@ class MindEvolution:
         self.db_path = os.path.join(PROJECT_PATH, "data", "trading.db")
         os.makedirs(os.path.dirname(self.db_path), exist_ok=True)
 
-        # GAP-267: Synchronize persistence timer with TimeSync protocol
         from time_sync import TimeSync
         self._last_peak_save = TimeSync.now().timestamp()
 
-        # ── PEAK PERSISTENCE RECOVERY (GAP-261) ──
         try:
             conn = sqlite3.connect(self.db_path, timeout=60)
             conn.execute("PRAGMA journal_mode=WAL;")
@@ -77,7 +75,6 @@ class MindEvolution:
         """
         while self.is_running:
             try:
-                # ── WISDOM AUDIT (Samvid v1.0-beta) ──
                 db_path = os.path.join(PROJECT_PATH, "data", "trading.db")
                 conn = sqlite3.connect(db_path, timeout=60)
                 conn.execute("PRAGMA journal_mode=WAL;")
@@ -99,7 +96,7 @@ class MindEvolution:
                 await asyncio.sleep(60)
 
     async def _monitor_equity_peaks(self) -> None:
-        """Lock in new peaks and protect the equity curve (Inspired by GAP-07)."""
+        """Lock in new equity peaks and dynamically tighten trailing stop protection."""
         while self.is_running:
             try:
                 # 1. Fetch current equity from the database
@@ -109,7 +106,6 @@ class MindEvolution:
                     old_peak = self.peak_equity
                     self.peak_equity = current_equity
 
-                    # GAP-261 FIX: Persist High Water Mark to survive restarts
                     await self._persist_peak(current_equity)
 
                     await self.bridge.broadcast(
@@ -126,7 +122,7 @@ class MindEvolution:
     async def _process_strategic_dialogue(self) -> None:
         """
         Negotiates new trading rules between the minds.
-        Samvid v1.0-beta: Listens for failure patterns and triggers evolution.
+        Listens for failure patterns and triggers evolution.
         """
         while self.is_running:
             try:
@@ -167,7 +163,7 @@ class MindEvolution:
 
     async def _fetch_current_equity(self) -> float:
         """
-        Calculates 'Real' Equity with Conservative Sovereign Haircut (GAP-45).
+        Calculates 'Real' Equity with Conservative Sovereign Haircut.
         """
         try:
             result = await self.bridge.call_tool("get_account_status", account_type="ibkr")
@@ -177,7 +173,6 @@ class MindEvolution:
             equity = float(result.get("equity", 0.0))
             unrealized_pnl = float(result.get("unrealized_pnl", 0.0))
 
-            # GAP-45 FIX: 15% 'Panic Discount' on unrealized profit (HFT safety)
             net_liq = equity
             if unrealized_pnl > 0:
                 net_liq -= (unrealized_pnl * 0.15)
@@ -188,7 +183,7 @@ class MindEvolution:
             return self.peak_equity
 
     async def _persist_peak(self, peak: float) -> None:
-        """Saves the high water mark to the SQLite state matrix (GAP-261)."""
+        """Saves the high water mark to the SQLite state matrix."""
         def _sync_save():
             try:
                 conn = sqlite3.connect(self.db_path, timeout=60)
@@ -202,7 +197,7 @@ class MindEvolution:
 
     async def _tool_housekeeping(self) -> dict[str, Any]:
         """Performs background cleanup of stale dialogue and telemetry logs."""
-        logger.info("MindEvolution: Performing background housekeeping (v1.0-beta)...")
+        logger.info("MindEvolution: Performing background housekeeping...")
         return {"status": "SUCCESS", "cleanup": "STALE_LOG_ROTATED"}
 
     async def _tool_update_knowledge(self, knowledge_item: str, source: str) -> dict[str, Any]:
