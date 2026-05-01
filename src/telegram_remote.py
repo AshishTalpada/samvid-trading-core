@@ -4,14 +4,14 @@ from datetime import datetime
 
 import aiohttp
 
-from intelligence_bus import get_bus  # pyre-ignore[21]
-from vault import Vault  # pyre-ignore[21]
+from intelligence_bus import get_bus
+from vault import Vault
 
 logger = logging.getLogger("telegram_remote")
 
 class TelegramRemote:
     """
-    Sovereign Remote Control (Samvid v1.0-beta).
+    Sovereign Remote Control.
     Enables remote intervention (Panic, Status, Dhatu Override) via Telegram polling.
     Designed for low-overhead operation on hardware-constrained systems.
     """
@@ -76,11 +76,9 @@ class TelegramRemote:
 
     async def _poll_loop(self):
         """Main polling loop for Telegram updates."""
-        # GAP-215 FIX: Decouple API Endpoint for Proxy/Regional Compliance
         api_base = Vault.get("TELEGRAM_API_URL", "https://api.telegram.org").rstrip("/")
         url = f"{api_base}/bot{self.token}/getUpdates"
 
-        # GAP-299: Clear any stuck webhooks before starting poll
         try:
             async with self.session.get(f"{api_base}/bot{self.token}/deleteWebhook") as dw:
                 await dw.json()
@@ -114,7 +112,7 @@ class TelegramRemote:
         text = message.get("text", "")
         sender_chat_id = str(message.get("chat", {}).get("id"))
 
-        # AUTH CHECK: Only respond to the authorized chat ID (GAP-220 FIX)
+        # AUTH CHECK: Only respond to the authorized chat ID
         # Handle case where Vault might return a list of authorized IDs (comma-separated)
         authorized_ids = [cid.strip() for cid in self.chat_id.split(",") if cid.strip()]
         if sender_chat_id not in authorized_ids:
@@ -133,7 +131,6 @@ class TelegramRemote:
         logger.warning(f"🏛️ Sovereign Remote: Executing command [{command}]")
 
         if command == "/auth":
-            # GAP-158: Brute-force & Injection Hardening
             if self._auth_attempts >= 5 and (now - self._last_auth_attempt_time) < 300:
                 await self._send_message("❌ <b>LOCKED</b>: Too many failed attempts. Try again in 5 minutes.", sender_chat_id)
                 return
@@ -205,13 +202,13 @@ class TelegramRemote:
         await self.bus.publish("command.remote", {"cmd": "dhatu_override", "target": target})
 
     async def _handle_broadcast(self, payload):
-        """Handle incoming broadcast messages from the Brain (Samvid v1.0-beta)."""
+        """Handle incoming broadcast messages from the Brain."""
         msg = payload.get("message")
         if msg:
             await self._send_message(msg)
 
     async def _send_message(self, text: str, chat_id: str | None = None):
-        """Internal helper to reply via Telegram (GAP-220 Hardened)."""
+        """Internal helper to reply via Telegram."""
         if not self.session: return
 
         # Priority: explicit chat_id > first authorized ID from Vault
@@ -220,14 +217,12 @@ class TelegramRemote:
             logger.warning("TelegramRemote: Cannot send message, no target chat_id.")
             return
 
-        # GAP-145/150: Mandatory Secret Redaction
         redacted_text = text
         secrets = Vault.get_all_redactable_values()
         for s in secrets:
             if s and len(s) > 3 and s in redacted_text:
                 redacted_text = redacted_text.replace(s, "[REDACTED]")
 
-        # GAP-215 FIX: Decouple API Endpoint
         api_base = Vault.get("TELEGRAM_API_URL", "https://api.telegram.org").rstrip("/")
         url = f"{api_base}/bot{self.token}/sendMessage"
         payload = {"chat_id": target_id, "text": redacted_text, "parse_mode": "HTML"}

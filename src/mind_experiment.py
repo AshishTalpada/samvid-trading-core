@@ -52,13 +52,13 @@ class MindExperiment:
             "variant": variant_id,
             "logic": logic,
             "start_time": TimeSync.now().isoformat(),
-            "performance_history": [] # GAP-272: Initialize history
+            "performance_history": []
         }
         logger.info(f"MindExperiment: LAUNCHED SHADOW TEST: {feature_name} (Variant: {variant_id})")
         return {"id": feature_name, "status": "ACTIVE_SHADOW"}
 
     async def _tool_report_experiment_outcome(self, feature_name: str, pnl: float) -> dict[str, Any]:
-        """Records a trade outcome into the experiment's performance history (GAP-272)."""
+        """Records a trade outcome into the experiment's performance history."""
         if feature_name not in self.active_experiments:
              return {"success": False, "error": f"Experiment {feature_name} not found."}
 
@@ -68,7 +68,7 @@ class MindExperiment:
 
     async def _tool_gate_feature(self, feature_name: str, enabled: bool) -> dict[str, Any]:
         """
-        Gates or enables a feature based on experiment results (Samvid v1.0-beta Evidence-Based).
+        Gates or enables a feature based on experiment results.
         Ensures AI cannot enable features without recorded shadow performance.
         """
         logger.info(f"MindExperiment: Evaluating GATE request for {feature_name} (ENABLED={enabled})...")
@@ -81,7 +81,6 @@ class MindExperiment:
                 return {"success": False, "error": "Neural Guard: No shadow test evidence found."}
 
             # 2. EVIDENCE CHECK: Retrieve shadow performance from database
-            # In Samvid v1.0-beta, we require at least 5 variants of shadow results with positive expectation
             try:
                 # Mock performance check - in production this queries QuestDB/SQLite
                 # We enforce that the AI cannot self-enable without performance metadata

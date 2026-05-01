@@ -4,7 +4,7 @@ import os
 from typing import Any
 
 from mind_bridge import MindBridge
-from vault import Vault  # pyre-ignore[21]
+from vault import Vault
 
 logger = logging.getLogger(__name__)
 
@@ -19,9 +19,8 @@ class MindSystem:
     def __init__(self, bridge: MindBridge) -> None:
         self.bridge = bridge
         self.is_running = False
-        self.lock = asyncio.Lock() # GAP-61 FIX: Serialized System Control
+        self.lock = asyncio.Lock()
 
-        # 1. THE CERTIFIED COMMAND ALLOWLIST (Samvid v1.0-beta Safety Gate)
         # We only allow these specific, hardcoded operations.
         self.CERTIFIED_COMMANDS = {
             "RESTART_IBKR": [
@@ -48,7 +47,7 @@ class MindSystem:
 
     async def _tool_find_executable(self, name: str) -> dict[str, Any]:
         """Sovereign 'Scent' Tool: Autonomously locates executables via Vault -> Filesystem -> Registry."""
-        found_paths_info = [] # GAP-59/66: Changed to info-based tracking
+        found_paths_info = []
 
         def _sync_find_scent():
             # 0. VAULT/ENV OVERRIDE (SOLUTION 4: Environment-Agnostic)
@@ -116,7 +115,7 @@ class MindSystem:
 
             # 2. Filesystem Shallow-Scent (Fallback)
             if not found_paths_info:
-                # --- MT5 Scent-Blocker (v1.0-beta) ---
+                # --- MT5 Scent-Blocker ---
                 if name.lower() == "mt5":
                     _ml = Vault.get("MT5_LOGIN")
                     if not _ml or "YOUR_MT5" in str(_ml).upper() or str(_ml).lower() == "none":
@@ -157,7 +156,6 @@ class MindSystem:
                             if dirpath.count(os.sep) - root.count(os.sep) > 3:
                                 break
 
-                # GAP-59 & GAP-66 FIX: Anti-Hijacking and Binary Trust Scent (Samvid v1.0-beta)
                 trusted_zones = [r.lower() for r in common_roots if r]
                 for p in found_raw:
                     p_lower = p.lower()
@@ -175,7 +173,7 @@ class MindSystem:
                     if is_sane:
                         found_paths_info.append({"path": p, "trusted": is_in_trusted_zone})
 
-        # Run the scanting process in a thread pool to avoid blocking the event loop (GAP-185)
+        # Run the scanting process in a thread pool to avoid blocking the event loop
         await asyncio.to_thread(_sync_find_scent)
 
         if found_paths_info:
@@ -184,13 +182,13 @@ class MindSystem:
 
             if name.lower() == "ibkr":
                 os.environ["TWS_PATH"] = dir_path
-                Vault.set("IBKR_PATH", best_path) # GAP-220 FIX: Persist verified path
+                Vault.set("IBKR_PATH", best_path)
                 self.CERTIFIED_COMMANDS["RESTART_IBKR"][1] = f'start "" "{best_path}"'
                 self.CERTIFIED_COMMANDS["RESTART_GATEWAY"][1] = f'start "" "{best_path}"'
                 logger.info(f"MindSystem: Scent captured — Registered IBKR at {dir_path}")
             elif name.lower() == "mt5":
                 os.environ["MT5_PATH"] = best_path
-                Vault.set("MT5_PATH", best_path) # GAP-220 FIX: Persist verified path
+                Vault.set("MT5_PATH", best_path)
                 logger.info(f"MindSystem: Scent captured — Registered MT5 at {best_path}")
             elif name.lower() == "questdb":
                 Vault.set("QUESTDB_PATH", best_path)
@@ -210,7 +208,6 @@ class MindSystem:
     async def _tool_get_system_metrics(self) -> dict[str, Any]:
         """Provides the Ghost Mind (Agent J) with the hardware telemetry."""
         import psutil
-        # GAP-265: Offload blocking psutil I/O to thread
         cpu = await asyncio.to_thread(psutil.cpu_percent)
         vmem = await asyncio.to_thread(psutil.virtual_memory)
         mem = vmem.percent
@@ -224,7 +221,7 @@ class MindSystem:
 
     async def _tool_reboot_service(self, service_name: str) -> dict[str, Any]:
         """Performs a deep service reboot when the API is unresponsive."""
-        async with self.lock: # GAP-61: Prevent multiple reboots racing
+        async with self.lock:
             if service_name not in self.CERTIFIED_COMMANDS:
                 logger.error(
                     f"MindSystem: Reboot failed — service '{service_name}' NOT in Signed Allowlist."
@@ -234,11 +231,9 @@ class MindSystem:
             logger.warning(f"MindSystem: CRITICAL SERVICE REBOOT: {service_name}...")
             cmds = self.CERTIFIED_COMMANDS[service_name]
 
-            # RE-CALCULATE COMMANDS FOR IBKR if interface is specified in Vault (Samvid v1.0-beta Patch)
             from vault import Vault
             interface = Vault.get("IBKR_INTERFACE", "gateway").lower()
             if service_name == "RESTART_IBKR":
-                # GAP-143/260 FIX: Prioritize verified path from Vault to ensure reboot success
                 target_exe = "ibgateway.exe" if interface == "gateway" else "TWS.exe"
                 verified_path = Vault.get("IBKR_PATH")
                 start_cmd = f"start {target_exe}"
@@ -293,7 +288,6 @@ class MindSystem:
         """Sovereign Purification: Non-destructively flushes zombie processes to recover ports."""
         async with self.lock:
             logger.warning("MindSystem: Initiating Sovereign Resource Flush (Port Recovery)...")
-            # GAP-67 FIX (Enhanced): flushes primary port consumers (TWS, Gateway, MT5, QuestDB).
             # We strictly avoid python.exe to prevent suicide of the Agent network itself.
             targets = ["tws.exe", "ibgateway.exe", "terminal64.exe", "questdb.exe"]
             killed_count = 0

@@ -6,7 +6,7 @@ from datetime import datetime
 from enum import Enum
 from typing import Any, Dict, List
 
-logger = logging.getLogger("SovereignTask")
+logger = logging.getLogger("TaskManager")
 
 class TaskStatus(Enum):
     PENDING = "pending"
@@ -15,7 +15,7 @@ class TaskStatus(Enum):
     FAILED = "failed"
     KILLED = "killed"
 
-class SovereignTask:
+class Task:
     """
     A first-class, persistent unit of work (Trade or Monitor).
     """
@@ -30,6 +30,7 @@ class SovereignTask:
         self.end_time = None
         self.output_file = f"data/tasks/{self.id}.log"
 
+        # DIAGNOSTICS
         self.baseline_state = {}     # Snapshot at creation
         self.delta_metrics = {}      # Tracks shifts
         self.reflection_log = []     # Post-mortem notes
@@ -68,6 +69,7 @@ class SovereignTask:
         self.log(f"TASK_FINALIZED: State set to {final_state}.")
 
     def log(self, message: str):
+        # 1. Persistent File Log (Non-blocking optimization)
         try:
             with open(self.output_file, "a", encoding="utf-8") as f:
                 from datetime import timezone as _timezone
@@ -76,6 +78,7 @@ class SovereignTask:
         except Exception as e:
             logger.error(f"Task {self.id}: Log write failed: {e}")
 
+        # 2. Real-time Terminal Log (Visibility)
         logger.info(f"Task {self.id}: {message}")
 
     def save(self):
@@ -87,6 +90,7 @@ class SovereignTask:
                 temp_file = f"{state_file}.tmp"
                 with open(temp_file, "w", encoding="utf-8") as f:
                     json.dump(state, f, indent=2)
+                # Robust atomic replace for Windows
                 if os.path.exists(state_file):
                     try:
                         os.replace(temp_file, state_file)
@@ -117,20 +121,21 @@ class SovereignTask:
         }
 
 class TaskManager:
-    """Orchestrates the lifecycle of Sovereign Tasks."""
+    """Orchestrates the lifecycle of Tasks."""
     def __init__(self, registry_path: str = "data/active_tasks.json"):
         self.registry_path = registry_path
-        self.tasks: Dict[str, SovereignTask] = {}
+        self.tasks: Dict[str, Task] = {}
         self._symbol_index: Dict[str, List[str]] = {} # Symbol -> List of Task IDs
         os.makedirs(os.path.dirname(self.registry_path), exist_ok=True)
         self.load_registry()
 
-    def spawn_trade(self, symbol: str, setup: dict) -> SovereignTask:
+    def spawn_trade(self, symbol: str, setup: dict) -> Task:
+        # Proactive memory management
         if len(self.tasks) > 500:
             self.purge_completed(max_age_days=1) # Aggressive purge
 
         task_id = f"t_{symbol}_{int(time.time())}"
-        task = SovereignTask(task_id, "trade", f"Executing {symbol} Trade", setup)
+        task = Task(task_id, "trade", f"Executing {symbol} Trade", setup)
         task.transition(TaskStatus.RUNNING)
         self.tasks[task_id] = task
 
@@ -140,11 +145,11 @@ class TaskManager:
         self.save_registry()
         return task
 
-    def get_task(self, task_id: str) -> SovereignTask | None:
+    def get_task(self, task_id: str) -> Task | None:
         return self.tasks.get(task_id)
 
     def load_registry(self):
-        """Reconstruct full task state from registry on startup."""
+        """Reconstruct full task state from registry."""
         if not os.path.exists(self.registry_path):
             return
 
@@ -153,7 +158,7 @@ class TaskManager:
                 data = json.load(f)
                 for tid, state in data.items():
                     try:
-                        task = SovereignTask(
+                        task = Task(
                             task_id=tid,
                             task_type=state.get('type', 'unknown'),
                             description=state.get('description', 'Restored Task'),
@@ -177,7 +182,7 @@ class TaskManager:
             logger.error(f"TaskManager: Registry load failed: {e}")
 
     def save_registry(self):
-        """Atomically save task registry with Windows-safe retry logic."""
+        """Atomic save with full state preservation and Windows retry."""
         try:
             if not self.tasks and os.path.exists(self.registry_path):
                 logger.error("TaskManager: SAFETY VETO! Attempted to save empty registry over existing data. Standing down.")
@@ -212,8 +217,7 @@ class TaskManager:
         except Exception as e:
             logger.error(f"TaskManager: Registry save failed: {e}")
 
-    def purge_completed(self, max_age_days: int = 7):
-        """Clear old finished and stale tasks to prevent memory leaks."""
+        """Prevents memory leaks by clearing old finished and stale tasks."""
         now = time.time()
         max_age_sec = max_age_days * 86400
         stale_threshold_sec = 86400 # 24 hours for non-finished tasks
@@ -224,7 +228,7 @@ class TaskManager:
             if task.status in [TaskStatus.COMPLETED, TaskStatus.FAILED, TaskStatus.KILLED]:
                 if task.end_time and (now - task.end_time) > max_age_sec:
                     to_remove.append(tid)
-            # 2. Stale Task Purge (Orphaned Pending/Running)
+            # Stale Task Purge (Orphaned Pending/Running)
             elif (now - task.start_time) > stale_threshold_sec:
                 to_remove.append(tid)
 
@@ -234,7 +238,7 @@ class TaskManager:
         if to_remove:
             logger.info(f"TaskManager: Purged {len(to_remove)} stale/finished tasks from memory.")
 
-        # 3. Hard Ceiling Purge — keep only the 500 newest if registry exceeds 1000 tasks.
+        # Hard Ceiling Purge (Safety Valve for Registry Bloat)
         # If we still have > 1000 tasks (e.g. from a massive backlog), keep only the 500 newest.
         if len(self.tasks) > 1000:
             logger.warning(f"TaskManager: Registry overflow detected ({len(self.tasks)} tasks). Executing Hard Purge.")

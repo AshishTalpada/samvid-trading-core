@@ -7,14 +7,14 @@ from datetime import datetime, timezone
 from typing import Any, Dict
 
 from config import PROJECT_PATH
-from vault import Vault  # pyre-ignore[21]
+from vault import Vault
 
 logger = logging.getLogger(__name__)
 
 
 class SessionRestorer:
     """
-    Quantum Session Restoration (Samvid v1.0-beta).
+    Quantum Session Restoration.
     Inspired by Claude-Code's tmuxSocket.ts and terminalPanel.ts.
     Allows for 'State Freezing' and 'Thawing' of the cognitive process.
     """
@@ -24,7 +24,7 @@ class SessionRestorer:
         self.last_frozen: datetime | None = None
         self.state_hash: str | None = None
 
-        # Security: Signed session verification (GAP-26 FIX)
+        # Security: Signed session verification
         # We NO LONGER use a hardcoded default in production.
         self.secret_key = Vault.get("SESSION_SECRET")
         if not self.secret_key:
@@ -39,13 +39,12 @@ class SessionRestorer:
             now_ts = TimeSync.now()
             bundle = {"timestamp": now_ts.isoformat(), "state": state, "version": "6.0"}
 
-            # 2. Serialize and Sign (GAP-26 FIX: Using JSON instead of Pickle)
+            # 2. Serialize and Sign
             data = json.dumps(bundle, default=str).encode('utf-8')
             signature = hashlib.sha256(data + self.secret_key.encode()).hexdigest()
 
             # 3. Write Atomic (Safe-Write pattern)
             temp_path = f"{self.path}.tmp"
-            # GAP-176 FIX: Restricted permissions (User-only read/write)
             fd = os.open(temp_path, os.O_CREAT | os.O_WRONLY | os.O_TRUNC, 0o600)
             with os.fdopen(fd, 'wb') as f:
                 f.write(data)
@@ -147,7 +146,7 @@ class SessionRestorer:
             return None
 
     def save_cognitive_capsule(self, state: Dict[str, Any]) -> None:
-        """Samvid v1.0-beta: Persists the Short-Term 'Vibe' of the market."""
+        """Persist the short-term market sentiment state for session continuity."""
         from time_sync import TimeSync
         try:
             capsule_path = "data/cognitive_capsule.json"
@@ -204,7 +203,7 @@ class SessionRestorer:
 
     async def reconcile_with_broker(self, ib: Any, db_conn: sqlite3.Connection) -> list[Any]:
         """
-        Sovereign Reconciliation (Samvid v1.0-beta): The 'Adoption' Protocol.
+        Sovereign Reconciliation: The 'Adoption' Protocol.
         Synchronizes broker positions with the database and managed tasks.
         Returns a list of Position objects to be injected into the Brain.
         """
@@ -231,7 +230,6 @@ class SessionRestorer:
                 if symbol not in db_map:
                     logger.warning(f"🧟 Reconciler: ORPHAN DETECTED [{symbol} | {broker_qty}]. Initiating Adoption Protocol.")
 
-                    # GAP-61 FIX: Get actual market price if avgCost is 0
                     price = p.avgCost
                     if price <= 0:
                         try:
@@ -248,7 +246,6 @@ class SessionRestorer:
 
                     direction = "LONG" if p.position > 0 else "SHORT"
 
-                    # GAP-107 FIX: Dynamic Stop/Target based on ATR or 2.5x spread (fallback to 2.5%)
                     # Previously was hardcoded 1.5% which was too tight for adoption.
                     stop_dist = price * 0.025
                     target_dist = price * 0.05
@@ -276,7 +273,6 @@ class SessionRestorer:
                     adopted_positions.append(adopted)
                     logger.info(f"✓ Reconciler: Adopted {symbol} (Target: {adopted.take_profit:.2f}, Stop: {adopted.stop_loss:.2f})")
                 else:
-                    # GAP-106 FIX: Quantity Reconciliation for managed trades
                     db_trade = db_map[symbol]
                     db_qty = db_trade['shares_remaining']
                     if abs(db_qty - broker_qty) > 0.001: # Use epsilon for float safety
@@ -289,7 +285,6 @@ class SessionRestorer:
             # 4. Handle GHOSTS (In DB but no longer in Broker)
             for symbol, t in db_map.items():
                 if symbol not in broker_map:
-                    # GAP-105 FIX: Drift Veto (Verify if the DB record was created very recently)
                     # If it was created < 60s ago, it might be a race condition where IB hasn't updated yet.
                     # We only close if it's "Mature" (> 60s old).
                     try:
@@ -312,4 +307,5 @@ class SessionRestorer:
 
         except Exception as e:
             logger.error(f"Reconciler: Recovery Loop Failed: {e}")
+            return []
             return []

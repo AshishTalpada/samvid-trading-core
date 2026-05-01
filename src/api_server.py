@@ -3,12 +3,12 @@ import logging
 import socket
 import sqlite3
 import time
-from contextlib import asynccontextmanager  # pyre-ignore[21]
+from contextlib import asynccontextmanager
 from datetime import datetime
 from typing import Any
 
-import uvicorn  # pyre-ignore[21]
-from fastapi import (  # pyre-ignore[21]
+import uvicorn
+from fastapi import (
     Depends,
     FastAPI,
     Header,
@@ -17,7 +17,7 @@ from fastapi import (  # pyre-ignore[21]
     WebSocket,
     WebSocketDisconnect,
 )
-from fastapi.middleware.cors import CORSMiddleware  # pyre-ignore[21]
+from fastapi.middleware.cors import CORSMiddleware
 
 from vault import Vault
 
@@ -40,7 +40,6 @@ class APIServer:
         self._http_semaphore = asyncio.Semaphore(10)  # Max 10 concurrent /state callers
         self.active_connections: dict[WebSocket, asyncio.Queue] = {} # {WS: Queue}
 
-        # ── PERFORMANCE GUARD: THROTTER CACHE ──────────────────────────
         self._last_tick_broadcast: dict[str, float] = {} # symbol -> ts
 
         @asynccontextmanager
@@ -60,7 +59,6 @@ class APIServer:
 
         self.app = FastAPI(title="TradingSystem Elite API", lifespan=lifespan)
 
-        # ── SECURITY GUARD: RESTRICTED CORS (Samvid v1.0-beta) ──
         # In production, specify your frontend URL instead of "*"
         self.app.add_middleware(
             CORSMiddleware,
@@ -74,7 +72,7 @@ class APIServer:
         self._subscribe_to_bus()
 
     def _setup_health_check(self) -> None:
-        """GAP-184: Standardized Health Endpoint for Monitoring (Protected)."""
+        """Standardized health check endpoint for monitoring and uptime verification."""
         @self.app.get("/health")
         async def health_check(key: str = Depends(self._verify_api_key)):
             # Check basic components
@@ -91,13 +89,12 @@ class APIServer:
                 "status": status,
                 "timestamp": datetime.now().isoformat(),
                 "components": components,
-                "version": "Sovereign-v1.0-beta"
+                "version": "Sovereign-1.0"
             }
 
     def _subscribe_to_bus(self) -> None:
         """Bind to the SharedIntelligenceBus for instant 100Hz pushing."""
         if hasattr(self.system, "bus") and self.system.bus is not None:
-            # ── CONSOLIDATED BROADCASTERS (Samvid v1.0-beta) ──
             # HFT topics use the Queue model to prevent memory leaks
             self._tick_queue = self.system.bus.subscribe("tick.hft", maxsize=50)
             asyncio.create_task(self._run_tick_broadcaster())
@@ -145,7 +142,7 @@ class APIServer:
                 pass # Drop for this specific slow client
 
     async def _broadcast_apex_telemetry(self, payload: dict) -> None:
-        """GAP-207: Push Exoskeleton telemetry to dashboard."""
+        """Push live trading telemetry data to the frontend dashboard."""
         if not self.active_connections:
             return
         msg = {
@@ -191,7 +188,7 @@ class APIServer:
                 pass
 
     async def _run_tick_broadcaster(self) -> None:
-        """Background worker to broadcast ticks at a sane frequency (Samvid v1.0-beta)."""
+        """Background worker to broadcast ticks at a sane frequency."""
         logger.info("API Server: Tick Broadcaster worker started.")
         while True:
             try:
@@ -208,7 +205,6 @@ class APIServer:
         if not self.active_connections:
             return
 
-        # --- PERFORMANCE GUARD (Samvid v1.0-beta) ---
         symbol = payload.get("symbol", "ALL")
         now = time.time()
         if now - self._last_tick_broadcast.get(symbol, 0) < 0.01: # 100Hz Limit
@@ -329,7 +325,6 @@ class APIServer:
 
         @self.app.websocket("/ws")
         async def websocket_endpoint(websocket: WebSocket, token: str = Query(None)) -> None:
-            # ── SOVEREIGN WS HANDSHAKE (Samvid v1.0-beta GAP-37 FIX) ──
             from time_sync import TimeSync
             secret = Vault.get("API_SERVER_KEY")
             if secret:
@@ -398,7 +393,6 @@ class APIServer:
         """Send JSON with connection state check."""
         try:
             if websocket.client_state.name == "CONNECTED":
-                # Samvid v1.0-beta: 5s timeout on sends to prevent zombie client bloat
                 await asyncio.wait_for(websocket.send_json(data), timeout=5.0)
         except Exception as _ws_err:
             logger.debug(f"WS send failed (socket closing or timeout): {_ws_err}")
@@ -509,7 +503,7 @@ class APIServer:
 
                 pg_reserve = "20% Reserve"
                 if hasattr(brain, "portfolio_guard") and brain.portfolio_guard:
-                    # In v1.0-beta, we track via cash reserve check
+                    # Track via cash reserve check
                     pg_reserve = "20% Reserve (Active)"
 
                 # Extract Agent D (Learning Mind) stats
@@ -582,7 +576,7 @@ class APIServer:
                     },
                 }
 
-                # 4. Populate Evolutionary Data (GAP-44)
+                # 4. Populate Evolutionary Data
                 if hasattr(brain, "evolution_manager") and brain.evolution_manager:
                     try:
                         ev_conn = sqlite3.connect(brain.evolution_manager.db_path, timeout=60)
@@ -752,7 +746,7 @@ class APIServer:
         return True
 
     async def stop(self) -> None:
-        """Graceful shutdown of the API server (Samvid v1.0-beta)."""
+        """Graceful shutdown of the API server."""
         logger.info("Stopping API Server...")
 
         if hasattr(self, "server"):

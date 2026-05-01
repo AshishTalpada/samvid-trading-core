@@ -4,9 +4,6 @@ import logging
 import os
 import time
 
-# =========================================================================
-# SOVEREIGN LATENCY WATCHDOG (Samvid v1.0-beta - CLAUDE SLOW-OP PORT)
-# =========================================================================
 
 class LatencyWatchdog:
     """Ported Claude Pattern: slowOperations.ts."""
@@ -43,9 +40,6 @@ from mind_bridge import MindBridge
 
 logger = logging.getLogger(__name__)
 
-# =============================================================================
-# ANTIGRAVITY-TIER COGNITIVE ENGINE (Samvid v1.0-beta)
-# =============================================================================
 
 def _monte_carlo_outcome_simulation(vix: float, roi: float) -> float:
     """
@@ -91,9 +85,6 @@ def _calculate_epistemic_entropy(ctx: str) -> float:
     entropy = (1.0 - coverage) + (conflicts * 0.3)
     return min(1.0, entropy)
 
-# =============================================================================
-# SOVEREIGN ANALYTICAL PROCESSOR (Samvid v1.0-beta)
-# =============================================================================
 
 class SovereignBrain:
     """
@@ -140,7 +131,7 @@ class SovereignBrain:
 
 class MindUltrathink:
     """
-    ULTRATHINK Adaptive Reasoning (Samvid v1.0-beta Sovereign).
+    ULTRATHINK Adaptive Reasoning.
     A 500+ line local intelligence system with recursive sub-agent simulation.
     """
 
@@ -175,9 +166,6 @@ class MindUltrathink:
             except Exception as e:
                 logger.error(f"Mind_Ultrathink: Failed to load capabilities: {e}")
 
-    # =========================================================================
-    # COORDINATOR SYNTHESIS ENGINE (Samvid v1.0-beta)
-    # =========================================================================
 
     def _synthesize_worker_spec(self, metrics: dict) -> str:
         """Claude-Code Pattern: ALWAYS SYNTHESIZE."""
@@ -191,21 +179,18 @@ class MindUltrathink:
     def _perform_verification_audit(self, spec: str, outcome_prob: float) -> bool:
         """
         Claude-Code Pattern: VERIFICATION_AGENT_TYPE.
-        GAP-69 FIX: Removed brittle 'High-Resonance' keyword match.
+        Removed brittle 'High-Resonance' keyword match.
         Now uses probabilistic verification with noise rejection.
         """
         # STEP 1: ADVERSARIAL ASSUMPTION
         if outcome_prob < 0.70: return False
 
-        # STEP 2: INDEPENDENT CHECK (Samvid v1.0-beta)
         # Verify that the spec isn't just 'Mismatched Liquidity'
         is_verified = "Mismatched" not in spec and outcome_prob > 0.78
 
         return is_verified
 
-    # =========================================================================
     # SCOPE DISCIPLINE (Rule #201)
-    # =========================================================================
     def _apply_scope_discipline(self, context: str) -> str:
         """
         Claude-Code Pattern: DO NOT ADD IMPROVEMENTS BEYOND TASK.
@@ -218,9 +203,6 @@ class MindUltrathink:
     def _get_locked_trade_ids(self) -> set:
         return self.STATE_LOCK.locked_ids
 
-    # =========================================================================
-    # WISDOM DISTILLATION ENGINE (DREAMER MODE - Samvid v1.0-beta)
-    # =========================================================================
 
     def _distill_wisdom_index(self, results: list[dict] = None):
         r"""
@@ -292,14 +274,12 @@ class MindUltrathink:
 
     async def start(self) -> None:
         self.is_running = True
-        logger.info("Mind_Ultrathink v1.0-beta (Cognitive Singularity): OLLAMA-FREE Intelligence active.")
+        logger.info("Mind_Ultrathink: OLLAMA-FREE Intelligence active.")
 
     async def stop(self) -> None:
         self.is_running = False
 
-    # =========================================================================
     # RECURSIVE REASONING QUORUM
-    # =========================================================================
 
     def _generate_thought_trace(self, signals: dict, outcome: dict) -> dict:
         """
@@ -320,7 +300,7 @@ class MindUltrathink:
         }
 
     def _safe_json_loads(self, text: str) -> dict:
-        """GAP-71 FIX: Robust JSON parser that handles trailing commas and Markdown noise."""
+        """Robust JSON parser that handles trailing commas and Markdown code block noise."""
         try:
             # Clean common LLM noise
             cleaned = text.strip()
@@ -344,11 +324,8 @@ class MindUltrathink:
 
     async def _tool_pause_and_reason(self, task: str, intensity: str = "RAINBOW", temperature: float = 0.4) -> dict[str, Any]:
         """
-        Samvid v1.0-beta: ANTIGRAVITY COGNITIVE ANALYZER.
-        GAP-72: Added temperature parameter for cognitive diversity.
-        GAP-70: Added proactive token truncation.
+        ANTIGRAVITY COGNITIVE ANALYZER.
         """
-        # GAP-70: Truncate task to 2000 chars to avoid context blowup
         if len(task) > 2000:
             task = task[:1900] + "... [TRUNCATED]"
 
@@ -367,7 +344,6 @@ class MindUltrathink:
             vix_m = re.search(r"vix:\s*([\d\.]+)", ctx)
             vix = float(vix_m.group(1)) if vix_m else 20.0
 
-            # GAP-266: Use safer extraction for profit/fees
             if "profit:" in ctx:
                 profit = float(ctx.split("profit:")[1].split("|")[0].strip())
             if "fees:" in ctx:
@@ -458,9 +434,7 @@ class MindUltrathink:
             "meta_data": {"prob": prob_success, "entropy": entropy, "greed": potential_greed, "fear": potential_fear}
         }
 
-    # =========================================================================
     # CORE DECISION API
-    # =========================================================================
 
     async def evaluate_proposal(self, context: Dict[str, Any]) -> Dict[str, Any]:
         symbol = context.get("symbol", "UNKNOWN")

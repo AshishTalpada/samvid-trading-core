@@ -8,7 +8,6 @@ logger = logging.getLogger(__name__)
 
 class MemoryManager:
     """
-    Samvid v1.0-beta Memory Directory System.
     Inspired by Claude-Code's 'memdir' and 'CLAUDE.md' patterns.
     Provides persistent 'Trading Directives' and 'Session Memory' for the Twin-Minds.
     """
@@ -21,14 +20,13 @@ class MemoryManager:
         # Initialize the memory files if they don't exist
         self._ensure_exists(
             self.prime_directive_path,
-            "# TRADING.md — The Prime Directive\n\n- Never trade against the primary 1h trend.\n- Always respect the Drawdown Ladder (GAP-07).\n",
+            "# TRADING.md — The Prime Directive\n\n- Never trade against the primary 1h trend.\n- Always respect the Drawdown Ladder.\n",
         )
         self._ensure_exists(
             self.session_memory_path,
             "# .trading.md — Session Context\n\n- System Status: INITIALIZING\n",
         )
 
-        # GAP-73: Enforce RO protection on startup
         self.protect_prime_directive()
 
     def _ensure_exists(self, path: str, default_content: str) -> None:
@@ -40,7 +38,6 @@ class MemoryManager:
     def get_prime_directive(self) -> str:
         """Reads the user-provided 'Permanent Rules' for the minds."""
         try:
-            # GAP-74 FIX: Use errors='replace' to prevent crashing on non-UTF8 noise
             with open(self.prime_directive_path, encoding="utf-8", errors="replace") as f:
                 return f.read()
         except Exception as e:
@@ -50,7 +47,6 @@ class MemoryManager:
     def get_session_memory(self) -> str:
         """Reads the 'Dynamic Context' from the current session."""
         try:
-            # GAP-74 FIX: Robust reading
             with open(self.session_memory_path, encoding="utf-8", errors="replace") as f:
                 return f.read()
         except Exception as e:
@@ -67,7 +63,6 @@ class MemoryManager:
 
     def protect_prime_directive(self) -> None:
         """
-        GAP-73: Enforce 'Read-Only' permissions on TRADING.md to prevent AI/Agent tampering.
         This is a basic OS-level protection strike.
         """
         try:
@@ -81,11 +76,10 @@ class MemoryManager:
             logger.warning(f"MemoryManager: Could not protect TRADING.md: {e}")
 
     def get_full_context(self) -> str:
-        """Constructs the 'Long-Term Memory' block for an LLM prompt (GAP-71 Hardened)."""
+        """Constructs the 'Long-Term Memory' block for an LLM prompt."""
         directive = self.get_prime_directive()
         session = self.get_session_memory()
 
-        # GAP-71: Apply strict truncation (5k chars each) to prevent identity thinning
         if len(directive) > 5000:
             directive = directive[:4900] + "\n... [TRUNCATED DUE TO BLOAT] ..."
 

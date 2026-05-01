@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 
 class SovereignLogicEngine:
     """
-    The Single Source of Truth for the 500-Ability Sovereign Mind (v1.0-beta).
+    The Single Source of Truth for the 500-Ability Sovereign Mind.
     Acts as a logical dispatcher and executor for the capability registry.
     """
 
@@ -76,7 +76,6 @@ class SovereignLogicEngine:
         if node_id in _dispatch:
             return _dispatch[node_id](context)
 
-        # GAP-180 FIX: Dynamic Base-Name Dispatch (Resolve Redundancy)
         # If the ID isn't specifically mapped, check if its NAME base is mapped.
         # This collapses redundant nodes (e.g., Hedge_Node_152, Hedge_Node_162) into one logic.
         node_name = node["name"]
@@ -105,7 +104,6 @@ class SovereignLogicEngine:
             if key in base_name:
                 return func(context)
 
-        # --- BUG #17 FIX: Hallucination Protection ---
         # Remaining nodes: active in cognition, not yet deep-coded.
         # Return impact 0.0 to prevent blind SUCCESS state.
         return {"status": "PURE_COGNITION", "node": node["name"], "mode": "DORMANT", "impact": 0.0}
@@ -188,8 +186,8 @@ class SovereignLogicEngine:
 
     def _logic_166_blackswan(self, ctx: Dict[str, Any]) -> Dict[str, Any]:
         """
-        Black-Swan Veto — triggers on catastrophic news keywords (Samvid v1.0-beta).
-        Remediated GAP-17: Now handles basic negation and context check.
+        Black-Swan Veto — triggers on catastrophic news keywords.
+        Remediated Now handles basic negation and context check.
         """
         headline = ctx.get("headline", "").lower()
         if not headline:
@@ -201,7 +199,6 @@ class SovereignLogicEngine:
         # Check for triggers
         found_trigger = next((t for t in triggers if t in headline), None)
         if found_trigger:
-            # GAP-17 FIX: Check if the trigger is negated (naive 2-word lookback)
             words = headline.split()
             try:
                 idx = words.index(next(w for w in words if found_trigger in w))
@@ -211,7 +208,6 @@ class SovereignLogicEngine:
             except Exception:
                 pass
 
-            # GAP-18 CONTEXT: If trigger is found and NOT negated, it constitutes a structural risk
             return {"veto": True, "reason": f"Black-Swan keyword in headline: '{found_trigger}' (Context: {headline[:40]})"}
 
         return {"veto": False}
@@ -242,7 +238,6 @@ class SovereignLogicEngine:
 
     def _logic_40_circadian(self, ctx: Dict[str, Any]) -> Dict[str, Any]:
         """Circadian Rhythm — session-aware risk multiplier (Exchange Time)."""
-        # GAP-29 FIX: Convert to US/Eastern (NYSE) regardless of system location
         et_tz = pytz.timezone("US/Eastern")
         now_et = datetime.now(timezone.utc).astimezone(et_tz)
         hour = ctx.get("hour", now_et.hour)
