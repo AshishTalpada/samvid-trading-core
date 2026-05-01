@@ -1,18 +1,16 @@
-# pyre-ignore-all-errors[21]
-import asyncio  # pyre-ignore[21]
-import logging  # pyre-ignore[21]
-import sqlite3  # pyre-ignore[21]
-import time  # pyre-ignore[21]
-from datetime import datetime, timedelta, timezone  # pyre-ignore[21]
+import asyncio
+import logging
+import sqlite3
+import time
+from datetime import datetime, timedelta, timezone
 from datetime import time as dt_time
-from typing import TYPE_CHECKING, Any, Optional  # pyre-ignore[21]
-from zoneinfo import ZoneInfo  # pyre-ignore[21]
+from typing import TYPE_CHECKING, Any, Optional
+from zoneinfo import ZoneInfo
 
-import aiohttp  # pyre-ignore[21]
-import pandas as pd  # pyre-ignore[21]
-import polars as pl  # pyre-ignore[21]
+import aiohttp
+import pandas as pd
+import polars as pl
 
-# --- Samvid v1.0-beta: yfinance 1.2.0 Hotpatch ---
 # Resolved: 'NoneType' object is not subscriptable in history.py:224
 try:
     import yfinance.scrapers.history as yf_history
@@ -36,17 +34,16 @@ try:
         yf_history.history = _patched_history
 except Exception:
     pass
-# --------------------------------------------
-import yfinance as yf  # pyre-ignore[21]
+import yfinance as yf
 
-from config import QUESTDB_ENABLED  # pyre-ignore[21]
-from openbb_provider import OpenBBProvider  # pyre-ignore[21]
-from questdb_adapter import QuestDBAdapter  # pyre-ignore[21]
+from config import QUESTDB_ENABLED
+from openbb_provider import OpenBBProvider
+from questdb_adapter import QuestDBAdapter
 
 if TYPE_CHECKING:
-    from intelligence_bus import SharedIntelligenceBus  # pyre-ignore[21]
-from swarm_predictor import ChromaDeepMemory  # pyre-ignore[21]
-from vault import Vault  # pyre-ignore[21]
+    from intelligence_bus import SharedIntelligenceBus
+from swarm_predictor import ChromaDeepMemory
+from vault import Vault
 
 logger = logging.getLogger(__name__)
 
@@ -54,16 +51,14 @@ logger = logging.getLogger(__name__)
 class DataPipeline:
     """
     Agent B: The Ingestion Mind.
-
     Responsibilities:
     - High-frequency market data ingestion via yfinance and custom feeds.
-    - Real-time 'Reality Check' price sanitization (GAP-31).
+    - Real-time 'Reality Check' price sanitization.
     - Asynchronous signal publication to the Intelligence Bus.
     - Memory-safe enrichment (VIX, News, Institutional Flow).
     """
     # Full watchlist — must match TradingBrain._get_watchlist() exactly so that
     # every symbol the brain scans has fresh OHLCV rows in the database.
-    # GAP-36: Enforced Unique Instrument Set (Prevents redundant metadata overhead)
     INSTRUMENTS = list(set([
         # Core Indices
         "SPY", "QQQ", "IWM", "DIA",
@@ -81,7 +76,7 @@ class DataPipeline:
         "WMT", "COST", "NFLX",
     ]))
 
-    DMS_LOCK_FILE = "data/dms.lock" # GAP-81 Lock Path
+    DMS_LOCK_FILE = "data/dms.lock" #
 
     def __init__(
         self,
@@ -96,7 +91,6 @@ class DataPipeline:
         """
         self.db_path = str(db_path)
 
-        # Samvid v1.0-beta Support: Secure fallback to Vault
         if not finnhub_key or finnhub_key == "YOUR_FINNHUB_KEY":
             # Harmonize with main.py and vault.py (FINNHUB_API_KEY)
             finnhub_key = Vault.get("FINNHUB_API_KEY", "") or Vault.get("FINNHUB_KEY", "")
@@ -118,15 +112,12 @@ class DataPipeline:
         # OpenBB: primary data provider (falls back to yfinance if unavailable)
         self.openbb = openbb_provider
 
-        # GAP-17 FIX: Centralized DB Write Lock
         self._db_lock = asyncio.Lock()
 
-        # --- Samvid v1.0-beta: SHARED HTTP SESSION (Memory Leak Fix) ---
         # One persistent aiohttp session for all HTTP calls, instead of creating
         # hundreds of short-lived sessions that leak TCP connections and memory.
         self._http_session: Optional[aiohttp.ClientSession] = None
 
-        # --- Samvid v1.0-beta SEMANTIC NEWS (Agent H) ---
         try:
             self.news_memory = ChromaDeepMemory(collection_name="market_news_v8")
         except Exception as e:
@@ -137,7 +128,6 @@ class DataPipeline:
         self._news_task: asyncio.Task | None = None
         self._research_task: asyncio.Task | None = None
         self._sync_task: asyncio.Task | None = None
-        # Samvid v1.0-beta: Track fire-and-forget enrichment tasks to prevent memory leak
         self._enrichment_tasks: set[asyncio.Task] = set()
 
         self._init_database()
@@ -146,7 +136,6 @@ class DataPipeline:
 
     def _get_db_connection(self):
         """Get a database connection with WAL mode enabled for concurrency."""
-        # --- AEGIS STABILITY PROTOCOL (Samvid v1.0-beta / GAP-17 HARDENING) ---
         conn = sqlite3.connect(
             self.db_path,
             timeout=60.0, # Increased from 30s to 60s
@@ -206,13 +195,10 @@ class DataPipeline:
             )
         """)
 
-        # GAP-156 FIX: Performance Indexing
-        # Essential for sub-second scans of historical data (Samvid v1.0-beta)
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_ohlcv_query ON ohlcv (symbol, timeframe, timestamp DESC);")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_ohlcv_time ON ohlcv (timestamp);")
 
-        # GAP-169 FIX: Schema Migration (Self-Healing)
-        # Check if the 'ohlcv' table is missing any Samvid v1.0-beta columns
+        # Check if the 'ohlcv' table is missing any expected columns and add them.
         try:
             cursor.execute("PRAGMA table_info(ohlcv)")
             columns = [row[1] for row in cursor.fetchall()]
@@ -233,8 +219,7 @@ class DataPipeline:
     ) -> Optional["pl.DataFrame"]:
         """
         Fetch OHLCV data for a symbol.
-
-        GAP-151 FIX: Robust zero-volume handling.
+        Robust zero-volume handling.
         """
         try:
             # --- Tier 1: OpenBB (if available and daily timeframe) ---
@@ -242,7 +227,7 @@ class DataPipeline:
                 try:
                     pl_df = await self.openbb.fetch_ohlcv(symbol=symbol, period_days=bars, interval=tf)
                     if pl_df is not None and len(pl_df) > 0:
-                        # Verify integrity (GAP-151)
+                        # Verify integrity
                         if pl_df["volume"].sum() == 0 and not symbol.startswith("^"):
                              logger.warning(f"DataPipeline: Zero-Volume Anomaly detected for {symbol}. Rejecting batch.")
                              return None
@@ -266,7 +251,6 @@ class DataPipeline:
 
             interval = interval_map.get(tf, "1d")
 
-            # GAP-55: Dynamic Period Mapping (Samvid v1.0-beta)
             # Respective to yfinance historical limits
             if interval == "1m":
                 period = "7d" if bars <= 3000 else "30d" # yfinance allows 30d for 1m but it is fragile
@@ -280,10 +264,9 @@ class DataPipeline:
             # Run yfinance in executor to avoid blocking
             if not symbol:
                 logger.error(f"fetch_ohlcv: Invalid symbol '{symbol}'")
-                return pl.DataFrame() # GAP-54: Return empty DF
+                return pl.DataFrame()
 
             ticker = await asyncio.to_thread(yf.Ticker, symbol)
-            # --- RESOLVED: SSS-Tier yfinance Glitch Shield (Samvid v1.0-beta) ---
             df = None
             max_retries = 3
             for attempt in range(max_retries + 1):
@@ -299,7 +282,6 @@ class DataPipeline:
                         break # Success
                 except Exception as e:
                     err_str = str(e).lower()
-                    # GAP-53: Exponential Backoff for 429/Glitch
                     is_ratelimit = "429" in err_str or "too many requests" in err_str
                     if is_ratelimit or "subscriptable" in err_str or "nonetype" in err_str or attempt < max_retries:
                         wait = (2 ** attempt) * 2.5 # Exponential backoff
@@ -322,9 +304,8 @@ class DataPipeline:
                         "Close": last_price, "Volume": 0
                     }], index=[pd.Timestamp.now(tz="UTC")])
                 else:
-                    return pl.DataFrame() # GAP-54: Return empty DF
+                    return pl.DataFrame()
 
-            # GAP-56: Gap Blindness Check (15-min gap detection)
             if len(df) > 1:
                 # Check for gaps > 15 mins in historical index
                 diffs = df.index.to_series().diff().dropna().dt.total_seconds()
@@ -351,7 +332,7 @@ class DataPipeline:
         except Exception as e:
             import traceback
             logger.error(f"Error fetching OHLCV for {symbol}: {e}\n{traceback.format_exc()}")
-            return pl.DataFrame() # GAP-54: Return empty DF
+            return pl.DataFrame()
 
     async def get_current_price(self, symbol: str) -> float:
         """Get the most recent price. Priority: QuestDB → Finnhub → OpenBB → yfinance."""
@@ -390,7 +371,6 @@ class DataPipeline:
         try:
             ticker = yf.Ticker(symbol)
             # Use fast_info if available (newer yfinance versions)
-            # --- RESOLVED: SSS-Tier yfinance Glitch Shield (Samvid v1.0-beta) ---
             try:
                 if hasattr(ticker, "fast_info") and ticker.fast_info is not None:
                     price = ticker.fast_info["lastPrice"]
@@ -433,7 +413,6 @@ class DataPipeline:
                 logger.warning(f"No data found for {symbol}")
                 return pl.DataFrame()
 
-            # --- AEGIS FIX (Samvid v1.0-beta): Stale Data Protection ---
             # DO NOT dropna() on the entire frame. yfinance often returns NaN for the LAST row
             # (current bar) if the market is open. Dropping it causes trading on stale data.
             # We fill forward or retain the index and only drop rows with MISSING prices.
@@ -467,7 +446,6 @@ class DataPipeline:
             "BEARISH", "FAILURE", "SHRINK", "SELL", "UNDERPERFORM", "CRASH", "SLUMP"
         ]
 
-        # GAP-78 FIX: Negation-Aware Sentiment Discovery
         NEGATORS = ["NOT", "NO", "NEVER", "LESS", "WITHOUT", "AGAINST"]
 
         score = 0.0
@@ -499,13 +477,11 @@ class DataPipeline:
     async def fetch_vix(self) -> float:
         """
         Fetch current VIX value.
-
         Returns:
             Current VIX value or 0.0 if error
         """
         try:
             ticker = await asyncio.to_thread(yf.Ticker, "^VIX")
-            # --- RESOLVED: VIX Glitch Armor (Samvid v1.0-beta) ---
             hist = None
             for attempt in range(2):
                 try:
@@ -530,7 +506,6 @@ class DataPipeline:
             vix_value = float(hist[close_col].iloc[-1])
             self.last_vix = vix_value
 
-            # Samvid v1.0-beta: UTC-Safe VIX Persistence
             def _save_vix():
                 from datetime import datetime, timezone
                 conn = self._get_db_connection()
@@ -565,7 +540,7 @@ class DataPipeline:
         # 1. Try Finnhub (Professional Grade)
         if self.finnhub_key:
             try:
-                from datetime import date  # pyre-ignore[21]
+                from datetime import date
 
                 today = date.today().isoformat()
                 # Fetch last 3 days of news to ensure coverage
@@ -648,13 +623,11 @@ class DataPipeline:
         except Exception as e:
             logger.error(f"YFinance news fetch failed for {symbol}: {e}")
 
-        # GAP-27 FIX: Limit to top 10 articles total to prevent API bloat
         combined_news = combined_news[:10]
 
         # Store in database
         if combined_news:
             def _save_news():
-                # GAP-296: SQLite Retry Matrix for News
                 for attempt in range(10):
                     conn = self._get_db_connection()
                     try:
@@ -754,7 +727,6 @@ class DataPipeline:
             logger.warning(f"Gap for {symbol} exceeds 7 days ({minutes}m). Capping at 7 days.")
             minutes = 10080
 
-        # GAP-153 FIX: Precise backfill using explicit start/end to avoid holiday drift
         # This prevents over-fetching on Monday mornings or after market holidays.
         df = await self.fetch_ohlcv(symbol, tf="1m", start=last_ts, end=now)
         if df is not None:
@@ -764,7 +736,6 @@ class DataPipeline:
     def is_market_open(self) -> bool:
         """
         Check if NYSE is currently open (9:30-16:00 ET Mon-Fri).
-
         Returns:
             True if market is open, False otherwise
         """
@@ -776,7 +747,6 @@ class DataPipeline:
             if now.weekday() >= 5:  # Saturday or Sunday
                 return False
 
-            # GAP-153 FIX: NYSE Holiday Awareness (2024-2025 Institutional Alignment)
             date_str = now.strftime("%Y-%m-%d")
             HOLIDAYS = {
                 "2024-01-01", "2024-01-15", "2024-02-19", "2024-03-29",
@@ -805,7 +775,7 @@ class DataPipeline:
     async def store_ohlcv(self, symbol: str, df: "pl.DataFrame", tf: str = "1m") -> None:
         """
         Store OHLCV data to SQLite database with mutual exclusion.
-        GAP-17 FIX: Using self._db_lock to prevent 'Database is locked' errors.
+        Using self._db_lock to prevent 'Database is locked' errors.
         """
         if df is None: return
 
@@ -814,7 +784,7 @@ class DataPipeline:
             await asyncio.to_thread(self._sync_store_ohlcv, symbol, df, tf)
 
     def _sync_store_ohlcv(self, symbol: str, df: "pl.DataFrame", tf: str = "1m") -> None:
-        """Synchronous batch storage logic (Institutional v1.0-beta)."""
+        """Synchronous batch storage: writes OHLCV data to SQLite and QuestDB."""
         conn = self._get_db_connection()
         try:
             if df is None:
@@ -827,7 +797,6 @@ class DataPipeline:
             if isinstance(df, pl.LazyFrame):
                 df = df.collect()
 
-            # --- GAP-80 FIX: BATCH INSERT (executemany) ---
             # Pre-processing batch list to minimize cursor time
             batch_data = []
             for row in df.iter_rows(named=True):
@@ -855,7 +824,6 @@ class DataPipeline:
             if not batch_data:
                 return
 
-            # GAP-296: SQLite Retry Matrix (Handle write collisions)
             for attempt in range(10): # 10 retries
                 try:
                     cursor = conn.cursor()
@@ -897,14 +865,12 @@ class DataPipeline:
         """
         Run continuous data fetching every 60 seconds during market hours.
         """
-        # Samvid v1.0-beta: Persistent Ignition
         self.is_running = True
         logger.info("DataPipeline: continuous ingestion loop active.")
 
         # Start high-performance TSDB via socket queue
         await self.qdb.start()
 
-        # ── ZERO-GAP SYNC (Sovereign Parallel Trace) ──
         # Execute the CORE SYNC in the background so the main ingestion loop starts immediately
         self._sync_task = asyncio.create_task(self._background_sync())
 
@@ -913,7 +879,6 @@ class DataPipeline:
                 is_open = self.is_market_open()
                 logger.info(f"DataPipeline: Market is {'OPEN' if is_open else 'CLOSED'} - starting pulse.")
 
-                # ── 1. SYMBOL INGESTION (Samvid v1.0-beta: Hard Semaphore — max 3 concurrent) ──
                 # Previously fired all 30 simultaneously, causing +1.7 GB RSS spike.
                 # Now strictly limited to 3 concurrent yfinance fetches to cap memory.
                 _fetch_sem = asyncio.Semaphore(3)
@@ -927,7 +892,6 @@ class DataPipeline:
 
                 successful = []
 
-                # -- GAP-18: Periodic Daily Macro Sync --
                 # Every 5 minutes (or on startup), fetch 1d data for core indices to handle multi-day regime shifts
                 pulse_id = int(time.time() // 60)
                 if pulse_id % 5 == 0:
@@ -937,7 +901,6 @@ class DataPipeline:
                        if macro_df is not None:
                            await self.store_ohlcv(macro_sym, macro_df, tf="1d")
 
-                # ── 2. BATCH PROCESSING & REALITY CHECK ──
                 conn = self._get_db_connection()
                 try:
                     for symbol, df in zip(self.INSTRUMENTS[:len(results)], results, strict=False):
@@ -948,9 +911,7 @@ class DataPipeline:
                         if df is None or (hasattr(df, "is_empty") and df.is_empty()) or (hasattr(df, "empty") and df.empty):
                             continue
 
-                        # --- PRICE SANITIZER (Samvid v1.0-beta: Throttled Cooldown) ---
                         try:
-                            # Samvid v1.0-beta Fix: Polars use [-1], not .iloc[-1]
                             last_p = float(df["Close"][-1])
 
                             now_mono = time.monotonic()
@@ -967,7 +928,6 @@ class DataPipeline:
                         except Exception as e:
                             logger.debug(f"Price Sanitizer bypass for {symbol}: {e}")
 
-                        # ── 3. PERSISTENCE ──
                         if isinstance(df, pl.DataFrame):
                             self.qdb.insert_ohlcv(df, symbol)
                             await self.store_ohlcv(symbol, df, tf="1m")
@@ -975,10 +935,8 @@ class DataPipeline:
                 except Exception as loop_err:
                      logger.error(f"Persistence Loop Error: {loop_err}")
                 finally:
-                    # Samvid v1.0-beta: CRITICAL - Close the connection to prevent WAL journal memory leak
                     conn.close()
 
-                # Samvid v1.0-beta: Explicitly release the 30 DataFrames from gather() results
                 # Python's GC on Windows doesn't always reclaim these promptly
                 del results
                 import gc
@@ -987,9 +945,7 @@ class DataPipeline:
                 # Heartbeat
                 logger.info(f"DataPulse: {len(successful)} symbols reconciled.")
 
-                # ── 4. SIGNAL PUBLICATION ──
                 if self.bus is not None:
-                    # Faithful Reporting Rule: Check for staleness pulse (Samvid v1.0-beta)
                     now_mono = time.monotonic()
                     stale_detect = any((now_mono - ts) > 60.0 for ts in self._last_reality_check.values()) if is_open else False
                     if stale_detect:
@@ -1003,7 +959,6 @@ class DataPipeline:
                         "staleness_veto": stale_detect
                     })
 
-                # ── 5. ENRICHMENT (Samvid v1.0-beta: Memory-Safe) ──
                 # Previously these were fire-and-forget create_task() calls that
                 # leaked aiohttp sessions and TCP connections every 40 seconds.
                 # Now we await them directly with a timeout to cap memory usage.
@@ -1018,7 +973,6 @@ class DataPipeline:
                     except Exception as e:
                         logger.debug(f"DataPipeline: News enrichment skipped for {sym}: {e}")
 
-                # --- INTELLIGENCE VERTICALS (Samvid v1.0-beta: Memory-Safe) ---
                 try:
                     macro_impact = await asyncio.wait_for(self.fetch_macro_impact(), timeout=30.0)
                     if self.bus: await self.bus.publish("macro.impact", macro_impact)
@@ -1032,7 +986,6 @@ class DataPipeline:
                 except Exception as e:
                     logger.debug(f"DataPipeline: Flow poll skipped: {e}")
 
-                # ── 6. PULSE THROTTLING (GAP-75 Memory Guard) ──
                 # Force garbage collection to purge Polars/yfinance temporary allocations
                 import gc
                 gc.collect()
@@ -1052,11 +1005,9 @@ class DataPipeline:
                 await asyncio.sleep(5)
 
 
-
     async def _background_sync(self) -> None:
         """Execute the CORE SYNC in the background to avoid blocking system startup."""
         try:
-            # Samvid v1.0-beta Sovereign Throttling: Limit concurrency to 3 to avoid yfinance 429s
             semaphore = asyncio.Semaphore(3)
 
             async def throttled_backfill(sym):
@@ -1083,7 +1034,6 @@ class DataPipeline:
         """Helper to fetch a fast 'Reality Check' price from yfinance."""
         try:
             ticker = await asyncio.to_thread(yf.Ticker, symbol)
-            # Samvid v1.0-beta Fix: CamelCase Key-Mapping for yfinance fast_info
             info = await asyncio.to_thread(lambda: ticker.fast_info)
             if hasattr(info, "last_price"):
                 return float(info.last_price)
@@ -1109,7 +1059,7 @@ class DataPipeline:
 
     async def fetch_macro_impact(self) -> dict[str, Any]:
         """
-        Samvid v1.0-beta: Global Macro Impact Synthesis.
+        Global Macro Impact Synthesis.
         Correlates Bond Yields, DXY, and Sector Weightings to detect Regime Shifts.
         """
         impact = {"regime": "NEUTRAL", "vulnerability": "LOW", "signals": []}
@@ -1138,7 +1088,7 @@ class DataPipeline:
 
     async def fetch_institutional_flow(self, symbol: str) -> dict[str, Any]:
         """
-        Detect Institutional Block Trades and Large Order Flow (Samvid v1.0-beta).
+        Detect Institutional Block Trades and Large Order Flow.
         """
         try:
             ticker = await asyncio.to_thread(yf.Ticker, symbol)
@@ -1165,7 +1115,7 @@ class DataPipeline:
         return [{"event": "Market Monitoring", "importance": "HIGH"}]
 
     async def _run_news_loop(self) -> None:
-        """Periodically fetch news and update sentiment context / ChromaDB (v1.0-beta)."""
+        """Periodically fetch news headlines and update sentiment context and ChromaDB."""
         logger.info("DataPipeline: Semantic News Resonance (Agent H) active.")
         while self.is_running:
             try:
@@ -1255,7 +1205,7 @@ class DataPipeline:
         return self._http_session
 
     async def stop(self) -> None:
-        """Graceful shutdown (Samvid v1.0-beta)."""
+        """Graceful shutdown."""
         logger.info("Stopping DataPipeline...")
         self.is_running = False
 
@@ -1293,7 +1243,6 @@ class DataPipeline:
                 t.cancel()
         self._enrichment_tasks.clear()
 
-        # Samvid v1.0-beta: Close the shared HTTP session to release TCP connections
         if self._http_session and not self._http_session.closed:
             await self._http_session.close()
             self._http_session = None

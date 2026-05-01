@@ -8,7 +8,7 @@ logger = logging.getLogger(__name__)
 
 class ThermalGuard:
     """
-    Sovereign Resource Management (Samvid v1.0-beta Hardened).
+    Sovereign Resource Management.
     Optimized for Laptop Hardware (Thermal + RAM Safety).
     """
 
@@ -17,12 +17,11 @@ class ThermalGuard:
     _last_check = 0.0
     _lock = asyncio.Lock()
 
-    _smi_available = None # GAP-163: Cache availability
+    _smi_available = None
 
     @staticmethod
     def get_gpu_temp() -> float:
         """Fetch current GPU temperature via nvidia-smi (Blocking)."""
-        # GAP-163 FIX: Check for nvidia-smi existence before calling
         if ThermalGuard._smi_available is False:
             return 40.0
 
@@ -34,7 +33,6 @@ class ThermalGuard:
                     logger.info("ThermalGuard: nvidia-smi not found. GPU monitoring disabled.")
                     return 40.0
 
-            # GAP-97 FIX: Reduced timeout and more robust parsing
             res = subprocess.run(
                 ["nvidia-smi", "--query-gpu=temperature.gpu", "--format=csv,noheader,nounits"],
                 capture_output=True,
@@ -44,12 +42,10 @@ class ThermalGuard:
             )
             return float(res.stdout.strip())
         except subprocess.CalledProcessError as e:
-            # GAP-210 FIX: Explicitly log exit code and stderr
             logger.error(f"ThermalGuard: nvidia-smi failed (Exit: {e.returncode}). Stderr: {e.stderr.strip()}")
             ThermalGuard._smi_available = False
             return 40.0
         except Exception as e:
-            # GAP-163: If it fails once (e.g. driver issue), assume unavailable for this session
             logger.debug(f"ThermalGuard: General failure calling nvidia-smi: {e}")
             return 40.0
 
@@ -79,7 +75,6 @@ class ThermalGuard:
         temp = cls._cache_temp
         ram = cls._cache_ram
 
-        # ── RESOURCE REGIMES (Samvid v1.0-beta Laptop Optimized) ──
 
         # 1. SURVIVAL: Total fallback for hardware safety
         if temp >= 82.0 or ram >= 92.0:
@@ -99,5 +94,4 @@ class ThermalGuard:
                 return {"num_gpu": 0, "num_thread": 4, "keep_alive": 300}
 
         # 4. DOMINANCE: Maximum performance
-        # GAP-98 FIX: num_gpu 99 is fine as Ollama caps at model layers (usually 28-32)
         return {"num_gpu": 99, "num_thread": 4, "keep_alive": -1}

@@ -11,24 +11,22 @@ logger = logging.getLogger(__name__)
 
 class KnowledgeIngestor:
     """
-    Samvid v1.0-beta Knowledge Ingestor (Agent L Auxiliary).
-    Hardened for safe recursive harvesting and secret redaction (GAP-77-80).
+    Hardened for safe recursive harvesting and secret redaction.
     """
 
     def __init__(self, memory: ChromaDeepMemory) -> None:
         self.memory = memory
         self.ingested_count = 0
-        self.visited_paths = set() # GAP-77: Circular link protection
+        self.visited_paths = set()
         self.redaction_patterns = self._init_redaction()
 
     def _init_redaction(self):
-        """GAP-80: Initialize redaction patterns from Vault."""
+        """Initialize redaction patterns from vault credentials to prevent secret leakage."""
         secrets = Vault.get_all_redactable_values()
         escaped = [re.escape(s) for s in secrets if len(s) > 3]
         if not escaped:
             return None
 
-        # GAP-186: Support for redacting entire Markdown links if they contain a secret in the URL
         # Pattern: [any text](url_containing_secret) -> [REDACTED]
         patterns = list(escaped)
         for s in escaped:
@@ -38,7 +36,6 @@ class KnowledgeIngestor:
 
     async def ingest_directory(self, path: str, extensions: list[str] | None = None, max_depth: int = 5) -> None:
         """Crawl a directory and ingest content into Swarm Memory."""
-        # GAP-78: Expanded default extensions
         if extensions is None:
             extensions = [".md", ".txt", ".json", ".log"]
 
@@ -56,7 +53,7 @@ class KnowledgeIngestor:
         )
 
     async def _recursive_ingest(self, current_path: str, extensions: list[str], max_depth: int, current_depth: int):
-        """GAP-77: Safe recursive crawler with depth and cycle protection."""
+        """Safe recursive directory crawler with configurable depth and cycle detection."""
         if current_depth > max_depth: return
 
         real_path = os.path.realpath(current_path)
@@ -74,16 +71,13 @@ class KnowledgeIngestor:
             logger.error(f"Ingestor: Error scanning {current_path}: {e}")
 
     async def _process_file(self, full_path: str):
-        """Process and redact a single file (GAP-79/80)."""
+        """Process and redact a single file."""
         try:
-            # GAP-79: errors="ignore" handles non-UTF8 chars safely
             with open(full_path, encoding="utf-8", errors="ignore") as f:
                 content = f.read()
-                # GAP-80: Redact secrets before they touch the vector store
                 if self.redaction_patterns:
                     content = self.redaction_patterns.sub("[REDACTED]", content)
 
-                # GAP-253 FIX: Intelligent Chunking (Absorb entire file, not just first 2000 chars)
                 # We chunk in 2000-char windows with 200-char overlap for context continuity.
                 chunk_size = 2000
                 overlap = 200

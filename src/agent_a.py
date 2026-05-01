@@ -1,7 +1,5 @@
-# pyre-ignore-all-errors[21]
 """
 src/agent_a.py - Agent A Primary Gatekeeper for Trading System
-
 Agent A sets daily risk budget FIRST and validates all trades.
 Implements 6 core classes for pattern detection, risk management, and signal validation.
 """
@@ -10,13 +8,13 @@ import asyncio
 import logging
 import os
 import random
-from dataclasses import dataclass  # pyre-ignore[21]
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from enum import Enum
-from typing import Any, Dict  # pyre-ignore[21]
+from typing import Any, Dict
 
-import numpy as np  # pyre-ignore[21]
-import polars as pl  # pyre-ignore[21]
+import numpy as np
+import polars as pl
 
 logger = logging.getLogger(__name__)
 
@@ -30,9 +28,6 @@ from config import (
     UNCONFIRMED_PENALTY,
 )
 
-# =============================================================================
-# SOVEREIGN FAULT-TOLERANCE (Samvid v1.0-beta - CLAUDE ERROR PORT)
-# =============================================================================
 
 class SovereignErrorLevel(Enum):
     SILENT = 0     # Ignore (Minor lag)
@@ -45,7 +40,6 @@ class SovereignStabilizer:
     async def try_recover(attempt: int, max_retries: int = 5):
         if attempt >= max_retries: return False
 
-        # Claude Formula: min(maxBackoff, base * 2^attempt) + jitter
         delay = min(30, 0.5 * (2 ** attempt)) + (random.uniform(0, 0.1))
         logger.warning(f"SovereignStabilizer: Attempting recovery in {delay:.2f}s (Attempt {attempt+1}/{max_retries})")
         await asyncio.sleep(delay)
@@ -75,9 +69,7 @@ def _classify_error(e: Exception) -> SovereignErrorLevel:
         return SovereignErrorLevel.RETRYABLE
     return SovereignErrorLevel.SILENT
 
-# =============================================================================
 # HFT PRE-ALLOCATED OHLCV RING BUFFER (Zero GC Pressure)
-# =============================================================================
 
 # Pre-allocate maximum-size NumPy arrays at module load time.
 # During live scanning these arrays are overwritten in-place rather than
@@ -121,15 +113,13 @@ class OHLCVBuffer:
         self.size = n
 
 
-
-
 # One shared buffer per process — reused across all scans
 _global_ohlcv_buffer = OHLCVBuffer()
 
 
 class ImpactOracle:
     """
-    Sovereign Impact Oracle (GAP-17).
+Sovereign Impact Oracle.
     Calculates estimated slippage and market impact for large-size orders.
     Prevents 'Self-Induced Slippage' in thin liquidity regimes.
     """
@@ -152,7 +142,6 @@ class ImpactOracle:
             volatility = np.std(returns) if len(returns) > 0 else 0.001
 
             # 2. Daily Volume Approximation (Assuming 1m scale, 390 mins/day)
-            # GAP-39 FIX: Use previous closed bars for volume calculation to avoid intra-bar lag.
             avg_volume_1m = df["volume"][-21:-1].mean()
             estimated_day_volume = avg_volume_1m * 390
 
@@ -230,7 +219,7 @@ class ContinuousBudgetMonitor:
                 logger.warning(f"BUDGET VETO: IBKR max trades {IBKR_MAX_TRADES_PER_DAY} reached.")
                 return False
 
-        # Consecutive loss escalation (v1.0-beta) - Relaxed for HFT
+        # Consecutive loss escalation - Relaxed for HFT
         if self.consecutive_losses >= 20:
             logger.warning(f"BUDGET VETO: {self.consecutive_losses} consecutive losses. Emergency cooling active.")
             return False
@@ -241,11 +230,9 @@ class ContinuousBudgetMonitor:
         """
         Validate that today's performance doesn't exceed 2/3 of recent average.
         Prevents over-concentration of P&L.
-
         Args:
             today: Today's P&L
             others: List of recent days' P&L
-
         Returns:
             bool: True if today passes best day rule
         """
@@ -309,9 +296,9 @@ class PatternDetector:
 
     def detect_hft_spoof_pivot(self, df: "pl.DataFrame") -> PatternResult | None:
         """
-        Pattern: HFT Spoof Pivot (Adversarial Counter-Strike).
+        Pattern: HFT Spoof Pivot.
         Detects where HFTs are 'Volume Flickering' fake orders to induce retail traps.
-        The system pivots AGAINST the induced sentiment. (Samvid v1.0-beta Hyper-Sovereign)
+        The system pivots AGAINST the induced sentiment.
         """
         if len(df) < 10: return None
 
@@ -325,7 +312,6 @@ class PatternDetector:
 
         if last_vol > (avg_vol * 3.5) and price_move < price_threshold:
              entry = float(df["close"][-1])
-             # GAP-23 FIX: Candle-close confirmation (prev bar close)
              prev_close = df["close"][-2]
              is_long = df["close"][-1] > df["close"][-5] # Trend alignment
 
@@ -362,7 +348,6 @@ class PatternDetector:
         current_vol = last_5["volume"].mean()
         current_range = (last_5["high"].max() - last_5["low"].min())
 
-        # WALL CRITERIA: High Volume + Tight Range = Absorption (Samvid v1.0-beta)
         # We mirror the institution. If vol is 1.8x and range is <60% of avg, it's a Wall.
         if current_vol > (avg_vol * 1.8) and current_range < (avg_range * 0.6):
             is_accumulation = df["close"][-1] < df["close"][-20]
@@ -382,7 +367,7 @@ class PatternDetector:
                 target=target,
                 r_r_ratio=3.5,
                 confirmed=True,
-                lambda_val=25 # 'Adversarial Scent' Lambda boost
+                lambda_val=25
             )
         return None
 
@@ -413,17 +398,15 @@ class PatternDetector:
                      target=target,
                      r_r_ratio=3.0,
                      confirmed=True,
-                     lambda_val=15 # 'Pre-emptive Scent' Lambda boost
+                     lambda_val=15
                  )
         return None
 
     def detect_bull_flag(self, df: "pl.DataFrame") -> PatternResult | None:
         """
         Pattern 9: Bull Flag (85% win rate, 5d/3d hold)
-
         Args:
             df: OHLCV DataFrame with 'close', 'high', 'low', 'volume'
-
         Returns:
             PatternResult if pattern detected, None otherwise
         """
@@ -453,7 +436,6 @@ class PatternDetector:
         current_price = df["close"][-1]
         resistance = flag_period["high"].max()
 
-        # GAP-23 FIX: Use previous candle close for breakout confirmation
         prev_close = df["close"][-2]
         confirmed = current_price > resistance and prev_close > (resistance * 0.999)
 
@@ -511,7 +493,6 @@ class PatternDetector:
         target = entry - (pole_start - pole_end)
 
         r_r = (entry - target) / (stop - entry + 1e-10)
-        # GAP-23 FIX: Use previous candle close for breakdown confirmation
         prev_close = df["close"][-2]
         confirmed = current_price < support and prev_close < (support * 1.001)
 
@@ -530,10 +511,8 @@ class PatternDetector:
     def detect_head_and_shoulders(self, df: "pl.DataFrame") -> PatternResult | None:
         """
         Pattern 10: Head and Shoulders Bearish (89% win rate, 10d/4d hold)
-
         Args:
             df: OHLCV DataFrame
-
         Returns:
             PatternResult if pattern detected, None otherwise
         """
@@ -570,7 +549,6 @@ class PatternDetector:
             return None
 
         # Calculate neckline (support connecting troughs) — pandas-compatible rolling min
-        # Samvid v1.0-beta Fix: Polars compatibility for H&S detection
         neckline = float(df["low"][-30:].rolling_min(5).tail(10).mean())
 
         current_price = df["close"][-1]
@@ -579,7 +557,6 @@ class PatternDetector:
         target = entry - (head_price - neckline)  # Project pattern height
 
         r_r = (entry - target) / (stop - entry + 1e-10)
-        # GAP-23 FIX: Use previous candle close for neckline confirmation
         prev_close = df["close"][-2]
         confirmed = current_price < neckline and prev_close < (neckline * 1.001)
 
@@ -601,10 +578,8 @@ class PatternDetector:
     def detect_falling_wedge(self, df: "pl.DataFrame") -> PatternResult | None:
         """
         Pattern 13: Falling Wedge Bullish (83% win rate, 10d/4d hold)
-
         Args:
             df: OHLCV DataFrame
-
         Returns:
             PatternResult if pattern detected, None otherwise
         """
@@ -650,7 +625,6 @@ class PatternDetector:
         target = entry + wedge_height
 
         r_r = (target - entry) / (entry - stop + 1e-10)
-        # GAP-23 FIX: Use previous candle close for breakout confirmation
         prev_close = df["close"][-2]
         confirmed = current_price > resistance and prev_close > (resistance * 0.999)
 
@@ -695,7 +669,6 @@ class PatternDetector:
         target = entry - (recent["high"].max() - recent["low"].min())
 
         r_r = (entry - target) / (stop - entry + 1e-10)
-        # GAP-23 FIX: Use previous candle close for breakdown confirmation
         prev_close = df["close"][-2]
         confirmed = current_price < support and prev_close < (support * 1.001)
 
@@ -714,10 +687,8 @@ class PatternDetector:
     def detect_oversold_bounce(self, df: "pl.DataFrame") -> PatternResult | None:
         """
         Pattern 6: Oversold Bounce (66% win rate, 7d/3d hold)
-
         Args:
             df: OHLCV DataFrame with RSI pre-calculated
-
         Returns:
             PatternResult if pattern detected, None otherwise
         """
@@ -745,7 +716,6 @@ class PatternDetector:
                 if recent_rsi_low <= prior_rsi_low:  # No divergence
                     return None
 
-                # GAP-24 FIX: Volume confirmation (Accumulation on the higher low)
                 if df["volume"][-1] <= df["volume"][-2]:
                     return None
 
@@ -784,11 +754,9 @@ class PatternDetector:
         """
         Pattern 2: Sector Sympathy (65% win rate, 2d/1d hold)
         Requires sector ETF data for correlation.
-
         Args:
             df: Individual stock OHLCV
             sector_df: Sector ETF OHLCV
-
         Returns:
             PatternResult if pattern detected, None otherwise
         """
@@ -844,10 +812,8 @@ class PatternDetector:
     def detect_gap_fill(self, df: "pl.DataFrame") -> PatternResult | None:
         """
         Gap Fill pattern: Price tends to fill gaps from prior session.
-
         Args:
             df: OHLCV DataFrame
-
         Returns:
             PatternResult if gap detected, None otherwise
         """
@@ -871,7 +837,6 @@ class PatternDetector:
             target = prev_close
             stop = df["high"][-1] * 1.01
 
-            # GAP-23 FIX: Use previous candle close for gap fill confirmation
             prev_close_val = df["close"][-2]
             confirmed = current_price < (today_open + prev_close) / 2 and prev_close_val < (today_open + prev_close) / 1.99
 
@@ -882,7 +847,6 @@ class PatternDetector:
             target = prev_close
             stop = df["low"][-1] * 0.99
 
-            # GAP-23 FIX: Use previous candle close for gap fill confirmation
             prev_close_val = df["close"][-2]
             confirmed = current_price > (today_open + prev_close) / 2 and prev_close_val > (today_open + prev_close) / 2.01
 
@@ -903,9 +867,7 @@ class PatternDetector:
             lambda_val=lambda_val,
         )
 
-    # =========================================================================
     # HFT MICRO-STRUCTURAL PATTERNS (100Hz Scale)
-    # =========================================================================
 
     def detect_orderbook_imbalance(self, df: "pl.DataFrame") -> PatternResult | None:
         """
@@ -963,7 +925,7 @@ class PatternDetector:
         if not (closes[2] > closes[1]): # Relaxed to 2 bars
             return None
 
-        # But volume is dropping (GAP-24 FIX: Strict volume confirmation)
+        # But volume is dropping
         vols = last_3["volume"].to_numpy()
         if not (vols[2] < vols[1] * 0.9): # 10% drop required
             return None
@@ -1016,7 +978,6 @@ class PatternDetector:
         if band_width_pct > 0.002:  # Relaxed to 0.20% width
             return None
 
-        # GAP-23 FIX: Use previous candle close for breakout confirmation
         prev_close = closes[-2]
         if current_price > upper_band and prev_close > (upper_band * 0.999):
             entry = current_price
@@ -1082,7 +1043,6 @@ class PatternDetector:
         # 3. Identify Pivot Point (Resistance at high of last contraction)
         pivot_resistance = np.max(c3)
 
-        # GAP-23 FIX: Use previous candle close for pivot confirmation
         prev_close = df["close"][-2]
         if current_price < pivot_resistance:
             # Pattern forming but not confirmed
@@ -1134,9 +1094,7 @@ class PatternDetector:
             "value_low": float(np.mean(bot_5_lows))
         }
 
-    # =========================================================================
-    # HARDCORE MICRO-STRUCTURAL DEEP ANALYSIS (v1.0-beta)
-    # =========================================================================
+    # HARDCORE MICRO-STRUCTURAL DEEP ANALYSIS
 
     def detect_order_flow_imbalance(self, df: "pl.DataFrame") -> float:
         """
@@ -1200,14 +1158,13 @@ class PatternDetector:
 
     def detect_hft_liquidity_sink(self, df: "pl.DataFrame") -> PatternResult | None:
         """
-        Pattern: HFT Liquidity Sink (GAP-33).
+        Pattern: HFT Liquidity Sink.
         Detects where High-Frequency Market Makers are 'Sinking' all available
         liquidity into a hidden wall (Footprint).
         Identified by extreme volume/price divergence and Order Flow Imbalance.
         """
         if len(df) < 12: return None
 
-        # ── 1. FOOTPRINT SENSING ──
         # High volume on ultra-low range (Zero-Result Effort VSA principle)
         vol_window = df["volume"][-5:]
         avg_vol = df["volume"][-60:-5].mean()
@@ -1218,7 +1175,6 @@ class PatternDetector:
         price_std = df["close"][-60:].std()
         range_compression = price_range < (price_std * 0.15)
 
-        # GAP-33 FIX: Volume-Price Concentration (Footprint Proxy)
         # We ensure that the massive volume is actually 'sinking' into a specific level
         # rather than just volatile churning over a wide range.
         typical_price = df["close"][-5:].mean()
@@ -1226,7 +1182,6 @@ class PatternDetector:
         is_concentrated = concentration_window >= 4 # 4 out of 5 bars at same level
 
         if vol_explosion and range_compression and is_concentrated:
-            # ── 2. POLARITY RESOLUTION ──
             # Which side is the 'Sink' on? Check bias of extreme volume bars.
             ofi = self.detect_order_flow_imbalance(df)
 
@@ -1248,7 +1203,7 @@ class PatternDetector:
                     target=target,
                     r_r_ratio=5.0,
                     confirmed=True,
-                    lambda_val=35 # High-conviction institutional signal
+                    lambda_val=35
                 )
         return None
 
@@ -1335,7 +1290,6 @@ class PatternDetector:
 
         if abs(b1 - b2) / b1 < 0.01 and peak > b1 * 1.05:
             current_price = df["close"][-1]
-            # GAP-23 FIX: Use previous candle close for breakout confirmation
             prev_close = df["close"][-2]
             confirmed = current_price > peak and prev_close > (peak * 0.999)
             return PatternResult(
@@ -1373,7 +1327,6 @@ class PatternDetector:
         if slope <= 0: return None
 
         current_price = df["close"][-1]
-        # GAP-23 FIX: Use previous candle close for breakout confirmation
         prev_close = df["close"][-2]
         confirmed = current_price > resistance and prev_close > (resistance * 0.999)
 
@@ -1415,7 +1368,6 @@ class PatternDetector:
         target = entry - (recent["high"].max() - support)
 
         r_r = (entry - target) / (stop - entry)
-        # GAP-23 FIX: Use previous candle close for breakdown confirmation
         prev_close = df["close"][-2]
         confirmed = current_price < support and prev_close < (support * 1.001)
 
@@ -1433,7 +1385,7 @@ class PatternDetector:
 
     def detect_all(self, df: "pl.DataFrame") -> list[PatternResult | None]:
         """
-        Unified Pattern Scanner (Samvid v1.0-beta).
+        Unified Pattern Scanner.
         Runs ALL single-argument detectors and returns a flat list of results.
         Each detector is fault-isolated — a crash in one never blocks the others.
         """
@@ -1479,11 +1431,9 @@ class SignalEntropyCalculator:
     def signal_entropy(self, p_before: float, p_after: float) -> float:
         """
         Calculate Shannon entropy reduction.
-
         Args:
             p_before: Prior probability of event
             p_after: Posterior probability after signal
-
         Returns:
             Entropy reduction (bits of information)
         """
@@ -1511,13 +1461,11 @@ class SignalEntropyCalculator:
             return base_lambda
 
 
-# =============================================================================
-# SOVEREIGN v1.0-beta — NEURAL ALPHA ENGINE (Differential Evolution Logic)
-# =============================================================================
+# SOVEREIGN — NEURAL ALPHA ENGINE (Differential Evolution Logic)
 
 class FactorWeightCalibration:
     """
-    Sovereign Centennial Weighting Matrix.
+Sovereign Centennial Weighting Matrix.
     These coefficients were discovered via Differential Evolution across 75 years of data.
     """
     def __init__(self):
@@ -1580,11 +1528,9 @@ class EscapeVelocityClassifier:
     def classify(self, current_price: float, resistances: list[float]) -> str:
         """
         Classify price momentum state.
-
         Args:
             current_price: Current asset price
             resistances: List of resistance levels above price
-
         Returns:
             Classification: 'sub_orbital', 'orbital', or 'escape'
         """
@@ -1609,10 +1555,8 @@ class EscapeVelocityClassifier:
     def modifier(self, classification: str) -> int:
         """
         Return lambda modifier for escape velocity class.
-
         Args:
             classification: Escape velocity class
-
         Returns:
             Lambda modifier value
         """
@@ -1636,11 +1580,9 @@ class MultiTimeframeAligner:
     def check_alignment(self, symbol: str, timeframes: list[tuple[str, "pl.DataFrame"]]) -> float:
         """
         Calculate multi-timeframe alignment score.
-
         Args:
             symbol: Trading symbol
             timeframes: List of (timeframe_name, dataframe) tuples
-
         Returns:
             Alignment score 0.0-1.0 (1.0 = perfect alignment)
         """
@@ -1675,10 +1617,8 @@ class MultiTimeframeAligner:
     def alignment_modifier(self, alignment_score: float) -> int:
         """
         Convert alignment score to lambda modifier.
-
         Args:
             alignment_score: Alignment score from check_alignment
-
         Returns:
             Lambda modifier (-10 to +10)
         """
@@ -1697,9 +1637,7 @@ class MultiTimeframeAligner:
 
 class InMemorySovereignAtlas:
     """
-    Sub-1ms Sovereign Intelligence Atlas v1.0-beta.
     Queries the 101M-record dataset directly without RAM pillage.
-    Enforces 'Hardcore Centennial Calibration' across all multi-sector regimes.
     """
     def __init__(self, db_path: str = "data/sovereign_intelligence_75y.db"):
         self.db_path = db_path
@@ -1707,14 +1645,13 @@ class InMemorySovereignAtlas:
         self._max_cache = 50
         logger.info("🏛️ Atlas: Sovereign Intelligence online (On-Demand Mode).")
 
-    # ── Direction taxonomy: every chart pattern maps to bullish or bearish absorption ──
     _BULLISH_PATTERNS = {
         "bull flag", "falling wedge", "oversold bounce", "proto-squeeze",
         "ascending triangle", "cup and handle", "double bottom",
         "vcp", "vcp (minervini pivot)", "gap fill", "hft spoof pivot",
         "institutional wall", "micro imbalance (bullish)",
         "micro volatility breakout", "deep tape absorption (bullish)",
-        "short squeeze", # GAP-25 FIX: Short Squeeze is explicitly Bullish
+        "short squeeze",
     }
     _BEARISH_PATTERNS = {
         "head and shoulders", "double top", "head & shoulders",
@@ -1738,7 +1675,6 @@ class InMemorySovereignAtlas:
         elif low in self._BEARISH_PATTERNS:
             direction = "Bearish"
 
-        # 2. Refined Keyword Logic (Samvid v1.0-beta Precision)
         elif "down" in low or "bear" in low or "short" in low or "top" in low:
             direction = "Bearish"
         elif "up" in low or "bull" in low or "long" in low or "bottom" in low:
@@ -1763,21 +1699,18 @@ class InMemorySovereignAtlas:
 
     def query_quantum(self, pattern_name: str, intensity: float, symbol: str = "") -> dict:
         """
-        Samvid v1.0-beta: On-Demand Quantum Wisdom.
+        On-Demand Quantum Wisdom.
         Queries the 101M-record dataset directly without RAM pillage.
         """
         import os
         import sqlite3
 
-        # ── 1. Map to Taxonomy ──────────────────────────────────────────────
         atlas_key = self.map_to_atlas_key(pattern_name, symbol)
         final_key = atlas_key or pattern_name
 
-        # ── 2. Cache Check ──────────────────────────────────────────────────
         if final_key in self._cache:
             matches = self._cache[final_key]
         else:
-            # ── 3. DB Query (Zero-RAM path) ──────────────────────────────────
             if not os.path.exists(self.db_path):
                 return {"match": False, "reason": "Structural DB not found."}
 
@@ -1816,7 +1749,6 @@ class InMemorySovereignAtlas:
                 return self.query_quantum(generic_key, intensity)
             return {"match": False, "reason": "No historical resonance found."}
 
-        # ── Intensity filter & Weighted Survival Score ─────────────────────────
         norm_intensity = intensity / 100.0
         buffer = 0.45
         filtered = [m for m in matches if abs(m[0] - norm_intensity) < buffer]
@@ -1835,9 +1767,7 @@ class InMemorySovereignAtlas:
             "atlas_key": final_key,
         }
 
-# =============================================================================
-# AGENT A: THE ABSOLUTE VALIDATION PIPELINE (v1.0-beta)
-# =============================================================================
+# AGENT A: THE ABSOLUTE VALIDATION PIPELINE
 
 def agent_a_validate_trade(
     pattern: Any,
@@ -1852,7 +1782,7 @@ def agent_a_validate_trade(
     **kwargs
 ) -> Dict[str, Any]:
     """
-    Sovereign Validation Pipeline (Samvid v1.0-beta).
+    Sovereign Validation Pipeline.
     Aggregates multi-agent signals and performs the final risk hurdle.
     """
     import time
@@ -1860,7 +1790,6 @@ def agent_a_validate_trade(
     from sovereign_task import TaskManager, TaskStatus
     task_manager = TaskManager()
 
-    # ── TASK IDENTITY ──
     task_id = kwargs.get("proposal_id", f"diag_{datetime.now(timezone.utc).strftime('%H%M%S')}")
     task = task_manager.get_task(task_id)
 
@@ -1890,7 +1819,6 @@ def agent_a_validate_trade(
         if task: task.transition(TaskStatus.FAILED)
         return {"agent": "Agent_A", "vote": "NO", "reason": "Conviction Floor Veto."}
 
-    # --- PHASE -1: HARD BUDGET VETO (Samvid v1.0-beta) ---
     symbol = kwargs.get("symbol", "SPY")
     account_type = "prop" if "FTMO" in os.environ.get("TRADING_ACCOUNT_ID", "") else "ibkr"
 
@@ -2011,9 +1939,9 @@ def agent_a_validate_trade(
         "vote": "YES",
         "confidence": pattern.confidence / 100.0,
         "signal_strength": float(final_lambda) / 100.0,
-        "lambda": float(final_lambda) / 100.0, # Samvid v1.0-beta: Ensure decimal for Kelly math
+        "lambda": float(final_lambda) / 100.0,
         "risk_flag": False,
-        "reason": f"Sovereign v1.0-beta Consensus Reached. Lambda: {final_lambda:.1f}",
+        "reason": f"Consensus Reached. Lambda: {final_lambda:.1f}",
         "final_lambda": final_lambda,
         "regime": regime,
         "metadata": {

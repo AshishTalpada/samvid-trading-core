@@ -1,24 +1,21 @@
-# pyre-ignore-all-errors[21]
 """
 src/agent_b.py - Trading System Agent B
-
 Implements Dhatu-based market analysis with Bayesian belief tracking,
 ABHAVA (absence) detection, and catalyst scoring following F3 order.
-
 Part of a trading system incorporating Project Dhatu principles:
 - Sutra compression
 - ABHAVA analysis (tracking what's ABSENT)
 - Anuvṛtti context flow
 """
 
-import math  # pyre-ignore[21]
-from dataclasses import dataclass, field  # pyre-ignore[21]
-from datetime import datetime  # pyre-ignore[21]
-from enum import Enum  # pyre-ignore[21]
-from typing import TYPE_CHECKING, Any, Dict  # pyre-ignore[21]
+import math
+from dataclasses import dataclass, field
+from datetime import datetime
+from enum import Enum
+from typing import TYPE_CHECKING, Any, Dict
 
 if TYPE_CHECKING:
-    from dhatu_oracle import DhatuOracle  # pyre-ignore[21]
+    from dhatu_oracle import DhatuOracle
 # (debug instrumentation removed after verified fix)
 
 
@@ -39,10 +36,8 @@ class StateType(Enum):
 class DhatuState:
     """
     Represents a Dhatu market state with freshness tracking.
-
     Dhatu states encode market conditions using ancient computational paradigms
     that track both presence AND absence of market factors.
-
     Attributes:
         name: The Sanskrit name of the state (e.g., 'Vriddhi', 'Kshaya')
         state_type: Enumerated type categorizing the state
@@ -69,7 +64,7 @@ class DhatuState:
     @property
     def effective_modifier(self) -> float:
         """
-        Calculate effective modifier accounting for freshness decay (Samvid v1.0-beta).
+        Calculate effective modifier accounting for freshness decay.
         Decays towards 1.0 (neutrality) as time passes, rather than towards 0.0.
         Formula: 1.0 + (base_modifier - 1.0) * freshness_score
         """
@@ -84,7 +79,6 @@ class DhatuState:
 class DhatuClassifier:
     """
     Classifies market data into one of 8 Dhatu states.
-
     The 8 states represent fundamental market conditions:
     - Vriddhi (growth): Strong upward momentum
     - Kshaya (decay): Deteriorating conditions
@@ -94,7 +88,6 @@ class DhatuClassifier:
     - Samyoga (conjunction): Multiple factors aligning
     - Viyoga (separation): Divergence between indicators
     - Sthiti (persistence): Continuation of prior state
-
     Implements sutra freshness scoring per F17/F18 specifications.
     """
 
@@ -122,7 +115,6 @@ class DhatuClassifier:
     ) -> None:
         """
         Initialize classifier with configurable freshness decay and optional Oracle.
-
         Args:
             sutra_decay_halflife_hours: Hours until sutra freshness halves
             oracle: DhatuOracle instance for global macro awareness
@@ -135,7 +127,6 @@ class DhatuClassifier:
     def classify(self, market_data: dict[str, Any]) -> DhatuState:
         """
         Classify market conditions into a Dhatu state.
-
         Args:
             market_data: Dictionary containing:
                 - price_change: float (percentage change)
@@ -145,7 +136,6 @@ class DhatuClassifier:
                 - rsi: float (0-100, optional)
                 - breadth: float (market breadth, optional)
                 - hours_since_event: float (age of relevant event, optional)
-
         Returns:
             DhatuState representing current market classification
         """
@@ -159,7 +149,6 @@ class DhatuClassifier:
         # Calculate freshness based on event age
         freshness = self.sutra_freshness_score(hours_since)
 
-        # ── DHATU CLASSIFICATION CHAIN (Samvid v1.0-beta Hardened) ──
         # ABHAVA detection: tracking what is ABSENT
         # Case A: Price moves significantly without an underlying catalyst (Gap Fade)
         # Case B: Strong catalyst exists but price fails to respond (Exhaustion/Absence of Reaction)
@@ -229,13 +218,10 @@ class DhatuClassifier:
     def sutra_freshness_score(self, age_hours: float) -> float:
         """
         Calculate sutra freshness using exponential decay.
-
         Per F17: belief = min(0.90, posterior)
         Freshness decays exponentially with configurable half-life.
-
         Args:
             age_hours: Hours since the sutra/event was generated
-
         Returns:
             Freshness score between 0.0 and 1.0
         """
@@ -243,10 +229,8 @@ class DhatuClassifier:
             return 1.0
 
         # Exponential decay: f(t) = e^(-λt) where λ = ln(2)/half_life
-        # Samvid v1.0-beta: Zero-safety guard on halflife
         h_life = max(0.1, self.sutra_decay_halflife)
 
-        # GAP-26 FIX: If age > 1 hour, accelerate decay significantly (Samvid v1.0-beta)
         if age_hours > 1.0:
              h_life = min(h_life, 2.0) # Force 2h max halflife for old news
 
@@ -260,11 +244,9 @@ class DhatuClassifier:
         """
         Calculate Dhatu modifier per F18-Hardened:
         Decays towards 1.0 (neutrality) rather than 0.0.
-
         Args:
             base: Base modifier for the state (from STATE_BASE_MODIFIERS)
             freshness: Current freshness score (0.0-1.0)
-
         Returns:
             Effective modifier after freshness adjustment
         """
@@ -288,13 +270,11 @@ class DhatuClassifier:
 class BayesianBeliefTracker:
     """
     Tracks belief probability using Bayesian updates.
-
     Implements F8 likelihood specifications for evidence types:
     - price_toward: Price moving toward target (small/medium/large)
     - price_against: Price moving against target (small/medium)
     - volume_confirming: Volume confirms price direction
     - vix_declining: VIX declining (bullish for longs)
-
     Critical thresholds:
     - EXIT if belief < 0.35
     - ADD if belief > 0.80
@@ -320,7 +300,6 @@ class BayesianBeliefTracker:
     def __init__(self, prior: float = 0.50) -> None:
         """
         Initialize tracker with prior belief.
-
         Args:
             prior: Initial belief probability (default 0.50 for maximum entropy)
         """
@@ -338,7 +317,7 @@ class BayesianBeliefTracker:
 
     def update(self, evidence_type: str, value: float | None = None, dhatu_state: str = "Sthira") -> str:
         """
-        Update belief based on new evidence using Adaptive Bayesian Likelihoods (GAP-40 FIX).
+        Update belief based on new evidence using Adaptive Bayesian Likelihoods.
         Likelihoods are scaled based on the current Dhatu state to prevent 'Drift'.
         """
         # 1. Resolve Base Likelihood
@@ -357,7 +336,6 @@ class BayesianBeliefTracker:
             }
             likelihood = temp_lik.get(evidence_type, 0.5)
 
-        # 2. Apply Dhatu Scaling (Samvid v1.0-beta)
         # In Volatile markets (Chala/Kshaya), we compress likelihoods toward 0.5 (Noise)
         # In Stable markets (Sthira/Samyoga), we expand likelihoods (Signal)
         scaling_factor = 1.0
@@ -388,7 +366,6 @@ class BayesianBeliefTracker:
         posterior = (p_e_given_h * prior) / p_e
 
         # F17: belief = min(0.90, posterior)
-        # GAP-28 FIX: Normalize to prevent Bayesian lockout/drift
         self._belief = max(0.01, min(self.MAX_BELIEF, posterior))
 
         # Record update for analysis
@@ -421,12 +398,10 @@ class BayesianBeliefTracker:
 
     async def evaluate_proposal(self, context: dict[str, Any]) -> dict[str, Any]:
         """
-        Standardized consensus evaluation for Samvid v1.0-beta.
         Provides Agent B's Bayesian belief vote.
         """
         from datetime import timezone
 
-        # Samvid v1.0-beta: Reset belief for new proposal evaluation to prevent cross-symbol contamination
         temp_tracker = BayesianBeliefTracker(prior=self._prior)
 
         ohlcv = context.get("ohlcv_df") or context.get("ohlcv_1m")
@@ -522,20 +497,16 @@ class BayesianBeliefTracker:
         }
 
 
-
 class ABHAVADetector:
     """
     Detects ABHAVA (absence) conditions in market data.
-
     ABHAVA is a critical Dhatu concept: tracking what's ABSENT.
     Standard systems only track presence; Dhatu tracks absence.
-
     Key ABHAVA patterns:
     - Gap without catalyst (Pattern 1: Gap Fade)
     - Volume absence during breakout (false breakout signal)
     - Catalyst absence during momentum (exhaustion signal)
     - News absence during volatility spike (manipulation signal)
-
     "No standard system does this" - Dhatu's key advantage
     """
 
@@ -551,11 +522,9 @@ class ABHAVADetector:
     def detect(self, history: list[dict[str, Any]]) -> bool:
         """
         Detect ABHAVA (absence) condition in market history.
-
         Checks for the critical absence patterns that standard
         systems miss. Per Dhatu research: "ABHAVA: Tracking what's
         ABSENT — no standard system does this"
-
         Args:
             history: List of market data dictionaries, most recent last.
                 Each dict should contain:
@@ -563,7 +532,6 @@ class ABHAVADetector:
                 - has_catalyst: bool
                 - volume_ratio: float
                 - timestamp: datetime (optional)
-
         Returns:
             True if ABHAVA (significant absence) detected
         """
@@ -648,10 +616,8 @@ class ABHAVADetector:
 class InformationDecayModel:
     """
     Models the decay of information relevance over time.
-
     Information (catalysts, news, signals) loses relevance exponentially.
     High-entropy environments (volatile markets) accelerate decay.
-
     Used in F3 order for calculating final catalyst scores:
     decay factor is applied after base calculation.
     """
@@ -668,7 +634,6 @@ class InformationDecayModel:
     def __init__(self, base_halflife: float = 24.0) -> None:
         """
         Initialize decay model.
-
         Args:
             base_halflife: Base half-life in hours for normal conditions
         """
@@ -677,17 +642,13 @@ class InformationDecayModel:
     def decay_factor(self, age_hours: float, high_entropy: bool = False) -> float:
         """
         Calculate decay factor for information of given age.
-
         Uses exponential decay: f(t) = e^(-λt)
         Where λ = ln(2) / half_life
-
         High entropy (volatile) environments double the decay rate,
         as information becomes stale faster when conditions change rapidly.
-
         Args:
             age_hours: Age of information in hours
             high_entropy: Whether market is in high-entropy (volatile) state
-
         Returns:
             Decay factor between MIN_DECAY_FACTOR and 1.0
         """
@@ -700,7 +661,6 @@ class InformationDecayModel:
             effective_halflife /= self.HIGH_ENTROPY_DECAY_MULTIPLIER
 
         # Calculate decay constant
-        # GAP-26 FIX: If age > 1 hour, accelerate decay significantly
         if age_hours > 1.0:
              effective_halflife = min(effective_halflife, 2.0) # Force 2h max halflife for old news
 
@@ -715,11 +675,9 @@ class InformationDecayModel:
     def time_to_threshold(self, threshold: float, high_entropy: bool = False) -> float:
         """
         Calculate hours until decay reaches threshold.
-
         Args:
             threshold: Target decay factor (e.g., 0.5 for half-life)
             high_entropy: Whether in high-entropy environment
-
         Returns:
             Hours until decay factor reaches threshold
         """
@@ -741,13 +699,10 @@ class InformationDecayModel:
 class CatalystScorer:
     """
     Scores catalysts following F3 ORDER specification.
-
     CRITICAL F3 ORDER:
     base -> modifiers -> decay -> dhatu*freshness -> escape -> compare
-
     This order is essential for correct scoring. Each step must
     execute in sequence with proper dependencies.
-
     Returns tuple of (score, passes_budget) for decision making.
     """
 
@@ -768,7 +723,6 @@ class CatalystScorer:
     ) -> None:
         """
         Initialize scorer with optional dependency injection.
-
         Args:
             decay_model: InformationDecayModel instance (created if None)
             classifier: DhatuClassifier instance (created if None)
@@ -787,7 +741,6 @@ class CatalystScorer:
     ) -> Dict[str, Any]:
         """
         Score catalyst following F3 ORDER specification.
-
         CRITICAL F3 ORDER (must follow exactly):
         1. base - Start with base quality
         2. modifiers - Apply all modifier adjustments
@@ -795,7 +748,6 @@ class CatalystScorer:
         4. dhatu*freshness - Apply Dhatu state modifier with freshness
         5. escape - Apply escape class multiplier
         6. compare - Compare against budget minimum
-
         Args:
             base_quality: Base catalyst quality score (0.0-100.0)
             modifiers: Dict of modifier_name -> adjustment_value
@@ -803,29 +755,22 @@ class CatalystScorer:
             dhatu_state: Current DhatuState from classifier
             escape_class: Pattern/escape class name (e.g., "gap_fade")
             budget_min: Minimum score required (from regime rules)
-
         Returns:
             Tuple of (final_score, passes_budget_check)
         """
-        # ========================================
         # STEP 1: BASE
         # Start with base quality score
-        # ========================================
         score = base_quality
         # Comment: F3 Step 1 - base quality established
 
-        # ========================================
         # STEP 2: MODIFIERS
         # Apply all modifier adjustments additively
-        # ========================================
         modifier_total = sum(modifiers.values())
         score += modifier_total
         # Comment: F3 Step 2 - modifiers applied (total: {modifier_total})
 
-        # ========================================
         # STEP 3: DECAY
         # Apply time-based decay factor
-        # ========================================
         # Determine if high entropy based on Dhatu state
         if dhatu_state is None:
             high_entropy = False
@@ -835,11 +780,9 @@ class CatalystScorer:
         score *= decay_factor
         # Comment: F3 Step 3 - decay applied (factor: {decay_factor:.3f})
 
-        # ========================================
         # STEP 4: DHATU * FRESHNESS
         # Apply Dhatu modifier multiplied by freshness
         # Per F18: dhatu_modifier = base * freshness
-        # ========================================
         if dhatu_state is None:
             dhatu_mod = 1.0
         else:
@@ -849,20 +792,16 @@ class CatalystScorer:
         score *= dhatu_mod
         # Comment: F3 Step 4 - dhatu*freshness applied (modifier: {dhatu_mod:.3f})
 
-        # ========================================
         # STEP 5: ESCAPE
         # Apply escape class multiplier
-        # ========================================
         escape_multiplier = self.ESCAPE_CLASS_MULTIPLIERS.get(
             escape_class.lower(), self.ESCAPE_CLASS_MULTIPLIERS["default"]
         )
         score *= escape_multiplier
         # Comment: F3 Step 5 - escape class '{escape_class}' applied (mult: {escape_multiplier})
 
-        # ========================================
         # STEP 5.5: GLOBAL DHATU ORACLE
         # Apply the macro risk modifier from the DhatuOracle
-        # ========================================
         global_multiplier = 1.0
         oracle: DhatuOracle | None = self.classifier.oracle
         if oracle is not None:
@@ -871,10 +810,8 @@ class CatalystScorer:
         score *= global_multiplier
         # Comment: F3 Step 5.5 - global macro oracle applied (mult: {global_multiplier})
 
-        # ========================================
         # STEP 6: COMPARE
         # Compare against budget minimum
-        # ========================================
         passes_budget = score >= budget_min
         # Comment: F3 Step 6 - compare: {score:.2f} vs budget {budget_min} = {passes_budget}
 
@@ -900,7 +837,6 @@ class CatalystScorer:
     ) -> dict[str, Any]:
         """
         Score catalyst with detailed breakdown of each step.
-
         Same as score() but returns full details for analysis/debugging.
         """
         details: dict[str, Any] = {

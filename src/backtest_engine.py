@@ -1,5 +1,4 @@
 """
-Samvid v1.0-beta — Walk-Forward Backtesting Engine
 Validates edge with statistical rigour before deploying capital.
 Run: python -m src.backtest_engine
 """
@@ -15,11 +14,8 @@ import numpy as np
 
 logger = logging.getLogger(__name__)
 
-# GAP-61: Centralized Lock for Phase 1 Concurrency
 _db_lock = asyncio.Lock()
 
-
-# ── Data Structures ──────────────────────────────────────────────────────────
 
 @dataclass
 class Trade:
@@ -43,7 +39,6 @@ class Trade:
 
         direction = Decimal("1") if self.side == 'LONG' else Decimal("-1")
 
-        # GAP-155: Institutional PnL precision via Decimals
         # Use a small epsilon for division to avoid ZeroDivisionError
         self.pnl_pct = float(direction * (d_exit - d_entry) / (d_entry + Decimal("1e-12")))
         self.pnl_usd = float((Decimal(str(self.pnl_pct)) * d_size) - d_comm)
@@ -103,18 +98,15 @@ class WalkForwardResult:
         return float(np.min(dd))
 
 
-# ── Database Loader ──────────────────────────────────────────────────────────
-
 async def load_ohlcv_from_db(db_path: str, symbol: str) -> tuple[np.ndarray, np.ndarray, list[str]]:
     """
-    Load OHLCV from SQLite (GAP-61 Async-Safe).
+    Load OHLCV from SQLite.
     Uses global _db_lock to prevent contention during parallel validation bursts.
     """
     async with _db_lock:
         try:
             # Shift blocking I/O to thread pool
             def _load():
-                # Samvid v1.0-beta: AEGIS Stability Protocol for backtest connection
                 conn = sqlite3.connect(db_path, timeout=60.0)
                 conn.execute("PRAGMA journal_mode=WAL;")
                 cursor = conn.cursor()
@@ -139,8 +131,6 @@ async def load_ohlcv_from_db(db_path: str, symbol: str) -> tuple[np.ndarray, np.
             return np.array([]), np.array([]), []
 
 
-# ── Walk-Forward Engine ───────────────────────────────────────────────────────
-
 class WalkForwardEngine:
     """
     Validates trading edge across multiple out-of-sample windows.
@@ -157,7 +147,7 @@ class WalkForwardEngine:
         take_profit_pct: float = 0.030, # 3.0% target (2:1 R:R)
         initial_capital: float = 500.0,
         slippage_pct: float = 0.0005,  # 0.05% slippage (5 bps)
-        spread_pct: float = 0.0010,    # 0.10% average bid/ask spread (GAP-31)
+        spread_pct: float = 0.0010,    # 0.10% average bid/ask spread
         commission: float = 1.0        # $1 per trade estimate
     ):
         from quant_signals import QuantConsensus
@@ -218,13 +208,11 @@ class WalkForwardEngine:
                     i += 1
                     continue
 
-                # GAP-30 & 31: Robust execution simulation
                 side      = "LONG" if phase == "BUY" else "SHORT"
                 direction = 1 if side == "LONG" else -1
 
                 # Entry at next bar Close (conservative proxy for Next Open)
                 entry_raw = float(test_prices[i+1])
-                # GAP-31: Cross the spread + slippage
                 friction = self.SLIPPAGE_PCT + (self.SPREAD_PCT / 2.0)
                 entry = entry_raw * (1 + friction) if side == "LONG" else entry_raw * (1 - friction)
 
@@ -237,7 +225,6 @@ class WalkForwardEngine:
                 exit_idx   = i + 1
                 for j in range(i + 2, min(i + 61, len(test_prices))):
                     p = float(test_prices[j])
-                    # GAP-31 FIX: Exit Slippage & Gap Awareness
                     friction = self.SLIPPAGE_PCT + (self.SPREAD_PCT / 2.0)
                     if side == "LONG":
                         if p <= stop:
@@ -283,8 +270,6 @@ class WalkForwardEngine:
 
         return results
 
-
-# ── Aggregate Statistics ──────────────────────────────────────────────────────
 
 def aggregate_results(results: list[WalkForwardResult]) -> dict:
     """Compute portfolio-level statistics across all walk-forward windows."""
@@ -337,19 +322,17 @@ def aggregate_results(results: list[WalkForwardResult]) -> dict:
     return result
 
 
-# ── CLI Entry Point ───────────────────────────────────────────────────────────
-
 async def run_phase1_validation(db_path: str = "trading.db",
                                  symbols: Optional[list[str]] = None,
                                  capital: float = 500.0) -> None:
     """
-    Run full Phase 1 validation (GAP-61 Async-Safe).
+    Run full Phase 1 validation.
     """
     if symbols is None:
         symbols = ["SPY", "QQQ", "IWM"]
 
     print("\n" + "="*65)
-    print("  Samvid v1.0-beta — PHASE 1: WALK-FORWARD EDGE VALIDATION")
+    print("  PHASE 1: WALK-FORWARD EDGE VALIDATION")
     print("="*65)
 
     all_symbol_results = {}
@@ -391,7 +374,6 @@ async def run_phase1_validation(db_path: str = "trading.db",
         print(f"  Average Sharpe across symbols: {avg_sharpe:.3f}")
         print(f"  Statistically significant symbols: {sig_count}/{len(all_symbol_results)}")
 
-        # GAP-194 FIX: Return explicit success boolean for pipeline integration
         if avg_sharpe >= 1.0 and sig_count >= (len(all_symbol_results) // 2 + 1):
              print("\n  ✅ PHASE 1 PASSED — Edge is real. Proceed to Phase 2 (Live Paper Trading).")
              return True

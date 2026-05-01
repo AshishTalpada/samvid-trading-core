@@ -1,12 +1,9 @@
 """
-Samvid v1.0-beta — Phase 1 Runner
 Integrates Bayesian Oracle + Quant Consensus into live system
 AND runs the walk-forward backtest to validate edge.
-
 Usage:
   # Run backtest only:
   python src/phase1_runner.py backtest
-
   # Run live with quant signals replacing LLM agents:
   python src/phase1_runner.py live
 """
@@ -19,17 +16,14 @@ import sys
 logger = logging.getLogger(__name__)
 
 
-# Note: patch_dhatu_oracle and patch_trading_brain have been DECOMMISSIONED (GAP-60).
+# Note: patch_dhatu_oracle and patch_trading_brain have been DECOMMISSIONED.
 # Their logic is now natively integrated into DhatuOracle and TradingBrain.
 
-# GAP-61 FIX: Global lock to prevent state contention during concurrent backtests
 RUN_LOCK = asyncio.Lock()
 
 
-# ── Phase 1 Backtest Entry Point ─────────────────────────────────────────────
-
 async def _check_data_integrity(db_path: str, symbol: str = "SPY") -> int:
-    """GAP-118 FIX: Synchronous SQLite execution wrapped in a thread."""
+    """Run a blocking SQLite operation safely in a thread pool executor."""
     import os
     import sqlite3
     if not os.path.exists(db_path):
@@ -49,14 +43,13 @@ async def _check_data_integrity(db_path: str, symbol: str = "SPY") -> int:
 async def run_backtest(db_path: str = "trading.db", symbols: list[str] = None) -> None:
     if symbols is None:
         symbols = ["SPY", "QQQ", "IWM"]
-    async with RUN_LOCK: # GAP-61 FIX: Serialize access to shared DB state
+    async with RUN_LOCK:
         from backtest_engine import run_phase1_validation
         from data_pipeline import DataPipeline
 
         # Check if we have enough data; if not, run pipeline first
         logger.info(f"Phase1: Validating data integrity for {symbols[0]}...")
         count = await asyncio.to_thread(_check_data_integrity, db_path, symbols[0])
-        # GAP-149 FIX: Lowering floor to 200 to accommodate newer instruments/mock data
         has_data = count >= 200
 
         if not has_data:
@@ -74,15 +67,12 @@ async def run_backtest(db_path: str = "trading.db", symbols: list[str] = None) -
             symbols=symbols,
         )
 
-        # GAP-194 FIX: Enforce validation result
         if not success:
             logger.error("Phase1: Backtest Validation FAILED. Deployment aborted.")
             sys.exit(1)
 
         logger.info("Phase1: Backtest Validation PASSED. Ready for deployment.")
 
-
-# ── CLI ───────────────────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
