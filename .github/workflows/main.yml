@@ -22,7 +22,7 @@ jobs:
       - name: Install lint tools
         run: |
           python -m pip install --upgrade pip
-          pip install "ruff==0.13.3"
+          pip install "ruff==0.15.12"
 
       - name: Lint with Ruff
         run: ruff check src/

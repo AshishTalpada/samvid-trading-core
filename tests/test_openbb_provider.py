@@ -48,6 +48,7 @@ async def test_openbb_provider_is_available_property() -> None:
 async def test_ohlcv_returns_none_when_unavailable() -> None:
     """fetch_ohlcv should return None when OpenBB is not available."""
     from src.openbb_provider import OpenBBProvider  # type: ignore
+
     provider = OpenBBProvider.__new__(OpenBBProvider)
     provider._initialized = False
     provider._pat = ""
@@ -89,6 +90,7 @@ async def test_technical_indicators_returns_empty_when_unavailable() -> None:
 async def test_macro_data_returns_empty_when_unavailable() -> None:
     """fetch_macro_data should return empty dict when OpenBB is not available."""
     from src.openbb_provider import OpenBBProvider  # type: ignore
+
     provider = OpenBBProvider.__new__(OpenBBProvider)
     provider._initialized = False
     provider._pat = ""
@@ -116,6 +118,7 @@ async def test_news_returns_empty_when_unavailable() -> None:
 async def test_crypto_returns_none_when_unavailable() -> None:
     """fetch_crypto_ohlcv should return None when OpenBB is not available."""
     from src.openbb_provider import OpenBBProvider  # type: ignore
+
     provider = OpenBBProvider.__new__(OpenBBProvider)
     provider._initialized = False
     provider._pat = ""

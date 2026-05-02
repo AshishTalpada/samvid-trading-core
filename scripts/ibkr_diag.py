@@ -37,8 +37,11 @@ async def diagnose():
         print(f"ERROR: Could not connect: {e}")
         print("\nPossible solutions:")
         print("1. Change IBKR_CLIENT_ID to a higher number (e.g. 10) in your .env/Vault.")
-        print("2. Ensure TWS -> API Settings -> 'Allow connections from localhost only' is checked.")
+        print(
+            "2. Ensure TWS -> API Settings -> 'Allow connections from localhost only' is checked."
+        )
         print("3. Check if you have another instance of this script running.")
+
 
 if __name__ == "__main__":
     asyncio.run(diagnose())
