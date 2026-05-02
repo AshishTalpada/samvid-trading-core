@@ -20,7 +20,7 @@ async def test_logical_chain_abhava_zero_risk():
         action_protocol="CASH",
         risk_modifier=0.0,
         causation_summary="Systemic Collapse Scenario",
-        confidence=1.0
+        confidence=1.0,
     )
 
     # 2. Mock Agent B receiving this state
@@ -38,6 +38,7 @@ async def test_logical_chain_abhava_zero_risk():
 
     # Let's test the PositionSizingChain directly with the modifier
     from src.agent_c_ibkr import PositionSizingChain
+
     chain = PositionSizingChain()
 
     result = chain.calculate(
@@ -48,11 +49,12 @@ async def test_logical_chain_abhava_zero_risk():
         entry_price=450.0,
         stop_price=440.0,
         instrument="SPY",
-        regime_modifier=mock_state.risk_modifier # This is the crucial logic link
+        regime_modifier=mock_state.risk_modifier,  # This is the crucial logic link
     )
 
     assert result["risk_dollars"] == 0.0, "Abhava protocol must result in zero risk."
     assert result["position_size"] == 0, "Abhava protocol must result in zero size."
+
 
 @pytest.mark.asyncio
 async def test_logical_chain_vriddhi_acceleration():
@@ -63,12 +65,13 @@ async def test_logical_chain_vriddhi_acceleration():
     mock_state = OracleState(
         dhatu_state="Vriddhi",
         action_protocol="MAX_RISK",
-        risk_modifier=1.5, # 50% boost
+        risk_modifier=1.5,  # 50% boost
         causation_summary="Bullish expansion",
-        confidence=0.9
+        confidence=0.9,
     )
 
     from src.agent_c_ibkr import PositionSizingChain
+
     chain = PositionSizingChain()
 
     # Base calculation (modifier = 1.0)
@@ -80,7 +83,7 @@ async def test_logical_chain_vriddhi_acceleration():
         entry_price=100.0,
         stop_price=95.0,
         instrument="SPY",
-        regime_modifier=1.0
+        regime_modifier=1.0,
     )
 
     # Boosted calculation
@@ -92,7 +95,7 @@ async def test_logical_chain_vriddhi_acceleration():
         entry_price=100.0,
         stop_price=95.0,
         instrument="SPY",
-        regime_modifier=mock_state.risk_modifier
+        regime_modifier=mock_state.risk_modifier,
     )
 
     assert boosted_result["risk_dollars"] > base_result["risk_dollars"]

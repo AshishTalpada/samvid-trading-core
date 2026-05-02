@@ -26,15 +26,32 @@ def advanced_setup():
     # 1. Load current secrets
     load_dotenv(override=True)
     keys_to_vault = [
-        "MT5_PASSWORD", "TELEGRAM_BOT_TOKEN", "TELEGRAM_CHAT_ID",
-        "ANTHROPIC_API_KEY", "OPENAI_API_KEY", "GOOGLE_API_KEY",
-        "DEEPSEEK_API_KEY", "FINNHUB_API_KEY", "IBKR_HOST",
-        "IBKR_PAPER_USERNAME", "IBKR_PAPER_PASSWORD",
-        "QUESTDB_ENABLED", "QUESTDB_HOST", "QUESTDB_PORT", "QUESTDB_PG_PORT",
-        "QUESTDB_USER", "QUESTDB_PASSWORD", "QUESTDB_CONNECT_TIMEOUT_SEC",
-        "OLLAMA_BASE_URL", "OLLAMA_MODEL", "GEMINI_MODEL",
-        "API_SERVER_HOST", "API_SERVER_PORT", "API_SERVER_KEY",
-        "SESSION_SECRET", "TRADING_MODE"
+        "MT5_PASSWORD",
+        "TELEGRAM_BOT_TOKEN",
+        "TELEGRAM_CHAT_ID",
+        "ANTHROPIC_API_KEY",
+        "OPENAI_API_KEY",
+        "GOOGLE_API_KEY",
+        "DEEPSEEK_API_KEY",
+        "FINNHUB_API_KEY",
+        "IBKR_HOST",
+        "IBKR_PAPER_USERNAME",
+        "IBKR_PAPER_PASSWORD",
+        "QUESTDB_ENABLED",
+        "QUESTDB_HOST",
+        "QUESTDB_PORT",
+        "QUESTDB_PG_PORT",
+        "QUESTDB_USER",
+        "QUESTDB_PASSWORD",
+        "QUESTDB_CONNECT_TIMEOUT_SEC",
+        "OLLAMA_BASE_URL",
+        "OLLAMA_MODEL",
+        "GEMINI_MODEL",
+        "API_SERVER_HOST",
+        "API_SERVER_PORT",
+        "API_SERVER_KEY",
+        "SESSION_SECRET",
+        "TRADING_MODE",
     ]
 
     print("\n[Step 1/3] Vaulting Credentials...")
@@ -61,6 +78,7 @@ def advanced_setup():
     existing_session_secret = Vault.get("SESSION_SECRET")
     if not existing_session_secret:
         import secrets
+
         new_secret = secrets.token_hex(32)
         Vault.set("SESSION_SECRET", new_secret)
         print("  ✓ Generated and Vaulted NEW SESSION_SECRET")
@@ -95,9 +113,9 @@ def advanced_setup():
                 "# Sensitive keys migrated to Windows Vault.\n",
                 "TRADING_MODE=ibkr_paper\n",
                 "IBKR_HOST=localhost\n",
-                "QUESTDB_ENABLED=True\n"
+                "QUESTDB_ENABLED=True\n",
             ]
-            with open(env_path, 'w') as f:
+            with open(env_path, "w") as f:
                 f.writelines(safe_lines)
 
             # GAP-76 FIX: Delete the backup file immediately after verification
@@ -114,6 +132,7 @@ def advanced_setup():
     print("\n=== SETUP COMPLETE ===")
     print("Your system is now using Windows Vault for secrets.")
     print("You can verify this by running: python src/main.py")
+
 
 if __name__ == "__main__":
     advanced_setup()

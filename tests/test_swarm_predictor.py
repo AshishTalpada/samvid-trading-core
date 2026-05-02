@@ -101,8 +101,10 @@ def test_predictor_initializes() -> None:
         return default
 
     # Patch Vault both ways (src.vault and vault) to catch all import variations
-    with patch("src.vault.Vault.get", side_effect=mock_vault_get), \
-         patch("vault.Vault.get", side_effect=mock_vault_get, create=True):
+    with (
+        patch("src.vault.Vault.get", side_effect=mock_vault_get),
+        patch("vault.Vault.get", side_effect=mock_vault_get, create=True),
+    ):
         p = SwarmPredictor(api_url="http://localhost:5001")
         try:
             assert p is not None
@@ -135,8 +137,10 @@ async def test_forecast_returns_neutral_when_unavailable(ticker) -> None:
         return default
 
     # Force unavailable by patching Vault both ways
-    with patch("src.vault.Vault.get", side_effect=mock_vault_get), \
-         patch("vault.Vault.get", side_effect=mock_vault_get, create=True):
+    with (
+        patch("src.vault.Vault.get", side_effect=mock_vault_get),
+        patch("vault.Vault.get", side_effect=mock_vault_get, create=True),
+    ):
         p = SwarmPredictor(api_url="http://localhost:59999")
 
     result = await p.get_market_forecast(

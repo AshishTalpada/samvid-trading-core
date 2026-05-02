@@ -3,7 +3,7 @@ import os
 
 
 def find_imports(filepath):
-    with open(filepath, 'r', encoding='utf-8') as f:
+    with open(filepath, "r", encoding="utf-8") as f:
         try:
             tree = ast.parse(f.read())
         except Exception:
@@ -19,10 +19,11 @@ def find_imports(filepath):
                 imports.append(node.module)
     return imports
 
+
 def build_graph(src_dir):
     graph = {}
     for filename in os.listdir(src_dir):
-        if filename.endswith('.py'):
+        if filename.endswith(".py"):
             module_name = filename[:-3]
             filepath = os.path.join(src_dir, filename)
             deps = find_imports(filepath)
@@ -30,11 +31,12 @@ def build_graph(src_dir):
             local_deps = []
             for d in deps:
                 # Check if it's a local module
-                d_base = d.split('.')[0]
-                if os.path.exists(os.path.join(src_dir, d_base + '.py')):
+                d_base = d.split(".")[0]
+                if os.path.exists(os.path.join(src_dir, d_base + ".py")):
                     local_deps.append(d_base)
             graph[module_name] = set(local_deps)
     return graph
+
 
 def find_cycle(graph):
     visited = set()
@@ -42,7 +44,7 @@ def find_cycle(graph):
 
     def visit(node):
         if node in path:
-            cycle = path[path.index(node):] + [node]
+            cycle = path[path.index(node) :] + [node]
             return cycle
         if node in visited:
             return None
@@ -61,6 +63,7 @@ def find_cycle(graph):
         if cycle:
             return cycle
     return None
+
 
 if __name__ == "__main__":
     src_dir = "src"

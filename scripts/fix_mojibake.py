@@ -37,6 +37,7 @@ replacements = {
     "âš ": "⚠️",
 }
 
+
 def fix_file(path):
     try:
         with open(path, "rb") as f:
@@ -58,8 +59,10 @@ def fix_file(path):
         print(f"  ! Error: {path} ({e})")
     return False
 
+
 if __name__ == "__main__":
     import os
+
     os.chdir(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
     print("=== TradingSystem Mojibake Fixer ===")
     count = 0
