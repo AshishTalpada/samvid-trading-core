@@ -25,40 +25,35 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 ENTRY = ROOT / "src" / "main.py"
-DIST  = ROOT / "dist"
+DIST = ROOT / "dist"
 
 NUITKA_ARGS = [
-    sys.executable, "-m", "nuitka",
+    sys.executable,
+    "-m",
+    "nuitka",
     # === Output ===
-    "--standalone",             # Bundle everything into a self-contained dir
-    "--onefile",                # Compress into a single .exe
+    "--standalone",  # Bundle everything into a self-contained dir
+    "--onefile",  # Compress into a single .exe
     f"--output-dir={DIST}",
     "--output-filename=TradingSystem",
-
     # === Compiler ===
     # "--mingw64",              # Removed for Python 3.13+ compatibility
-
     # === Critical Plugins ===
     # "--enable-plugin=numpy",   # Deprecated in Nuitka 4.0+
     # "--enable-plugin=upx",     # Removed to avoid "UPX not found" error
-
     # === Follow Imports ===
-    "--follow-imports",         # Include all project imports
+    "--follow-imports",  # Include all project imports
     "--include-package=src",
     "--include-package=ib_insync",
     "--include-package=winloop",
-
     # === Optimization Level ===
-    "--lto=yes",               # Link-Time Optimization for max speed
-    "--jobs=4",                # Parallel compile jobs
-
+    "--lto=yes",  # Link-Time Optimization for max speed
+    "--jobs=4",  # Parallel compile jobs
     # === Remove Debug ===
     "--python-flag=no_docstrings",  # Strip docstrings from binary
-    "--python-flag=-O",             # Python -O optimization flag
-
+    "--python-flag=-O",  # Python -O optimization flag
     # === Automate Downloads ===
-    "--assume-yes-for-downloads",   # Don't ask for permission to download CC/UPX
-
+    "--assume-yes-for-downloads",  # Don't ask for permission to download CC/UPX
     # === Entry ===
     str(ENTRY),
 ]

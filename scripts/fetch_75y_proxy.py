@@ -9,13 +9,10 @@ logger = logging.getLogger("HistoryFetcher")
 
 DB_PATH = "training_data.db"
 
+
 def fetch_75y():
     print("🚀 FETCHING 75 YEARS OF MULTI-SECTOR MACRO-FIDELITY DATA...")
-    tickers = {
-        "^GSPC": "SPY_PROXY",
-        "^NDX": "QQQ_PROXY",
-        "^RUT": "IWM_PROXY"
-    }
+    tickers = {"^GSPC": "SPY_PROXY", "^NDX": "QQQ_PROXY", "^RUT": "IWM_PROXY"}
 
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
@@ -35,18 +32,28 @@ def fetch_75y():
 
         records = []
         for ts, row in df.iterrows():
-            o, h, l, c = float(row['open']), float(row['high']), float(row['low']), float(row['close'])
+            o, h, l, c = (
+                float(row["open"]),
+                float(row["high"]),
+                float(row["low"]),
+                float(row["close"]),
+            )
             if h <= l:
                 h = max(o, c, h) + 0.01
                 l = min(o, c, l) - 0.01
 
-            records.append((
-                proxy_name,
-                ts.strftime("%Y-%m-%d %H:%M:%S"),
-                o, h, l, c,
-                float(row['volume']),
-                "1d"
-            ))
+            records.append(
+                (
+                    proxy_name,
+                    ts.strftime("%Y-%m-%d %H:%M:%S"),
+                    o,
+                    h,
+                    l,
+                    c,
+                    float(row["volume"]),
+                    "1d",
+                )
+            )
 
         cursor.executemany("INSERT OR IGNORE INTO ohlcv VALUES (?,?,?,?,?,?,?,?)", records)
         conn.commit()
@@ -54,6 +61,7 @@ def fetch_75y():
 
     conn.close()
     print("✨ Sector-Hardening Data Fetch Complete.")
+
 
 if __name__ == "__main__":
     fetch_75y()
