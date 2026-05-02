@@ -1,17 +1,17 @@
-
 import os
 
 # Mapping of corrupted byte sequences (encoded as cp1252) to correct UTF-8 strings
 REPLACEMENTS = {
-    b'\xe2\x9a\xa0\xef\xb8\x8f': '⚠️',      # ⚠️ (Warning)
-    b'\xe2\x9a\xa0': '⚠️',                  # ⚠️
-    b'\xe2\x9c\x85': '✅',                  # ✅ (Checkmate)
-    b'\xe2\x9c\x94': '✅',                  # ✅
-    b'\xe2\x9c\x96': '❌',                  # ❌ (Cross)
-    b'\xe2\x9d\x8c': '❌',                  # ❌
-    b'\xe2\x9c\x97': '✖',                  # ✖
-    b'\xe2\x80\x94': '—',                  # — (Em-dash)
+    b"\xe2\x9a\xa0\xef\xb8\x8f": "⚠️",  # ⚠️ (Warning)
+    b"\xe2\x9a\xa0": "⚠️",  # ⚠️
+    b"\xe2\x9c\x85": "✅",  # ✅ (Checkmate)
+    b"\xe2\x9c\x94": "✅",  # ✅
+    b"\xe2\x9c\x96": "❌",  # ❌ (Cross)
+    b"\xe2\x9d\x8c": "❌",  # ❌
+    b"\xe2\x9c\x97": "✖",  # ✖
+    b"\xe2\x80\x94": "—",  # — (Em-dash)
 }
+
 
 def pest_control_encoding(dir_path):
     print(f"Pest Control: Sanitizing aesthetics in {dir_path}")
@@ -22,14 +22,15 @@ def pest_control_encoding(dir_path):
             if file.endswith((".py", ".md", ".txt", ".sh", ".ps1")):
                 path = os.path.join(root, file)
                 try:
-                    with open(path, 'rb') as f:
+                    with open(path, "rb") as f:
                         raw = f.read()
 
-                    if not raw: continue
+                    if not raw:
+                        continue
 
                     # 1. Start with raw UTF-8 decode
                     try:
-                        content = raw.decode('utf-8')
+                        content = raw.decode("utf-8")
                         changed = False
 
                         # Fix misrendered "â" sequences that were accidentally escaped/converted
@@ -48,7 +49,7 @@ def pest_control_encoding(dir_path):
                                 changed = True
 
                         if changed:
-                            with open(path, 'w', encoding='utf-8', newline='\n') as f:
+                            with open(path, "w", encoding="utf-8", newline="\n") as f:
                                 f.write(content)
                             print(f"  ✓ Sanity restored: {path}")
 
@@ -60,7 +61,7 @@ def pest_control_encoding(dir_path):
                         # Actually many 'â' things in cp1252 are exactly the same bytes as UTF-8
                         # But misinterpreted.
                         try:
-                            content_cp = raw.decode('cp1252')
+                            content_cp = raw.decode("cp1252")
                             # Now that it's decoded AS if it was cp1252, the "❌" becomes string chars
                             fixed_cp = content_cp
                             misrendered_cp = {
@@ -76,7 +77,7 @@ def pest_control_encoding(dir_path):
                                     cp_changed = True
 
                             if cp_changed:
-                                with open(path, 'w', encoding='utf-8', newline='\n') as f:
+                                with open(path, "w", encoding="utf-8", newline="\n") as f:
                                     f.write(fixed_cp)
                                 print(f"  ✓ Binary repair success: {path}")
                         except:
@@ -84,6 +85,7 @@ def pest_control_encoding(dir_path):
 
                 except Exception as e:
                     print(f"  ✖ Failed to process {file}: {e}")
+
 
 if __name__ == "__main__":
     project_root = r"c:\Users\talpa\Desktop\System_Beta\TradingSystem"

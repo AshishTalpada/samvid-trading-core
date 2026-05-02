@@ -12,6 +12,7 @@ except ImportError:
     print("Error: Could not import Vault. Run from project root.")
     sys.exit(1)
 
+
 def cleanup():
     print("🛡️ SOVEREIGN SECRET CLEANUP (GAP-76/77)")
     print("======================================")
@@ -50,6 +51,7 @@ def cleanup():
     # 2. Verify Triple Secret Bloat Reduction
     print("\nSECRET ARCHITECTURE VERIFICATION:")
     from dotenv import find_dotenv
+
     dot_env = find_dotenv()
     if dot_env:
         print(f"  ❌ .env still detectable at {dot_env}")
@@ -57,6 +59,7 @@ def cleanup():
         print("  ✅ .env eliminated from detection path.")
 
     print("\nCleanup Complete.")
+
 
 if __name__ == "__main__":
     cleanup()

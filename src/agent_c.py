@@ -163,7 +163,12 @@ class EvolutionManager:
 
             for state, pnl_raw in rows:
                 if state not in stats_raw:
-                    stats_raw[state] = {"total": 0, "wins": 0, "gross_wins": 0.0, "gross_losses": 0.0}
+                    stats_raw[state] = {
+                        "total": 0,
+                        "wins": 0,
+                        "gross_wins": 0.0,
+                        "gross_losses": 0.0,
+                    }
 
                 if pnl_raw is None:
                     continue

@@ -18,13 +18,14 @@ logger = logging.getLogger("HardcoreDeepTrainer")
 
 DB_PATH = "training_data.db"
 
+
 def simulate_micro_ticks(daily_high, daily_low, daily_close, daily_open, num_ticks=1000):
     """
     Expands a single daily bar into 'Microsecond-to-Microsecond' synthetic ticks.
     Uses a random walk constrained within the daily high/low.
     """
     ticks = np.linspace(daily_open, daily_close, num_ticks)
-    noise = np.random.normal(0, (daily_high - daily_low)/20, num_ticks)
+    noise = np.random.normal(0, (daily_high - daily_low) / 20, num_ticks)
     ticks += noise
 
     # Clip to ensure validity
@@ -32,6 +33,7 @@ def simulate_micro_ticks(daily_high, daily_low, daily_close, daily_open, num_tic
     ticks[0] = daily_open
     ticks[-1] = daily_close
     return ticks
+
 
 def train_hardcore_deep():
     print("\n🔬 STARTING HARDCORE DEEP MICRO-STRUCTURAL TRAINING (50 YEARS)...")
@@ -56,27 +58,31 @@ def train_hardcore_deep():
     sample_size = 500
     indices = np.random.choice(len(df_daily), sample_size, replace=False)
 
-    print(f"  ▶ Expanding {sample_size} random days into {sample_size * 1000} synthetic microseconds...")
+    print(
+        f"  ▶ Expanding {sample_size} random days into {sample_size * 1000} synthetic microseconds..."
+    )
 
     for idx in tqdm(indices):
         idx_int = int(idx)
         row = df_daily.row(idx_int, named=True)
 
         # Micro-Structural Simulation
-        micro_ticks = simulate_micro_ticks(row['high'], row['low'], row['close'], row['open'])
-        micro_vol = np.random.poisson(row['volume'] / 1000, 1000).astype(float)
+        micro_ticks = simulate_micro_ticks(row["high"], row["low"], row["close"], row["open"])
+        micro_vol = np.random.poisson(row["volume"] / 1000, 1000).astype(float)
 
         # Build Tick DataFrame
-        tick_df = pl.DataFrame({
-            "close": micro_ticks,
-            "high": micro_ticks + 0.01,
-            "low": micro_ticks - 0.01,
-            "volume": micro_vol
-        })
+        tick_df = pl.DataFrame(
+            {
+                "close": micro_ticks,
+                "high": micro_ticks + 0.01,
+                "low": micro_ticks - 0.01,
+                "volume": micro_vol,
+            }
+        )
 
         # Run Deep Analysis
         for i in range(20, 1000, 50):
-            window = tick_df[i-20:i]
+            window = tick_df[i - 20 : i]
 
             # 1. Check for Tape Absorption
             abs_res = detector.detect_tick_tape_absorption(window)
@@ -85,7 +91,7 @@ def train_hardcore_deep():
 
             # 2. Check Order Flow Imbalance
             ofi = detector.detect_order_flow_imbalance(window)
-            if abs(ofi) > 0.8: # Extreme manipulation
+            if abs(ofi) > 0.8:  # Extreme manipulation
                 total_manipulations_detected += 1
 
     print("\n✅ HARDCORE DEEP TRAINING COMPLETE.")
@@ -98,7 +104,7 @@ def train_hardcore_deep():
         "type": "MICRO_DEPTH_TRAINING",
         "scope": "50-Year Fractal Expansion",
         "absorption_profile": "Stabilized",
-        "manipulation_defense": "Calibrated"
+        "manipulation_defense": "Calibrated",
     }
 
     with open("data/cognitive_memory.json", "r+") as f:
@@ -108,6 +114,7 @@ def train_hardcore_deep():
         json.dump(mem[:100], f, indent=4)
 
     print("  ✓ Sovereign Memory updated with Deep Micro-Structural intelligence.")
+
 
 if __name__ == "__main__":
     train_hardcore_deep()

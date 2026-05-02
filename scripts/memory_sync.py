@@ -9,6 +9,7 @@ logger = logging.getLogger("MemorySync")
 RESULTS_PATH = "src/phase1_results.json"
 MEMORY_PATH = "data/cognitive_memory.json"
 
+
 def sync():
     if not os.path.exists(RESULTS_PATH):
         logger.error("No training results found to sync.")
@@ -25,7 +26,7 @@ def sync():
         "summary": f"Centennial Training v1.0-beta integrated. Avg Sharpe: {results.get('avg_sharpe', 0):.3f}",
         "learned_weights": results.get("optimised_weights", {}),
         "symbol_performance": results.get("results", {}),
-        "insight": "System has successfully evolved past 10-year local bias into 100-year market survival logic."
+        "insight": "System has successfully evolved past 10-year local bias into 100-year market survival logic.",
     }
 
     # Load existing memory
@@ -49,6 +50,7 @@ def sync():
         json.dump(memory, f, indent=4)
 
     logger.info("✓ Training results successfully integrated into Mind Cognitive Memory.")
+
 
 if __name__ == "__main__":
     sync()

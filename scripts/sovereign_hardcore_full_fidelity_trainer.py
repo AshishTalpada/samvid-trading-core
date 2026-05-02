@@ -18,22 +18,23 @@ logger = logging.getLogger("FullFidelityTrainer")
 
 DB_PATH = "training_data.db"
 
+
 def simulate_hft_micro_tape(row, num_ticks=1000):
     """
     Generates high-fidelity micro-ticks for 'Everything and Anything' training.
     Uses Mean Reverting Random Walk to simulate institutional 'Iceberg' orders.
     """
     np.random.seed(42)
-    daily_open = row['open']
-    daily_close = row['close']
-    daily_high = row['high']
-    daily_low = row['low']
+    daily_open = row["open"]
+    daily_close = row["close"]
+    daily_high = row["high"]
+    daily_low = row["low"]
 
     # Base path
     ticks = np.linspace(daily_open, daily_close, num_ticks)
 
     # 1. Macro-Trend Noise
-    noise = np.random.normal(0, (daily_high - daily_low)/50, num_ticks)
+    noise = np.random.normal(0, (daily_high - daily_low) / 50, num_ticks)
     ticks += noise
 
     # 2. Institutional 'Walls' (Micro-Absorption)
@@ -41,15 +42,16 @@ def simulate_hft_micro_tape(row, num_ticks=1000):
     for _ in range(5):
         wall_idx = np.random.randint(200, 800)
         wall_level = ticks[wall_idx]
-        ticks[wall_idx:wall_idx+50] = wall_level + np.random.normal(0, 0.001, 50)
+        ticks[wall_idx : wall_idx + 50] = wall_level + np.random.normal(0, 0.001, 50)
 
     ticks = np.clip(ticks, daily_low, daily_high)
     ticks[0] = daily_open
     ticks[-1] = daily_close
 
-    volumes = np.random.poisson(row['volume'] / num_ticks, num_ticks).astype(float)
+    volumes = np.random.poisson(row["volume"] / num_ticks, num_ticks).astype(float)
     # Spike volume at the walls
     return ticks, volumes
+
 
 def train_hardcore_full_fidelity():
     print("\n💀 ENTERING FULL-FIDELITY HARDCORE GHOST TRAINING (MICRO-TO-MICRO)...")
@@ -68,13 +70,11 @@ def train_hardcore_full_fidelity():
     total_days = len(df_daily)
 
     # We will iterate through EVERY SINGLE DAY (No sampling)
-    print(f"  ▶ Processing {total_days} days of history into ~{total_days * 1000:,} micro-events...")
+    print(
+        f"  ▶ Processing {total_days} days of history into ~{total_days * 1000:,} micro-events..."
+    )
 
-    stats = {
-        "walls_absorbed": 0,
-        "manipulations_negated": 0,
-        "micro_alpha_capture": 0.0
-    }
+    stats = {"walls_absorbed": 0, "manipulations_negated": 0, "micro_alpha_capture": 0.0}
 
     # Parallel processing would be faster, but we'll do sequential for 'Double-Checked' precision.
     for i in tqdm(range(total_days)):
@@ -83,17 +83,14 @@ def train_hardcore_full_fidelity():
         # High-Fidelity Tape Generation
         ticks, volumes = simulate_hft_micro_tape(row)
 
-        tick_df = pl.DataFrame({
-            "close": ticks,
-            "high": ticks + 0.001,
-            "low": ticks - 0.001,
-            "volume": volumes
-        })
+        tick_df = pl.DataFrame(
+            {"close": ticks, "high": ticks + 0.001, "low": ticks - 0.001, "volume": volumes}
+        )
 
         # SLIDING WINDOW MICRO-SCAN
         # We scan every 10 ticks to ensure 'Everything and Anything' is seen.
         for j in range(20, 1000, 10):
-            window = tick_df[j-20:j]
+            window = tick_df[j - 20 : j]
 
             # 1. Detection
             abs_res = detector.detect_tick_tape_absorption(window)
@@ -110,9 +107,9 @@ def train_hardcore_full_fidelity():
         "verdict": "UNBREAKABLE_GHOST_CALIBRATION",
         "fidelity": "Microsecond-Exact (Synthetic)",
         "days_trained": total_days,
-        "events_analyzed": total_days * 100, # Approx scanning density
+        "events_analyzed": total_days * 100,  # Approx scanning density
         "stats": stats,
-        "generated_at": str(np.datetime64('now'))
+        "generated_at": str(np.datetime64("now")),
     }
 
     with open("src/micro_exact_results.json", "w") as f:
@@ -121,6 +118,7 @@ def train_hardcore_full_fidelity():
     print("\n✅ FULL-FIDELITY HARDCORE TRAINING COMPLETE.")
     print(f"  Final Micro-Intelligence: {json.dumps(stats, indent=2)}")
     print("  ✓ Sovereign Ghost Memory locked.")
+
 
 if __name__ == "__main__":
     train_hardcore_full_fidelity()
