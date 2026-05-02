@@ -12,12 +12,13 @@ print("💀💀💀 SOVEREIGN AI: INITIATING LOCAL LLM AGENT DISTILLATION 💀�
 print(f"▶ Target Model: Local {MODEL_NAME}")
 print("▶ Objective: Forcing local LLM to absorb 11M Fingerprints.")
 
+
 async def prompt_local_llm(client, prompt_text):
     payload = {
         "model": MODEL_NAME,
         "prompt": prompt_text,
         "stream": False,
-        "options": {"temperature": 0.1, "num_ctx": 4096}
+        "options": {"temperature": 0.1, "num_ctx": 4096},
     }
     try:
         response = await client.post(OLLAMA_URL, json=payload, timeout=60.0)
@@ -32,10 +33,11 @@ async def prompt_local_llm(client, prompt_text):
     except Exception as e:
         return str(e)
 
+
 async def train_local_agents_from_11m_database():
     print("🌀 INITIATING STATISTICAL FUNNEL COMPRESSION (11M ROWS -> LLM CHUNKS)")
     try:
-        conn = sqlite3.connect('data/sovereign_intelligence_75y.db')
+        conn = sqlite3.connect("data/sovereign_intelligence_75y.db")
         c = conn.cursor()
         c.execute("""
             SELECT
@@ -54,7 +56,9 @@ async def train_local_agents_from_11m_database():
         print(f"⚠️ SQL Compression Failed: {e}")
         return
 
-    print(f"▶ Successfully compressed 11,000,000 rows into {len(compressed_clusters)} Mathematical Master Clusters.")
+    print(
+        f"▶ Successfully compressed 11,000,000 rows into {len(compressed_clusters)} Mathematical Master Clusters."
+    )
 
     cognitive_rules = []
     memory_path = "data/llm_distilled_cognition.json"
@@ -64,7 +68,9 @@ async def train_local_agents_from_11m_database():
             pattern_name, count, avg_intensity, win_rate = cluster
             print("\n======================================")
             print(f"💀 COGNITIVE BATCH {idx}/{len(compressed_clusters)}")
-            print(f"▶ Vector: {pattern_name} | Events Analyzed: {count:,} | True Win Rate: {win_rate:.2%}")
+            print(
+                f"▶ Vector: {pattern_name} | Events Analyzed: {count:,} | True Win Rate: {win_rate:.2%}"
+            )
 
             prompt = (
                 "You are the Sovereign Quantum Engine. I am feeding you the mathematically compressed "
@@ -87,6 +93,7 @@ async def train_local_agents_from_11m_database():
             time.sleep(1)
 
     print("\n✅✅✅ 11M-ROW EXPERT LLM FUNNEL TRAINING COMPLETE ✅✅✅")
+
 
 if __name__ == "__main__":
     asyncio.run(train_local_agents_from_11m_database())

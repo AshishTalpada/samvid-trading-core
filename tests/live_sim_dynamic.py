@@ -157,7 +157,7 @@ async def run_iq_simulation() -> None:
                 # Stage C: Agent D Memory Gate (The Wisdom Check)
                 # Consult the 500k-trade matrix
                 if cycle % 50 == 0:
-                     logger.info(f"DEBUG: Checking memory for {sig['symbol']}")
+                    logger.info(f"DEBUG: Checking memory for {sig['symbol']}")
                 knowledge = brain.live_learner.get_win_rate(sig["pattern"].name, market.regime)
                 if knowledge < 0.58:  # Reject if our 500k memory says it's < 58% win rate
                     stats["memory_rejections"] += 1
@@ -203,9 +203,9 @@ async def run_iq_simulation() -> None:
         print(f"System Selectivity: {100 - acceptance_rate:.2f}% (Higher = More Disciplined)")
         print("=" * 50 + "\n")
 
-
     except Exception as e:
         import traceback
+
         logger.error(f"🔥 SIMULATION CRASHED: {e}")
         print(traceback.format_exc())
         sys.exit(1)

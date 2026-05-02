@@ -13,11 +13,15 @@ print("▶ Target: ChromaDB (Local Deep Memory)")
 DB_DIR = "data/chroma_db"
 COLLECTION_NAME = "swarm_memory"
 
+
 def init_chroma():
     os.makedirs(DB_DIR, exist_ok=True)
     # Instantiate persistent client
-    client = chromadb.PersistentClient(path=DB_DIR, settings=Settings(allow_reset=True, anonymized_telemetry=False))
+    client = chromadb.PersistentClient(
+        path=DB_DIR, settings=Settings(allow_reset=True, anonymized_telemetry=False)
+    )
     return client.get_or_create_collection(COLLECTION_NAME)
+
 
 def forge_11B_vectors():
     collection = init_chroma()
@@ -25,7 +29,7 @@ def forge_11B_vectors():
     # 11 Billion is immense. We batch process it in massive Numpy arrays.
     # Each 'Epoch' processes 1 Million mathematical vectors. We need 11,000 Epochs.
     TARGET_TOTAL = 11_000_000_000
-    BATCH_SIZE = 100_000 # 100k per chunk for memory safety
+    BATCH_SIZE = 100_000  # 100k per chunk for memory safety
 
     try:
         current_count = int(collection.count())
@@ -36,7 +40,13 @@ def forge_11B_vectors():
     print(f"▶ Generating {(TARGET_TOTAL - current_count):,} missing vectors computationally.")
 
     # Mathematical Regimes for the 11B Expansion
-    regimes = ["HFT_SPOOF", "LIQUIDITY_VOID", "INSTITUTIONAL_ICEBERG", "RETAIL_TRAP", "GAMMA_SQUEEZE"]
+    regimes = [
+        "HFT_SPOOF",
+        "LIQUIDITY_VOID",
+        "INSTITUTIONAL_ICEBERG",
+        "RETAIL_TRAP",
+        "GAMMA_SQUEEZE",
+    ]
     biases = ["BULLISH", "BEARISH", "NEUTRAL"]
 
     try:
@@ -60,26 +70,26 @@ def forge_11B_vectors():
                 conf = round(np.random.uniform(0.1, 1.0), 3)
 
                 # Synthetic vector narrative
-                doc = (f"Micro-Structure Detected. Regime: {regime}. Volatility: {volatility_array[i]:.2f}. "
-                       f"Order Book Intensity: {intensity_array[i]}. Bias leans {bias} with {conf} conviction.")
+                doc = (
+                    f"Micro-Structure Detected. Regime: {regime}. Volatility: {volatility_array[i]:.2f}. "
+                    f"Order Book Intensity: {intensity_array[i]}. Bias leans {bias} with {conf} conviction."
+                )
 
                 docs.append(doc)
-                metadatas.append({
-                    "symbol": "OMNI_SYNTH",
-                    "bias": bias,
-                    "confidence": conf,
-                    "regime": regime,
-                    "timestamp": "2026-SYNTH-FORGE"
-                })
+                metadatas.append(
+                    {
+                        "symbol": "OMNI_SYNTH",
+                        "bias": bias,
+                        "confidence": conf,
+                        "regime": regime,
+                        "timestamp": "2026-SYNTH-FORGE",
+                    }
+                )
                 ids.append(f"forge_11B_{global_idx}")
 
             # Upsert into ChromaDB
             # This directly maps the generated logic into the exact space the LLM queries during live trades.
-            collection.upsert(
-                documents=docs,
-                metadatas=metadatas,
-                ids=ids
-            )
+            collection.upsert(documents=docs, metadatas=metadatas, ids=ids)
 
             pbar.update(BATCH_SIZE)
 
@@ -90,6 +100,7 @@ def forge_11B_vectors():
         print("\n🛑 FORGE PAUSED. Progress safely preserved in ChromaDB.")
 
     print(f"\n✅ FORGE SHUTDOWN. Database now holds {collection.count():,} high-fidelity vectors.")
+
 
 if __name__ == "__main__":
     forge_11B_vectors()
