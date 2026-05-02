@@ -18,13 +18,16 @@ def test_fix():
 
     # Simulate YFinance DataFrame (TitleCase, DatetimeIndex)
     dates = pd.date_range("2026-03-23", periods=5, freq="h")
-    df = pd.DataFrame({
-        "Open": [100.0] * 5,
-        "High": [101.0] * 5,
-        "Low": [99.0] * 5,
-        "Close": [100.5] * 5,
-        "Volume": [1000] * 5
-    }, index=dates)
+    df = pd.DataFrame(
+        {
+            "Open": [100.0] * 5,
+            "High": [101.0] * 5,
+            "Low": [99.0] * 5,
+            "Close": [100.5] * 5,
+            "Volume": [1000] * 5,
+        },
+        index=dates,
+    )
 
     conn = sqlite3.connect("test_trading.db")
     cursor = conn.cursor()
@@ -47,6 +50,7 @@ def test_fix():
     finally:
         conn.close()
         # Path("test_trading.db").unlink()
+
 
 if __name__ == "__main__":
     test_fix()

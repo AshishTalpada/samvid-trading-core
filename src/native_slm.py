@@ -160,3 +160,30 @@ class NativeSLM:
             self.model = None
             self._available = False
             logger.info("Native SLM unloaded from VRAM.")
+
+
+if __name__ == "__main__":
+    # Test script to give her 'first breath'
+    import asyncio
+
+    async def main():
+        logging.basicConfig(level=logging.INFO)
+        slm = NativeSLM()
+        if slm.is_available:
+            print("\n--- Testing Native SLM Inference ---")
+            dummy_context = {
+                "symbol": "EURUSD",
+                "regime": "Trending",
+                "dhatu_state": "Vriddhi",
+                "pattern": "Breakout",
+                "catalyst_score": 0.85,
+                "belief": 0.9,
+                "side": "long",
+            }
+            result = await slm.evaluate_proposal(dummy_context)
+            print(f"Result: {result}")
+            await slm.close()
+        else:
+            print("Native SLM failed to initialize.")
+
+    asyncio.run(main())

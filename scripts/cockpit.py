@@ -40,6 +40,7 @@ from vault import Vault  # pyre-ignore[21]
 # --- CONFIG ---
 DB_PATH = Path("data/trading.db")
 
+
 class Cockpit:
     def __init__(self):
         self.console = Console()
@@ -54,7 +55,7 @@ class Cockpit:
                 with open(self.log_file, "r", encoding="utf-8") as f:
                     lines = f.readlines()
                     self.log_buffer.clear()
-                    for line in list(lines)[-20:]: # type: ignore
+                    for line in list(lines)[-20:]:  # type: ignore
                         self.log_buffer.append(line.strip())
             except Exception:
                 pass
@@ -68,7 +69,7 @@ class Cockpit:
             "win_rate": 0.0,
             "active_positions": 0,
             "ohlcv_count": 0,
-            "last_signal": "None"
+            "last_signal": "None",
         }
         try:
             if DB_PATH.exists():
@@ -79,19 +80,21 @@ class Cockpit:
                 cursor.execute("SELECT name FROM sqlite_master WHERE type='table'")
                 tables = [t[0] for t in cursor.fetchall()]
 
-                if 'trades' in tables:
+                if "trades" in tables:
                     cursor.execute("SELECT COUNT(*) FROM trades")
                     stats["total_trades"] = cursor.fetchone()[0]
                     cursor.execute("SELECT COUNT(*) FROM trades WHERE outcome = 'OPEN'")
                     stats["active_positions"] = cursor.fetchone()[0]
 
-                if 'signals' in tables:
-                    cursor.execute("SELECT instrument, pattern, timestamp FROM signals ORDER BY timestamp DESC LIMIT 1")
+                if "signals" in tables:
+                    cursor.execute(
+                        "SELECT instrument, pattern, timestamp FROM signals ORDER BY timestamp DESC LIMIT 1"
+                    )
                     row = cursor.fetchone()
                     if row:
                         stats["last_signal"] = f"{row[0]} ({row[1]}) @ {row[2][-8:]}"
 
-                if 'ohlcv' in tables:
+                if "ohlcv" in tables:
                     cursor.execute("SELECT COUNT(*) FROM ohlcv WHERE timeframe = '1m'")
                     stats["ohlcv_count"] = cursor.fetchone()[0]
 
@@ -107,20 +110,11 @@ class Cockpit:
             Layout(name="header", size=3),
             Layout(name="main"),
             Layout(name="logs", size=12),
-            Layout(name="footer", size=3)
+            Layout(name="footer", size=3),
         )
-        layout["main"].split_row(
-            Layout(name="left"),
-            Layout(name="right")
-        )
-        layout["left"].split_column(
-            Layout(name="broker_status"),
-            Layout(name="market_data")
-        )
-        layout["right"].split_column(
-            Layout(name="positions"),
-            Layout(name="agents")
-        )
+        layout["main"].split_row(Layout(name="left"), Layout(name="right"))
+        layout["left"].split_column(Layout(name="broker_status"), Layout(name="market_data"))
+        layout["right"].split_column(Layout(name="positions"), Layout(name="agents"))
         return layout
 
     def generate_header(self) -> Panel:
@@ -135,7 +129,7 @@ class Cockpit:
         grid.add_row(
             Text("🚀 TradingSystem v1.0-beta", style="bold magenta"),
             Text("ULTIMATE COCKPIT", style="bold white"),
-            Text(f"Uptime: {uptime_str}", style="dim cyan")
+            Text(f"Uptime: {uptime_str}", style="dim cyan"),
         )
         return Panel(grid, style="white on dark_blue", box=box.DOUBLE)
 
@@ -145,7 +139,9 @@ class Cockpit:
         table.add_column("Status", style="bold")
         table.add_column("Account", style="green")
 
-        table.add_row("Interactive Brokers", "[green]CONNECTED", f"${Vault.get('PAPER_EQUITY', '100,000')}")
+        table.add_row(
+            "Interactive Brokers", "[green]CONNECTED", f"${Vault.get('PAPER_EQUITY', '100,000')}"
+        )
         table.add_row("MetaTrader 5", "[green]CONNECTED", "$50,000")
         table.add_row("Finnhub API", "[yellow]ACTIVE", "Latency: 120ms")
 
@@ -159,7 +155,9 @@ class Cockpit:
         table.add_row("VIX Index", "18.42 (-2.1%)")
         table.add_row("SPY Price", "$520.12 (+0.8%)")
         table.add_row("OHLCV Buffer", f"{stats['ohlcv_count']} / 20 bars")
-        table.add_row("Status", "[green]SCANNING" if stats['ohlcv_count'] >= 20 else "[yellow]WARMING UP")
+        table.add_row(
+            "Status", "[green]SCANNING" if stats["ohlcv_count"] >= 20 else "[yellow]WARMING UP"
+        )
 
         return Panel(table, title="[bold yellow]Market Environment", border_style="yellow")
 
@@ -174,14 +172,18 @@ class Cockpit:
         else:
             table.add_row("AAPL", "100", "[green]+$450.00")
 
-        return Panel(table, title=f"[bold green]Active Positions ({stats['active_positions']})", border_style="green")
+        return Panel(
+            table,
+            title=f"[bold green]Active Positions ({stats['active_positions']})",
+            border_style="green",
+        )
 
     def generate_agents(self, stats) -> Panel:
         table = Table(box=box.SIMPLE, expand=True)
         table.add_column("Agent", style="cyan")
         table.add_column("Activity", style="dim")
 
-        ohlcv_pct = min(100, int(stats['ohlcv_count'] / 20 * 100))
+        ohlcv_pct = min(100, int(stats["ohlcv_count"] / 20 * 100))
         table.add_row("Agent A", f"Buffer: {ohlcv_pct}% filled")
         table.add_row("Agent B", f"Last Signal: {stats['last_signal']}")
         table.add_row("Agent C", "Risk Management ACTIVE")
@@ -225,6 +227,7 @@ class Cockpit:
                 layout["logs"].update(self.generate_log_panel())
                 layout["footer"].update(self.generate_footer())
                 time.sleep(1)
+
 
 if __name__ == "__main__":
     cockpit = Cockpit()

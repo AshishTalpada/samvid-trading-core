@@ -1,4 +1,3 @@
-
 path = "src/main.py"
 with open(path, "rb") as f:
     data = f.read()
