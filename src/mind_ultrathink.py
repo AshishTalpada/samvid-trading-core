@@ -3,6 +3,8 @@ import logging
 import os
 import time
 
+_LAST_LATENCY_SPIKE = 0.0
+
 
 class LatencyWatchdog:
     """Ported Claude Pattern: slowOperations.ts."""
@@ -23,20 +25,10 @@ class LatencyWatchdog:
                 f"PERFORMANCE_SMELL: {self.description} took {duration:.2f}ms (Threshold: {self.threshold}ms)"
             )
             # Set a global flag that the system is lagging
-            Mind_Ultrathink.LAST_LATENCY_SPIKE = duration
+            global _LAST_LATENCY_SPIKE
+            _LAST_LATENCY_SPIKE = duration
 
 
-class Mind_Ultrathink:
-    LAST_LATENCY_SPIKE = 0.0
-
-    def _adjust_effort_for_latency(self, current_effort: str) -> str:
-        """Dynamically lowers target effort if the system is SMELLING slow."""
-        if self.LAST_LATENCY_SPIKE > 50.0:  # If we spiked > 50ms
-            logger.info(
-                "Mind_Ultrathink: STABILIZING... Shifting to LOW effort due to latency smell."
-            )
-            return "low"
-        return current_effort
 
 
 import re
@@ -151,6 +143,15 @@ class MindUltrathink:
     A 500+ line local intelligence system with recursive sub-agent simulation.
     """
 
+    def _adjust_effort_for_latency(self, current_effort: str) -> str:
+        """Dynamically lowers target effort if the system is SMELLING slow."""
+        if _LAST_LATENCY_SPIKE > 50.0:
+            logger.info(
+                "MindUltrathink: STABILIZING... Shifting to LOW effort due to latency smell."
+            )
+            return "low"
+        return current_effort
+
     def __init__(self, bridge: MindBridge) -> None:
         self.bridge = bridge
         self.is_running = False
@@ -232,7 +233,10 @@ class MindUltrathink:
         return "\n".join(sniped) if sniped else context
 
     def _get_locked_trade_ids(self) -> set:
-        return self.STATE_LOCK.locked_ids
+        """Returns IDs of trades currently under cognitive lock."""
+        if hasattr(self, "STATE_LOCK") and self.STATE_LOCK:
+            return getattr(self.STATE_LOCK, "locked_ids", set())
+        return set()
 
     def _distill_wisdom_index(self, results: list[dict] = None):
         r"""
@@ -243,7 +247,8 @@ class MindUltrathink:
         if results:
             open_trades = [r for r in results if r.get("status") == "OPEN"]
             for t in open_trades:
-                self.STATE_LOCK.lock_setup(t["id"])
+                if hasattr(self, "STATE_LOCK") and self.STATE_LOCK:
+                    self.STATE_LOCK.lock_setup(t["id"])
 
         if len(self.reasoning_history) < 5:
             return
@@ -268,7 +273,7 @@ class MindUltrathink:
             with open(path, "w") as f:
                 f.write(f"# {topic} WISDOM\n" + "\n".join(entries[-10:]))
 
-        logger.info(f"Mind_Ultrathink: WISDOM DISTILLED. Topic files updated in {wisdom_dir}.")
+        logger.info(f"MindUltrathink: WISDOM DISTILLED. Topic files updated in {wisdom_dir}.")
 
     def _load_relevant_wisdom(self, current_vix: float) -> str:
         """Surgically loads only the wisdom relevant to the current regime."""
@@ -312,7 +317,7 @@ class MindUltrathink:
 
     async def start(self) -> None:
         self.is_running = True
-        logger.info("Mind_Ultrathink: OLLAMA-FREE Intelligence active.")
+        logger.info("MindUltrathink: OLLAMA-FREE Intelligence active.")
 
     async def stop(self) -> None:
         self.is_running = False
@@ -380,7 +385,9 @@ class MindUltrathink:
         # 0. SCOPE DISCIPLINE (Claude-Code Rule #201)
         # Strip away indicator bloat to focus on load-bearing signals
         ctx = self._apply_scope_discipline(task.lower())
-        logger.info(f"Mind_Ultrathink: Initiating Scoped Vetting [Signals: {len(ctx.split())}]")
+
+        with LatencyWatchdog("Ultrathink_Vetting", threshold_ms=100.0):
+            logger.info(f"MindUltrathink: Initiating Scoped Vetting [Signals: {len(ctx.split())}]")
 
         # 2. DATA EXTRACTION
         vix = 20.0
@@ -473,10 +480,10 @@ class MindUltrathink:
         # Apply Meta-Cognitive Fixes
         if potential_greed > 0.5:
             sov_score -= 0.4
-            logger.warning("Mind_Ultrathink: GREED BIAS DETECTED. Applying cognitive corrective.")
+            logger.warning("MindUltrathink: GREED BIAS DETECTED. Applying cognitive corrective.")
         if potential_fear > 0.5:
             sov_score += 0.2
-            logger.info("Mind_Ultrathink: FEAR BIAS DETECTED. Applying structural bravery.")
+            logger.info("MindUltrathink: FEAR BIAS DETECTED. Applying structural bravery.")
 
         # FINAL DETERMINATION
         self_exit = (
