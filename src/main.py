@@ -518,7 +518,7 @@ class TradingSystem:
                         detect_types=sqlite3.PARSE_DECLTYPES,
                         check_same_thread=False,
                     )
-                    conn.execute("PRAGMA busy_timeout = 60000;")  # 60s SQLite-level busy wait
+                    conn.execute("PRAGMA busy_timeout = 5000;")  # 5s SQLite-level busy wait
                     conn.execute("PRAGMA journal_mode=WAL;")
                     conn.execute("PRAGMA synchronous=NORMAL;")
                     conn.execute(
@@ -1414,6 +1414,7 @@ class TradingSystem:
                                 "INSERT OR REPLACE INTO system_state (key, value) VALUES (?, ?)",
                                 ("system_status", "running"),
                             )
+                            db.commit()
                             cursor.close()
                             break  # Success
                         except sqlite3.OperationalError as e:
@@ -1423,6 +1424,7 @@ class TradingSystem:
                                     f"🏛️ Sovereign: Database locked at startup pulse. Jittering {wait_time}s... (Attempt {attempt + 1}/10)"
                                 )
                                 await asyncio.sleep(wait_time)
+                            else:
                                 raise
                 self.is_running = True
             # Keep running
@@ -1611,6 +1613,7 @@ class TradingSystem:
 
     async def shutdown(self) -> None:
         """Graceful shutdown sequence"""
+        self.is_running = False
         logger.info("\n" + "=" * 60)
         logger.info("Trading System - Shutting Down")
         logger.info("=" * 60)
@@ -1651,39 +1654,62 @@ class TradingSystem:
             except Exception as tg_err:
                 logger.debug(f"Shutdown: Telegram summary skipped: {tg_err}")
 
-            # 3. STOP COMPONENTS
+            # 3. STOP COMPONENTS (Sequential for User Visibility)
             if self.trading_brain:
                 try:
                     logger.info("Stopping Trading Brain...")
                     await self.trading_brain.stop()
+                    logger.info("✓ Trading Brain stopped.")
                 except Exception as e:
                     logger.error(f"Shutdown: Brain stop failed: {e}")
 
-            if self.bus:
+            if self.hft_streamer:
                 try:
-                    await self.bus.stop()
+                    logger.info("Stopping HFT Streamer...")
+                    await self.hft_streamer.stop()
+                    logger.info("✓ HFT Streamer stopped.")
                 except Exception as e:
-                    logger.error(f"Shutdown: Bus stop failed: {e}")
-
-            if self.dms:
-                try:
-                    logger.info("Stopping DMS...")
-                    await self.dms.stop()
-                except Exception as e:
-                    logger.error(f"Shutdown: DMS stop failed: {e}")
+                    logger.error(f"Shutdown: HFT Streamer stop failed: {e}")
 
             if self.data_pipeline:
                 try:
                     logger.info("Stopping Data Pipeline...")
                     await self.data_pipeline.stop()
+                    logger.info("✓ Data Pipeline stopped.")
                 except Exception as e:
                     logger.error(f"Shutdown: Data Pipeline stop failed: {e}")
 
+            if self.dms:
+                try:
+                    logger.info("Stopping DMS...")
+                    await self.dms.stop()
+                    logger.info("✓ DMS stopped.")
+                except Exception as e:
+                    logger.error(f"Shutdown: DMS stop failed: {e}")
+
             if self.api_server:
                 try:
+                    logger.info("Stopping API Server...")
                     await self.api_server.stop()
+                    logger.info("✓ API Server stopped.")
                 except Exception as e:
                     logger.error(f"Shutdown: API Server stop failed: {e}")
+
+            if self.native_slm:
+                try:
+                    logger.info("Unloading Native SLM...")
+                    await self.native_slm.close()
+                    logger.info("✓ Native SLM unloaded.")
+                except Exception as e:
+                    logger.error(f"Shutdown: Native SLM close failed: {e}")
+
+            if self.bus:
+                try:
+                    logger.info("Stopping Shared Intelligence Bus...")
+                    await self.bus.stop()
+                    logger.info("✓ Bus stopped.")
+                except Exception as e:
+                    logger.error(f"Shutdown: Bus stop failed: {e}")
 
             # 4. CANCEL BACKGROUND TASKS
             to_cancel = []
@@ -1694,11 +1720,14 @@ class TradingSystem:
                     to_cancel.append(task)
             if to_cancel:
                 try:
-                    await asyncio.wait_for(
-                        asyncio.gather(*to_cancel, return_exceptions=True), timeout=10.0
+                    # Shield task cancellation from outer timeouts
+                    await asyncio.shield(
+                        asyncio.wait_for(
+                            asyncio.gather(*to_cancel, return_exceptions=True), timeout=10.0
+                        )
                     )
                 except asyncio.TimeoutError:
-                    logger.warning("Shutdown: Task cancellation timed out after 10s. Forcing exit.")
+                    logger.warning("Shutdown: Task cancellation timed out after 10s.")
             self.background_tasks.clear()
 
             if (
@@ -1712,14 +1741,14 @@ class TradingSystem:
             if self.ibkr_client and self.ibkr_client.isConnected():
                 try:
                     logger.info("Disconnecting IBKR...")
-                    await asyncio.to_thread(self.ibkr_client.disconnect)
+                    await asyncio.wait_for(asyncio.to_thread(self.ibkr_client.disconnect), timeout=5.0)
                 except Exception as e:
                     logger.debug(f"Non-critical IBKR disconnect error: {e}")
 
             if self.mt5_client:
                 try:
                     logger.info("Disconnecting MT5...")
-                    await asyncio.to_thread(self.mt5_client.shutdown)
+                    await asyncio.wait_for(asyncio.to_thread(self.mt5_client.shutdown), timeout=5.0)
                 except Exception as e:
                     logger.debug(f"Non-critical MT5 shutdown error: {e}")
 
@@ -2036,7 +2065,8 @@ async def main() -> None:
         logger.info("✅ Matrix fully synchronized. System operational.")
         while True:
             # Frequent wakeups are required on Windows to process KeyboardInterrupts
-            await asyncio.sleep(1.0)
+            # Increased frequency to 0.2s for higher responsiveness to Ctrl+C.
+            await asyncio.sleep(0.2)
 
     except (KeyboardInterrupt, asyncio.CancelledError):
         logger.info("\nShutdown signal received (Sovereign Request)")
@@ -2044,10 +2074,10 @@ async def main() -> None:
         logger.error(f"FATAL MATRIX FAILURE: {e}", exc_info=True)
     finally:
         try:
-            await asyncio.wait_for(s.shutdown(), timeout=20.0)
+            # Increase timeout and shield from secondary Ctrl+C
+            await asyncio.shield(asyncio.wait_for(s.shutdown(), timeout=30.0))
         except asyncio.TimeoutError:
             logger.critical("🚨 SHUTDOWN HANG: Forceful Termination required.")
-            # Immediate exit if graceful shutdown hangs
             os._exit(1)
         except Exception as e:
             logger.error(f"Shutdown error: {e}")
@@ -2139,9 +2169,9 @@ if __name__ == "__main__":
                 for task in pending:
                     task.cancel()
 
-                # Drain the loop with a 5s hard timeout
+                # Drain the loop with a 10s hard timeout
                 try:
-                    loop.run_until_complete(asyncio.wait(pending, timeout=5.0))
+                    loop.run_until_complete(asyncio.wait(pending, timeout=10.0))
                 except (KeyboardInterrupt, asyncio.TimeoutError):
                     logger.warning(
                         "Shutdown: Timeout or double Ctrl+C detected. Force closing loop."
