@@ -155,6 +155,10 @@ class IBKRStreamer:
             for host in ["localhost", "127.0.0.1", "::1"]:
                 try:
                     await self.ib.connectAsync(host, self.port, clientId=self.client_id)
+
+                    # Deduplicated event registration
+                    self.ib.errorEvent.clear()
+                    self.ib.disconnectedEvent.clear()
                     self.ib.errorEvent += self._on_error
                     self.ib.disconnectedEvent += self._on_disconnect
 
