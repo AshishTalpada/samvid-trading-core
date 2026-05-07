@@ -3665,9 +3665,11 @@ class TradingBrain:
                 now_iso = datetime.now(timezone.utc).isoformat()
                 new_convictions = {}
 
+                logger.debug(f"Brain: Starting Conviction Sync for {now_iso}...")
                 async with TradingCoordinator.get_neural_semaphore():
                     # 1. Oracle Poll
                     if self.dhatu_oracle:
+                        logger.debug("Brain: Polling Dhatu_Oracle...")
                         try:
                             res = await asyncio.wait_for(
                                 asyncio.to_thread(self.dhatu_oracle.evaluate_proposal, global_ctx),
@@ -3675,6 +3677,7 @@ class TradingBrain:
                             )
                             res["timestamp"] = now_iso
                             new_convictions["Dhatu_Oracle"] = res
+                            logger.debug("Brain: Dhatu_Oracle synchronized.")
                         except (asyncio.TimeoutError, Exception) as e:
                             logger.warning(
                                 f"Brain: Dhatu_Oracle sync latency/error: {type(e).__name__}"
@@ -3682,39 +3685,43 @@ class TradingBrain:
 
                     # 2. Swarm Poll
                     if self.swarm_predictor:
+                        logger.debug("Brain: Polling Swarm_Predictor...")
                         try:
                             res = await asyncio.wait_for(
                                 self.swarm_predictor.evaluate_proposal(global_ctx), timeout=60.0
                             )
                             res["timestamp"] = now_iso
                             new_convictions["Swarm_Predictor"] = res
+                            logger.debug("Brain: Swarm_Predictor synchronized.")
                         except (asyncio.TimeoutError, Exception) as e:
                             import traceback
-
                             logger.warning(
                                 f"Brain: Swarm_Predictor sync latency/error: {type(e).__name__}\n{traceback.format_exc()}"
                             )
 
                     # 3. Ultrathink Poll
                     if self.mind_ultrathink:
+                        logger.debug("Brain: Polling Mind_Ultrathink...")
                         try:
                             res = await asyncio.wait_for(
                                 self.mind_ultrathink.evaluate_proposal(global_ctx), timeout=20.0
                             )
                             res["timestamp"] = now_iso
                             new_convictions["Mind_Ultrathink"] = res
+                            logger.debug("Brain: Mind_Ultrathink synchronized.")
                         except (asyncio.TimeoutError, Exception) as e:
                             logger.warning(
                                 f"Brain: Mind_Ultrathink sync latency/error: {type(e).__name__}"
                             )
 
                 # ATOMIC UPDATE: Merge results into state in one go to prevent mid-cycle hallucinations
-                self.conviction_state.update(new_convictions)
-                logger.debug(
-                    f"🧠 Brain: Global Conviction State synchronized ({len(new_convictions)} agents)."
-                )
-
-                logger.debug("🧠 Brain: Global Conviction State synchronized.")
+                if new_convictions:
+                    self.conviction_state.update(new_convictions)
+                    logger.info(
+                        f"🧠 TradingBrain: Global Conviction State synchronized ({len(new_convictions)} agents)."
+                    )
+                else:
+                    logger.warning("🧠 TradingBrain: Conviction sync cycle finished with ZERO agents.")
 
             except Exception as e:
                 logger.error(f"Conviction Sync Error: {e}")
