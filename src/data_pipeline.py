@@ -1,5 +1,7 @@
 import asyncio
 import logging
+import os
+import random
 import sqlite3
 import time
 from datetime import datetime, timedelta, timezone
@@ -157,6 +159,8 @@ class DataPipeline:
         # One persistent aiohttp session for all HTTP calls, instead of creating
         # hundreds of short-lived sessions that leak TCP connections and memory.
         self._http_session: Optional[aiohttp.ClientSession] = None
+        self._active_db_tasks = 0
+        self._active_tasks_lock = asyncio.Lock()
 
         try:
             self.news_memory = ChromaDeepMemory(collection_name="market_news_v8")
@@ -178,11 +182,11 @@ class DataPipeline:
         """Get a database connection with WAL mode enabled for concurrency."""
         conn = sqlite3.connect(
             self.db_path,
-            timeout=60.0,  # Increased from 30s to 60s
+            timeout=5.0,  # Reduced from 60s to 5s for faster shutdown response
             check_same_thread=False,
             isolation_level=None,
         )
-        conn.execute("PRAGMA busy_timeout = 60000;")
+        conn.execute("PRAGMA busy_timeout = 5000;")
         conn.execute("PRAGMA journal_mode=WAL;")
         conn.execute("PRAGMA synchronous=NORMAL;")
         return conn
@@ -786,6 +790,8 @@ class DataPipeline:
                         break  # Success
                     except sqlite3.OperationalError as e:
                         if "locked" in str(e).lower() and attempt < 9:
+                            if not self.is_running:
+                                return
                             time.sleep(1.0 + attempt * 0.5)
                             continue
                         raise
@@ -928,11 +934,22 @@ class DataPipeline:
             return
 
         async with self._db_lock:
-            # We move the actual heavy lifting to a thread to not block the loop
-            await asyncio.to_thread(self._sync_store_ohlcv, symbol, df, tf)
+            # Track in-flight threaded tasks to ensure clean shutdown
+            async with self._active_tasks_lock:
+                self._active_db_tasks += 1
+
+            try:
+                # We move the actual heavy lifting to a thread to not block the loop
+                await asyncio.to_thread(self._sync_store_ohlcv, symbol, df, tf)
+            finally:
+                async with self._active_tasks_lock:
+                    self._active_db_tasks -= 1
 
     def _sync_store_ohlcv(self, symbol: str, df: "pl.DataFrame", tf: str = "1m") -> None:
         """Synchronous batch storage: writes OHLCV data to SQLite and QuestDB."""
+        if not self.is_running:
+            return
+
         conn = self._get_db_connection()
         try:
             if df is None:
@@ -980,6 +997,9 @@ class DataPipeline:
                 return
 
             for attempt in range(10):  # 10 retries
+                if not self.is_running:
+                    break
+
                 try:
                     cursor = conn.cursor()
                     cursor.executemany(
@@ -997,14 +1017,26 @@ class DataPipeline:
                     return  # Success
                 except sqlite3.OperationalError as e:
                     if "locked" in str(e).lower() and attempt < 9:
-                        # Exponential backoff with jitter
-                        import random
+                        if not self.is_running:
+                            logger.info(f"DataPipeline: Shutdown detected for {symbol}. Aborting retry.")
+                            return
 
+                        # Exponential backoff with jitter
                         wait_time = 0.5 * (2**attempt) + random.uniform(0.1, 0.5)
-                        logger.warning(
+
+                        # Reduce log noise: Only warn on 4th+ failure
+                        log_func = logger.warning if attempt >= 3 else logger.debug
+                        log_func(
                             f"DataPipeline: Database locked for {symbol}. Jittering {wait_time:.2f}s... (Attempt {attempt + 1}/10)"
                         )
-                        time.sleep(wait_time)
+
+                        # Responsive sleep: check is_running every 100ms
+                        sleep_start = time.time()
+                        while time.time() - sleep_start < wait_time:
+                            if not self.is_running:
+                                logger.info(f"DataPipeline: Shutdown detected during jitter for {symbol}. Aborting.")
+                                return
+                            time.sleep(0.1)
                     else:
                         raise
         except Exception as e:
@@ -1424,6 +1456,15 @@ class DataPipeline:
                 logger.warning("DataPipeline: Some tasks failed to cancel within 5s.")
             except Exception as e:
                 logger.error(f"Error during parallel task cancellation: {e}")
+
+        # Wait for all in-flight database threads to complete
+        wait_start = time.time()
+        while self._active_db_tasks > 0 and (time.time() - wait_start) < 10.0:
+            logger.info(f"DataPipeline: Waiting for {self._active_db_tasks} storage threads to finish...")
+            await asyncio.sleep(0.5)
+
+        if self._active_db_tasks > 0:
+            logger.warning(f"DataPipeline: {self._active_db_tasks} storage threads still active after 10s timeout.")
 
         # Cancel any lingering enrichment tasks
 
