@@ -74,9 +74,10 @@ class DecisionEngine:
 
         # DECISION INTEGRITY CHECK
         is_probe = context.get("is_probe", False)
-        if len(agent_outputs) != len(self.required_agents) and not is_probe:
+        # Relaxed: allow extra agents (like Native_SLM) but enforce mandatory ones.
+        if len(agent_outputs) < len(self.required_agents) and not is_probe:
             return await self._reject(
-                f"Quorum Violation: Expected {len(self.required_agents)} agents, got {len(agent_outputs)}."
+                f"Quorum Violation: Expected at least {len(self.required_agents)} agents, got {len(agent_outputs)}."
             )
 
         # FAIL-SAFE HANDLING & VALIDATION

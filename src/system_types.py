@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from enum import Enum
 from typing import Any
 
@@ -41,7 +41,7 @@ class Position:
     initial_stop: float = 0.0
     stop_loss: float = 0.0
     take_profit: float = 0.0
-    target_exit_time: datetime = field(default_factory=lambda: datetime.now() + timedelta(days=5))
+    target_exit_time: datetime = field(default_factory=lambda: datetime.now(timezone.utc) + timedelta(days=5))
     trade_id: str = ""
     account_type: str = "ibkr"
     account_id: str = "UNKNOWN"
