@@ -32,9 +32,12 @@ def _try_load_openbb():
         return _OPENBB_AVAILABLE
     try:
         import importlib
-
-        openbb = importlib.import_module("openbb")
-        obb = openbb.obb
+        import warnings
+        # Suppress Pydantic warnings about non-Python types in OpenBB
+        with warnings.catch_warnings():
+            warnings.filterwarnings("ignore", category=UserWarning, module="pydantic.*")
+            openbb = importlib.import_module("openbb")
+            obb = openbb.obb
         _OPENBB_AVAILABLE = True
         logger.info("✓ OpenBB SDK loaded (deferred)")
     except ImportError:
