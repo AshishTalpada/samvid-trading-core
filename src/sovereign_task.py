@@ -225,6 +225,30 @@ class TaskManager:
         except Exception as e:
             logger.error(f"TaskManager: Registry save failed: {e}")
 
+    def purge_dormant_tasks(self, max_age_minutes: int = 15):
+        """
+        Sovereign Garbage Collection: Clears finished tasks that have exceeded their
+        allotted memory TTL. This prevents the active task registry from bloating.
+        """
+        now = time.time()
+        max_age_sec = max_age_minutes * 60
+        to_remove = []
+
+        for tid, task in self.tasks.items():
+            # Only purge finished tasks for 'dormancy'
+            if task.status in [TaskStatus.COMPLETED, TaskStatus.FAILED, TaskStatus.KILLED]:
+                # If end_time is missing (shouldn't happen), use start_time as fallback
+                ref_time = task.end_time or task.start_time
+                if (now - ref_time) > max_age_sec:
+                    to_remove.append(tid)
+
+        for tid in to_remove:
+            self._delete_task_reference(tid)
+
+        if to_remove:
+            logger.info(f"TaskManager: Purged {len(to_remove)} dormant tasks.")
+            self.save_registry(allow_empty=True)
+
     def purge_completed(self, max_age_days: int = 7):
         """Clear old finished and stale tasks to prevent memory leaks."""
         now = time.time()

@@ -169,7 +169,7 @@ class ApexExoskeleton:
             )
 
             if hasattr(self.brain, "bus"):
-                self.brain.bus.publish(
+                await self.brain.bus.publish(
                     "apex.telemetry",
                     {
                         "type": "CORTEX_HIT",
@@ -223,7 +223,7 @@ class ApexExoskeleton:
                     vote["reason"] = f"🛑 IMPERIAL VETO: Internal WR too low ({learned_wr:.2%})"
 
                     if hasattr(self.brain, "bus"):
-                        self.brain.bus.publish(
+                        await self.brain.bus.publish(
                             "apex.telemetry",
                             {
                                 "type": "IMPERIAL_VETO",
@@ -264,12 +264,15 @@ class ApexExoskeleton:
 
         fast_voting_map = {
             "Agent_B": lambda: self.brain.belief_tracker.evaluate_proposal(shared_context),
-            "Agent_C": lambda: self.brain.portfolio_guard.evaluate_proposal(shared_context),
-            "Risk_Guard": lambda: self.brain.correlation_guard.evaluate_proposal(shared_context),
+            "Agent_C": lambda: (
+                self.brain.dms.record_heartbeat("AGENT_C") if (hasattr(self.brain, "dms") and self.brain.dms) else None,
+                self.brain.portfolio_guard.evaluate_proposal(shared_context, "Agent_C")
+            )[1],
+            "Risk_Guard": lambda: self.brain.correlation_guard.evaluate_proposal(shared_context, "Risk_Guard"),
             "Agent_D": poll_agent_d,
-            "Agent_E": lambda: self.brain.correlation_guard.evaluate_proposal(shared_context),
-            "Agent_F": lambda: self.brain.vix_protocol.evaluate_proposal(shared_context),
-            "Agent_G": _poll_syntax_guard,
+            "Agent_E": lambda: self.brain.correlation_guard.evaluate_proposal(shared_context, "Agent_E"),
+            "Agent_F": lambda: self.brain.vix_protocol.evaluate_proposal(shared_context, "Agent_F"),
+            "Agent_G": lambda: self.brain.mind_architect.evaluate_proposal(shared_context),
         }
 
         async def _poll_safe(name, func):
@@ -277,7 +280,9 @@ class ApexExoskeleton:
                 if asyncio.iscoroutinefunction(func):
                     res = await func()
                 else:
+                    # Sync-safe bridge: run in thread pool to prevent blocking the event loop
                     res = await asyncio.to_thread(func)
+                    # Support for sync functions that return coroutine objects (e.g. lambdas)
                     if asyncio.iscoroutine(res) or hasattr(res, "__await__"):
                         res = await res
 
