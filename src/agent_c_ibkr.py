@@ -1126,12 +1126,15 @@ class PositionSizingChain:
             step8_shares = max(1, int(round(min_trade_value / price)))
 
         # Final Position Value Guard (10% max of NAV per trade)
-        max_notional = balance * 0.10
+        # Cap this by the hard dollar limit from RiskInvariants
+        hard_cap = RiskInvariants.MAX_NOTIONAL_PER_ORDER.get(instrument, RiskInvariants.MAX_NOTIONAL_PER_ORDER["DEFAULT"])
+        max_notional = min(balance * 0.10, hard_cap)
+
         if step8_shares > 0 and (step8_shares * price) > max_notional:
             logger.warning(
-                f"Sizer: Capping {instrument} at 10% NAV (${max_notional:,.2f}) because math was too aggressive."
+                f"Sizer: Capping {instrument} at max notional (${max_notional:,.2f}) because math was too aggressive."
             )
-            step8_shares = max(1, int(round(max_notional / price)))
+            step8_shares = max(1, int(max_notional / price))
 
         if step8_shares == 0 and step7_final_risk > (price * 0.5):
             # If the risk budget allows for at least 0.5 shares, we force 1 share

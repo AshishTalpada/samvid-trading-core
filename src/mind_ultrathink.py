@@ -516,11 +516,15 @@ class MindUltrathink:
         shares = context.get("shares", 1) or 1
         total_profit = (context.get("potential_profit", 0) or 0) * shares
 
+        pattern = context.get("pattern")
+        if hasattr(pattern, "to_dict"):
+            pattern = pattern.to_dict()
+
         # Intelligence tasking - MUST BE JSON format for the extraction regexes
         task_prompt = json.dumps(
             {
                 "symbol": symbol,
-                "pattern": context.get("pattern"),
+                "pattern": pattern,
                 "regime": context.get("regime"),
                 "vix": float(context.get("vix", 20.0)),
                 "profit": float(total_profit),

@@ -3,7 +3,7 @@ import logging
 import time
 import uuid
 from datetime import datetime, timezone
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 import numpy as np
 import pandas as pd
@@ -168,6 +168,7 @@ class TradingCoordinator:
                     try:
                         if asyncio.iscoroutinefunction(func):
                             return await func()
+                        # Sync-safe bridge: run in thread pool to prevent blocking the event loop
                         res = await asyncio.to_thread(func)
                         if asyncio.iscoroutine(res) or hasattr(res, "__await__"):
                             return await res
@@ -182,9 +183,11 @@ class TradingCoordinator:
                         }
 
                 async def _poll_neural_safe(name, func):
-                    """Gated Neural Dispatcher with Class-Level Semaphore."""
-                    async with self.get_neural_semaphore():
-                        return await _poll_safe(name, func)
+                    """Gated Neural Dispatcher with Class-Level Semaphore (Selective VRAM Gating)."""
+                    if name == "Native_SLM":
+                        async with self.get_neural_semaphore():
+                            return await _poll_safe(name, func)
+                    return await _poll_safe(name, func)
 
                 proposal_id = str(uuid.uuid4())[:8]
                 if task:
@@ -213,9 +216,7 @@ class TradingCoordinator:
                     self.brain.dms.record_heartbeat("COORDINATOR")
 
                 timestamp = datetime.now(timezone.utc).isoformat()
-                account_value = await self.brain.get_safe_buying_power(
-                    self.brain.active_broker.lower()
-                )
+                account_value = await self.brain.get_safe_buying_power(self.brain.active_broker.lower())
                 pattern = proposal["pattern"]
 
                 alpha_val = proposal.get("lambda", pattern.confidence / 100.0)
@@ -247,12 +248,9 @@ class TradingCoordinator:
                     )
                     if self.brain.active_broker.upper() == "MT5":
                         risk_per_trade = getattr(self.brain, "mt5_risk_per_trade", 10.0)
-                        shares = (
-                            self.brain.mt5_sizer.calculate_lots(
-                                risk_per_trade, pattern.entry, pattern.stop, symbol
-                            )
-                            or 0.0
-                        )
+                        shares = self.brain.mt5_sizer.calculate_lots(
+                            risk_per_trade, pattern.entry, pattern.stop, symbol
+                        ) or 0.0
                         pos_value = shares * 100000.0  # Synthetic estimate for Forex tracking
                     else:
                         sizing = self.brain.ibkr_sizer.calculate(
@@ -601,9 +599,9 @@ class TradingCoordinator:
                             "timestamp": timestamp,
                         }
 
-                async def poll_slm():
-                    """Native SLM: Ultra-low latency inference."""
-                    state = self.brain.conviction_state.get("Native_SLM")
+                async def poll_swarm():
+                    """Swarm Predictor: (SOLUTION 5) Uses Background State with High-Fidelity Fallback."""
+                    state = self.brain.conviction_state.get("Swarm_Predictor")
                     if (
                         state
                         and (
@@ -614,28 +612,35 @@ class TradingCoordinator:
                         return state
 
                     try:
-                        if not hasattr(self.brain, "native_slm") or self.brain.native_slm is None:
-                            raise RuntimeError("NativeSLM not configured")
+                        if self.brain.swarm_predictor is None:
+                            raise RuntimeError("SwarmPredictor not configured")
                         logger.info(
-                            "Coordinator: Background SLM stale. Falling back to Live Memory Inference..."
+                            "Coordinator: Background Swarm stale. Falling back to Live Collective Intelligence..."
                         )
-                        return await self.brain.native_slm.evaluate_proposal(shared_context)
+                        return await self.brain.swarm_predictor.evaluate_proposal(shared_context)
                     except Exception as e:
-                        logger.warning(f"Coordinator: SLM Live Fallback failed: {e}")
+                        logger.warning(f"Coordinator: Swarm Live Fallback failed: {e}")
                         return {
-                            "agent": "Native_SLM",
+                            "agent": "Swarm_Predictor",
                             "vote": "YES",
                             "confidence": 0.5,
-                            "reason": "SLM Offline (Deferred to Quorum)",
+                            "reason": "Swarm Offline (Deferred to Quorum)",
                             "timestamp": timestamp,
                         }
 
-                # STAGE 1: Parallel CPU Quorum
+                # -- QUORUM ASSEMBLY (STRICT UNIQUENESS) --
+                vote_registry: Dict[str, Dict[str, Any]] = {}
+
                 try:
-                    tier1_votes = await self.exoskeleton.run_parallel_tier(shared_context)
-                    dummy_tail = self.exoskeleton.evaluate_dictatorship(tier1_votes, timestamp)
+                    tier1_results = await self.exoskeleton.run_parallel_tier(shared_context)
+                    for res in tier1_results:
+                        if res and "agent" in res:
+                            vote_registry[res["agent"]] = res
+
+                    dummy_tail = self.exoskeleton.evaluate_dictatorship(tier1_results, timestamp)
                     if dummy_tail:
-                        all_votes = [agent_a_out] + tier1_votes + dummy_tail
+                        for res in dummy_tail:
+                            vote_registry[res["agent"]] = res
                 except Exception as exo_err:
                     logger.error(
                         f"Coordinator: Apex Exoskeleton failure, reverting to Imperial Core: {exo_err}"
@@ -663,49 +668,46 @@ class TradingCoordinator:
                         ),
                     }
 
-                    tier1_votes = []
+                    tier1_results = []
                     for name, func in tier1_agents.items():
-                        tier1_votes.append(await _poll_safe(name, func))
+                        res = await _poll_safe(name, func)
+                        vote_registry[name] = res
+                        tier1_results.append(res)
                     dummy_tail = None
 
-                if "all_votes" not in locals():
-                    all_votes = [agent_a_out] + tier1_votes
+                # Agent A is mandatory and always unique
+                vote_registry["Agent_A"] = agent_a_out
 
                 if not dummy_tail:
                     deterministic_deny = any(
                         v["vote"] == "NO"
-                        for v in tier1_votes
-                        if v["agent"]
-                        in ["Agent_B", "Agent_C", "Risk_Guard", "Agent_E", "Agent_F", "Agent_G"]
+                        for v in vote_registry.values()
+                        if v.get("agent") in ["Agent_B", "Agent_C", "Risk_Guard", "Agent_E", "Agent_F", "Agent_G"]
                     )
                     if deterministic_deny and not is_probe:
                         logger.warning(
                             f"Coordinator [{proposal_id}] 🛑 EARLY EXIT: Tier 1 agents rejected. Standing down."
                         )
                         dummy_tail = [
-                            {
-                                "agent": "Dhatu_Oracle",
-                                "vote": "NO",
-                                "confidence": 0.0,
-                                "reason": "Skipped",
-                                "timestamp": timestamp,
-                            },
-                            {
-                                "agent": "Native_SLM",
-                                "vote": "NO",
-                                "confidence": 0.0,
-                                "reason": "Skipped",
-                                "timestamp": timestamp,
-                            },
-                            {
-                                "agent": "Mind_Ultrathink",
-                                "vote": "NO",
-                                "confidence": 0.0,
-                                "reason": "Skipped",
-                                "timestamp": timestamp,
-                            },
+                            {"agent": "Dhatu_Oracle", "vote": "NO", "confidence": 0.0, "reason": "Skipped", "timestamp": timestamp},
+                            {"agent": "Swarm_Predictor", "vote": "NO", "confidence": 0.0, "reason": "Skipped", "timestamp": timestamp},
+                            {"agent": "Mind_Ultrathink", "vote": "NO", "confidence": 0.0, "reason": "Skipped", "timestamp": timestamp},
                         ]
-                        all_votes.extend(dummy_tail)
+                        for res in dummy_tail:
+                            vote_registry[res["agent"]] = res
+
+                # --- STAGE 1 TELEMETRY ---
+                if self.brain.bus:
+                    await self.brain.bus.publish(
+                        "consensus.update",
+                        {
+                            "symbol": symbol,
+                            "phase": "STAGE_1_OK",
+                            "decision": "VOTING",
+                            "votes": list(vote_registry.values()),
+                            "timestamp": time.time() * 1000,
+                        },
+                    )
 
                 if not dummy_tail:
                     logger.info(
@@ -714,7 +716,7 @@ class TradingCoordinator:
                     try:
                         gated_agents = [
                             ("Dhatu_Oracle", poll_oracle),
-                            ("Native_SLM", poll_slm),
+                            ("Swarm_Predictor", poll_swarm),
                             (
                                 "Mind_Ultrathink",
                                 lambda: self.brain.mind_ultrathink.evaluate_proposal(
@@ -722,6 +724,14 @@ class TradingCoordinator:
                                 ),
                             ),
                         ]
+
+                        if self.brain.native_slm and self.brain.native_slm.is_available:
+                            gated_agents.append(
+                                (
+                                    "Native_SLM",
+                                    lambda: self.brain.native_slm.evaluate_proposal(shared_context),
+                                )
+                            )
 
                         vram_pct = 0  # LLM purged — no VRAM contention
 
@@ -754,7 +764,7 @@ class TradingCoordinator:
 
                             results = await asyncio.gather(
                                 *[
-                                    asyncio.wait_for(_poll_neural_safe(name, func), timeout=12.0)
+                                    asyncio.wait_for(_poll_neural_safe(name, func), timeout=25.0)
                                     for name, func in zip(names, funcs, strict=False)
                                 ],
                                 return_exceptions=True,
@@ -774,20 +784,39 @@ class TradingCoordinator:
                                 else:
                                     gated_votes.append(res)
 
-                        all_votes = [agent_a_out] + tier1_votes + gated_votes
+                        for res in gated_votes:
+                            if res and "agent" in res:
+                                vote_registry[res["agent"]] = res
+                                # Update Conviction State for caching
+                                if res.get("confidence", 0) > 0:
+                                    self.brain.conviction_state[res["agent"]] = res
                     except Exception as gated_e:
                         logger.error(f"Coordinator: Gated Intelligence failure: {gated_e}")
-                        gated_votes = [
-                            {
+                        for name, _ in gated_agents:
+                            err_vote = {
                                 "agent": name,
                                 "vote": "YES",
                                 "confidence": 0.5,
                                 "reason": "Neural Error Fallback",
                                 "timestamp": timestamp,
                             }
-                            for name, _ in gated_agents
-                        ]
-                        all_votes = [agent_a_out] + tier1_votes + gated_votes
+                            vote_registry[name] = err_vote
+
+                # --- STAGE 2 TELEMETRY ---
+                if self.brain.bus:
+                    await self.brain.bus.publish(
+                        "consensus.update",
+                        {
+                            "symbol": symbol,
+                            "phase": "STAGE_2_OK",
+                            "decision": "VOTING",
+                            "votes": list(vote_registry.values()),
+                            "timestamp": time.time() * 1000,
+                        },
+                    )
+
+                # Final List Conversion (Guarantees no duplicates)
+                all_votes = list(vote_registry.values())
 
                 decision = await self.brain.decision_engine.evaluate(shared_context, all_votes)
 
