@@ -764,27 +764,29 @@ class TradingSystem:
                 Vault.get("IBKR_ACCOUNT_ID")
                 client = self.ibkr_client
 
-                # Optimized Range: 10 attempts (30s each) = 5 minute max hang if TWS closed
+                # Optimized Range: 10 attempts (10s each) to avoid massive hangs
                 for client_id_offset in range(10):
                     current_id = base_client_id + client_id_offset
-                    for host in ["::1", "localhost", "127.0.0.1"]:
+                    # Prioritize 127.0.0.1 on Windows as ::1 often causes timeout issues with TWS
+                    for host in ["127.0.0.1", "localhost", "::1"]:
                         for port in ports_to_try:
                             try:
-                                if host == "::1" and port == self.ibkr_port:
-                                    logger.info(
-                                        f"Sovereign Probe: {host}:{port} (ID: {current_id})..."
-                                    )
+                                logger.info(
+                                    f"Sovereign Probe: {host}:{port} (ID: {current_id})..."
+                                )
+                                # Lower timeout for the socket connection to 5s, but allow more for data sync
                                 await asyncio.wait_for(
                                     client.connectAsync(
-                                        host=host, port=port, clientId=current_id, readonly=False
+                                        host=host, port=port, clientId=current_id, timeout=10
                                     ),
-                                    timeout=30.0,
+                                    timeout=15.0,
                                 )
                                 if client.isConnected():
                                     connected = True
                                     self.ibkr_client_id = current_id
                                     break
-                            except Exception:
+                            except Exception as e:
+                                logger.debug(f"Probe failed for {host}:{port}: {e}")
                                 try:
                                     client.disconnect()
                                 except Exception:
@@ -1173,10 +1175,11 @@ class TradingSystem:
             "DAILY WRAP-UP",
         ]
 
+        logger.info(f"Telegram: Attempting to send message (Prefix check: {message[:10]}...)")
         msg_upper = message.upper()
         if not any(prefix.upper() in msg_upper for prefix in allowed_prefixes):
-            logger.debug(
-                f"Sterilization: Suppressing non-elite main notification: {message[:50]}..."
+            logger.info(
+                f"Sterilization: Suppressing non-elite main notification (No allowed prefix found): {message[:50]}..."
             )
             return False
 
@@ -1209,13 +1212,13 @@ class TradingSystem:
 
             async with self._telegram_session.post(url, json=payload) as resp:
                 if resp.status == 200:
-                    logger.info("✅ Telegram notification sent")
+                    logger.info("✅ Telegram notification sent successfully.")
                     return True
                 else:
-                    logger.warning(f"Telegram notification failed: {resp.status}")
+                    logger.warning(f"❌ Telegram notification failed with status {resp.status}. Message: {redacted_message[:50]}...")
                     return False
         except Exception as e:
-            logger.error(f"Telegram notification error: {e}")
+            logger.error(f"❌ Telegram notification error: {e}")
             return False
 
     async def _start_background_tasks(self) -> None:
@@ -1596,140 +1599,142 @@ class TradingSystem:
                         pass
                     await asyncio.sleep(delay)
 
-            if retries >= max_retries:
-                logger.error(
-                    f"Background task '{name}' permanently failed after {max_retries} retries."
-                )
-                try:
-                    await self.send_telegram_notification(
-                        f"🚨 *FATAL: Task Permanently Failed*\nTask: {name}\nSystem may be unstable."
+                if retries >= max_retries:
+                    logger.error(
+                        f"Background task '{name}' permanently failed after {max_retries} retries."
                     )
-                except Exception:
-                    pass
-                raise RuntimeError(f"Task {name} completely failed")
+                    raise RuntimeError(f"Task {name} completely failed")
 
         task = asyncio.create_task(supervisor())
         self.background_tasks[name] = task
 
     async def shutdown(self) -> None:
-        """Graceful shutdown sequence"""
+        """Graceful shutdown sequence: Step-by-Step Institutional Guard."""
+        if not self.is_running and hasattr(self, "_shutdown_complete") and self._shutdown_complete:
+            return
+
         self.is_running = False
-        logger.info("\n" + "=" * 60)
-        logger.info("Trading System - Shutting Down")
-        logger.info("=" * 60)
+        logger.info("\n" + "🛑" * 30)
+        logger.info("SOVEREIGN: INITIATING SEQUENTIAL SHUTDOWN PROTOCOL")
+        logger.info("🛑" * 30 + "\n")
 
         try:
             # 1. COMPUTE DAILY PERFORMANCE
+            logger.info("[SHUTDOWN STEP 1/8] Calculating daily performance...")
             daily_pnl = 0.0
             trades_today = 0
             if hasattr(self, "db_conn") and self.db_conn:
                 try:
                     cursor = self.db_conn.cursor()
+                    # Use UTC today for the tally to match DB records
                     today_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
                     cursor.execute(
                         "SELECT pnl_dollars FROM trades WHERE timestamp LIKE ?", (f"{today_str}%",)
                     )
-                    for row in cursor.fetchall():
+                    rows = cursor.fetchall()
+                    trades_today = len(rows)
+                    for row in rows:
                         if row[0] is not None:
                             daily_pnl += float(row[0])
-                        trades_today += 1
                     cursor.close()
+                    logger.info(f"✓ Performance Tally: ${daily_pnl:+.2f} over {trades_today} trades.")
                 except Exception as e:
-                    logger.debug(f"Shutdown: Performance tally failed: {e}")
+                    logger.error(f"Shutdown: Performance tally failed: {e}")
 
             # 2. SEND TELEGRAM SUMMARY
+            logger.info("[SHUTDOWN STEP 2/8] Dispatching final Telegram report...")
             try:
                 sign = "📈" if daily_pnl > 0 else "📉" if daily_pnl < 0 else "📊"
+                summary_msg = (
+                    f"🛑 <b>Sovereign System Offline</b>\n\n"
+                    f"🕒 {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')} UTC\n"
+                    f"───────────────────────────────\n"
+                    f"<b>Daily Wrap-Up:</b>\n"
+                    f"{sign} <b>Total PnL:</b> ${daily_pnl:+.2f}\n"
+                    f"🔄 <b>Trades Executed:</b> {trades_today}\n"
+                    f"🏁 <b>Status:</b> GRACEFUL_EXIT"
+                )
+                # Shielded Telegram send with slightly longer timeout
                 await asyncio.wait_for(
-                    self.send_telegram_notification(
-                        f"🛑 <b>Trading System Shutting Down</b>\n\n"
-                        f"🕒 {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')}\n"
-                        f"───────────────────────────────\n"
-                        f"<b>Daily Wrap-Up:</b>\n"
-                        f"{sign} <b>Total PnL:</b> ${daily_pnl:+.2f}\n"
-                        f"🔄 <b>Trades Executed:</b> {trades_today}"
-                    ),
-                    timeout=5.0,
+                    self.send_telegram_notification(summary_msg),
+                    timeout=10.0,
                 )
             except Exception as tg_err:
-                logger.debug(f"Shutdown: Telegram summary skipped: {tg_err}")
+                logger.warning(f"Shutdown: Telegram report failed/timed out: {tg_err}")
 
-            # 3. STOP COMPONENTS (Sequential for User Visibility)
-            if self.trading_brain:
+            # 3. STOP COMPONENTS (Sequential for deterministic cleanup)
+            logger.info("[SHUTDOWN STEP 3/8] Stopping active minds and streams...")
+            if hasattr(self, "trading_brain") and self.trading_brain:
                 try:
-                    logger.info("Stopping Trading Brain...")
+                    logger.info(" -> Stopping Trading Brain...")
                     await self.trading_brain.stop()
-                    logger.info("✓ Trading Brain stopped.")
                 except Exception as e:
                     logger.error(f"Shutdown: Brain stop failed: {e}")
 
-            if self.hft_streamer:
+            if hasattr(self, "hft_streamer") and self.hft_streamer:
                 try:
-                    logger.info("Stopping HFT Streamer...")
+                    logger.info(" -> Stopping HFT Streamer...")
                     await self.hft_streamer.stop()
-                    logger.info("✓ HFT Streamer stopped.")
                 except Exception as e:
                     logger.error(f"Shutdown: HFT Streamer stop failed: {e}")
 
-            if self.data_pipeline:
+            if hasattr(self, "data_pipeline") and self.data_pipeline:
                 try:
-                    logger.info("Stopping Data Pipeline...")
+                    logger.info(" -> Stopping Data Pipeline...")
                     await self.data_pipeline.stop()
-                    logger.info("✓ Data Pipeline stopped.")
                 except Exception as e:
                     logger.error(f"Shutdown: Data Pipeline stop failed: {e}")
 
-            if self.dms:
+            if hasattr(self, "dms") and self.dms:
                 try:
-                    logger.info("Stopping DMS...")
+                    logger.info(" -> Stopping DMS...")
                     await self.dms.stop()
-                    logger.info("✓ DMS stopped.")
                 except Exception as e:
                     logger.error(f"Shutdown: DMS stop failed: {e}")
 
-            if self.api_server:
+            if hasattr(self, "api_server") and self.api_server:
                 try:
-                    logger.info("Stopping API Server...")
+                    logger.info(" -> Stopping API Server...")
                     await self.api_server.stop()
-                    logger.info("✓ API Server stopped.")
                 except Exception as e:
                     logger.error(f"Shutdown: API Server stop failed: {e}")
 
-            if self.native_slm:
+            # 4. UNLOAD AI MODELS
+            logger.info("[SHUTDOWN STEP 4/8] Offloading Neural VRAM weights...")
+            if hasattr(self, "native_slm") and self.native_slm:
                 try:
-                    logger.info("Unloading Native SLM...")
                     await self.native_slm.close()
                     logger.info("✓ Native SLM unloaded.")
                 except Exception as e:
                     logger.error(f"Shutdown: Native SLM close failed: {e}")
 
-            if self.bus:
+            if hasattr(self, "bus") and self.bus:
                 try:
-                    logger.info("Stopping Shared Intelligence Bus...")
                     await self.bus.stop()
-                    logger.info("✓ Bus stopped.")
+                    logger.info("✓ Intelligence Bus stopped.")
                 except Exception as e:
                     logger.error(f"Shutdown: Bus stop failed: {e}")
 
-            # 4. CANCEL BACKGROUND TASKS
+            # 5. CANCEL REMAINING BACKGROUND TASKS
+            logger.info("[SHUTDOWN STEP 5/8] Clearing background supervisors...")
             to_cancel = []
             for name, task in list(self.background_tasks.items()):
                 if not task.done():
-                    logger.info(f"Cancelling background task: {name}")
+                    logger.info(f" -> Cancelling supervisor: {name}")
                     task.cancel()
                     to_cancel.append(task)
+
             if to_cancel:
                 try:
-                    # Shield task cancellation from outer timeouts
-                    await asyncio.shield(
-                        asyncio.wait_for(
-                            asyncio.gather(*to_cancel, return_exceptions=True), timeout=10.0
-                        )
+                    await asyncio.wait_for(
+                        asyncio.gather(*to_cancel, return_exceptions=True), timeout=5.0
                     )
-                except asyncio.TimeoutError:
-                    logger.warning("Shutdown: Task cancellation timed out after 10s.")
+                except Exception:
+                    pass
             self.background_tasks.clear()
 
+            # 6. DISCONNECT BROKERS
+            logger.info("[SHUTDOWN STEP 6/8] Disconnecting Broker Matrix...")
             if (
                 hasattr(self, "_telegram_session")
                 and self._telegram_session
@@ -1740,19 +1745,21 @@ class TradingSystem:
 
             if self.ibkr_client and self.ibkr_client.isConnected():
                 try:
-                    logger.info("Disconnecting IBKR...")
+                    logger.info(" -> Disconnecting IBKR...")
                     await asyncio.wait_for(asyncio.to_thread(self.ibkr_client.disconnect), timeout=5.0)
                 except Exception as e:
-                    logger.debug(f"Non-critical IBKR disconnect error: {e}")
+                    logger.debug(f"IBKR disconnect error: {e}")
 
-            if self.mt5_client:
+            if hasattr(self, "mt5_client") and self.mt5_client:
                 try:
-                    logger.info("Disconnecting MT5...")
-                    await asyncio.wait_for(asyncio.to_thread(self.mt5_client.shutdown), timeout=5.0)
+                    logger.info(" -> Disconnecting MT5...")
+                    import MetaTrader5 as mt5
+                    await asyncio.to_thread(mt5.shutdown)
                 except Exception as e:
-                    logger.debug(f"Non-critical MT5 shutdown error: {e}")
+                    logger.debug(f"MT5 shutdown error: {e}")
 
-            # 6. PERSIST SHUTDOWN STATE & CLOSE DB
+            # 7. PERSIST FINAL STATE
+            logger.info("[SHUTDOWN STEP 7/8] Persisting final state to registry...")
             if self.db_conn:
                 try:
                     cursor = self.db_conn.cursor()
@@ -1766,31 +1773,29 @@ class TradingSystem:
                     )
                     self.db_conn.commit()
                     cursor.close()
-                    logger.info("Closing database...")
                     self.db_conn.close()
+                    logger.info("✓ Database closed.")
                 except Exception as db_err:
                     logger.error(f"Shutdown: DB persistence failed: {db_err}")
 
-            # 7. FINAL REGISTRY FLUSH
-            # Ensure the TaskManager registry is saved before the loop closes
             if hasattr(self, "task_manager") and self.task_manager:
                 try:
-                    # Execution in thread to avoid blocking if the loop is already unstable
                     await asyncio.to_thread(self.task_manager.save_registry)
-                    logger.info("✓ Final Task Registry flush complete.")
+                    logger.info("✓ Final Task Registry flushed.")
                 except Exception as e:
                     logger.error(f"Shutdown: Task Registry flush failed: {e}")
 
-            logger.info("=" * 60)
-            logger.info("✅ Shutdown complete")
-            logger.info("=" * 60)
+            # 8. EXIT
+            logger.info("[SHUTDOWN STEP 8/8] Finalizing logs...")
+            logger.info("\n" + "✅" * 30)
+            logger.info("SOVEREIGN: SHUTDOWN SEQUENCE COMPLETE")
+            logger.info("✅" * 30 + "\n")
 
-            # 8. Final Log Shutdown
             logging.shutdown()
-            self.is_running = False
+            self._shutdown_complete = True
 
         except Exception as e:
-            logger.error(f"Error during shutdown: {e}", exc_info=True)
+            logger.error(f"FATAL ERROR DURING SHUTDOWN: {e}", exc_info=True)
 
     async def _verify_watchdog(self) -> None:
         """Sovereign Guard: Ensures the watchdog process is active and pulsing."""
@@ -2042,8 +2047,7 @@ class TradingSystem:
         logger.info(banner)
 
 
-async def main() -> None:
-    s = TradingSystem()
+async def main(s: TradingSystem) -> None:
     try:
         # Step 0: Sovereign Handshake (9.99 Parallel Init)
         await s.async_init()
@@ -2154,14 +2158,22 @@ if __name__ == "__main__":
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
 
+    s = TradingSystem()
     try:
-        loop.run_until_complete(main())
+        loop.run_until_complete(main(s))
     except (KeyboardInterrupt, SystemExit):
         print("\n[SOVEREIGN] Force Terminated by User (Ctrl+C)")
     except Exception as e:
         print(f"\n[SOVEREIGN] Fatal Error: {e}")
     finally:
         try:
+            # Step 1: Sequential Shutdown of the Sovereign Engine
+            try:
+                loop.run_until_complete(asyncio.wait_for(s.shutdown(), timeout=45.0))
+            except Exception as e:
+                print(f"[SOVEREIGN] Primary Shutdown Exception: {e}")
+
+            # Step 2: Clean up remaining loose tasks
             pending = [t for t in asyncio.all_tasks(loop) if not t.done()]
 
             if pending:
