@@ -1377,16 +1377,27 @@ class PatternDetector:
 
         current_price = df["close"][-1]
         prev_close = df["close"][-2]
+        entry = resistance * 1.002
+        stop = lows[-1]
+
+        # Ensure target is sufficiently far away from entry
+        target_dist = max((resistance - lows[0]), resistance * 0.005)
+        target = entry + target_dist
+
+        r_r = (target - entry) / (entry - stop) if entry > stop else 0.0
+        if r_r < 0.5:
+            return None
+
         confirmed = current_price > resistance and prev_close > (resistance * 0.999)
 
         return PatternResult(
             name="Ascending Triangle",
             category="SCALP",
             confidence=82.0 if confirmed else 70.0,
-            entry=resistance * 1.002,
-            stop=lows[-1],
-            target=resistance + (resistance - lows[0]),
-            r_r_ratio=2.0,
+            entry=entry,
+            stop=stop,
+            target=target,
+            r_r_ratio=r_r,
             confirmed=confirmed,
             lambda_val=15 if confirmed else 0,
         )
@@ -1417,9 +1428,15 @@ class PatternDetector:
         current_price = df["close"][-1]
         entry = support * 0.998
         stop = recent["high"][-10:].max()
-        target = entry - (recent["high"].max() - support)
 
-        r_r = (entry - target) / (stop - entry)
+        # Ensure target is sufficiently far away from entry
+        target_dist = max((recent["high"].max() - support), support * 0.005)
+        target = entry - target_dist
+
+        r_r = (entry - target) / (stop - entry) if stop > entry else 0.0
+        if r_r < 0.5:
+            return None
+
         prev_close = df["close"][-2]
         confirmed = current_price < support and prev_close < (support * 1.001)
 
