@@ -105,6 +105,7 @@ if TYPE_CHECKING:
     import sqlite3
 
     from dhatu_oracle import DhatuOracle
+    from native_slm import NativeSLM
 
 # DRAWDOWN LADDER
 
@@ -218,9 +219,46 @@ class ConsecutiveLossTracker:
     paper_mode_forced: bool = False
     audit_required: bool = False
     pause_until: datetime | None = None
+    last_loss_time: datetime | None = None
+
+    def _apply_time_decay(self) -> None:
+        """Automatically recover 1 loss every 4 hours of inactivity."""
+        if self.consecutive_losses <= 0 or not self.last_loss_time:
+            return
+
+        now = datetime.now(timezone.utc)
+        elapsed = (now - self.last_loss_time).total_seconds() / 3600
+
+        # Recover 1 loss for every 4 hours
+        recovered = int(elapsed // 4)
+        if recovered > 0:
+            old_losses = self.consecutive_losses
+            self.consecutive_losses = max(0, self.consecutive_losses - recovered)
+            if self.consecutive_losses < 4:
+                self.paper_mode_forced = False
+            if self.consecutive_losses < old_losses:
+                logger.info(f"🛡️ RECOVERY: System regained {recovered} loss units via Time-Decay. Current: {self.consecutive_losses}")
+                self.last_loss_time = now - timedelta(hours=(elapsed % 4)) # Reset clock for next unit
+
+    def _check_daily_reset(self) -> None:
+        """Hard reset loss streak if it's a new trading day (after 8 AM ET)."""
+        now = datetime.now(timezone.utc)
+        # Check if we've crossed the 8 AM ET boundary
+        # For simplicity, we just check if self.last_loss_time was on a previous day
+        if self.last_loss_time and self.last_loss_time.date() < now.date() and now.hour >= 8:
+            if self.consecutive_losses > 0:
+                logger.info("🌅 MORNING RESET: Clearing previous session's loss streak for a fresh start.")
+                self.consecutive_losses = 0
+                self.win_streak = 0
+                self.paper_mode_forced = False
+                self.audit_required = False
+                self.pause_until = None
+                self.last_loss_time = None
 
     def record_outcome(self, is_win: bool) -> None:
         """Record a trade outcome and update escalation state."""
+        self._apply_time_decay()
+        self._check_daily_reset()
         if is_win:
             self.consecutive_losses = 0
             self.win_streak += 1  # NEW: Win streak tracking
@@ -234,6 +272,7 @@ class ConsecutiveLossTracker:
         else:
             self.win_streak = 0
             self.consecutive_losses += 1
+            self.last_loss_time = datetime.now(timezone.utc)
             if self.consecutive_losses >= 5:
                 self.paper_mode_forced = True
                 self.audit_required = True
@@ -257,6 +296,9 @@ class ConsecutiveLossTracker:
 
     def get_size_modifier(self) -> float:
         """Return position size modifier based on consecutive wins/losses."""
+        self._apply_time_decay()
+        self._check_daily_reset()
+
         if self.consecutive_losses >= 4:
             return 0.0  # Paper mode — no real trades
         elif self.consecutive_losses >= 3:
@@ -447,6 +489,7 @@ class TradingBrain:
         qdb: Optional["QuestDBAdapter"] = None,
         swarm_predictor: Optional["SwarmPredictor"] = None,
         bus: Optional["SharedIntelligenceBus"] = None,
+        native_slm: Optional["NativeSLM"] = None,
     ) -> None:
         logger.info("🧠 TradingBrain: Initializing constructor...")
         self.db_conn = db_conn
@@ -455,6 +498,7 @@ class TradingBrain:
         self.dms = dms
         # SharedIntelligenceBus — the nervous system connecting all agents
         self.bus: SharedIntelligenceBus | None = bus
+        self.native_slm = native_slm
         self.dhatu_oracle = dhatu_oracle
         self.emergency_halted = False
         self._state_lock = asyncio.Lock()
@@ -775,9 +819,14 @@ class TradingBrain:
                     "peak_equity", self.ibkr_drawdown.peak_equity
                 )
                 if "loss_tracker" in state:
-                    self.loss_tracker.consecutive_losses = state["loss_tracker"].get(
-                        "consecutive_losses", 0
-                    )
+                    lt_state = state["loss_tracker"]
+                    self.loss_tracker.consecutive_losses = lt_state.get("consecutive_losses", 0)
+                    self.loss_tracker.win_streak = lt_state.get("win_streak", 0)
+                    if "last_loss_time" in lt_state and lt_state["last_loss_time"]:
+                        try:
+                            self.loss_tracker.last_loss_time = datetime.fromisoformat(lt_state["last_loss_time"])
+                        except Exception:
+                            pass
 
                 logger.info(
                     f"MindBrain: Legacy state thawed in background. {len(self.positions)} positions restored."
@@ -1156,6 +1205,7 @@ class TradingBrain:
                     "loss_tracker": {
                         "consecutive_losses": self.loss_tracker.consecutive_losses,
                         "win_streak": self.loss_tracker.win_streak,
+                        "last_loss_time": self.loss_tracker.last_loss_time.isoformat() if self.loss_tracker.last_loss_time else None,
                     },
                     "timestamp": datetime.now(timezone.utc).isoformat(),
                 }
@@ -1653,7 +1703,10 @@ class TradingBrain:
                         # --- ATR CALCULATION ---
                         # Essential for MindMath deterministic auditing.
                         # Convert to Polars once for high-performance vectorized math
-                        df_pl = pl.from_pandas(df_pd)
+                        if isinstance(df_pd, pl.DataFrame):
+                            df_pl = df_pd
+                        else:
+                            df_pl = pl.from_pandas(df_pd)
 
                         tr_expr = pl.max_horizontal(
                             [
@@ -1728,7 +1781,7 @@ class TradingBrain:
                         }
 
                     except Exception as e:
-                        logger.warning(f"Error scanning {symbol}: {e}")
+                        logger.warning(f"Error scanning {symbol}: {e}", exc_info=True)
                         return None
 
             results = []
@@ -1771,7 +1824,9 @@ class TradingBrain:
                 self.task_manager.purge_dormant_tasks(max_age_minutes=15)
 
             # Prevent 'Information Overload' by clearing buffers when signal density is too high.
-            signal_density = stats["detected"] / max(1, stats["scanned"])
+            # Guard: skip entropy check if no symbols were successfully scanned to avoid false flushes.
+            scanned_count = stats["scanned"]
+            signal_density = stats["detected"] / scanned_count if scanned_count > 0 else 0.0
             if signal_density > 0.8:
                 logger.warning(
                     f"SYSTEM ENTROPY CRITICAL (Density: {signal_density:.2f}): Performing Cognitive Flush..."
@@ -2125,7 +2180,7 @@ class TradingBrain:
                 return
 
             # Cooldown Dampener (10s)
-            last_attempt = self._exit_last_attempt.get(symbol, datetime(1970, 1, 1))
+            last_attempt = self._exit_last_attempt.get(symbol, datetime(1970, 1, 1, tzinfo=timezone.utc))
             if (now - last_attempt).total_seconds() < 10:
                 logger.warning(
                     f"DAMPENER ACTIVE: {symbol} exit attempt suppressed. Waiting for cooldown (Last try: {last_attempt.strftime('%H:%M:%S')})."
@@ -2134,7 +2189,11 @@ class TradingBrain:
 
             # Prevent "Wash Trades" by enforcing a 15-minute minimum hold time
             # unless it is an emergency or hard-stop hit.
-            age_seconds = (now - pos.entry_time).total_seconds()
+            # Guard: ensure entry_time is timezone-aware before subtraction
+            entry_time = pos.entry_time
+            if entry_time.tzinfo is None:
+                entry_time = entry_time.replace(tzinfo=timezone.utc)
+            age_seconds = (now - entry_time).total_seconds()
             if age_seconds < 100 and "STOP" not in exit_type and "VIX" not in exit_type:
                 logger.warning(
                     f"🛡️ EXIT IMMUNITY: Rejecting {exit_type} exit for {symbol}. "
@@ -2326,7 +2385,7 @@ class TradingBrain:
                 f"-------------------\n"
                 f"Trade PnL: ${realized_net_pnl:+.2f}\n"
                 f"R-Multiple: {r_multiple:+.2f}x\n"
-                f"Hold Time: {(now - pos.entry_time).total_seconds() / 60:.1f}m\n"
+                f"Hold Time: {(now - (pos.entry_time if pos.entry_time.tzinfo else pos.entry_time.replace(tzinfo=timezone.utc))).total_seconds() / 60:.1f}m\n"
                 f"-------------------\n"
                 f"📈 SESSION TOTAL: ${self.session_pnl:+.2f}"
             )
@@ -2520,7 +2579,7 @@ class TradingBrain:
         except Exception:
             return False
 
-    async def _fetch_ohlcv(self, symbol: str) -> pd.DataFrame | None:
+    async def _fetch_ohlcv(self, symbol: str) -> pl.DataFrame | pd.DataFrame | str | None:
         """
         Fetch OHLCV data for a symbol from the projection database.
         Returns:
@@ -2843,7 +2902,8 @@ class TradingBrain:
                 reality = ibkr_reality if broker == "ibkr" else mt5_reality
                 broker_qty = reality.get(p.symbol, 0.0)
 
-                age_seconds = (now_ts - p.entry_time).total_seconds()
+                _p_entry = p.entry_time if p.entry_time.tzinfo else p.entry_time.replace(tzinfo=timezone.utc)
+                age_seconds = (now_ts - _p_entry).total_seconds()
 
                 # A. The Zero-Sync Purge (Clean up phantom positions)
                 # ONLY purge if: Uptime > 300s, Age > 600s, and Reality is FLAT
@@ -3488,8 +3548,9 @@ class TradingBrain:
 
                 if self.db_conn:
                     cursor = self.db_conn.cursor()
+                    _entry_ts = pos.entry_time if pos.entry_time.tzinfo else pos.entry_time.replace(tzinfo=timezone.utc)
                     hold_hours = (
-                        datetime.now(timezone.utc) - pos.entry_time
+                        datetime.now(timezone.utc) - _entry_ts
                     ).total_seconds() / 3600
                     cursor.execute(
                         "UPDATE trades SET exit_price=?, outcome=?, pnl_dollars=?, r_multiple=?, "
