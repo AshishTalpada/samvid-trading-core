@@ -379,6 +379,7 @@ class IBKRStreamer:
                 except Exception:
                     pass
                 self.ib.pendingTickersEvent.connect(self.on_tick)
+                self._last_tick_time = datetime.now(timezone.utc)
                 logger.info("IBKRStreamer: Event listeners active.")
 
                 contracts = [Stock(symbol=s, exchange="SMART", currency="USD") for s in symbols]
