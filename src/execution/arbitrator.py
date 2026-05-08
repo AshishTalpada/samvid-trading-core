@@ -150,7 +150,7 @@ class BrokerArbitrator:
 
     def _dispute_fill(self, report: FIXExecutionReport, reason: str):
         """
-        Generates a Don't Know Trade (DK) FIX message to formally dispute the execution 
+        Generates a Don't Know Trade (DK) FIX message to formally dispute the execution
         with the broker or venue.
         """
         # FIX Tag 35=Q is Don't Know Trade (DK)

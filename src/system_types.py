@@ -1,7 +1,7 @@
-from dataclasses import dataclass, field
-from typing import List, Dict, Optional
-from datetime import datetime
 import uuid
+from dataclasses import dataclass, field
+from datetime import datetime
+from typing import Dict, List, Optional
 
 # Deep Dive: Extreme Static Typing & Schema Definition
 # These schemas enforce strict type boundaries across the entire system, preventing
@@ -15,11 +15,11 @@ class MarketTick:
     volume: float
     timestamp_ns: int
     exchange: str
-    
+
     @property
     def spread(self) -> float:
         return self.ask - self.bid
-        
+
     @property
     def mid_price(self) -> float:
         return (self.ask + self.bid) / 2.0

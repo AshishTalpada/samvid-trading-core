@@ -24,7 +24,7 @@ class RegimeStopConfig:
 class RegimeStopEngine:
     """
     ATR-based adaptive stops that adjust based on market regime.
-    
+
     BULL: Tighter stops, allow more run
     BEAR: Wider stops to avoid wicks, protect capital
     CHOPPY: Wide stops to avoid noise
@@ -50,13 +50,13 @@ class RegimeStopEngine:
     ) -> float:
         """
         Calculate Average True Range.
-        
+
         Args:
             high: High prices
             low: Low prices
             close: Close prices
             period: ATR period
-            
+
         Returns:
             ATR value
         """
@@ -89,12 +89,12 @@ class RegimeStopEngine:
     ) -> str:
         """
         Detect current market regime.
-        
+
         Args:
             vix: Current VIX level
             momentum: Current momentum indicator
             regime_label: Optional explicit regime from other systems
-            
+
         Returns:
             Regime name: BULL, BEAR, or CHOPPY
         """
@@ -121,13 +121,13 @@ class RegimeStopEngine:
     ) -> dict[str, Any]:
         """
         Calculate adaptive stop loss based on regime.
-        
+
         Args:
             entry_price: Entry price of the position
             atr: Current ATR value
             regime: Detected market regime
             position_type: LONG or SHORT
-            
+
         Returns:
             Dictionary with stop levels and rationale
         """
@@ -184,14 +184,14 @@ class RegimeStopEngine:
     ) -> float:
         """
         Calculate trailing stop that adjusts with regime.
-        
+
         Args:
             current_price: Current market price
             peak_price: Highest reached price (for LONG)
             atr: Current ATR
             regime: Current regime
             position_type: LONG or SHORT
-            
+
         Returns:
             Trailing stop price
         """
@@ -219,10 +219,10 @@ class RegimeStopEngine:
     def get_regime_recommendation(self, regime: str) -> dict[str, Any]:
         """
         Get trading recommendations based on regime.
-        
+
         Args:
             regime: Current market regime
-            
+
         Returns:
             Recommendation dictionary
         """
