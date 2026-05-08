@@ -1,4 +1,3 @@
-#include <stdio.h>
 #include <wmmintrin.h> // AES-NI instructions
 #include <immintrin.h>
 #include <stdint.h>

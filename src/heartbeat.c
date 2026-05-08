@@ -1,8 +1,13 @@
 #include <stdio.h>
 #include <fcntl.h>
+#ifdef _WIN32
+#include <io.h>
+#define open _open
+#define close _close
+#define write _write
+#else
 #include <unistd.h>
-#include <stdlib.h>
-#include <errno.h>
+#endif
 
 #ifdef __linux__
 #include <sys/ioctl.h>

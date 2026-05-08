@@ -1,6 +1,8 @@
 #include <stdio.h>
 #include <stdlib.h>
+#ifndef _WIN32
 #include <signal.h>
+#endif
 
 /**
  * Sovereign Physical Panic Button
