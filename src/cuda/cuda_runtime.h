@@ -21,6 +21,11 @@ extern dim3 threadIdx;
 static inline float __ldg(const float* ptr) { return *ptr; }
 static inline void __stcs(float* ptr, float val) { *ptr = val; }
 
+// Math mocks
+#include <math.h>
+static inline float expf(float x) { return (float)exp(x); }
+static inline float sqrtf(float x) { return (float)sqrt(x); }
+
 extern "C" unsigned cudaConfigureCall(dim3 gridDim, dim3 blockDim, size_t sharedMem = 0, void *stream = 0);
 
 #define KERNEL_LAUNCH(func, grid, block, ...) func(__VA_ARGS__)
