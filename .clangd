@@ -19,3 +19,9 @@ CompileFlags:
     "-D__host__=",
     "-DSHARED_MEM="
   ]
+
+---
+If:
+  PathMatch: .*\.(cpp|c|h|hpp)
+CompileFlags:
+  Remove: [-xcuda]
