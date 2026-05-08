@@ -7,6 +7,7 @@
 #define __restrict__
 #define __device__
 #define __host__
+#define __shared__
 
 typedef struct {
     int x, y, z;

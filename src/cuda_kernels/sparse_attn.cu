@@ -1,4 +1,4 @@
-#include <cuda_runtime.h>
+#include "cuda_runtime.h"
 #include <math.h>
 
 #define BLOCK_SIZE 256
@@ -37,7 +37,7 @@ __global__ void sparse_attention_kernel(const float* __restrict__ Q,
         }
 
         // Phase 2: Compute softmax and output
-        float[] out_val = new float[dim];
+        float out_val[256];
         for(int d=0; d<dim; ++d) out_val[d] = 0.0f;
 
         for (int j = 0; j < seq_len; ++j) {
