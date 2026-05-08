@@ -7,7 +7,7 @@ logger = logging.getLogger(__name__)
 
 class QuantumOptima:
     """
-    Logic edge: Uses Optuna's CMA-ES and simulated annealing to find the 
+    Logic edge: Uses Optuna's CMA-ES and simulated annealing to find the
     global minimum of the multi-dimensional risk function.
     """
     def __init__(self):

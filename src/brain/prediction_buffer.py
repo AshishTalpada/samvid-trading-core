@@ -1,16 +1,40 @@
 import logging
-from typing import Any, Dict
+import threading
+from collections import deque
+from typing import Any, Deque, Dict, Optional
 
 logger = logging.getLogger(__name__)
 
+
 class PredictionBuffer:
-    """Pre-calculates the next likely decision branch to minimize latency."""
-    def __init__(self):
-        self.buffer: Dict[str, Any] = {}
+    """
+    Pre-computation buffer that calculates the next 3 decision branches
+    before the market forces a decision, eliminating computation latency.
+    Thread-safe using a deque with a configurable capacity.
+    """
 
-    def precompute(self, ticker: str, predicted_signal: str, predicted_size: float) -> None:
-        self.buffer[ticker] = {"signal": predicted_signal, "size": predicted_size}
-        logger.debug(f"Pre-buffered {ticker}: {predicted_signal} x {predicted_size:.2f}")
+    def __init__(self, capacity: int = 8):
+        self._capacity = capacity
+        self._buffer: Deque[Dict[str, Any]] = deque(maxlen=capacity)
+        self._lock = threading.Lock()
 
-    def consume(self, ticker: str) -> Dict[str, Any] | None:
-        return self.buffer.pop(ticker, None)
+    def push(self, branch: Dict[str, Any]) -> None:
+        with self._lock:
+            self._buffer.append(branch)
+            logger.debug(f"[PRED BUFFER] Pushed branch: {branch.get('scenario', '?')} ({len(self._buffer)}/{self._capacity})")
+
+    def pop_best(self) -> Optional[Dict[str, Any]]:
+        with self._lock:
+            if not self._buffer:
+                return None
+            best = max(self._buffer, key=lambda b: b.get("probability", 0.0))
+            self._buffer.remove(best)
+            logger.debug(f"[PRED BUFFER] Popped best: {best.get('scenario', '?')} p={best.get('probability', 0):.2f}")
+            return best
+
+    def peek_all(self) -> list[Dict[str, Any]]:
+        with self._lock:
+            return list(self._buffer)
+
+    def size(self) -> int:
+        return len(self._buffer)
