@@ -1,23 +1,40 @@
-from typing import Dict, Set
+import logging
+from typing import Dict, List, Set
 
+logger = logging.getLogger(__name__)
 
-class KnowledgeGraph:
-    """Models relationships between macro events and asset sectors."""
+class MacroKnowledgeGraph:
+    """
+    Connects macro events (e.g. Fed Rate hike) to specific equity sectors.
+    Uses an in-memory directed graph to traverse "Event -> Sector -> Ticker"
+    relationships to instantly map the blast radius of breaking news.
+    """
     def __init__(self):
         self.edges: Dict[str, Set[str]] = {}
 
-    def add_relationship(self, cause: str, effect: str) -> None:
-        self.edges.setdefault(cause, set()).add(effect)
+    def add_relation(self, source: str, target: str) -> None:
+        if source not in self.edges:
+            self.edges[source] = set()
+        self.edges[source].add(target)
 
-    def get_ripple_effects(self, event: str, depth: int = 2) -> Set[str]:
-        visited: Set[str] = set()
-        frontier = {event}
-        for _ in range(depth):
-            next_frontier: Set[str] = set()
-            for node in frontier:
-                for neighbor in self.edges.get(node, set()):
+    def traverse(self, root_event: str, depth: int = 2) -> List[str]:
+        visited = set()
+        queue = [(root_event, 0)]
+        impacted_nodes = []
+
+        while queue:
+            current, current_depth = queue.pop(0)
+            if current_depth > depth:
+                break
+
+            if current not in visited:
+                visited.add(current)
+                if current != root_event:
+                    impacted_nodes.append(current)
+
+                for neighbor in self.edges.get(current, []):
                     if neighbor not in visited:
-                        next_frontier.add(neighbor)
-                        visited.add(neighbor)
-            frontier = next_frontier
-        return visited
+                        queue.append((neighbor, current_depth + 1))
+
+        logger.debug(f"[KG] Event '{root_event}' impacts {len(impacted_nodes)} nodes at depth {depth}.")
+        return impacted_nodes

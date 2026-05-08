@@ -1,22 +1,34 @@
-from typing import Dict, List
+import logging
+from typing import Any, Dict, List
 
+import numpy as np
+
+logger = logging.getLogger(__name__)
 
 class ShadowTrader:
-    """Runs recursive self-play by trading against historical ghost versions of the agent."""
-    def __init__(self, history_depth: int = 50):
-        self.history_depth = history_depth
-        self.ghost_trades: List[Dict] = []
+    """
+    Recursive Self-Play Engine. Agents trade against their own historical "ghosts".
+    By competing against a snapshot of its own weights from 1 week ago,
+    the model continuously forces parameter evolution and prevents strategy decay.
+    """
+    def __init__(self):
+        self.ghost_pnl = 0.0
+        self.current_pnl = 0.0
 
-    def record_trade(self, signal: str, entry: float, exit_price: float) -> None:
-        pnl = (exit_price - entry) / entry if signal == "BUY" else (entry - exit_price) / entry
-        self.ghost_trades.append({"signal": signal, "pnl": pnl})
-        if len(self.ghost_trades) > self.history_depth:
-            self.ghost_trades = self.ghost_trades[-self.history_depth:]
+    def record_trade(self, current_model_return: float, ghost_model_return: float) -> None:
+        self.current_pnl += current_model_return
+        self.ghost_pnl += ghost_model_return
 
-    def get_ghost_win_rate(self) -> float:
-        if not self.ghost_trades:
-            return 0.5
-        return sum(1 for t in self.ghost_trades if t["pnl"] > 0) / len(self.ghost_trades)
+    def evaluate_evolution(self) -> float:
+        edge = self.current_pnl - self.ghost_pnl
+        if edge < 0:
+            logger.warning(f"[SHADOW] Regressive Update: Ghost outperformed current by {-edge:.2%}")
+        else:
+            logger.info(f"[SHADOW] Evolution Positive: Current outperformed ghost by {edge:.2%}")
+        return edge
 
-    def should_fade_signal(self) -> bool:
-        return self.get_ghost_win_rate() < 0.4
+    def trigger_rollback_if_needed(self) -> bool:
+        if self.current_pnl < self.ghost_pnl - 0.05:  # 5% worse than ghost
+            logger.critical("[SHADOW] FATAL DECAY DETECTED. Recommending weight rollback.")
+            return True
+        return False
