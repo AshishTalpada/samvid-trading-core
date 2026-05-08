@@ -96,7 +96,7 @@ class CandleWriter:
     # ── bus wiring ────────────────────────────────────────────────────────────
 
     async def start(self, bus: "SharedIntelligenceBus") -> None:
-        bus.subscribe("tick.batch", self._on_batch)
+        bus.on("tick.batch", self._on_batch)
         logger.info(f"CandleWriter: Active | timeframes={self._timeframes}")
 
     async def _on_batch(self, data: dict) -> None:

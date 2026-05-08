@@ -54,21 +54,21 @@ class MindSystem:
             # Prioritize paths manually set in the Vault to avoid scan fragility.
             vault_key = f"{name.upper()}_PATH"
             val = Vault.get(vault_key)
-            if val and os.path.exists(str(val)):
+            if val and os.path.exists(val):
                 logger.info(f"MindSystem: Using Vault-certified path for {name}: {val}")
                 # If it's a directory, try to append the standard exe name
-                if os.path.isdir(str(val)):
+                if os.path.isdir(val):
                     patterns = {
                         "ibkr": ["tws.exe", "ibgateway.exe"],
                         "mt5": ["terminal64.exe"],
                         "questdb": ["questdb.exe"],
                     }
                     for tgt in patterns.get(name.lower(), [f"{name}.exe"]):
-                        full_p = os.path.join(str(val), tgt)
+                        full_p = os.path.join(val, tgt)
                         if os.path.exists(full_p):
                             found_paths_info.append({"path": full_p, "trusted": True})
                 else:
-                    found_paths_info.append({"path": str(val), "trusted": True})
+                    found_paths_info.append({"path": val, "trusted": True})
 
             # 1. Registry Scent (Fallback)
             if not found_paths_info and name.lower() == "ibkr":
@@ -127,7 +127,7 @@ class MindSystem:
                 # --- MT5 Scent-Blocker ---
                 if name.lower() == "mt5":
                     _ml = Vault.get("MT5_LOGIN")
-                    if not _ml or "YOUR_MT5" in str(_ml).upper() or str(_ml).lower() == "none":
+                    if not _ml or "YOUR_MT5" in _ml.upper() or _ml.lower() == "none":
                         logger.info(
                             "MindSystem: Scent-Blocker ENGAGED — Skipping MetaTrader 5 search (Disabled)."
                         )
@@ -229,11 +229,15 @@ class MindSystem:
         vmem = await asyncio.to_thread(psutil.virtual_memory)
         mem = vmem.percent
 
+        # Ensure we are comparing actual numbers to avoid OverloadResidual errors
+        cpu_val = float(cpu) if isinstance(cpu, (int, float)) else 0.0
+        mem_val = mem  # already a float
+
         return {
             "cpu_percent": cpu,
             "memory_percent": mem,
             "disk_usage": await asyncio.to_thread(lambda: psutil.disk_usage("/").percent),
-            "status": "HEALTHY" if cpu < 85 and mem < 85 else "STRESSED",
+            "status": "HEALTHY" if cpu_val < 85 and mem_val < 85 else "STRESSED",
         }
 
     async def _tool_reboot_service(self, service_name: str) -> dict[str, Any]:
@@ -250,12 +254,14 @@ class MindSystem:
 
             from vault import Vault
 
-            interface = Vault.get("IBKR_INTERFACE", "gateway").lower()
+            interface_val = Vault.get("IBKR_INTERFACE", "gateway")
+            interface = interface_val.lower() if interface_val else "gateway"
+
             if service_name == "RESTART_IBKR":
                 target_exe = "ibgateway.exe" if interface == "gateway" else "TWS.exe"
                 verified_path = Vault.get("IBKR_PATH")
                 start_cmd = f"start {target_exe}"
-                if verified_path and os.path.exists(str(verified_path)):
+                if verified_path and os.path.exists(verified_path):
                     start_cmd = f'start "" "{verified_path}"'
 
                 cmds = [

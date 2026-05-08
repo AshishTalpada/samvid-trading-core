@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 
 
 class SovereignDecisionEngine:
-    def __init__(self, required_agents: List[str] = None, bus: Optional[Any] = None):
+    def __init__(self, required_agents: Optional[List[str]] = None, bus: Optional[Any] = None):
         self.required_agents = required_agents or [
             "Agent_A",
             "Agent_B",

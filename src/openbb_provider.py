@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 
 # Previously loaded at module scope, consuming 500+ MB of RAM and taking
 # minutes to import. Now lazy-loaded only when initialize() is called.
-_OPENBB_AVAILABLE = None  # None = not yet checked, True/False = checked
+_OPENBB_AVAILABLE: bool | None = None  # None = not yet checked, True/False = checked
 obb = None  # type: ignore[assignment]
 
 
@@ -121,7 +121,7 @@ class OpenBBProvider:
         async with self._load_lock:
             # Re-check after acquiring lock
             if _OPENBB_AVAILABLE is not None:
-                return _OPENBB_AVAILABLE
+                return bool(_OPENBB_AVAILABLE)
 
             try:
                 # OpenBB takes ~15-30s to load on first use, increased timeout accordingly.
@@ -173,7 +173,7 @@ class OpenBBProvider:
             }
 
             for key, val in creds.items():
-                if val:
+                if val and obb is not None and hasattr(obb, "user") and obb.user is not None:
                     setattr(obb.user.credentials, key, val)
 
             logger.info("✓ OpenBB Provider synchronized with Sovereign Vault.")

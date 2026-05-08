@@ -122,7 +122,7 @@ class SovereignLogicEngine:
         win_prob = ctx.get("win_prob", 0.5)
         rr = ctx.get("r_r_ratio", 2.0)
         # BUG #20 FIX: Dynamically read commission from Vault
-        commission = float(Vault.get("COMMISSION_PER_ROUND_TRIP", str(COMMISSION_PER_ROUND_TRIP)))
+        commission = float(Vault.get("COMMISSION_PER_ROUND_TRIP", str(COMMISSION_PER_ROUND_TRIP)) or str(COMMISSION_PER_ROUND_TRIP))
         account_value = ctx.get("account_value", STARTING_CAPITAL_CAD)
 
         q = 1.0 - win_prob

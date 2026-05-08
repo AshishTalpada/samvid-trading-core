@@ -102,9 +102,9 @@ async def send_telegram_alert(message: str) -> None:
         if s and len(s) > 3 and s in redacted_message:
             redacted_message = redacted_message.replace(s, "[REDACTED]")
 
-    base_url = Vault.get("TELEGRAM_API_URL", "https://api.telegram.org").rstrip("/")
+    base_url = (Vault.get("TELEGRAM_API_URL") or "https://api.telegram.org").rstrip("/")
     url = f"{base_url}/bot{token.strip()}/sendMessage"
-    payload = {"chat_id": str(chat_id).strip(), "text": redacted_message, "parse_mode": "HTML"}
+    payload = {"chat_id": chat_id.strip(), "text": redacted_message, "parse_mode": "HTML"}
 
     proxy = Vault.get("TELEGRAM_PROXY")
 
