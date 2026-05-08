@@ -28,7 +28,7 @@ class StrategyABTester:
 
     def route_trade(self, exp_id: str, ticker: str) -> str:
         """
-        Deterministically routes a ticker to variant A or B using hash-based routing 
+        Deterministically routes a ticker to variant A or B using hash-based routing
         to ensure the same ticker always gets the same variant logic during the test.
         """
         if exp_id not in self.active_experiments:

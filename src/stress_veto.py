@@ -37,7 +37,7 @@ class StressAnalysis:
 class StressVeto:
     """
     Psychology Safety System - Detects revenge trading and other stress patterns.
-    
+
     Monitors:
     - Rapid consecutive trades after loss
     - Increasing trade size after losses
@@ -85,10 +85,10 @@ class StressVeto:
     def analyze_stress(self, current_hour: int | None = None) -> StressAnalysis:
         """
         Analyze recent trading for stress patterns.
-        
+
         Args:
             current_hour: Current hour (0-23), defaults to system time
-            
+
         Returns:
             StressAnalysis with veto recommendation
         """

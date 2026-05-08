@@ -1,15 +1,16 @@
-import numpy as np
-import logging
 import copy
-from typing import List, Dict, Any
+import logging
+from typing import Any, Dict, List
+
+import numpy as np
 
 logger = logging.getLogger(__name__)
 
 class EvolutionaryNeuroExperiment:
     '''
     Autonomous Neuro-Evolution Engine.
-    When Sovereign detects alpha decay in a specific neural agent, this module 
-    spawns N mutated clones of the failing agent, tweaks their hyperparameters 
+    When Sovereign detects alpha decay in a specific neural agent, this module
+    spawns N mutated clones of the failing agent, tweaks their hyperparameters
     (simulated via genetic algorithms), and runs them in a shadow (paper) environment
     to "breed" a stronger, adapted successor model.
     '''
@@ -57,26 +58,26 @@ class EvolutionaryNeuroExperiment:
 
         top_percentile = max(2, int(self.pop_size * 0.2))
         elites = self.population[:top_percentile]
-        
+
         new_population = copy.deepcopy(elites) # Keep elites intact
-        
+
         # Fill the rest of the population with crossover and mutation
         while len(new_population) < self.pop_size:
             # Randomly select two parents from the elite pool
             p1 = elites[np.random.randint(0, len(elites))]['weights']
             p2 = elites[np.random.randint(0, len(elites))]['weights']
-            
+
             # Crossover (50/50 mix)
             mask = np.random.rand(*p1.shape) > 0.5
             child_weights = np.where(mask, p1, p2)
-            
+
             # Mutation
             noise = np.random.normal(loc=0.0, scale=self.mutation_rate, size=child_weights.shape)
             child_weights += noise
-            
+
             new_population.append({"weights": child_weights, "fitness": 0.0})
 
         self.population = new_population
         self.generation += 1
-        
+
         return elites[0]['weights']

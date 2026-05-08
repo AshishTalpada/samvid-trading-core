@@ -13,12 +13,12 @@ class SlippageModel:
                          book_liquidity_at_price: float) -> float:
         """
         Estimates the slippage for a given order size against current liquidity.
-        
+
         Args:
             order_size: Dollar amount of the order.
             bid_ask_spread: Current spread percentage (e.g., 0.0005 for 5 bps).
             book_liquidity_at_price: Dollar amount of resting limit orders at top of book.
-            
+
         Returns:
             Expected slippage in percentage terms (e.g., 0.0010 for 10 bps).
         """

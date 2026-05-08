@@ -1,15 +1,16 @@
-import numpy as np
-import pandas as pd
 import logging
 from collections import deque
 from typing import Dict, List, Optional
+
+import numpy as np
+import pandas as pd
 
 logger = logging.getLogger(__name__)
 
 class L1DataPipeline:
     """
     High-Performance Data Normalizer.
-    Ingests raw ticks from disparate exchanges (crypto, forex, equities), 
+    Ingests raw ticks from disparate exchanges (crypto, forex, equities),
     cleanses anomalies (fat fingers, bad prints), interpolates missing data,
     and constructs strict, memory-efficient temporal OHLCV bars.
     """
@@ -18,7 +19,7 @@ class L1DataPipeline:
         self.agg_window_ms = aggregation_window_ms
         self.tick_buffers: Dict[str, deque] = {}
         self.last_bar_time: Dict[str, int] = {}
-        
+
         # Anomaly detection bounds (Z-Score filter)
         self.price_history: Dict[str, deque] = {}
 
@@ -38,24 +39,24 @@ class L1DataPipeline:
             mean = sum(history) / 100.0
             variance = sum((x - mean) ** 2 for x in history) / 100.0
             std_dev = variance ** 0.5
-            
+
             if std_dev > 0 and abs(price - mean) > 5 * std_dev:
                 logger.warning(f"[DATA PIPELINE] Anomalous tick dropped for {symbol}. Price {price} deviates > 5 sigma from mean {mean:.2f}.")
                 return None
-                
+
         # Valid tick, add to buffers
         self.tick_buffers[symbol].append((price, volume))
         self.price_history[symbol].append(price)
 
         # Check if we crossed the aggregation boundary
         current_bar_start = timestamp_ms - (timestamp_ms % self.agg_window_ms)
-        
+
         if current_bar_start > self.last_bar_time[symbol]:
             # Generate the completed bar
             bar = self._aggregate_bar(symbol)
             self.last_bar_time[symbol] = current_bar_start
             return bar
-            
+
         return None
 
     def _aggregate_bar(self, symbol: str) -> Optional[Dict[str, float]]:
@@ -63,10 +64,10 @@ class L1DataPipeline:
         buffer = self.tick_buffers[symbol]
         if not buffer:
             return None
-            
+
         prices = [t[0] for t in buffer]
         volumes = [t[1] for t in buffer]
-        
+
         bar = {
             "symbol": symbol,
             "open": prices[0],
@@ -76,7 +77,7 @@ class L1DataPipeline:
             "volume": sum(volumes),
             "tick_count": len(prices)
         }
-        
+
         # Clear the buffer for the next window
         self.tick_buffers[symbol].clear()
         return bar
@@ -89,15 +90,15 @@ class L1DataPipeline:
         # Exclude extreme outliers from min/max bounds (1st and 99th percentiles)
         p1 = np.percentile(data, 1, axis=0)
         p99 = np.percentile(data, 99, axis=0)
-        
+
         # Clip data to avoid dividing by zero or exploding gradients
         clipped = np.clip(data, p1, p99)
-        
+
         range_span = p99 - p1
         range_span[range_span == 0] = 1.0 # Prevent division by zero
-        
+
         # Scale to [0, 1]
         scaled = (clipped - p1) / range_span
-        
+
         # Scale to [-1, 1]
         return (scaled * 2.0) - 1.0
