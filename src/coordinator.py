@@ -825,6 +825,14 @@ class TradingCoordinator:
                 # Final List Conversion (Guarantees no duplicates)
                 all_votes = list(vote_registry.values())
 
+                # --- PILLAR 97/107: ADVERSARIAL DEBATE ---
+                # Force the Skeptic Mind to challenge the consensus before final engine evaluation.
+                skeptic_audit = self.brain.skeptic.run_adversarial_debate(
+                    proposal=agent_a_out, # Challenge the primary signal generator
+                    opponents=[v["agent"] for v in all_votes if v["vote"] == "YES"]
+                )
+                all_votes.append(skeptic_audit)
+
                 decision = await self.brain.decision_engine.evaluate(shared_context, all_votes)
 
                 if not is_probe:
@@ -998,6 +1006,13 @@ class TradingCoordinator:
                 )
 
                 # Log the rejected proposal as a 'Shadow Trade' for post-mortem calibration.
+                # --- PILLAR 150: Fork Signal into Shadow-Sim ---
+                self.brain.shadow_sim.fork_signal(
+                    symbol=symbol,
+                    price=pattern.entry,
+                    side=("BUY" if pattern.entry > pattern.stop else "SELL")
+                )
+
                 try:
                     from system_types import Position
 
