@@ -1,5 +1,5 @@
-import time
 import logging
+import time
 from collections import deque
 
 logger = logging.getLogger(__name__)
@@ -20,19 +20,19 @@ class VIXCircuitBreaker:
         """
         current_time = time.time()
         self.tick_history.append((current_time, vix_value))
-        
+
         # Evict old ticks
         while self.tick_history and current_time - self.tick_history[0][0] > self.window_seconds:
             self.tick_history.popleft()
-            
+
         if len(self.tick_history) < 2:
             return False
-            
+
         oldest_vix = self.tick_history[0][1]
         percent_change = (vix_value - oldest_vix) / oldest_vix
-        
+
         if percent_change >= self.spike_threshold:
             logger.critical(f"VIX FLASH SPIKE DETECTED! {percent_change*100:.2f}% in < {self.window_seconds}s")
             return True
-            
+
         return False
