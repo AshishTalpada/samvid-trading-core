@@ -39,6 +39,7 @@ import asyncio.subprocess
 import logging
 import sqlite3
 import time
+import gc
 from collections.abc import Callable, Coroutine
 from datetime import datetime, timezone
 from logging.handlers import RotatingFileHandler
@@ -370,6 +371,17 @@ class TradingSystem:
             logger.warning(f"JIT warmup skipped (non-fatal): {_e}")
 
         await self._verify_watchdog()
+
+        # --- PILLAR 16: GraalPy/JIT Optimization Check ---
+        if "GraalVM" in sys.version or hasattr(sys, "graalvm_home"):
+            logger.info("🚀 HIGH-PERFORMANCE RUNTIME: GraalPy detected. Loop latencies minimized.")
+        else:
+            logger.warning("STANDARD RUNTIME: Not running on GraalPy. JIT math optimizations may be limited.")
+
+        # --- PILLAR 40: Sub-Millisecond GC Hardening ---
+        # Disable automatic GC to prevent pauses during tick ingestion
+        gc.disable()
+        logger.info("GC: Automatic collection DISABLED for sub-millisecond tick ingestion.")
 
         # Pre-subscribe to the HFT pulse before launching the streamer to capture start events.
         self._hft_pulse_queue = self.bus.subscribe("tick.hft", maxsize=100)
@@ -2077,10 +2089,17 @@ async def main(s: TradingSystem) -> None:
         # PILLAR 10: PERSISTENCE - Keep the system alive indefinitely
         # This prevents main() from finishing and hitting the 'finally' shutdown block.
         logger.info("✅ Matrix fully synchronized. System operational.")
+        _gc_counter = 0
         while True:
             # Frequent wakeups are required on Windows to process KeyboardInterrupts
             # Increased frequency to 0.2s for higher responsiveness to Ctrl+C.
             await asyncio.sleep(0.2)
+            
+            # --- PILLAR 40: Sub-Millisecond GC Hardening (Idle Trigger) ---
+            _gc_counter += 1
+            if _gc_counter >= 100: # Every 20 seconds
+                gc.collect()
+                _gc_counter = 0
 
     except (KeyboardInterrupt, asyncio.CancelledError):
         logger.info("\nShutdown signal received (Sovereign Request)")
