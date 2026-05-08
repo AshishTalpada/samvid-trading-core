@@ -1,7 +1,8 @@
-import requests
-import math
 import logging
-from typing import List, Dict
+import math
+from typing import Dict, List
+
+import requests
 
 logger = logging.getLogger(__name__)
 
@@ -11,9 +12,9 @@ class SeismicInfrastructureMonitor:
     Pulls real-time GeoJSON data from the USGS and calculates the seismic stress
     applied to strategic locations (e.g., Cushing OK oil storage, TSMC Fab facilities in Taiwan).
     """
-    
+
     USGS_URL = "https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/all_hour.geojson"
-    
+
     # Critical targets mapping: Name -> (Latitude, Longitude)
     CRITICAL_TARGETS = {
         "Cushing_Oil_Hub": (35.9822, -96.7675),
@@ -56,18 +57,18 @@ class SeismicInfrastructureMonitor:
         for quake in quakes:
             props = quake["properties"]
             geom = quake["geometry"]
-            
+
             mag = props.get("mag")
             if not mag or mag < self.threshold:
                 continue
-                
+
             # USGS coords: [longitude, latitude, depth]
             lon, lat, depth = geom["coordinates"]
             place = props.get("place", "Unknown Location")
 
             for target_name, (t_lat, t_lon) in self.CRITICAL_TARGETS.items():
                 distance_km = self.haversine_distance(lat, lon, t_lat, t_lon)
-                
+
                 # If a magnitude 4+ quake happens within 100km of a critical target, flag it.
                 # If a magnitude 6+ happens within 300km, flag it.
                 if (mag >= 4.0 and distance_km < 100) or (mag >= 6.0 and distance_km < 300):
