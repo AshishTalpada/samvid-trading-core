@@ -1,29 +1,5 @@
-# Samvid Trading Core - Developer Interface
+CC=gcc
+CFLAGS=-O3 -march=native -mtune=native -flto -ffast-math
 
-.PHONY: dev test lint docker-up setup
-
-# Start the full development stack
-dev:
-	@echo "🚀 Starting Samvid Backend..."
-	python src/main.py &
-	@echo "⚛️ Starting React Dashboard..."
-	cd frontend && npm run dev
-
-# Run the test suite
-test:
-	pytest tests/
-
-# Run quality checks (ruff & mypy)
-lint:
-	ruff check src/
-	mypy src/
-
-# Spin up localized infrastructure (QuestDB)
-docker-up:
-	docker-compose -f docker-compose.questdb.yml up -d
-
-# Initialize the local environment
-setup:
-	pip install -r requirements.txt
-	cd frontend && npm install
-	python vault_setup.py
+all:
+	$(CC) $(CFLAGS) -shared -o build/libsovereign.so src/heartbeat.c src/time_sync.c src/memory_guard.c
