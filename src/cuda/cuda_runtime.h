@@ -22,7 +22,11 @@ static inline void __stcs(float* ptr, float val) { *ptr = val; }
 
 extern "C" unsigned cudaConfigureCall(dim3 gridDim, dim3 blockDim, size_t sharedMem = 0, void *stream = 0);
 
+#define KERNEL_LAUNCH(func, grid, block, ...) func(__VA_ARGS__)
+
 static inline void cudaDeviceSynchronize() {}
+#else
+#define KERNEL_LAUNCH(func, grid, block, ...) func<<<grid, block>>>(__VA_ARGS__)
 #endif
 
 #endif
