@@ -373,8 +373,8 @@ class MorningBudget:
         }
 
         config = regime_config.get(regime, regime_config["CHOPPY"])
-        self.max_trades = config["max_trades"]
-        self.min_catalyst = config["min_catalyst"]
+        self.max_trades = int(config["max_trades"])
+        self.min_catalyst = int(config["min_catalyst"])
         self.max_risk_per_trade_pct = config["risk_pct"]
 
         # Consecutive loss modifier
@@ -513,7 +513,7 @@ class TradingBrain:
 
         from collections import deque
 
-        self.spy_buffer = deque(maxlen=200)
+        self.spy_buffer: Any = deque(maxlen=200)
 
         # Mode selection — respects FORCED_PAPER_MODE safety lock from config.
         # Modes:
@@ -913,7 +913,7 @@ class TradingBrain:
             # Type check before calling
             agent = self.coordinator.agents["agent_c_ibkr"]
             if hasattr(agent, "get_margin_cushion"):
-                return agent.get_margin_cushion()
+                return agent.get_margin_cushion()  # type: ignore
         return 1.0  # Default to safe
 
     async def _on_hft_tick(self, payload: dict) -> None:
@@ -1427,7 +1427,7 @@ class TradingBrain:
                             self.emergency_halted = True
                         elif cmd == "status":
                             # Broadcast current stats so the Remote can see them
-                            await self.bus.publish(
+                            await self.bus.publish(  # type: ignore
                                 "notification.telegram",
                                 {
                                     "message": (
@@ -1585,7 +1585,7 @@ class TradingBrain:
                     [candle_task, tick_task], timeout=5.0, return_when=asyncio.FIRST_COMPLETED
                 )
             except (asyncio.TimeoutError, TimeoutError, Exception):
-                _done, _pending = set(), {candle_task, tick_task}
+                _done, _pending = set(), {candle_task, tick_task}  # type: ignore
             finally:
                 for task in [candle_task, tick_task]:
                     if not task.done():
@@ -1912,7 +1912,8 @@ class TradingBrain:
 
         exits_triggered = []
 
-        for pos in list(self.positions):  # type: ignore
+        for pos in list(self.positions):
+
             try:
                 # Fetch live market data for this position
                 market_data = await self._fetch_market_snapshot(pos.symbol)
@@ -2056,7 +2057,7 @@ class TradingBrain:
 
         # Process exits
         for pos, exit_type, exit_price in exits_triggered:
-            await self._process_exit(pos, exit_type, exit_price)
+            await self._process_exit(pos, exit_type, exit_price)  # type: ignore
 
         if not self.positions:
             async with self._state_lock:
@@ -2128,7 +2129,8 @@ class TradingBrain:
             "🚨 *EMERGENCY HALT* 🚨\nAttempting to flatten ALL positions due to critical system error."
         )
 
-        for pos in list(self.positions):  # type: ignore
+        for pos in list(self.positions):
+
             try:
                 if pos.account_type == "ibkr" and self.ibkr_client:
                     logger.warning(f"Emergency flatten {pos.symbol} on IBKR")
@@ -2508,7 +2510,7 @@ class TradingBrain:
                     "timestamp": datetime.now(timezone.utc).isoformat(),
                 }
             )
-            return regime
+            return regime  # type: ignore
         except Exception:
             return "CHOPPY"
 
@@ -2530,7 +2532,8 @@ class TradingBrain:
             except Exception:
                 return getattr(self, "_last_vix", 18.0)
 
-        return await asyncio.to_thread(_sync_get_vix)  # type: ignore
+        return await asyncio.to_thread(_sync_get_vix)
+
 
     async def _get_watchlist(self) -> list[str]:
         """Get current watchlist from database or config."""
@@ -2847,7 +2850,8 @@ class TradingBrain:
             except Exception as e:
                 logger.error(f"Position restoration failed: {e}")
 
-        await asyncio.to_thread(_sync_restore)  # type: ignore
+        await asyncio.to_thread(_sync_restore)
+
         self._sanitize_positions()  # Pre-emptive purge before first cycle
         await self._reconcile_broker_positions()
 
@@ -3122,7 +3126,8 @@ class TradingBrain:
 
             # 1. Fallback to latest price from OHLCV table if price is still None
             if snapshot["price"] is None:
-                df = await self._fetch_ohlcv(symbol)  # type: ignore
+                df = await self._fetch_ohlcv(symbol)
+
                 if df is not None and not isinstance(df, str) and len(df) > 0:
                     latest_close = float(df["close"][-1])
                     prev_close = float(df["close"][-2]) if len(df) > 1 else latest_close
@@ -3189,11 +3194,11 @@ class TradingBrain:
             # Update cache
             self._last_account_value[account_type] = val
             self._last_account_value["timestamp"] = now
-            return val
+            return val  # type: ignore
 
         except Exception as e:
             logger.warning(f"Account check failed (non-fatal): {e}")
-            return self._last_account_value.get(account_type, STARTING_CAPITAL_CAD)
+            return self._last_account_value.get(account_type, STARTING_CAPITAL_CAD)  # type: ignore
 
     async def _get_daily_pnl(self, account_type: str) -> float:
         """Get today's P&L."""
@@ -3215,7 +3220,8 @@ class TradingBrain:
             except Exception:
                 return 0.0
 
-        return await asyncio.to_thread(_sync_daily_pnl)  # type: ignore
+        return await asyncio.to_thread(_sync_daily_pnl)
+
 
     async def _place_ibkr_order(
         self,
@@ -3234,7 +3240,8 @@ class TradingBrain:
         """
         # "paper" mode = fully local simulation — never touches IBKR
         if self.mode == "paper":
-            return f"PAPER-{uuid.uuid4().hex[:8]}"  # type: ignore
+            return f"PAPER-{uuid.uuid4().hex[:8]}"
+
 
         # "ibkr_paper" or "live" — must have a connected IBKR client
         if not self.ibkr_client:
@@ -3400,7 +3407,8 @@ class TradingBrain:
             except Exception as e:
                 logger.debug(f"Could not log signal: {e}")
 
-        await asyncio.to_thread(_sync_log)  # type: ignore
+        await asyncio.to_thread(_sync_log)
+
 
     def _determine_target_broker(self) -> str:
         """Determines if the system should be in Equities (IBKR) or Forex (MT5) mode using NY Time."""
@@ -3492,7 +3500,7 @@ class TradingBrain:
                                 self.swarm_predictor, "_last_consensus", None
                             ).__dict__
                             if hasattr(self.swarm_predictor, "_last_consensus")
-                            and self.swarm_predictor._last_consensus
+                            and self.swarm_predictor._last_consensus  # type: ignore
                             else "None",
                         },
                         default=str,
@@ -3531,7 +3539,8 @@ class TradingBrain:
             except Exception as e:
                 logger.debug(f"Could not log trade entry: {e}")
 
-        await asyncio.to_thread(_sync_log)  # type: ignore
+        await asyncio.to_thread(_sync_log)
+
 
     async def _log_trade_exit(
         self, pos: Position, exit_type: str, exit_price: float, pnl: float, r_multiple: float
@@ -3606,7 +3615,8 @@ class TradingBrain:
                 )
                 self._oracle_dhatu = "Vriddhi"
 
-        await asyncio.to_thread(_sync_log)  # type: ignore
+        await asyncio.to_thread(_sync_log)
+
 
     async def _run_phantom_probe(self) -> None:
         """Sovereign Self-Test: Verify system wiring is 100% active."""

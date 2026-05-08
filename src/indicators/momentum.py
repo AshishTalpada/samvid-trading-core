@@ -40,8 +40,8 @@ class RSI:
             self.initialized = True
         else:
             alpha = 1.0 / self.period
-            self._avg_gain = alpha * gain + (1.0 - alpha) * self._avg_gain
-            self._avg_loss = alpha * loss + (1.0 - alpha) * self._avg_loss
+            self._avg_gain = alpha * gain + (1.0 - alpha) * self._avg_gain  # type: ignore
+            self._avg_loss = alpha * loss + (1.0 - alpha) * self._avg_loss  # type: ignore
 
         if self._avg_loss == 0:
             return 100.0

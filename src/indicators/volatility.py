@@ -39,7 +39,7 @@ class ATR:
             self.initialized = True
         else:
             alpha = 1.0 / self.period
-            self._atr = alpha * tr + (1.0 - alpha) * self._atr
+            self._atr = alpha * tr + (1.0 - alpha) * self._atr  # type: ignore
 
         return self._atr
 

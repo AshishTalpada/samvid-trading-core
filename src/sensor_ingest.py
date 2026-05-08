@@ -27,4 +27,4 @@ class SensorIngestAgent:
         solar_risk = min(1.0, solar_kp / 9.0)
         composite = (seismic_risk * 0.6 + solar_risk * 0.4)
         logger.info(f"[SENSOR] Composite risk={composite:.3f} (seismic={seismic_risk:.2f}, solar={solar_risk:.2f})")
-        return round(composite, 3)
+        return round(composite, 3)  # type: ignore

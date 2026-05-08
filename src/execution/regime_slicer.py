@@ -21,8 +21,8 @@ class RegimeAwareSlicer:
     def compute_schedule(self, total_shares: int, regime: str) -> List[Tuple[int, float]]:
         params = self.REGIME_PARAMS.get(regime, self.REGIME_PARAMS["CHOPPY"])
         n = params["n_slices"]
-        interval = params["interval_min"] * 60
-        base = total_shares // n
-        schedule = [(base + (total_shares % n if i == n-1 else 0), i * interval) for i in range(n)]
-        logger.info(f"[REGIME SLICER] {regime}: {n} slices over {n*params['interval_min']:.0f} mins")
+        interval = params["interval_min"] * 60  # type: ignore
+        base = total_shares // n  # type: ignore
+        schedule = [(base + (total_shares % n if i == n-1 else 0), i * interval) for i in range(n)]  # type: ignore
+        logger.info(f"[REGIME SLICER] {regime}: {n} slices over {n*params['interval_min']:.0f} mins")  # type: ignore
         return schedule

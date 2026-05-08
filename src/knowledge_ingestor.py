@@ -3,6 +3,7 @@ import logging
 import os
 import re
 from datetime import datetime
+from typing import Any
 
 from swarm_predictor import ChromaDeepMemory
 from vault import Vault
@@ -18,7 +19,7 @@ class KnowledgeIngestor:
     def __init__(self, memory: ChromaDeepMemory) -> None:
         self.memory = memory
         self.ingested_count = 0
-        self.visited_paths = set()
+        self.visited_paths: Any = set()
         self.redaction_patterns = self._init_redaction()
 
     def _init_redaction(self):

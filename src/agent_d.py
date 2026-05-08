@@ -495,7 +495,7 @@ class ConditionalExpectancyMatrix:
     def save_priors(self) -> None:
         """Persist current weighted matrix as dynamic priors for the next session."""
         try:
-            output = {}
+            output: Any = {}
             for key, data in self.matrix.items():
                 # Format: Pattern|Regime|Session
                 parts = key.split("|")
@@ -959,7 +959,8 @@ class CalibrationPipeline:
         avg_r = statistics.mean(r_values) if r_values else 0.0
 
         # Entropy — simplified (use win rate trend as proxy)
-        recent_50 = list(trade_history[-50:]) if len(trade_history) >= 50 else trade_history  # type: ignore
+        recent_50 = list(trade_history[-50:]) if len(trade_history) >= 50 else trade_history
+
         recent_wins = sum(1 for t in recent_50 if t.get("outcome") == "WIN")
         recent_wr = recent_wins / len(recent_50) if recent_50 else wr
         wr_trend = recent_wr - wr  # Positive = improving, negative = declining
@@ -1036,7 +1037,8 @@ class CalibrationPipeline:
             # Build rolling windows for crowding signals (chunks of 10)
             chunk_size = max(5, n_p // 5)
             chunks = [
-                pattern_trades[i : i + chunk_size]  # type: ignore
+                pattern_trades[i : i + chunk_size]
+
                 for i in range(0, n_p, chunk_size)
             ]
 
@@ -1105,8 +1107,10 @@ class CalibrationPipeline:
             }
 
         # Split: in-sample is everything except last `window` trades
-        in_sample = trade_history[:-window]  # type: ignore
-        out_sample = trade_history[-window:]  # type: ignore
+        in_sample = trade_history[:-window]
+
+        out_sample = trade_history[-window:]
+
 
         def calc_wr(trades: list[dict]) -> float:
             if not trades:
@@ -1537,7 +1541,7 @@ class LiveLearningEngine:
                         "🧠 [Agent D]: Initiating Sovereign Dream (Deep Reflection)..."
                     )
                     await self._deep_reflection()
-                    last_dream_at = now
+                    last_dream_at = int(now)
 
                 # Wait for a trade exit
                 try:

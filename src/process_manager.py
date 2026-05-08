@@ -109,9 +109,11 @@ def _pin_to_core(core: int) -> None:
             import ctypes
 
             mask = 1 << core
-            ctypes.windll.kernel32.SetProcessAffinityMask(  # type: ignore
+            ctypes.windll.kernel32.SetProcessAffinityMask(
+
                 ctypes.windll.kernel32.GetCurrentProcess(),
-                mask,  # type: ignore
+                mask,
+
             )
         else:
             os.sched_setaffinity(0, {core})

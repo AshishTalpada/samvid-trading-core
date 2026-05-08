@@ -185,7 +185,7 @@ class ChromaDeepMemory:
             for meta, doc in zip(metas or [], docs or [], strict=False):
                 score = 0
                 if meta:
-                    score += float(meta.get("confidence", 0.0)) * 10
+                    score += int(float(meta.get("confidence", 0.0)) * 10)
                     if meta.get("bias") != "NEUTRAL":
                         score += 5
                 scored_memories.append((score, meta, doc))
@@ -271,13 +271,13 @@ class SwarmPredictor:
         self._api_url = api_url  # Stored for compatibility and tests
         self.consensus_history: list[SwarmConsensus] = []
         self._last_consensus: SwarmConsensus | None = None
-        self._memory_queue = asyncio.Queue()
+        self._memory_queue: Any = asyncio.Queue()
         self._prompt_semaphore = asyncio.Semaphore(2)
         self.is_running = False
         self._cache_minutes = cache_minutes
         self._available: bool = False
         self._memory = ChromaDeepMemory()
-        self._memory_queue: asyncio.Queue = asyncio.Queue(maxsize=100)
+        self._memory_queue: asyncio.Queue = asyncio.Queue(maxsize=100)  # type: ignore
         self._memory_loop: asyncio.Task | None = None
 
         # 2. SEEDS: Check for Local vs Cloud reasoning

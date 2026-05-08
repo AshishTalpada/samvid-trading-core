@@ -1,9 +1,31 @@
-#include <xmmintrin.h>
+#include <stdio.h>
 
-extern "C" void l1_hot_load(const float* array, int size) {
-    // Lock Quorum logic into L1 cache via prefetch
-    // _MM_HINT_T0 brings the data into L1 cache immediately.
-    for(int i = 0; i < size; i+= 16) {
-        _mm_prefetch((const char*)&array[i], _MM_HINT_T0);
+/**
+ * L1 Cache Hot-Load mechanism.
+ * Uses GCC/Clang built-in prefetch instructions to manually pull
+ * the Quorum execution structures into the CPU L1 cache BEFORE
+ * the market data arrives, eliminating cache-miss latency (~20ns).
+ */
+
+typedef struct {
+    double entry_price;
+    double current_volume;
+    int execution_flag;
+} HotLoopData;
+
+void prefetch_quorum_logic(HotLoopData* data_array, int size) {
+    for (int i = 0; i < size; i++) {
+        // __builtin_prefetch(addr, rw, locality)
+        // rw=0 (read), locality=3 (leave in L1 cache)
+        __builtin_prefetch(&data_array[i], 0, 3);
+    }
+}
+
+void execute_hot_loop(HotLoopData* data_array, int size) {
+    // Because data is already in L1, this loop runs at maximum IPC.
+    for (int i = 0; i < size; i++) {
+        if (data_array[i].current_volume > 10000) {
+            data_array[i].execution_flag = 1;
+        }
     }
 }

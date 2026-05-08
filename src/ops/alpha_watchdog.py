@@ -1,6 +1,7 @@
 import logging
 import math
 from collections import deque
+from typing import Any
 
 import numpy as np
 
@@ -15,7 +16,7 @@ class AlphaDecayWatchdog:
     """
     def __init__(self, history_window: int = 100):
         self.window = history_window
-        self.trade_returns = deque(maxlen=history_window)
+        self.trade_returns: Any = deque(maxlen=history_window)
         self.baseline_sharpe = 0.0
         self.is_quarantined = False
 

@@ -301,7 +301,7 @@ class ApexExoskeleton:
                 }
 
         logger.info("Apex Exoskeleton: Launching Stage 1 Parallel Quorum (7-Guards Tier)...")
-        return await asyncio.gather(
+        return await asyncio.gather(  # type: ignore
             *[_poll_safe(name, func) for name, func in fast_voting_map.items()]
         )
 

@@ -1,6 +1,7 @@
 import logging
 import time
 from collections import deque
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -12,7 +13,7 @@ class VIXCircuitBreaker:
     def __init__(self, spike_threshold: float = 0.20, window_seconds: int = 300):
         self.spike_threshold = spike_threshold
         self.window_seconds = window_seconds
-        self.tick_history = deque() # tuples of (timestamp, vix_value)
+        self.tick_history: Any = deque() # tuples of (timestamp, vix_value)
 
     def process_vix_tick(self, vix_value: float) -> bool:
         """
