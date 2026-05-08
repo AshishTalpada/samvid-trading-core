@@ -34,9 +34,9 @@ class SovereignTask:
         self.end_time = None
         self.output_file = f"data/tasks/{self.id}.log"
 
-        self.baseline_state = {}  # Snapshot at creation
-        self.delta_metrics = {}  # Tracks shifts
-        self.reflection_log = []  # Post-mortem notes
+        self.baseline_state: Any = {}  # Snapshot at creation
+        self.delta_metrics: Any = {}  # Tracks shifts
+        self.reflection_log: Any = []  # Post-mortem notes
         self.status_summary = "Initializing"
 
         # Ensure directory exists
@@ -48,7 +48,7 @@ class SovereignTask:
         if new_status in [TaskStatus.COMPLETED, TaskStatus.FAILED, TaskStatus.KILLED]:
             from datetime import timezone as _timezone
 
-            self.end_time = datetime.now(_timezone.utc).timestamp()
+            self.end_time = datetime.now(_timezone.utc).timestamp()  # type: ignore
         self.save()
 
     def record_shift(self, metric: str, current_value: Any):

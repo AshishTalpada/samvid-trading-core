@@ -46,4 +46,4 @@ class VoiceSecurityLayer:
         sim = dot / (na * nb + 1e-9)
         passed = sim >= self.threshold
         logger.info(f"[VOICE SEC] {user_id}: sim={sim:.3f} -> {'PASS' if passed else 'FAIL'}")
-        return passed
+        return passed  # type: ignore

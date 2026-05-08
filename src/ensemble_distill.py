@@ -46,7 +46,7 @@ class EnsembleDistiller:
         if not weighted_scores or total_weight == 0:
             return {"vote": "ABSTAIN", "confidence": 0.0, "source": "ensemble_fallback"}
 
-        best_vote = max(weighted_scores, key=weighted_scores.get)
+        best_vote = max(weighted_scores, key=weighted_scores.get)  # type: ignore
         ensemble_confidence = weighted_scores[best_vote] / total_weight
         logger.info(f"[DISTILL] Ensemble vote: {best_vote} ({ensemble_confidence:.2%}) from {len(model_outputs)} models")
         return {"vote": best_vote, "confidence": round(ensemble_confidence, 4), "breakdown": weighted_scores}

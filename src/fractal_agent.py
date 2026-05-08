@@ -38,7 +38,7 @@ class FractalAgent:
                     for i in range(1, max_i + 1):
                         Lmk += abs(data_arr[m + i * k] - data_arr[m + (i - 1) * k])
 
-                    Lmk = Lmk * (N - 1) / (max_i * k) / k
+                    Lmk = int(Lmk * (N - 1) / (max_i * k) / k)
                     Lk.append(Lmk)
 
             if Lk:

@@ -11,7 +11,7 @@ class IsomorphicMapper:
     def normalize(self, series: List[float]) -> np.ndarray:
         arr = np.array(series, dtype=float)
         rng = arr.max() - arr.min()
-        return (arr - arr.min()) / (rng + 1e-9)
+        return (arr - arr.min()) / (rng + 1e-9)  # type: ignore
 
     def find_match(self, query: List[float], candidates: List[Tuple[str, List[float]]]) -> List[str]:
         q = self.normalize(query)

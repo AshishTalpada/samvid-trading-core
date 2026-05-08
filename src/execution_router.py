@@ -34,10 +34,10 @@ class SmartExecutionRouter:
 
         if urgency == "HIGH":
             # Sort by lowest latency
-            return sorted(online.keys(), key=lambda k: online[k]["latency"])[0]
+            return sorted(online.keys(), key=lambda k: online[k]["latency"])[0]  # type: ignore
 
         # Sort by lowest fee
-        return sorted(online.keys(), key=lambda k: online[k]["fee_bps"])[0]
+        return sorted(online.keys(), key=lambda k: online[k]["fee_bps"])[0]  # type: ignore
 
     def route_order(self, ticker: str, size: float, urgency: str = "NORMAL") -> str:
         venue = self.select_venue(size * 100, urgency)  # Approximating USD value

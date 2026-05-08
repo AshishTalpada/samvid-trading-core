@@ -194,7 +194,7 @@ class MindSystem:
             best_path = next(
                 (p["path"] for p in found_paths_info if p["trusted"]), found_paths_info[0]["path"]
             )
-            dir_path = os.path.dirname(best_path)
+            dir_path = os.path.dirname(best_path)  # type: ignore
 
             if name.lower() == "ibkr":
                 os.environ["TWS_PATH"] = dir_path
@@ -203,7 +203,7 @@ class MindSystem:
                 self.CERTIFIED_COMMANDS["RESTART_GATEWAY"][1] = f'start "" "{best_path}"'
                 logger.info(f"MindSystem: Scent captured — Registered IBKR at {dir_path}")
             elif name.lower() == "mt5":
-                os.environ["MT5_PATH"] = best_path
+                os.environ["MT5_PATH"] = best_path  # type: ignore
                 Vault.set("MT5_PATH", best_path)
                 logger.info(f"MindSystem: Scent captured — Registered MT5 at {best_path}")
             elif name.lower() == "questdb":

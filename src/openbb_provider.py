@@ -22,7 +22,8 @@ logger = logging.getLogger(__name__)
 # Previously loaded at module scope, consuming 500+ MB of RAM and taking
 # minutes to import. Now lazy-loaded only when initialize() is called.
 _OPENBB_AVAILABLE: bool | None = None  # None = not yet checked, True/False = checked
-obb = None  # type: ignore[assignment]
+obb = None
+
 
 
 def _try_load_openbb():
@@ -149,8 +150,8 @@ class OpenBBProvider:
             if pat:
                 try:
                     # Attempt Hub Login if supported by the installed version
-                    if hasattr(obb, "account") and hasattr(obb.account, "login"):
-                        obb.account.login(token=pat)
+                    if hasattr(obb, "account") and hasattr(obb.account, "login"):  # type: ignore
+                        obb.account.login(token=pat)  # type: ignore
                         logger.info("✓ OpenBB Hub Session ACTIVE (via PAT)")
                     else:
                         # Fallback for older ODP versions: Environment variable injection

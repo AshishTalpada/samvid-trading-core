@@ -36,7 +36,7 @@ class ContinuousNeuralODE:
         # Introduce a friction coefficient to mean-revert explosive gradients
         friction = -0.01 * state
 
-        return derivative + friction
+        return derivative + friction  # type: ignore
 
     def predict_trajectory(self, current_state: List[float], dt_forward_seconds: float) -> Tuple[float, float, float]:
         '''

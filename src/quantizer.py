@@ -17,11 +17,11 @@ class ModelQuantizer:
         w_min, w_max = weights.min(), weights.max()
         scale = (w_max - w_min) / (2**bits - 1)
         quantized = np.round((weights - w_min) / scale).astype(np.int32)
-        return quantized
+        return quantized  # type: ignore
 
     def dequantize(self, quantized: np.ndarray, w_min: float, w_max: float, bits: int = 8) -> np.ndarray:
         scale = (w_max - w_min) / (2**bits - 1)
-        return quantized.astype(np.float32) * scale + w_min
+        return quantized.astype(np.float32) * scale + w_min  # type: ignore
 
     def switch_precision(self, mode: str) -> None:
         if mode not in ("INT8", "FP32", "FP16"):

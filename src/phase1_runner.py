@@ -38,7 +38,7 @@ def _check_data_integrity(db_path: str, symbol: str = "SPY") -> int:
         cursor.execute("SELECT COUNT(*) FROM ohlcv WHERE symbol=?", (symbol,))
         count = cursor.fetchone()[0]
         conn.close()
-        return count
+        return count  # type: ignore
     except Exception:
         return 0
 

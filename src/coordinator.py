@@ -44,7 +44,7 @@ class TradingCoordinator:
     def __init__(self, bridge: "MindBridge", brain: "TradingBrain") -> None:
         self.bridge = bridge
         self.brain = brain
-        self._pending_vets = set()
+        self._pending_vets: Any = set()
         self.exoskeleton = ApexExoskeleton(brain)
         self._semaphore: asyncio.Semaphore | None = None  # Lazy-init to bind to running loop
 
@@ -249,7 +249,7 @@ class TradingCoordinator:
                     )
                     if self.brain.active_broker.upper() == "MT5":
                         risk_per_trade = getattr(self.brain, "mt5_risk_per_trade", 10.0)
-                        shares = self.brain.mt5_sizer.calculate_lots(
+                        shares = self.brain.mt5_sizer.calculate_lots(  # type: ignore
                             risk_per_trade, pattern.entry, pattern.stop, symbol
                         ) or 0.0
                         pos_value = shares * 100000.0  # Synthetic estimate for Forex tracking
@@ -807,7 +807,7 @@ class TradingCoordinator:
                                 "confidence": 0.5,
                                 "timestamp": timestamp,
                             }
-                            vote_registry[cast(str, name)] = err_vote
+                            vote_registry[cast(str, name)] = err_vote  # type: ignore
 
                 # --- STAGE 2 TELEMETRY ---
                 if self.brain.bus:

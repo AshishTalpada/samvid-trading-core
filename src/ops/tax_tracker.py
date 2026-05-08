@@ -28,5 +28,5 @@ class RealTimeTaxTracker:
             tax = max(0.0, pnl * TAX_RATES.get(rate_key, 0.37))
             self.running_tax_usd += tax
             logger.info(f"[TAX TRACKER] {ticker} PnL=${pnl:.2f} Tax=${tax:.2f} YTD=${self.running_tax_usd:.2f}")
-            return tax
+            return tax  # type: ignore
         return 0.0

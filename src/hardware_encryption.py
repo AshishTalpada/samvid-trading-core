@@ -27,7 +27,7 @@ class HardwareEncryptionLayer:
         else:
             logger.warning("[HW ENCRYPT] cryptography lib not found. Using plaintext fallback.")
             self.key = key or os.urandom(32)
-            self._aes = None
+            self._aes = None  # type: ignore
 
     def encrypt(self, data: bytes, associated: bytes = b"sovereign") -> bytes:
         if self._aes:

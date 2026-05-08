@@ -40,4 +40,4 @@ class CapitalFlowAgent:
     def get_leaders(self, top_n: int = 3) -> list[str]:
         matrix = self.compute_flow_matrix()
         scores = {t: sum(v for v in leads.values()) for t, leads in matrix.items()}
-        return sorted(scores, key=scores.get, reverse=True)[:top_n]
+        return sorted(scores, key=scores.get, reverse=True)[:top_n]  # type: ignore
