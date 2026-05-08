@@ -2,10 +2,10 @@
 #include <fcntl.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdint.h>
 
 #ifdef _WIN32
 #include <io.h>
-#include <stdint.h>
 // Windows compatibility for POSIX types and functions
 typedef intptr_t ssize_t;
 typedef long long off_t;
@@ -45,7 +45,7 @@ extern "C" int auto_fix_db_sector(const char* db_path, off_t sector_offset) {
         
         if (bytes_written == BLOCK_SIZE) {
             fsync(fd);
-            printf("[IO_REPAIR] Sector %ld successfully zeroed and remapped by NVMe controller.\n", sector_offset);
+            printf("[IO_REPAIR] Sector %lld successfully zeroed and remapped by NVMe controller.\n", (long long)sector_offset);
             free(buffer);
             close(fd);
             return 1; // Repaired
