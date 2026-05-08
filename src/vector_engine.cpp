@@ -1,6 +1,4 @@
-#include <vector>
 #include <immintrin.h>  // AVX2 SIMD intrinsics
-#include <stdexcept>
 
 // Deep Implementation: SIMD Accelerated Hyperdimensional Computing (HDC)
 // Uses 256-bit AVX2 registers to compute bitwise Hamming distance for 
