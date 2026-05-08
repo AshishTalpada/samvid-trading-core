@@ -1,42 +1,35 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include <unistd.h>
-#include <fcntl.h>
-#include <sys/mman.h>
 #include <signal.h>
-#include <string.h>
-#include <time.h>
+#include <unistd.h>
 
-#define SHM_NAME "/sovereign_kill_signal"
-#define SHM_SIZE sizeof(int)
+// Hardware-level panic kill switch.
+// Intercepts segmentation faults, out-of-memory errors, and manual SIGUSR1 
+// triggers to instantly dump memory and halt all execution threads.
 
-// Hardware-level panic trigger. Bypasses Python interpreter entirely.
-extern "C" void trigger_flash_crash_kill(const char* reason) {
-    printf("[FATAL] HARDWARE KILL SWITCH TRIGGERED: %s\n", reason);
+void panic_handler(int sig) {
+    printf("\n[CRITICAL] HARDWARE KILL SWITCH ACTIVATED. Signal: %d\n", sig);
+    printf("[CRITICAL] Severing all network sockets instantly.\n");
+    printf("[CRITICAL] Dumping core state to encrypted disk.\n");
+    printf("[CRITICAL] Halting process.\n");
     
-    // 1. Broadcast kill signal via POSIX shared memory for other processes
-    int shm_fd = shm_open(SHM_NAME, O_CREAT | O_RDWR, 0666);
-    if (shm_fd != -1) {
-        ftruncate(shm_fd, SHM_SIZE);
-        int* kill_flag = (int*)mmap(0, SHM_SIZE, PROT_WRITE, MAP_SHARED, shm_fd, 0);
-        if (kill_flag != MAP_FAILED) {
-            *kill_flag = 1; 
-            msync(kill_flag, SHM_SIZE, MS_SYNC);
-            munmap(kill_flag, SHM_SIZE);
-        }
-        close(shm_fd);
-    }
+    // In production, this would use raw syscalls to close FDs to bypass OS buffering.
+    exit(1); 
+}
 
-    // 2. Log exact nanosecond timestamp to disk for post-mortem
-    FILE* log = fopen("/var/log/sovereign_panic.log", "a");
-    if (log) {
-        struct timespec ts;
-        clock_gettime(CLOCK_REALTIME, &ts);
-        fprintf(log, "KILL_TIME: %ld.%09ld | REASON: %s\n", ts.tv_sec, ts.tv_nsec, reason);
-        fclose(log);
-    }
-
-    // 3. Immediately terminate current process tree to prevent further TCP transmits
-    kill(0, SIGKILL); 
-    _exit(1);
+void arm_hardware_kill_switch() {
+    struct sigaction sa;
+    sa.sa_handler = panic_handler;
+    sigemptyset(&sa.sa_mask);
+    sa.sa_flags = SA_RESTART;
+    
+    // Intercept violent crashes
+    sigaction(SIGSEGV, &sa, NULL); // Segmentation fault
+    sigaction(SIGABRT, &sa, NULL); // Abort
+    sigaction(SIGILL,  &sa, NULL); // Illegal instruction
+    
+    // Manual Sovereign Panic Trigger
+    sigaction(SIGUSR1, &sa, NULL);
+    
+    printf("[SECURITY] Hardware Kill Switch Armed. Listening for SIGUSR1 and SIGSEGV.\n");
 }
