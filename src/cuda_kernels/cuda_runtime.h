@@ -10,17 +10,17 @@
 
 typedef struct {
     int x, y, z;
-} dim3_mock;
+} dim3;
 
-extern dim3_mock blockIdx;
-extern dim3_mock blockDim;
-extern dim3_mock threadIdx;
+extern dim3 blockIdx;
+extern dim3 blockDim;
+extern dim3 threadIdx;
 
 // Mock __ldg and __stcs for intellisense
 static inline float __ldg(const float* ptr) { return *ptr; }
 static inline void __stcs(float* ptr, float val) { *ptr = val; }
 
-extern "C" int cudaConfigureCall(dim3_mock gridDim, dim3_mock blockDim, size_t sharedMem = 0, void *stream = 0);
+extern "C" unsigned cudaConfigureCall(dim3 gridDim, dim3 blockDim, size_t sharedMem = 0, void *stream = 0);
 
 static inline void cudaDeviceSynchronize() {}
 #endif
