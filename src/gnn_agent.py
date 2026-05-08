@@ -1,6 +1,7 @@
-import numpy as np
 import logging
 from collections import defaultdict
+
+import numpy as np
 
 logger = logging.getLogger(__name__)
 
@@ -34,12 +35,12 @@ class GNNSentimentAgent:
         # Graph Convolution Layer: H^{(l+1)} = \sigma(A * H^{(l)} * W)
         # 1. Aggregate neighborhood features
         aggregated_features = np.dot(self.adj_matrix, self.node_features)
-        
+
         # 2. Linear transformation via weight matrix W
         transformed = np.dot(aggregated_features, self.W)
-        
+
         # 3. Non-linear activation (Tanh to keep sentiment between -1 and 1)
         updated_features = np.tanh(transformed)
-        
+
         self.node_features = updated_features
         return self.node_features[:, 0] # Return the primary sentiment dimension
