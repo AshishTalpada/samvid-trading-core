@@ -9,5 +9,6 @@ CompileFlags:
     -D__global__=,
     -D__restrict__=,
     -D__device__=,
-    -D__host__=
+    -D__host__=,
+    -DSHARED_MEM=
   ]
