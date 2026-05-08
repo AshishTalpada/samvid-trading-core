@@ -149,7 +149,7 @@ class WalkForwardEngine:
 
     def __init__(
         self,
-        db_path: str = "trading.db",
+        db_path: str = "data/trading.db",
         train_bars: int = 1000,  # ~5 months of 1min bars per session
         test_bars: int = 200,  # ~1 month out-of-sample
         stop_loss_pct: float = 0.015,  # 1.5% stop
@@ -376,8 +376,8 @@ def aggregate_results(results: list[WalkForwardResult]) -> dict:
 
 
 async def run_phase1_validation(
-    db_path: str = "trading.db", symbols: Optional[list[str]] = None, capital: float = 500.0
-) -> None:
+    db_path: str = "data/trading.db", symbols: Optional[list[str]] = None, capital: float = 500.0
+) -> bool:
     """
     Run full Phase 1 validation.
     """
@@ -429,17 +429,19 @@ async def run_phase1_validation(
 
         if avg_sharpe >= 1.0 and sig_count >= (len(all_symbol_results) // 2 + 1):
             print("\n  ✅ PHASE 1 PASSED — Edge is real. Proceed to Phase 2 (Live Paper Trading).")
-            return True
+            passed = True
         elif avg_sharpe >= 0.5:
             print("\n  ⚠️  EDGE EXISTS BUT WEAK — Tune signal weights before live deployment.")
-            return False
+            passed = False
         else:
             print("\n  ❌ NO SIGNIFICANT EDGE — Do not deploy live capital.")
-            return False
+            passed = False
     else:
         print("\n  ❌ CRITICAL: No results generated. Check database integrity.")
-        return False
+        passed = False
+
     print("=" * 65 + "\n")
+    return passed
 
 
 if __name__ == "__main__":

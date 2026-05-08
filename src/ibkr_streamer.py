@@ -223,9 +223,9 @@ class IBKRStreamer:
         for ticker in tickers:
             symbol = ticker.contract.symbol
 
-            bid = float(ticker.bid) if ticker.bid > 0 else 0.0
-            ask = float(ticker.ask) if ticker.ask > 0 else 0.0
-            last_p = float(ticker.last) if ticker.last > 0 else 0.0
+            bid = float(ticker.bid) if ticker.bid and ticker.bid > 0 else 0.0
+            ask = float(ticker.ask) if ticker.ask and ticker.ask > 0 else 0.0
+            last_p = float(ticker.last) if ticker.last and ticker.last > 0 else 0.0
 
             # Reject ticks that are older than 500ms to prevent trading on 'Cold' price data.
             if ticker.time:
@@ -385,7 +385,7 @@ class IBKRStreamer:
                 contracts = [Stock(symbol=s, exchange="SMART", currency="USD") for s in symbols]
 
                 # 2. Subscribe to all symbols
-                current_tickers = {t.contract.symbol for t in self.ib.tickers()}
+                current_tickers = {t.contract.symbol for t in self.ib.tickers() if t.contract is not None}
                 for contract in contracts:
                     if contract.symbol not in current_tickers:
                         try:

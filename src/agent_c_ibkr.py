@@ -78,6 +78,7 @@ class IBKRConnection:
         self._exec_secret = (
             Vault.get("EXEC_SECRET", "SETO_SOVEREIGN_EXEC_V22") or "SETO_SOVEREIGN_EXEC_V22"
         )
+        self.brain: Any = None
         self._setup_callbacks()
 
         self._recovered_orders: set[int] = set()
@@ -128,7 +129,7 @@ class IBKRConnection:
         direction: str,
         shares: int,
         price: float,
-        account_id: str = None,
+        account_id: str | None = None,
         is_close: bool = False,
     ) -> tuple[bool, str]:
         """Institutional pre-flight validation: TradingState, throttle, notional, account, purchasing power, margin."""
@@ -149,7 +150,7 @@ class IBKRConnection:
             # 1. Account Alignment
             from config import IBKR_ACCOUNT_ID
 
-            target_acc = account_id or IBKR_ACCOUNT_ID.strip()
+            target_acc = account_id or (IBKR_ACCOUNT_ID.strip() if IBKR_ACCOUNT_ID else None)
             if target_acc and target_acc not in self.ib.wrapper.accounts:
                 return False, f"ACCOUNT_MISMATCH: Target {target_acc} not found in broker session."
 
@@ -282,7 +283,6 @@ class IBKRConnection:
                     logger.error(f"🚨 ORDER PERSISTENCE FAILURE: {e}")
 
             import asyncio as _asyncio
-
             _asyncio.get_event_loop().run_in_executor(None, _persist_order_status)
 
             self._order_persistence[trade.order.orderId] = {
@@ -543,8 +543,8 @@ class IBKRConnection:
                     contract = Crypto(symbol, "PAXOS", "USD")
                 elif is_option:
                     # Resolve Option components for IBKR compatibility
-                    # For simple string-based options, we can often just pass the symbol to qualify
-                    contract = Option(symbol, "SMART", "USD")
+                    # We pass keyword arguments to avoid positional argument mismatch
+                    contract = Option(symbol=symbol, exchange="SMART", currency="USD")
                 else:
                     contract = Stock(symbol, "SMART", "USD")
 
@@ -641,8 +641,9 @@ class IBKRConnection:
                 # Bug 30 FIX: Limit Price Bias Guard
                 # If the spread is wider than 0.5%, use the actual Bid/Ask instead of Mid to ensure fill.
                 # Use the brain's real-time tick cache
-                bid = self.brain.last_tick_bids.get(symbol, 0.0)
-                ask = self.brain.last_tick_asks.get(symbol, 0.0)
+                brain = getattr(self, "brain", None)
+                bid = brain.last_tick_bids.get(symbol, 0.0) if brain else 0.0
+                ask = brain.last_tick_asks.get(symbol, 0.0) if brain else 0.0
 
                 if bid > 0 and ask > 0:
                     if (ask - bid) / bid > 0.005:
@@ -688,7 +689,7 @@ class IBKRConnection:
                 # could lead to unintended execution on multiple accounts.
                 from config import IBKR_ACCOUNT_ID
 
-                target_acc = IBKR_ACCOUNT_ID.strip()
+                target_acc = IBKR_ACCOUNT_ID.strip() if IBKR_ACCOUNT_ID else None
 
                 if not target_acc:
                     if self.ib.wrapper.accounts:
@@ -832,7 +833,8 @@ class IBKRConnection:
 
                 from config import IBKR_ACCOUNT_ID
 
-                target_acc = IBKR_ACCOUNT_ID.strip()
+                target_acc = IBKR_ACCOUNT_ID.strip() if IBKR_ACCOUNT_ID else None
+                primary_id = None
 
                 if not target_acc:
                     if self.ib.wrapper.accounts:
@@ -1161,12 +1163,12 @@ class PositionSizingChain:
                 logger.warning(
                     f"Sizer: [IMPACT_GUARD] {instrument} slippage {est_slippage:.2%} > 15% of reward. Downsizing 50% for safety."
                 )
-                step8_shares = max(1, int(round(step8_shares * 0.5)))
+                step8_shares = max(1, round(step8_shares * 0.5))
         elif step8_shares > 0 and not kwargs.get("is_probe"):
             logger.warning(
                 f"Sizer: [IMPACT_GAP] No OHLCV data for {instrument} impact estimation. Applying 30% blind downsizing."
             )
-            step8_shares = max(1, int(round(step8_shares * 0.7)))
+            step8_shares = max(1, round(step8_shares * 0.7))
 
         # If the expected profit is less than round-trip commission, the trade is a guaranteed loss.
         from config import COMMISSION_PER_ROUND_TRIP

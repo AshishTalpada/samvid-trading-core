@@ -18,7 +18,7 @@ import numpy as np
 import websockets
 
 from api_cache import TTLCache
-from database_security import Vault
+from vault import Vault
 from telegram_alerts import send_telegram_alert
 
 if TYPE_CHECKING:
@@ -456,7 +456,7 @@ class NewsHarvester:
         self.bus = bus
         # Adjusted for 4GB VRAM (GTX 1050) - phi3:mini fits perfectly
         self._local_model = Vault.get("OLLAMA_MODEL_MACRO", "phi3:mini") or "phi3:mini"
-        self.finnhub_key = Vault.get("FINNHUB_API_KEY") or Vault.get("FINNHUB_KEY")
+        self.finnhub_key = str(Vault.get("FINNHUB_API_KEY", "") or Vault.get("FINNHUB_KEY", ""))
         self._running = False
         self._last_headlines = set()
         if self.finnhub_key:
@@ -964,7 +964,7 @@ class DhatuOracle:
         """Return the global risk modifier (safe default: 1.0)."""
         state = self._current_state
         if state is not None and state.is_fresh:
-            return float(state.risk_modifier)
+            return state.risk_modifier
         return 1.0
 
     def evaluate_proposal(self, context: Dict[str, Any]) -> Dict[str, Any]:
@@ -1010,7 +1010,7 @@ class DhatuOracle:
         """Return current Dhatu state name."""
         state = self._current_state
         if state is not None and state.is_fresh:
-            return str(state.dhatu_state)
+            return state.dhatu_state
         return "Sthiti"  # Persistence — neutral default
 
     # Continuous Refresh Loop
@@ -1071,7 +1071,7 @@ class DhatuOracle:
                         f"confidence={state.confidence:.0%}"
                     )
 
-                if self._bus is not None:
+                if self._bus is not None and state is not None:
                     # 1. Hard-stop signal for Abhava (capital preservation) or
                     # Viyoga (separation / sell all equities).
                     if state.dhatu_state in ("Abhava", "Viyoga"):
@@ -1128,7 +1128,10 @@ class DhatuOracle:
             import yfinance as yf
 
             loop = asyncio.get_event_loop()
-            ticker = await loop.run_in_executor(None, yf.Ticker, symbol)
+            ticker = await loop.run_in_executor(None, lambda: yf.Ticker(symbol))
+
+            if ticker is None:
+                return []
 
             # Fetch 2 days to get change percent
             df = await loop.run_in_executor(
@@ -1137,7 +1140,7 @@ class DhatuOracle:
             )
 
             snippets = []
-            if not df.empty and len(df) >= 2:
+            if df is not None and not df.empty and len(df) >= 2:
                 prev_close = float(df["Close"].iloc[-2])
                 current_close = float(df["Close"].iloc[-1])
                 pct_change = ((current_close - prev_close) / prev_close) * 100.0
@@ -1167,13 +1170,14 @@ class DhatuOracle:
                 )
 
             # Fetch recent news
-            news = await loop.run_in_executor(None, lambda t=ticker: t.news)  # type: ignore
-            if news and isinstance(news, list):
-                for item in [news[i] for i in range(min(2, len(news)))]:
-                    title = item.get("title", "")
-                    if title:
-                        logger.info(f"📰 YF_ORACLE: [{name}] {title}")
-                        snippets.append(f"NEWS [{name}]: {title}")
+            if ticker is not None:
+                news = await loop.run_in_executor(None, lambda t=ticker: t.news)  # type: ignore
+                if news and isinstance(news, list):
+                    for item in [news[i] for i in range(min(2, len(news)))]:
+                        title = item.get("title", "")
+                        if title:
+                            logger.info(f"📰 YF_ORACLE: [{name}] {title}")
+                            snippets.append(f"NEWS [{name}]: {title}")
 
             del ticker
             del df
@@ -1534,7 +1538,7 @@ class DhatuOracle:
             macro_bias=macro_bias,
             dominant_theme="ADAPTIVE_" + effort.upper(),
             edges=edges,
-            uncertainty_score=round(float(uncertainty), 3),
+            uncertainty_score=round(uncertainty, 3),
         )
 
     def _parse_graph_json(self, data: dict[str, Any]) -> CausationGraph:
@@ -1599,7 +1603,7 @@ class DhatuOracle:
             import math
 
             def cosine_sim(v1, v2):
-                dot = sum(a * b for a, b in zip(v1, v2, strict=False))
+                dot = sum(a * b for a, b in zip(v1, v2))
                 mag1 = math.sqrt(sum(a * a for a in v1))
                 mag2 = math.sqrt(sum(a * a for a in v2))
                 return dot / (mag1 * mag2 + 1e-10)
@@ -1640,7 +1644,13 @@ class DhatuOracle:
 
     def _parse_state_json(self, data: dict[str, Any], graph: CausationGraph) -> OracleState:
         """Deprecated: Replaced by deterministic state mapping."""
-        return OracleState(dhatu_state="Sthiti", reasoning="Deprecated")
+        return OracleState(
+            dhatu_state="Sthiti",
+            action_protocol="HOLD",
+            risk_modifier=0.95,
+            causation_summary="Deprecated",
+            confidence=0.5,
+        )
 
     # Full Synthesis Cycle
 
@@ -1705,7 +1715,7 @@ class DhatuOracle:
                     bayes_state = self._bayesian_oracle.update(prices, volumes, vix)
                     original_conf = state.confidence
                     blended_conf = (0.6 * bayes_state.confidence) + (0.4 * original_conf)
-                    state.confidence = round(float(blended_conf), 4)
+                    state.confidence = round(blended_conf, 4)
                     logger.info(
                         f"DhatuOracle: Bayesian confidence blended. {state.dhatu_state} (New Conf: {state.confidence:.1%})"
                     )

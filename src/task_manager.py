@@ -22,7 +22,7 @@ class Task:
     A first-class, persistent unit of work (Trade or Monitor).
     """
 
-    def __init__(self, task_id: str, task_type: str, description: str, metadata: dict = None):
+    def __init__(self, task_id: str, task_type: str, description: str, metadata: dict | None = None):
         self.id = task_id
         self.type = task_type  # 'trade', 'monitor', 'dream'
         self.status = TaskStatus.PENDING

@@ -14,9 +14,11 @@ class HistoricalInstructor:
     def __init__(self):
         self.consensus = QuantConsensus()
 
-    def run_validation(self, symbol: str = "SPY"):
+    async def run_validation(self, symbol: str = "SPY"):
         logger.info(f"Instructor: Validating {symbol} against centennial regimes...")
-        run_phase1_validation(symbols=[symbol])
+        await run_phase1_validation(symbols=[symbol])
+
+
 
     def run_sanity_check(self, symbol: str = "SPY"):
         """
@@ -30,5 +32,6 @@ class HistoricalInstructor:
 
 
 if __name__ == "__main__":
+    import asyncio
     instructor = HistoricalInstructor()
-    instructor.run_validation()
+    asyncio.run(instructor.run_validation())

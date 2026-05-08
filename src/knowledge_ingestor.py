@@ -130,7 +130,7 @@ async def run_full_ingestion() -> None:
 
     memory = ChromaDeepMemory()
     ingestor = KnowledgeIngestor(memory)
-    source_dir = Vault.get("KNOWLEDGE_SOURCE_DIR", "data/knowledge")
+    source_dir: str = Vault.get("KNOWLEDGE_SOURCE_DIR", "data/knowledge") or "data/knowledge"
     await ingestor.ingest_directory(source_dir)
     await ingestor.trigger_evolution_shift()
 

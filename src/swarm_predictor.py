@@ -21,7 +21,7 @@ import os
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from enum import Enum
-from typing import Any, Dict
+from typing import Any, Dict, List, Optional, cast
 
 import httpx
 
@@ -165,8 +165,11 @@ class ChromaDeepMemory:
                 return "", 0.0
 
             # If we find highly similar memories, compact them into a single truth token
-            docs = results["documents"][0]
-            metas = results["metadatas"][0]
+            docs = (results.get("documents") or [[]])[0] if results else []
+            metas = cast(list[dict], (results.get("metadatas") or [[]])[0] if results else [])
+
+            if not docs or not metas:
+                return "", 0.0
 
             compacted_truth = await self._compact_memories(docs, metas)
             if compacted_truth:
@@ -179,7 +182,7 @@ class ChromaDeepMemory:
             memory_contexts = []
             max_conf = 0.0
             scored_memories = []
-            for meta, doc in zip(metas, docs, strict=False):
+            for meta, doc in zip(metas or [], docs or [], strict=False):
                 score = 0
                 if meta:
                     score += float(meta.get("confidence", 0.0)) * 10
@@ -280,12 +283,12 @@ class SwarmPredictor:
         # 2. SEEDS: Check for Local vs Cloud reasoning
 
         use_local_str = Vault.get("USE_LOCAL_LLM", "true")
-        self.use_local = str(use_local_str).lower() == "true" if use_local_str else True
-        self._openai_key = Vault.get("OPENAI_API_KEY")
+        self.use_local = use_local_str.lower() == "true" if use_local_str else True
+        self._openai_key = Vault.get("OPENAI_API_KEY", "") or ""
         self._openai_client: Any = None
 
         if self.use_local:
-            urls_str = Vault.get("OLLAMA_URLS", "http://localhost:11434/v1")
+            urls_str = str(Vault.get("OLLAMA_URLS", "http://localhost:11434/v1"))
             self._ollama_urls = [u.strip() for u in urls_str.split(",") if u.strip()]
             self._url_index = 0
 
@@ -435,7 +438,7 @@ class SwarmPredictor:
             bias = SwarmBias.BULLISH if "BULLISH" in deep_memory_str.upper() else SwarmBias.BEARISH
             consensus = SwarmConsensus(
                 bias=bias,
-                confidence=float(min(1.0, top_confidence)),
+                confidence=min(1.0, top_confidence),
                 summary=f"Flash Resonance Hit: Mirroring historical win (Conf: {top_confidence:.1%})",
                 agent_count=1000807,
                 generated_at=datetime.now(timezone.utc),
@@ -600,24 +603,34 @@ class SwarmPredictor:
             from thermal_guard import ThermalGuard
 
             options = await ThermalGuard.get_handshake_options(is_critical=is_critical)
-
-            kwargs = {
-                "model": self._model_fast,
-                "messages": [
-                    {"role": "system", "content": role},
-                    {
-                        "role": "user",
-                        "content": f"Analyze this market context in 2 sentences precisely. Keep to your persona.\n\n{context}",
-                    },
-                ],
-                "temperature": 0.7,
-                "max_tokens": 150,
-            }
-            if self.use_local:
-                kwargs["extra_body"] = {"options": options}
-
             async with self._prompt_semaphore:
-                resp = await client.chat.completions.create(**kwargs)
+                if self.use_local:
+                    resp = await client.chat.completions.create(
+                        model=self._model_fast,
+                        messages=[
+                            {"role": "system", "content": role},
+                            {
+                                "role": "user",
+                                "content": f"Analyze this market context in 2 sentences precisely. Keep to your persona.\n\n{context}",
+                            },
+                        ],
+                        temperature=0.7,
+                        max_tokens=150,
+                        extra_body={"options": options}
+                    )
+                else:
+                    resp = await client.chat.completions.create(
+                        model=self._model_fast,
+                        messages=[
+                            {"role": "system", "content": role},
+                            {
+                                "role": "user",
+                                "content": f"Analyze this market context in 2 sentences precisely. Keep to your persona.\n\n{context}",
+                            },
+                        ],
+                        temperature=0.7,
+                        max_tokens=150
+                    )
 
             content = resp.choices[0].message.content if resp and resp.choices else None
             return content or "No opinion."
@@ -649,33 +662,46 @@ class SwarmPredictor:
 
             client = self._openai_client
             options = await ThermalGuard.get_handshake_options(is_critical=is_critical)
-
-            kwargs = {
-                "model": self._model_heavy,
-                "messages": [
-                    {
-                        "role": "system",
-                        "content": 'You are the Chief Strategist handling a multi-agent debate. Respond ONLY in strict JSON: {"bias": "BULLISH"|"BEARISH"|"NEUTRAL", "confidence": 0.0-1.0, "summary": "1-sentence synthesis"}',
-                    },
-                    {
-                        "role": "user",
-                        "content": f"Resolve this Agent Debate for {symbol}:\n\n{debate}",
-                    },
-                ],
-                "temperature": 0.4,
-                "response_format": {"type": "json_object"},
-            }
-            if self.use_local:
-                kwargs["extra_body"] = {"options": options}
-
             async with self._prompt_semaphore:
-                resp = await client.chat.completions.create(**kwargs)
-            txt = resp.choices[0].message.content or "{}"
+                if self.use_local:
+                    resp = await client.chat.completions.create(
+                        model=self._model_heavy,
+                        messages=[
+                            {
+                                "role": "system",
+                                "content": 'You are the Chief Strategist handling a multi-agent debate. Respond ONLY in strict JSON: {"bias": "BULLISH"|"BEARISH"|"NEUTRAL", "confidence": 0.0-1.0, "summary": "1-sentence synthesis"}',
+                            },
+                            {
+                                "role": "user",
+                                "content": f"Resolve this Agent Debate for {symbol}:\n\n{debate}",
+                            },
+                        ],
+                        temperature=0.4,
+                        response_format={"type": "json_object"},
+                        extra_body={"options": options}
+                    )
+                else:
+                    resp = await client.chat.completions.create(
+                        model=self._model_heavy,
+                        messages=[
+                            {
+                                "role": "system",
+                                "content": 'You are the Chief Strategist handling a multi-agent debate. Respond ONLY in strict JSON: {"bias": "BULLISH"|"BEARISH"|"NEUTRAL", "confidence": 0.0-1.0, "summary": "1-sentence synthesis"}',
+                            },
+                            {
+                                "role": "user",
+                                "content": f"Resolve this Agent Debate for {symbol}:\n\n{debate}",
+                            },
+                        ],
+                        temperature=0.4,
+                        response_format={"type": "json_object"}
+                    )
+            txt = (resp.choices[0].message.content if resp and resp.choices else "{}") or "{}"
             try:
                 data = json.loads(txt)
             except json.JSONDecodeError:
                 logger.warning(
-                    f"SwarmPredictor: LLM returned invalid JSON — defaulting to neutral. Raw: {txt[:200]}"
+                    f"SwarmPredictor: LLM returned invalid JSON — defaulting to neutral. Raw: {str(txt)[:200]}"
                 )
                 data = {}
 
@@ -712,21 +738,22 @@ class SwarmPredictor:
             if key in ctx:
                 parts.append(f"{key.capitalize()}: {ctx[key]}")
 
-        if ctx.get("news"):
-            parts.append("\n<NEWS_DATA>")
-            injection_flags = [
-                "ignore all ",
-                "system override",
-                "new instructions",
-                "you are now",
-                "forget everything",
-            ]
-            for h in ctx["news"][:3]:
-                safe_h = str(h)
-                for flag in injection_flags:
-                    safe_h = safe_h.lower().replace(flag, "[REDACTED]")
-                parts.append(f" • {safe_h}")
-            parts.append("</NEWS_DATA>")
+            news = ctx.get("news", [])
+            if news:
+                parts.append("\n<NEWS_DATA>")
+                injection_flags = [
+                    "ignore all ",
+                    "system override",
+                    "new instructions",
+                    "you are now",
+                    "forget everything",
+                ]
+                for h in news[:3]:
+                    safe_h = str(h)
+                    for flag in injection_flags:
+                        safe_h = safe_h.lower().replace(flag, "[REDACTED]")
+                    parts.append(f" • {safe_h}")
+                parts.append("</NEWS_DATA>")
         return "\n".join(parts)
 
     @staticmethod
@@ -770,8 +797,7 @@ class SwarmPredictor:
             try:
                 await self.get_market_forecast(
                     symbol=symbol,
-                    data_context={"price": "0", "regime": "CONTINUOUS_SCAN"},
-                    rounds=1,
+                    context={"price": "0", "regime": "CONTINUOUS_SCAN"},
                 )
             except asyncio.CancelledError:
                 break

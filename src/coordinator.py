@@ -1,9 +1,10 @@
 import asyncio
+import inspect
 import logging
 import time
 import uuid
 from datetime import datetime, timezone
-from typing import TYPE_CHECKING, Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, cast
 
 import numpy as np
 import pandas as pd
@@ -21,8 +22,8 @@ from telegram_alerts import send_telegram_alert
 logger = logging.getLogger(__name__)
 
 CONCURRENCY_LIMIT = 3
-# NOTE: asyncio.Semaphore is created lazily inside the class to avoid
 # attaching to the wrong event loop when imported at module level.
+from config import COMMISSION_PER_ROUND_TRIP
 
 
 class TradingCoordinator:
@@ -71,7 +72,7 @@ class TradingCoordinator:
             if task:
                 task.log(f"PHASE_RR: Analyzing Risk/Reward for {symbol}. Pattern: {pattern.name}")
             balance = await self.brain.get_safe_buying_power("ibkr")
-            from config import COMMISSION_PER_ROUND_TRIP, USD_CAD_RATE
+            from config import USD_CAD_RATE
 
             # Necessary for accurate sizing when trading US assets on a CAD-denominated account.
             balance_usd = (balance or 500.0) / USD_CAD_RATE
@@ -166,7 +167,7 @@ class TradingCoordinator:
                 async def _poll_safe(name, func):
                     """Imperial Dispatcher (Sync -> Thread | Async -> Native)"""
                     try:
-                        if asyncio.iscoroutinefunction(func):
+                        if inspect.iscoroutinefunction(func):
                             return await func()
                         # Sync-safe bridge: run in thread pool to prevent blocking the event loop
                         res = await asyncio.to_thread(func)
@@ -254,13 +255,13 @@ class TradingCoordinator:
                         pos_value = shares * 100000.0  # Synthetic estimate for Forex tracking
                     else:
                         sizing = self.brain.ibkr_sizer.calculate(
-                            win_prob=alpha_val,
-                            r_r_ratio=pattern.r_r_ratio,
-                            balance=account_value,
-                            account_value=account_value,
-                            entry_price=pattern.entry,
-                            stop_price=pattern.stop,
-                            target_price=pattern.target,
+                            win_prob=float(alpha_val or 0.5),
+                            r_r_ratio=float(pattern.r_r_ratio),
+                            balance=account_value or 500.0,
+                            account_value=account_value or 500.0,
+                            entry_price=float(pattern.entry),
+                            stop_price=float(pattern.stop),
+                            target_price=float(pattern.target),
                             spread=spread_data["spread"],
                             instrument=symbol,
                             ohlcv_df=ohlcv_for_sizing,
@@ -309,7 +310,7 @@ class TradingCoordinator:
                     "proposal_id": proposal_id,
                     "is_long": pattern.entry > pattern.stop,
                     "vix": await self.brain._get_vix(),
-                    "potential_profit": abs(pattern.target - pattern.entry),
+                    "potential_profit": abs(float(pattern.target) - float(pattern.entry)),
                     "commission": max(COMMISSION_PER_ROUND_TRIP, (shares or 1) * 0.01),
                 }
 
@@ -406,9 +407,9 @@ class TradingCoordinator:
                         # 2. Derive context for Agent A
                         tension = (
                             self.brain.dhatu_oracle.calculate_spread_tension(
-                                bid=float(ohlcv_1m["low"][-1]),
-                                ask=float(ohlcv_1m["high"][-1]),
-                                volume=float(ohlcv_1m["volume"][-1]),
+                                bid=float(cast(Any, ohlcv_1m["low"][-1])),
+                                ask=float(cast(Any, ohlcv_1m["high"][-1])),
+                                volume=float(cast(Any, ohlcv_1m["volume"][-1])),
                             )
                             if self.brain.dhatu_oracle
                             else 0.0
@@ -420,7 +421,7 @@ class TradingCoordinator:
                         entropy_score = self.brain.entropy_calc.signal_entropy(p_before, p_after)
 
                         closes = ohlcv_1m["close"].to_numpy()
-                        resistances = [float(np.percentile(closes, 90)), float(np.max(closes))]
+                        resistances = [float(np.percentile(cast(Any, closes), 90)), float(np.max(cast(Any, closes)))]
                         timeframes = [("1m", ohlcv_1m)]
 
                         # Trend 5d/1m
@@ -433,6 +434,7 @@ class TradingCoordinator:
                                 self.brain.db_conn,
                                 params=[symbol],
                             )
+                            df_h1 = cast(pd.DataFrame, df_h1)
                             if len(df_h1) >= 5:
                                 trend_5d = (
                                     "bull"
@@ -454,14 +456,19 @@ class TradingCoordinator:
                             )
 
                         # 3. Dynamic ATR for sizing resonance
+                        high = ohlcv_1m["high"].to_numpy()
+                        low = ohlcv_1m["low"].to_numpy()
+                        close = ohlcv_1m["close"].to_numpy()
+                        prev_close = ohlcv_1m["close"].shift(1).to_numpy()
+
                         tr = np.maximum(
-                            (ohlcv_1m["high"] - ohlcv_1m["low"]).abs(),
+                            np.abs(high - low),
                             np.maximum(
-                                (ohlcv_1m["high"] - ohlcv_1m["close"].shift(1)).abs(),
-                                (ohlcv_1m["low"] - ohlcv_1m["close"].shift(1)).abs(),
+                                np.abs(high - prev_close),
+                                np.abs(low - prev_close),
                             ),
                         )
-                        atr_20 = float(tr.tail(20).mean())
+                        atr_20 = float(np.nanmean(tr[-20:]))
 
                         # 4. EXPLICIT AGENT A VALIDATION (The Defensive Fortress)
                         # Wrapped in to_thread because it's heavy math/neural logic.
@@ -478,7 +485,7 @@ class TradingCoordinator:
                             regime_classifier=self.brain.regime_classifier_neural,
                             ohlcv_df=ohlcv_1m,
                             volume_surge=(
-                                ohlcv_1m["volume"][-1] > ohlcv_1m["volume"][-20:-1].mean() * 2.0
+                                float(cast(Any, ohlcv_1m["volume"][-1])) > float(cast(Any, ohlcv_1m["volume"][-20:-1].mean())) * 2.0
                             ),
                             trend_5d=trend_5d,
                             trend_1m=trend_1m,
@@ -635,12 +642,12 @@ class TradingCoordinator:
                     tier1_results = await self.exoskeleton.run_parallel_tier(shared_context)
                     for res in tier1_results:
                         if res and "agent" in res:
-                            vote_registry[res["agent"]] = res
+                            vote_registry[cast(str, res["agent"])] = res
 
                     dummy_tail = self.exoskeleton.evaluate_dictatorship(tier1_results, timestamp)
                     if dummy_tail:
                         for res in dummy_tail:
-                            vote_registry[res["agent"]] = res
+                            vote_registry[cast(str, res["agent"])] = res
                 except Exception as exo_err:
                     logger.error(
                         f"Coordinator: Apex Exoskeleton failure, reverting to Imperial Core: {exo_err}"
@@ -694,7 +701,7 @@ class TradingCoordinator:
                             {"agent": "Mind_Ultrathink", "vote": "NO", "confidence": 0.0, "reason": "Skipped", "timestamp": timestamp},
                         ]
                         for res in dummy_tail:
-                            vote_registry[res["agent"]] = res
+                            vote_registry[str(res["agent"])] = res
 
                 # --- STAGE 1 TELEMETRY ---
                 if self.brain.bus:
@@ -713,6 +720,7 @@ class TradingCoordinator:
                     logger.info(
                         f"Coordinator [{proposal_id}]: Stage 1 Clear. Entering Neural Gate for Gated agents..."
                     )
+                    gated_agents = []
                     try:
                         gated_agents = [
                             ("Dhatu_Oracle", poll_oracle),
@@ -786,7 +794,7 @@ class TradingCoordinator:
 
                         for res in gated_votes:
                             if res and "agent" in res:
-                                vote_registry[res["agent"]] = res
+                                vote_registry[cast(str, res["agent"])] = res
                                 # Update Conviction State for caching
                                 if res.get("confidence", 0) > 0:
                                     self.brain.conviction_state[res["agent"]] = res
@@ -797,10 +805,9 @@ class TradingCoordinator:
                                 "agent": name,
                                 "vote": "YES",
                                 "confidence": 0.5,
-                                "reason": "Neural Error Fallback",
                                 "timestamp": timestamp,
                             }
-                            vote_registry[name] = err_vote
+                            vote_registry[cast(str, name)] = err_vote
 
                 # --- STAGE 2 TELEMETRY ---
                 if self.brain.bus:

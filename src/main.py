@@ -13,8 +13,10 @@ except ImportError:
 # Force UTF-8 encoding for Windows terminals to support emojis/special characters
 if sys.platform == "win32":
     try:
-        sys.stdout.reconfigure(encoding="utf-8")
-        sys.stderr.reconfigure(encoding="utf-8")
+        if hasattr(sys.stdout, "reconfigure"):
+            sys.stdout.reconfigure(encoding="utf-8")
+        if hasattr(sys.stderr, "reconfigure"):
+            sys.stderr.reconfigure(encoding="utf-8")
     except (AttributeError, io.UnsupportedOperation):
         pass
 
@@ -39,7 +41,7 @@ import time
 from collections.abc import Callable, Coroutine
 from datetime import datetime, timezone
 from logging.handlers import RotatingFileHandler
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Optional, Pattern, cast
 
 import aiohttp
 
@@ -89,7 +91,7 @@ class SovereignFormatter(logging.Formatter):
         # Escape secrets to prevent regex injection
         escaped_secrets = [re.escape(s) for s in self._secrets if len(s) > 3]
         if escaped_secrets:
-            self._pattern = re.compile("|".join(escaped_secrets))
+            self._pattern: Optional[Pattern[str]] = re.compile("|".join(escaped_secrets))
         else:
             self._pattern = None
 
@@ -222,7 +224,7 @@ class TradingSystem:
             self.mode = "paper"
             logger.warning("FORCED_PAPER_MODE is active - real trading is disabled.")
         else:
-            self.mode = Vault.get("TRADING_MODE", TRADING_MODE)
+            self.mode = Vault.get("TRADING_MODE", TRADING_MODE) or TRADING_MODE
             logger.info(f"Trading mode: {self.mode}")
 
         self.db_path = Path("data/trading.db")
@@ -230,9 +232,9 @@ class TradingSystem:
         self.start_time = datetime.now(timezone.utc)
 
         # Configuration (from Vault)
-        self.ibkr_host = Vault.get("IBKR_HOST", "localhost")
-        self.ibkr_port = int(Vault.get("IBKR_PORT", "7497"))
-        self.ibkr_client_id = int(Vault.get("IBKR_CLIENT_ID", "500"))
+        self.ibkr_host = Vault.get("IBKR_HOST", "localhost") or "localhost"
+        self.ibkr_port = int(Vault.get("IBKR_PORT", "7497") or "7497")
+        self.ibkr_client_id = int(Vault.get("IBKR_CLIENT_ID", "500") or "500")
 
         self.mt5_login = Vault.get("MT5_LOGIN")
         self.mt5_password = Vault.get("MT5_PASSWORD")
@@ -241,6 +243,7 @@ class TradingSystem:
 
         self.telegram_token = Vault.get("TELEGRAM_BOT_TOKEN")
         self.telegram_chat_id = Vault.get("TELEGRAM_CHAT_ID")
+        self._telegram_session: Optional[aiohttp.ClientSession] = None
 
         # Ensure we have write permissions in the project root before starting.
         try:
@@ -272,12 +275,14 @@ class TradingSystem:
         self.questdb: QuestDBAdapter | None = None
         self.api_server: APIServer | None = None
         self.hft_streamer: IBKRStreamer | None = None
+        self.candle_writer: Any = None
         self.restorer = SessionRestorer()
         self._openbb_provider: Any = None
         self.native_slm: Any = None
         self.telegram_remote = get_remote()  # Remote Command Hub
         self.is_running = False
         self._mt5_failure_count = 0  # Track sequential MT5 heartbeat failures
+        self._last_freeze_time = 0.0  # Last time state was frozen
 
         self.background_tasks: dict[str, asyncio.Task[None]] = {}
         self.db_lock = asyncio.Lock()
@@ -403,12 +408,12 @@ class TradingSystem:
     async def _init_questdb(self) -> None:
         _qdb_timeout = Vault.get("QUESTDB_CONNECT_TIMEOUT_SEC", str(QUESTDB_CONNECT_TIMEOUT_SEC))
         self.questdb = QuestDBAdapter(
-            host=Vault.get("QUESTDB_HOST", QUESTDB_HOST),
-            ilp_port=int(Vault.get("QUESTDB_PORT", str(QUESTDB_PORT))),
-            pg_port=int(Vault.get("QUESTDB_PG_PORT", str(QUESTDB_PG_PORT))),
+            host=Vault.get("QUESTDB_HOST", QUESTDB_HOST) or QUESTDB_HOST,
+            ilp_port=int(Vault.get("QUESTDB_PORT", str(QUESTDB_PORT)) or str(QUESTDB_PORT)),
+            pg_port=int(Vault.get("QUESTDB_PG_PORT", str(QUESTDB_PG_PORT)) or str(QUESTDB_PG_PORT)),
             user=Vault.get("QUESTDB_USER", QUESTDB_USER) or "admin",
             password=Vault.get("QUESTDB_PASSWORD", QUESTDB_PASSWORD) or "quest",
-            enabled=(Vault.get("QUESTDB_ENABLED", str(QUESTDB_ENABLED)).lower() == "true"),
+            enabled=((Vault.get("QUESTDB_ENABLED", str(QUESTDB_ENABLED)) or str(QUESTDB_ENABLED)).lower() == "true"),
             connect_timeout_sec=float(_qdb_timeout)
             if _qdb_timeout
             else QUESTDB_CONNECT_TIMEOUT_SEC,
@@ -476,8 +481,8 @@ class TradingSystem:
             host=self.ibkr_host,
             port=self.ibkr_port,
             client_id=self.ibkr_client_id + 10,
-            qdb_host=Vault.get("QUESTDB_HOST", QUESTDB_HOST),
-            qdb_ilp_port=int(Vault.get("QUESTDB_PORT", str(QUESTDB_PORT))),
+            qdb_host=Vault.get("QUESTDB_HOST", QUESTDB_HOST) or QUESTDB_HOST,
+            qdb_ilp_port=int(Vault.get("QUESTDB_PORT", str(QUESTDB_PORT)) or str(QUESTDB_PORT)),
             bus=self.bus,
             qdb_adapter=self.questdb,
         )
@@ -712,7 +717,7 @@ class TradingSystem:
                     ibc_path = None
 
                 default_tws = "C:\\Jts" if os.name == "nt" else "/opt/ibgateway"
-                tws_path = os.environ.get("TWS_PATH") or Vault.get("TWS_PATH", default_tws)
+                tws_path = os.environ.get("TWS_PATH") or Vault.get("TWS_PATH", default_tws) or default_tws
                 ibkr_user = Vault.get("IBKR_PAPER_USERNAME")
                 ibkr_pass = Vault.get("IBKR_PAPER_PASSWORD")
 
@@ -728,7 +733,7 @@ class TradingSystem:
                         folders = [
                             int(f)
                             for root in roots_to_check
-                            if os.path.exists(root)
+                            if root and os.path.exists(root)
                             for f in os.listdir(root)
                             if f.isdigit()
                         ]
@@ -737,9 +742,9 @@ class TradingSystem:
                     except Exception:
                         pass
 
-                    ibkr_interface = Vault.get("IBKR_INTERFACE", "gateway").lower()
+                    ibkr_interface = (Vault.get("IBKR_INTERFACE", "gateway") or "gateway").lower()
                     effective_tws_path = tws_path
-                    if ibkr_interface == "gateway" and os.path.exists(
+                    if ibkr_interface == "gateway" and tws_path and os.path.exists(
                         os.path.join(tws_path, "ibgateway")
                     ):
                         effective_tws_path = os.path.join(tws_path, "ibgateway")
@@ -827,6 +832,7 @@ class TradingSystem:
 
         try:
             import MetaTrader5 as mt5
+            mt5 = cast(Any, mt5)
 
             # Step 1: Initialize MT5 terminal
             # First try bare initialize (attach to running terminal)
@@ -836,7 +842,7 @@ class TradingSystem:
             # First try bare initialize (attach to running terminal or auto-start default)
             init_kwargs = {}
             if self.mt5_path:
-                effective_path = str(self.mt5_path)
+                effective_path = self.mt5_path
                 if os.path.isdir(effective_path):
                     potential_exe = os.path.join(effective_path, "terminal64.exe")
                     if os.path.exists(potential_exe):
@@ -919,7 +925,7 @@ class TradingSystem:
                 ):
                     try:
                         self.trading_brain.mt5_conn.sync_state(
-                            int(self.mt5_login), self.mt5_password, self.mt5_server
+                            int(self.mt5_login), self.mt5_password or "", self.mt5_server or ""
                         )
                     except Exception as e:
                         logger.debug(f"MT5: Brain state sync failed: {e}")
@@ -1000,7 +1006,7 @@ class TradingSystem:
             ):
                 try:
                     self.trading_brain.mt5_conn.sync_state(
-                        int(self.mt5_login), self.mt5_password, self.mt5_server
+                        int(self.mt5_login), self.mt5_password or "", self.mt5_server or ""
                     )
                 except Exception as e:
                     logger.debug(f"MT5: Brain state sync failed: {e}")
@@ -1037,7 +1043,7 @@ class TradingSystem:
             _f_key = Vault.get("FINNHUB_API_KEY", "")
             self.data_pipeline = DataPipeline(
                 db_path=str(self.db_path),
-                finnhub_key=str(_f_key) if _f_key else "",
+                finnhub_key=_f_key or "",
                 qdb=self.questdb,
                 openbb_provider=self._openbb_provider,
                 bus=self.bus,
@@ -1069,8 +1075,8 @@ class TradingSystem:
             from dms import DMSMonitor
 
             self.dms = DMSMonitor(
-                bot_token=self.telegram_token,
-                chat_id=self.telegram_chat_id,
+                bot_token=self.telegram_token or "",
+                chat_id=self.telegram_chat_id or "",
                 timeout=300,
                 ibkr_client=self.ibkr_client,
                 mt5_client=self.mt5_client,
@@ -1137,8 +1143,8 @@ class TradingSystem:
             from dhatu_oracle import DhatuOracle
 
             oracle = DhatuOracle(
-                google_api_key=Vault.get("GOOGLE_API_KEY", ""),
-                anthropic_api_key=Vault.get("ANTHROPIC_API_KEY", ""),
+                google_api_key=Vault.get("GOOGLE_API_KEY", "") or "",
+                anthropic_api_key=Vault.get("ANTHROPIC_API_KEY", "") or "",
                 gemini_model=Vault.get("GEMINI_MODEL", "gemini-2.0-flash") or "gemini-2.0-flash",
                 bus=self.bus,
             )
@@ -1196,7 +1202,7 @@ class TradingSystem:
         try:
             url = f"https://api.telegram.org/bot{self.telegram_token}/sendMessage"
             payload = {
-                "chat_id": str(self.telegram_chat_id).strip(),
+                "chat_id": self.telegram_chat_id.strip() if self.telegram_chat_id else "",
                 "text": redacted_message,
                 "parse_mode": "HTML",
             }
@@ -1242,13 +1248,14 @@ class TradingSystem:
             logger.info("\n[8/9] Dhatu Oracle disabled or not configured.")
 
         # Start API Server
-        _p = self.api_server.port
-        logger.info(f"\n[9/9] Starting Institutional API Server (Port {_p})...")
-        started = await self.api_server.start()
-        if started:
-            logger.info("✅ API Server active")
-        else:
-            logger.info(f"API Server skipped (already active on port {_p})")
+        if self.api_server:
+            _p = self.api_server.port
+            logger.info(f"\n[9/9] Starting Institutional API Server (Port {_p})...")
+            started = await self.api_server.start()
+            if started:
+                logger.info("✅ API Server active")
+            else:
+                logger.info(f"API Server skipped (already active on port {_p})")
 
     async def startup(self) -> None:
         """Main startup sequence: parallel initialization of all system components."""
@@ -1297,8 +1304,8 @@ class TradingSystem:
             _mt5_authorized = False
             if hasattr(self, "mt5_login") and self.mt5_login:
                 if (
-                    "YOUR_MT5" not in str(self.mt5_login).upper()
-                    and str(self.mt5_login).lower() != "none"
+                    "YOUR_MT5" not in self.mt5_login.upper()
+                    and self.mt5_login.lower() != "none"
                 ):
                     _mt5_authorized = True
 
@@ -1349,7 +1356,8 @@ class TradingSystem:
             # Always start HFT streamer — falls back to Bus-only if QuestDB offline
             logger.info("\n[9/10] Starting HFT Streamer (10ms updates)...")
             # watchlist is already defined in step 8.5
-            self._start_supervised_task("hft_streamer", lambda: self.hft_streamer.run(watchlist))
+            if self.hft_streamer:
+                self._start_supervised_task("hft_streamer", lambda: self.hft_streamer.run(watchlist))
 
             # Step 10: Send startup notification
             logger.info("\n[10/10] Sending startup notification...")
@@ -1508,20 +1516,21 @@ class TradingSystem:
                     try:
                         from session_manager import SovereignSession
 
-                        stats = await self.trading_brain.get_system_stats()
-                        payload = {
-                            "system_id": Vault.get("SYSTEM_ID", "SOVEREIGN_V9"),
-                            "timestamp": datetime.now(timezone.utc).isoformat(),
-                            "stats": stats,
-                            "active_broker": self.trading_brain.active_broker,
-                            "uptime": time.time() - self._start_time
-                            if hasattr(self, "_start_time")
-                            else 0,
-                        }
-                        session = await SovereignSession.get_session()
-                        async with session.post(tele_url, json=payload, timeout=5) as resp:
-                            if resp.status == 200:
-                                logger.debug("Telemetry: Phone Home successful.")
+                        if self.trading_brain:
+                            stats = await self.trading_brain.get_system_stats()
+                            payload = {
+                                "system_id": Vault.get("SYSTEM_ID", "SOVEREIGN_V9"),
+                                "timestamp": datetime.now(timezone.utc).isoformat(),
+                                "stats": stats,
+                                "active_broker": self.trading_brain.active_broker,
+                                "uptime": time.time() - self._start_time
+                                if hasattr(self, "_start_time")
+                                else 0,
+                            }
+                            session = await SovereignSession.get_session()
+                            async with session.post(tele_url, json=payload, timeout=aiohttp.ClientTimeout(total=5)) as resp:
+                                if resp.status == 200:
+                                    logger.debug("Telemetry: Phone Home successful.")
                     except Exception as e:
                         logger.debug(f"Telemetry: Phone Home failed (non-fatal): {e}")
 
@@ -1533,8 +1542,6 @@ class TradingSystem:
                         )
 
                 # Checkpoint every 5 minutes (300s) to protect against local crashes
-                if not hasattr(self, "_last_freeze_time"):
-                    self._last_freeze_time = 0
                 now = time.time()
                 if now - self._last_freeze_time >= 300:
                     if hasattr(self, "trading_brain") and self.trading_brain is not None:
@@ -1753,7 +1760,8 @@ class TradingSystem:
             if hasattr(self, "mt5_client") and self.mt5_client:
                 try:
                     logger.info(" -> Disconnecting MT5...")
-                    import MetaTrader5 as mt5
+                    import MetaTrader5 as MT5
+                    mt5: Any = MT5
                     await asyncio.to_thread(mt5.shutdown)
                 except Exception as e:
                     logger.debug(f"MT5 shutdown error: {e}")
@@ -1917,8 +1925,9 @@ class TradingSystem:
                 await asyncio.sleep(900)  # 15 Minutes
                 cpu = psutil.cpu_percent()
                 ram = psutil.virtual_memory().percent
+                brain_state = self.trading_brain.state.name if self.trading_brain else "INIT"
                 logger.info(
-                    f"📈 METRICS: CPU: {cpu}% | RAM: {ram}% | State: {self.trading_brain.state.name if hasattr(self, 'trading_brain') else 'INIT'}"
+                    f"📈 METRICS: CPU: {cpu}% | RAM: {ram}% | State: {brain_state}"
                 )
 
                 # Log to QuestDB if available

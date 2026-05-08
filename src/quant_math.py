@@ -13,34 +13,36 @@ import logging
 
 import numpy as np
 
+from typing import TYPE_CHECKING, Any, Callable, TypeVar
+
 logger = logging.getLogger(__name__)
 
 # ── Numba JIT bootstrap ────────────────────────────────────────────────────────
-try:
-    from numba import njit  # type: ignore
+if TYPE_CHECKING:
+    from typing import overload
+    F = TypeVar("F", bound=Callable[..., Any])
 
-    _NUMBA_AVAILABLE = True
-    logger.info("quant_math: Numba JIT enabled — math running at native speed.")
-except ImportError as e:
-    logger.warning(
-        f"quant_math: Numba not installed or import failed: {e}. Running pure NumPy (slower). pip install numba"
-    )
-    _NUMBA_AVAILABLE = False
-except Exception as e:
-    logger.warning(
-        f"quant_math: Unexpected error importing numba: {e}. Running pure NumPy (slower)."
-    )
-    _NUMBA_AVAILABLE = False
+    @overload
+    def njit(f: F) -> F: ...
+    @overload
+    def njit(*args: Any, **kwargs: Any) -> Callable[[F], F]: ...
 
-    def njit(*args, **kwargs):  # type: ignore  # noqa: E302
-        """No-op decorator when Numba is unavailable."""
+    def njit(*args: Any, **kwargs: Any) -> Any: ...
+    _NUMBA_AVAILABLE: bool = True
+else:
+    try:
+        from numba import njit  # type: ignore
+        _NUMBA_AVAILABLE = True
+        logger.info("quant_math: Numba JIT enabled — math running at native speed.")
+    except (ImportError, Exception) as e:
+        logger.warning(f"quant_math: Numba not available ({e}). Running pure NumPy.")
+        _NUMBA_AVAILABLE = False
 
-        def decorator(fn):
-            return fn
-
-        if args and callable(args[0]):
-            return args[0]
-        return decorator
+        def njit(*args, **kwargs):  # type: ignore
+            """No-op decorator when Numba is unavailable."""
+            if len(args) == 1 and callable(args[0]):
+                return args[0]
+            return lambda f: f
 
 
 # ── EMA ────────────────────────────────────────────────────────────────────────
@@ -267,7 +269,7 @@ def multi_factor_score(
         + w_vol_surge * vol_surge
     )
 
-    return max(-1.0, min(1.0, float(score)))
+    return max(-1.0, min(1.0, score))
 
 
 # ── Warm-up trigger (Numba compiles on first call) ────────────────────────────
