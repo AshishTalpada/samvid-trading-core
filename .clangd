@@ -1,14 +1,21 @@
 CompileFlags:
   Add: [
-    -xcuda, 
-    -nocudainc, 
-    -nocudalib, 
-    -Isrc/cuda, 
-    -Wno-implicit-function-declaration,
-    -D__shared__=,
-    -D__global__=,
-    -D__restrict__=,
-    -D__device__=,
-    -D__host__=,
-    -DSHARED_MEM=
+    -Isrc/cuda,
+    -Wno-implicit-function-declaration
+  ]
+
+---
+If:
+  PathMatch: .*\.cu
+CompileFlags:
+  Add: [
+    -xcuda,
+    -nocudainc,
+    -nocudalib,
+    "-D__shared__=",
+    "-D__global__=",
+    "-D__restrict__=",
+    "-D__device__=",
+    "-D__host__=",
+    "-DSHARED_MEM="
   ]
