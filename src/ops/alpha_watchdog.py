@@ -1,6 +1,8 @@
-import numpy as np
 import logging
+import math
 from collections import deque
+
+import numpy as np
 
 logger = logging.getLogger(__name__)
 
@@ -19,7 +21,7 @@ class AlphaDecayWatchdog:
 
     def ingest_trade(self, return_pct: float):
         self.trade_returns.append(return_pct)
-        
+
         if len(self.trade_returns) >= self.window // 2:
             self._evaluate_decay()
 
@@ -27,12 +29,12 @@ class AlphaDecayWatchdog:
         data = np.array(self.trade_returns)
         mean_ret = np.mean(data)
         std_ret = np.std(data)
-        
+
         if std_ret == 0:
             return
-            
+
         current_sharpe = (mean_ret * math.sqrt(252)) / std_ret # Annualized rough estimation
-        
+
         # Set baseline if not established
         if self.baseline_sharpe == 0.0 and len(self.trade_returns) == self.window:
             self.baseline_sharpe = current_sharpe
@@ -42,7 +44,7 @@ class AlphaDecayWatchdog:
         # Check for structural decay
         if self.baseline_sharpe > 0:
             decay_pct = (self.baseline_sharpe - current_sharpe) / self.baseline_sharpe
-            
+
             # If the strategy has lost 40% of its predictive power relative to history, it's decaying
             if decay_pct > 0.40 and current_sharpe < 1.0:
                 logger.critical(f"[WATCHDOG] SEVERE ALPHA DECAY DETECTED! Sharpe dropped from {self.baseline_sharpe:.2f} to {current_sharpe:.2f}.")
