@@ -1,5 +1,6 @@
 import numpy as np
 
+
 class LatentSpaceSearch:
     def __init__(self, dim: int = 512):
         self.dim = dim

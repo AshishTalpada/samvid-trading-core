@@ -1,5 +1,6 @@
 import numpy as np
 
+
 class ScentDetector:
     """Detects early breakout conditions before volume confirms the move."""
     def __init__(self, vol_ratio_threshold: float = 1.5, price_compression_threshold: float = 0.005):

@@ -1,5 +1,6 @@
 from typing import Callable, Dict, Optional
 
+
 class SovereignFSM:
     """Adversarial finite state machine ensuring all state transitions are valid."""
     def __init__(self, initial_state: str):

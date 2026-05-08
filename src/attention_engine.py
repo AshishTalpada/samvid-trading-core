@@ -1,5 +1,7 @@
-import numpy as np
 from typing import List
+
+import numpy as np
+
 
 class RegimeAttention:
     """Identifies historical periods most similar to current market state."""

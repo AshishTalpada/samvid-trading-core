@@ -22,12 +22,12 @@ class VolatilitySkewAnalyzer:
         """
         if implied_vol <= 0 or historical_vol <= 0:
             return {"action": "HOLD", "skew_edge": 0.0}
-            
+
         vol_premium = implied_vol - historical_vol
         relative_skew = vol_premium / historical_vol
-        
+
         action = "HOLD"
-        
+
         if relative_skew > self.min_skew_threshold:
             # Options are extremely expensive compared to actual stock movement
             action = "SELL_VOLATILITY" # e.g., Sell Straddles / Iron Condors
@@ -36,7 +36,7 @@ class VolatilitySkewAnalyzer:
             # Options are extremely cheap compared to actual stock movement
             action = "BUY_VOLATILITY" # e.g., Buy Straddles
             logger.info(f"Vol Skew Edge: Options heavily underpriced. Discount: {abs(vol_premium):.2f}")
-            
+
         return {
             "action": action,
             "historical_vol": historical_vol,

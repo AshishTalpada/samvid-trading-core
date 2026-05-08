@@ -1,5 +1,6 @@
-import numpy as np
 from typing import Literal
+
+import numpy as np
 
 RegimeType = Literal["BULL", "BEAR", "CHOP"]
 

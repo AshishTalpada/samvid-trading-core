@@ -1,5 +1,6 @@
-from typing import Dict, List, Any
 import time
+from typing import Any, Dict, List
+
 
 class MultiHorizonMemory:
     """Recalls trading lessons across multiple time horizons simultaneously."""

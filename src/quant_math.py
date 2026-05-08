@@ -10,10 +10,9 @@ Import pattern:
 from __future__ import annotations
 
 import logging
+from typing import TYPE_CHECKING, Any, Callable, TypeVar
 
 import numpy as np
-
-from typing import TYPE_CHECKING, Any, Callable, TypeVar
 
 logger = logging.getLogger(__name__)
 

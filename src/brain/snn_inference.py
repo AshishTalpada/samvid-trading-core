@@ -1,5 +1,6 @@
 import numpy as np
 
+
 class SNNGate:
     """Spike-based neural gate for sub-millisecond binary decisions."""
     def __init__(self, threshold: float = 0.5, decay: float = 0.9):

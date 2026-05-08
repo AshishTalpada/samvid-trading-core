@@ -1,5 +1,7 @@
-import numpy as np
 from typing import Dict, List
+
+import numpy as np
+
 
 class FeatureCreator:
     """Automatically synthesizes and evaluates new composite technical indicators."""

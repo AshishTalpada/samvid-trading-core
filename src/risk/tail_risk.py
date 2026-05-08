@@ -1,5 +1,6 @@
-import numpy as np
 import logging
+
+import numpy as np
 
 logger = logging.getLogger(__name__)
 
@@ -21,17 +22,17 @@ class TailRiskModel:
         """
         if not returns or len(returns) < 5:
             return 0.0
-            
+
         ret_arr = np.array(returns)
-        
+
         # Calculate Value at Risk (VaR)
         percentile = (1 - confidence_level) * 100
         var = np.percentile(ret_arr, percentile)
-        
+
         # Expected Shortfall is the average of returns worse than VaR
         tail_losses = ret_arr[ret_arr <= var]
-        
+
         if len(tail_losses) == 0:
             return 0.0
-            
+
         return float(np.mean(tail_losses))

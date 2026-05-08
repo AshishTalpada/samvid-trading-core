@@ -1,5 +1,6 @@
 import random
 
+
 class StealthSlicer:
     """Randomizes TWAP/VWAP slice timing and sizing to prevent detection."""
     def __init__(self, num_slices: int = 10, time_variance_pct: float = 0.3):

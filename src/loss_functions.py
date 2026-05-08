@@ -1,5 +1,6 @@
 import numpy as np
 
+
 class AdaptiveLoss:
     def __init__(self, regime: str = "NORMAL"):
         self.regime = regime

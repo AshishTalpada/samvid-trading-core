@@ -1,4 +1,5 @@
-from typing import List, Dict
+from typing import Dict, List
+
 
 class FeaturePruner:
     def __init__(self, threshold: float = 0.01):

@@ -1,4 +1,5 @@
-from typing import List, Dict
+from typing import Dict, List
+
 
 class ShadowTrader:
     """Runs recursive self-play by trading against historical ghost versions of the agent."""

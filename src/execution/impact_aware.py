@@ -1,5 +1,6 @@
 import numpy as np
 
+
 class ImpactAwareExecution:
     """Prevents a trade from moving the market against itself using the square-root impact model."""
     def __init__(self, daily_volume: float, volatility: float):
