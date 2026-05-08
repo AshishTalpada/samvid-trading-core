@@ -12,6 +12,7 @@ CompileFlags:
     -xcuda,
     -nocudainc,
     -nocudalib,
+    -Isrc/cuda,
     "-D__shared__=",
     "-D__global__=",
     "-D__restrict__=",
