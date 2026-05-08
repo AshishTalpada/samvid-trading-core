@@ -1,5 +1,6 @@
 import numpy as np
 
+
 class SparseAttention:
     def __init__(self, sparsity_threshold: float = 0.01):
         self.threshold = sparsity_threshold

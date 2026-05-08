@@ -18,8 +18,8 @@ import numpy as np
 import websockets
 
 from api_cache import TTLCache
-from vault import Vault
 from telegram_alerts import send_telegram_alert
+from vault import Vault
 
 if TYPE_CHECKING:
     from intelligence_bus import SharedIntelligenceBus
@@ -1603,7 +1603,7 @@ class DhatuOracle:
             import math
 
             def cosine_sim(v1, v2):
-                dot = sum(a * b for a, b in zip(v1, v2))
+                dot = sum(a * b for a, b in zip(v1, v2, strict=False))
                 mag1 = math.sqrt(sum(a * a for a in v1))
                 mag2 = math.sqrt(sum(a * a for a in v2))
                 return dot / (mag1 * mag2 + 1e-10)

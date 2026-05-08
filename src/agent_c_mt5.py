@@ -3,9 +3,9 @@ import logging
 import os
 from datetime import datetime, timedelta
 from datetime import time as dt_time
+from typing import Any, Optional, cast
 
 import MetaTrader5 as _mt5
-from typing import Any, Optional, cast
 
 # Re-assign to Any to suppress missing attribute diagnostics across all environments
 mt5: Any = _mt5
@@ -108,7 +108,7 @@ class MT5Connection:
         caller_frame = inspect.currentframe()
         if caller_frame:
             caller_frame = caller_frame.f_back
-        
+
         caller_name = caller_frame.f_code.co_name if caller_frame else "unknown"
         if caller_name not in AUTHORIZED_CALLERS:
             # Try one more level up if it's an async wrapper
@@ -330,7 +330,7 @@ class MT5PositionSizer:
         caller_frame = inspect.currentframe()
         if caller_frame:
             caller_frame = caller_frame.f_back
-        
+
         caller_name = caller_frame.f_code.co_name if caller_frame else "unknown"
         if caller_name not in AUTHORIZED_CALLERS:
             # Try one more level up if it's an async wrapper

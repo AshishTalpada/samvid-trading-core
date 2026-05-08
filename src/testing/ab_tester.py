@@ -1,6 +1,6 @@
-import uuid
 import logging
-from typing import Dict, Any
+import uuid
+from typing import Any, Dict
 
 logger = logging.getLogger(__name__)
 
@@ -33,7 +33,7 @@ class StrategyABTester:
         """
         if exp_id not in self.active_experiments:
             return "A" # Default fallback
-            
+
         # Simple consistent hashing
         hash_val = sum(ord(c) for c in ticker)
         return "A" if hash_val % 2 == 0 else "B"
@@ -52,13 +52,13 @@ class StrategyABTester:
         """
         if exp_id not in self.active_experiments:
             return {"error": "Experiment not found"}
-            
+
         exp = self.active_experiments[exp_id]
         pnl_a = exp["variants"]["A"]["pnl"]
         pnl_b = exp["variants"]["B"]["pnl"]
-        
+
         winner = "A" if pnl_a > pnl_b else ("B" if pnl_b > pnl_a else "TIE")
-        
+
         return {
             "experiment_name": exp["name"],
             "winner": winner,
