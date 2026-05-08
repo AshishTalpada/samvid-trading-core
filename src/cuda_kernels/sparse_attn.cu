@@ -16,7 +16,11 @@ __global__ void sparse_attention_kernel(const float* __restrict__ Q,
     int row = blockIdx.x * blockDim.x + tid;
     
     // Shared memory for K/V caching
-    extern SHARED_MEM float shared_mem[];
+#ifdef __NVCC__
+    extern __shared__ float shared_mem[];
+#else
+    extern float shared_mem[];
+#endif
     float* K_shared = shared_mem;
     float* V_shared = &shared_mem[BLOCK_SIZE * dim];
 
