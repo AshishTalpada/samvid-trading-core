@@ -1,7 +1,6 @@
-#include <iostream>
 #include <cmath>
 #include <stdint.h>
-#include <map>
+#include <stdio.h>
 
 /**
  * Sovereign Entropy Audit Engine
