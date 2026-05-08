@@ -7,7 +7,7 @@ logger = logging.getLogger(__name__)
 class QuantumTuner:
     """
     Simulated Quantum Annealing for finding global hyperparameter optima.
-    Uses quantum tunneling probabilities to escape local minima, outperforming 
+    Uses quantum tunneling probabilities to escape local minima, outperforming
     standard Simulated Annealing.
     """
     def __init__(self, transverse_field_strength: float = 1.0):

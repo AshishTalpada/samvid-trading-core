@@ -13,11 +13,11 @@ class FractalAgent:
         HFD ~ 1.0 means it's a perfectly smooth trend.
         HFD ~ 1.5 means it's a random walk (noise).
         HFD ~ 2.0 means it's highly mean-reverting / choppy.
-        
+
         Args:
             data: Time series price data.
             k_max: Maximum interval time.
-            
+
         Returns:
             Fractal dimension as a float.
         """

@@ -1,7 +1,8 @@
-import MetaTrader5 as mt5_raw
 import logging
 import time
-from typing import Dict, Any, Optional
+from typing import Any, Dict, Optional
+
+import MetaTrader5 as mt5_raw
 
 mt5: Any = mt5_raw
 
@@ -11,7 +12,7 @@ class MetaTrader5Agent:
     """
     Deep Integration with MetaTrader 5 Terminal.
     Handles raw C++ struct serialization via the python MT5 bridge to execute
-    high-speed retail/institutional order flow. Includes safety checks, 
+    high-speed retail/institutional order flow. Includes safety checks,
     slippage controls, and magic number tracking.
     """
     def __init__(self, account: int, password: str, server: str, magic_number: int = 777777):
@@ -26,13 +27,13 @@ class MetaTrader5Agent:
         if not mt5.initialize():
             logger.critical(f"[MT5] Initialization failed. Error code: {mt5.last_error()}")
             return False
-            
+
         authorized = mt5.login(self.account, password=self.password, server=self.server)
         if not authorized:
             logger.critical(f"[MT5] Login failed for account {self.account}. Error code: {mt5.last_error()}")
             mt5.shutdown()
             return False
-            
+
         self.connected = True
         logger.info(f"[MT5] Successfully connected to {self.server} (Account: {self.account})")
         return True
@@ -41,12 +42,12 @@ class MetaTrader5Agent:
         """Retrieves the absolute latest Bid/Ask tick."""
         if not self.connected:
             return None
-            
+
         tick = mt5.symbol_info_tick(symbol)
         if tick is None:
             logger.error(f"[MT5] Failed to fetch tick for {symbol}")
             return None
-            
+
         return {
             "bid": float(tick.bid),
             "ask": float(tick.ask),
@@ -60,7 +61,7 @@ class MetaTrader5Agent:
         """
         if not self.connected:
             return {"status": "error", "message": "MT5 Terminal not connected"}
-            
+
         if not mt5.symbol_select(symbol, True):
             logger.error(f"[MT5] Failed to select symbol {symbol}")
             return {"status": "error", "message": "Symbol selection failed"}
@@ -72,7 +73,7 @@ class MetaTrader5Agent:
         # Define MT5 Request Dictionary
         order_type = mt5.ORDER_TYPE_BUY if action == "BUY" else mt5.ORDER_TYPE_SELL
         price = tick["ask"] if action == "BUY" else tick["bid"]
-        
+
         request = {
             "action": mt5.TRADE_ACTION_DEAL,
             "symbol": symbol,
@@ -89,12 +90,12 @@ class MetaTrader5Agent:
         # Send the order to the server
         logger.info(f"[MT5] Sending {action} {lot_size} lots on {symbol} at {price}")
         result = mt5.order_send(request)
-        
+
         if result.retcode != mt5.TRADE_RETCODE_DONE:
             error_msg = f"Order failed, retcode={result.retcode}"
             logger.error(f"[MT5] {error_msg}")
             return {"status": "rejected", "message": error_msg, "retcode": result.retcode}
-            
+
         logger.info(f"[MT5] Order successfully filled! Ticket: {result.order}")
         return {
             "status": "filled",
@@ -108,11 +109,11 @@ class MetaTrader5Agent:
         """Emergency function to liquidate all positions associated with the Sovereign magic number."""
         if not self.connected:
             return
-            
+
         positions = mt5.positions_get(symbol=symbol) if symbol else mt5.positions_get()
         if positions is None or len(positions) == 0:
             return
-            
+
         for pos in positions:
             if pos.magic == self.magic_number:
                 action = "BUY" if pos.type == 1 else "SELL" # Reverse the position type to close it
