@@ -1,7 +1,25 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <signal.h>
+
+#ifdef _WIN32
+#include <io.h>
+// Windows compatibility for POSIX signal handling
+#define SIGUSR1 SIGILL // Mock fallback
+#define SA_RESTART 0
+struct sigaction {
+    void (*sa_handler)(int);
+    int sa_mask;
+    int sa_flags;
+};
+static inline int sigaction(int sig, const struct sigaction* act, struct sigaction* oact) {
+    signal(sig, act->sa_handler);
+    return 0;
+}
+static inline int sigemptyset(int* mask) { return 0; }
+#else
 #include <unistd.h>
+#endif
 
 // Hardware-level panic kill switch.
 // Intercepts segmentation faults, out-of-memory errors, and manual SIGUSR1 
