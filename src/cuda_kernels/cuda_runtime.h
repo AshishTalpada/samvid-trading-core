@@ -2,7 +2,7 @@
 #define CUDA_RUNTIME_MOCK_H
 
 // Mock CUDA keywords and built-ins for IDE (clangd) intellisense
-#ifndef __CUDACC__
+#ifndef __NVCC__
 #define __global__
 #define __restrict__
 #define __device__
