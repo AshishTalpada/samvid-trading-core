@@ -1,7 +1,8 @@
-import os
-import psutil
 import logging
-from typing import Dict, Any
+import os
+from typing import Any, Dict
+
+import psutil
 
 logger = logging.getLogger(__name__)
 
@@ -24,7 +25,7 @@ class SovereignDiagnosticTracker:
     def record_metric(self, key: str, value: float):
         '''Updates an internal logic metric.'''
         self.metrics[key] = value
-        
+
     def increment_metric(self, key: str):
         '''Increments a counter metric.'''
         if key not in self.metrics:
@@ -35,13 +36,13 @@ class SovereignDiagnosticTracker:
         '''Polls deep hardware states using cross-platform psutil bindings.'''
         cpu_percent = psutil.cpu_percent(interval=None)
         memory_info = self.process.memory_info()
-        
+
         # Convert RSS (Resident Set Size) from bytes to MB
         ram_mb = memory_info.rss / (1024 * 1024)
-        
+
         disk_io = psutil.disk_io_counters()
         net_io = psutil.net_io_counters()
-        
+
         telemetry = {
             "node_cpu_utilization_pct": cpu_percent,
             "node_ram_consumed_mb": ram_mb,
@@ -50,7 +51,7 @@ class SovereignDiagnosticTracker:
             "network_rx_bytes": net_io.bytes_recv if net_io else 0,
             "network_tx_bytes": net_io.bytes_sent if net_io else 0,
         }
-        
+
         # Combine hardware and logic metrics into a single unified Prometheus-style scrape target
         unified = {**self.metrics, **telemetry}
         return unified
@@ -68,5 +69,5 @@ class SovereignDiagnosticTracker:
             lines.append(f"# HELP {safe_key} Sovereign internal telemetry metric")
             lines.append(f"# TYPE {safe_key} gauge")
             lines.append(f"{safe_key} {value}")
-            
+
         return "\n".join(lines)

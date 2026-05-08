@@ -12,11 +12,11 @@ class TailRiskModel:
         """
         Calculates the Expected Shortfall (CVaR) at the given confidence level.
         Returns the average loss of the worst (1 - confidence_level) cases.
-        
+
         Args:
             returns: Historical returns of the portfolio or asset.
             confidence_level: Typically 0.99 for the 1% tail.
-            
+
         Returns:
             Expected Shortfall as a negative float representing the average tail loss.
         """

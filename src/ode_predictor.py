@@ -1,6 +1,8 @@
-import numpy as np
 import logging
 from typing import List, Tuple
+
+import numpy as np
+
 # In production, use torchdiffeq, here we use scipy for generalized native ODEs
 from scipy.integrate import solve_ivp
 
@@ -18,7 +20,7 @@ class ContinuousNeuralODE:
         # state = [price, volume_velocity, order_book_imbalance]
         self.W_in = np.random.randn(3, hidden_dim) * 0.1
         self.b_in = np.zeros(hidden_dim)
-        
+
         self.W_out = np.random.randn(hidden_dim, 3) * 0.1
         self.b_out = np.zeros(3)
 
@@ -30,10 +32,10 @@ class ContinuousNeuralODE:
         # Linear transform -> Tanh -> Linear transform
         hidden = np.tanh(np.dot(state, self.W_in) + self.b_in)
         derivative = np.dot(hidden, self.W_out) + self.b_out
-        
+
         # Introduce a friction coefficient to mean-revert explosive gradients
-        friction = -0.01 * state 
-        
+        friction = -0.01 * state
+
         return derivative + friction
 
     def predict_trajectory(self, current_state: List[float], dt_forward_seconds: float) -> Tuple[float, float, float]:
@@ -47,7 +49,7 @@ class ContinuousNeuralODE:
 
         initial_state = np.array(current_state, dtype=np.float64)
         t_span = (0.0, dt_forward_seconds)
-        
+
         # RK45 allows for dynamic step-sizing, zooming in when the vector field is stiff (high volatility)
         solution = solve_ivp(
             fun=self._neural_vector_field,
@@ -57,7 +59,7 @@ class ContinuousNeuralODE:
             rtol=1e-3,
             atol=1e-5
         )
-        
+
         if solution.success:
             final_state = solution.y[:, -1]
             return (float(final_state[0]), float(final_state[1]), float(final_state[2]))

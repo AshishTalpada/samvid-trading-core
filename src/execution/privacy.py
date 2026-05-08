@@ -6,7 +6,7 @@ logger = logging.getLogger(__name__)
 
 class DifferentialPrivacyObfuscator:
     """
-    Injects Laplacian noise into order execution quantities to obfuscate 
+    Injects Laplacian noise into order execution quantities to obfuscate
     institutional intent from High Frequency Market Makers.
     Ensures that the total quantity traded over the day remains mathematically correct,
     but the individual slice sizes appear entirely random to Level 3 data sniffers.

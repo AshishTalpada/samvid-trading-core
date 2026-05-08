@@ -100,7 +100,7 @@ class ImpactSimulator:
         Uses Almgren-Chriss formulation to balance Market Impact vs Price Risk.
         Higher risk aversion means executing faster (paying more impact cost to avoid price drift).
         Lower risk aversion means executing slower (taking price drift risk to save on impact cost).
-        
+
         Returns a schedule: List of (Time_Offset_Minutes, Shares_To_Execute)
         """
         daily_vol = self.adv.get(ticker, 1_000_000)

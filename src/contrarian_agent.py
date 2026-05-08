@@ -14,13 +14,13 @@ class ContrarianAgent:
                              influencer_bull_mentions: int, influencer_bear_mentions: int) -> dict[str, Any]:
         """
         Evaluate if the crowd is leaning too heavily in one direction.
-        
+
         Args:
             retail_long_ratio: Percentage of retail traders long (0.0 to 1.0)
             retail_short_ratio: Percentage of retail traders short (0.0 to 1.0)
             influencer_bull_mentions: Raw count of bullish mentions by mainstream media/influencers
             influencer_bear_mentions: Raw count of bearish mentions
-            
+
         Returns:
             Dictionary with contrarian signal.
         """

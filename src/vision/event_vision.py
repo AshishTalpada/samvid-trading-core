@@ -1,6 +1,7 @@
-import numpy as np
 import logging
 from typing import List, Tuple
+
+import numpy as np
 
 logger = logging.getLogger(__name__)
 
@@ -29,14 +30,14 @@ class NeuromorphicVisionEngine:
         positive_spikes = 0
         negative_spikes = 0
         total_spikes = len(spike_events)
-        
+
         current_time = spike_events[-1][2] # Time of the latest spike
-        
+
         for x, y, ts, polarity in spike_events:
             # Update the Time Surface (exponential decay for older spikes)
             # This creates a "memory" map of the chart's velocity
             self.time_surface[y, x] = ts
-            
+
             if polarity > 0:
                 positive_spikes += 1
             else:
@@ -45,19 +46,19 @@ class NeuromorphicVisionEngine:
         # Calculate Spike Density (activity level)
         # If density is extremely high, a flash crash or massive breakout is rendering on screen
         density = total_spikes / (self.width * self.height)
-        
+
         # Net Polarity reveals the violent directional momentum of the pixels
         net_polarity = (positive_spikes - negative_spikes) / total_spikes
-        
+
         dominant_trend = "NEUTRAL"
         if net_polarity > 0.3:
             dominant_trend = "BULLISH_SPIKE"
         elif net_polarity < -0.3:
             dominant_trend = "BEARISH_SPIKE"
-            
+
         if density > 0.05:
             logger.critical(f"[NEUROMORPHIC] MASSIVE PIXEL ACTIVITY DETECTED. Density: {density*100:.2f}%. Trend: {dominant_trend}")
-            
+
         return {
             "dominant_trend": dominant_trend,
             "spike_density": density,

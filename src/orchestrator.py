@@ -1,5 +1,5 @@
 import logging
-from typing import Dict
+from typing import Dict, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -20,4 +20,3 @@ class CognitivOrchestrator:
     def release_task(self, device: str, vram_gb: float) -> None:
         self.device_vram[device] = self.device_vram.get(device, 0.0) + vram_gb
 
-from typing import Optional

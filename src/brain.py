@@ -2853,7 +2853,7 @@ class TradingBrain:
 
     def _sanitize_positions(self):
         """Imperial Integrity Check: Purges non-object entries from memory pool."""
-        valid: list[Position] = []
+        valid: list = []
         for p in self.positions:
             if hasattr(p, "symbol") and not isinstance(p, dict):
                 valid.append(p)
