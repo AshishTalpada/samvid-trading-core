@@ -32,12 +32,12 @@ class TrapDetector:
     def analyze_spoofing_risk(self, current_top_size: float, current_price: float, side: str) -> float:
         """
         Analyzes recent cancel behavior to determine if a resting order is likely a trap.
-        
+
         Args:
             current_top_size: The size of the current resting order at top of book.
             current_price: The price of the order.
             side: 'BID' or 'ASK'.
-            
+
         Returns:
             Spoof risk probability (0.0 to 1.0).
         """

@@ -15,12 +15,12 @@ class MonteCarloRisk:
     def simulate_ruin_probability(self, returns: list[float], current_equity: float, ruin_level: float) -> float:
         """
         Runs Monte Carlo simulations to find the probability of equity dropping below ruin_level.
-        
+
         Args:
             returns: Historical returns for the asset/portfolio.
             current_equity: The starting equity value.
             ruin_level: The equity value that constitutes "ruin".
-            
+
         Returns:
             Probability (0.0 to 1.0) of hitting ruin.
         """

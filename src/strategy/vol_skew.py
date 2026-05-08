@@ -12,11 +12,11 @@ class VolatilitySkewAnalyzer:
     def calculate_skew_edge(self, historical_vol: float, implied_vol: float) -> dict[str, str | float]:
         """
         Compares realized/historical volatility with market-priced implied volatility.
-        
+
         Args:
             historical_vol: 20-day realized volatility (annualized).
             implied_vol: 30-day implied volatility (e.g., from VIX or specific option chain).
-            
+
         Returns:
             Dictionary containing edge analysis and action.
         """

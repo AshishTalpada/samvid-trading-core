@@ -7,13 +7,13 @@ class EntropySizer:
     """
     def calculate_position_size(self, probabilities: list[float], max_risk_pct: float = 0.02) -> float:
         """
-        Shannon Entropy based position sizing. 
+        Shannon Entropy based position sizing.
         High entropy = high uncertainty = lower size.
-        
+
         Args:
             probabilities: The probability distribution of expected outcomes.
             max_risk_pct: Maximum risk allowed per trade (e.g., 0.02 for 2%).
-            
+
         Returns:
             Adjusted position risk percentage.
         """

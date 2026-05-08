@@ -8,7 +8,7 @@ logger = logging.getLogger(__name__)
 
 class AutoThesisGenerator:
     """
-    Generates a comprehensive, multi-page Trade Thesis Markdown document 
+    Generates a comprehensive, multi-page Trade Thesis Markdown document
     justifying exactly why the Sovereign Hive Mind took a trade.
     """
     def __init__(self, output_dir: str = "docs/journal/thesis"):

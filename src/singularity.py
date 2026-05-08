@@ -10,7 +10,7 @@ logger = logging.getLogger(__name__)
 class UniversalSingularity:
     """
     Infinite Alpha Engine: The point where Sovereign's Learning Rate exceeds Market Randomness.
-    Dynamically adjusts the AI's learning rate and exploration parameters based on the 
+    Dynamically adjusts the AI's learning rate and exploration parameters based on the
     measured Shannon Entropy (Information density) and Hurst Exponent (Trend vs Mean-reversion)
     of the underlying market stream.
     """

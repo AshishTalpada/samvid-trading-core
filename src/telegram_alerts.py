@@ -1,7 +1,8 @@
-import requests
 import logging
 import time
 from typing import Optional
+
+import requests
 
 logger = logging.getLogger(__name__)
 
@@ -17,7 +18,7 @@ class SovereignTelegramBot:
         self.base_url = f"https://api.telegram.org/bot{self.bot_token}"
         # Use session pooling to keep the TCP connection alive (reduces SSL handshake overhead)
         self.session = requests.Session()
-        
+
         # Rate limiting state
         self.last_msg_time = 0.0
         self.msg_count_this_minute = 0
@@ -31,30 +32,30 @@ class SovereignTelegramBot:
         current_time = time.time()
         if current_time - self.last_msg_time > 60:
             self.msg_count_this_minute = 0
-            
+
         if self.msg_count_this_minute >= 19:
             logger.warning("[TELEGRAM] Rate limit approaching. Dropping non-critical message.")
             return False
 
         url = f"{self.base_url}/sendMessage"
-        
+
         # Escape characters required for MarkdownV2
         if parse_mode == "MarkdownV2":
             escape_chars = ['_', '*', '[', ']', '(', ')', '~', '`', '>', '#', '+', '-', '=', '|', '{', '}', '.', '!']
             for char in escape_chars:
                 message = message.replace(char, f"\\{char}")
-        
+
         payload = {
             "chat_id": self.chat_id,
             "text": message,
             "parse_mode": parse_mode,
             "disable_web_page_preview": True
         }
-        
+
         try:
             # Short timeout. We don't want the trading loop hanging on a webhook.
             response = self.session.post(url, json=payload, timeout=2.0)
-            
+
             if response.status_code == 200:
                 self.last_msg_time = current_time
                 self.msg_count_this_minute += 1
@@ -62,7 +63,7 @@ class SovereignTelegramBot:
             else:
                 logger.error(f"[TELEGRAM] API Error: {response.status_code} - {response.text}")
                 return False
-                
+
         except requests.exceptions.RequestException as e:
             logger.error(f"[TELEGRAM] Network failure during transmission: {e}")
             return False
@@ -76,5 +77,5 @@ class SovereignTelegramBot:
         msg += f"*Price:* ${price:,.4f}\n"
         msg += f"*Size:* {size} units\n"
         msg += f"*Conviction:* {conviction*100:.1f}%\n"
-        
+
         self.send_alert(msg)
