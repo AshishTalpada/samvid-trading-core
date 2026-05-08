@@ -19,25 +19,29 @@ static inline int clock_gettime(int clk_id, struct timespec* ts) {
 
 #define NANOS_PER_SEC 1000000000LL
 
-extern "C" void get_nanosecond_time(struct timespec* ts) {
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+void get_nanosecond_time(struct timespec* ts) {
     // In production, this reads directly from the Solarflare NIC hardware clock
     // disciplined by a GPS/Rubidium atomic clock on the datacenter roof.
     clock_gettime(CLOCK_REALTIME, ts);
 }
 
-extern "C" int64_t compute_clock_offset_ns(const struct timespec* local, const struct timespec* remote) {
+int64_t compute_clock_offset_ns(const struct timespec* local, const struct timespec* remote) {
     int64_t local_ns = (int64_t)local->tv_sec * NANOS_PER_SEC + local->tv_nsec;
     int64_t remote_ns = (int64_t)remote->tv_sec * NANOS_PER_SEC + remote->tv_nsec;
     return remote_ns - local_ns;
 }
 
-extern "C" void print_galactic_time() {
+void print_galactic_time() {
     struct timespec ts;
     get_nanosecond_time(&ts);
     printf("[TIME SYNC] Current PTP Hardware Time: %lld.%09ld\n", (long long)ts.tv_sec, (long)ts.tv_nsec);
 }
 
-extern "C" int verify_timing_precision(int64_t max_skew_ns) {
+int verify_timing_precision(int64_t max_skew_ns) {
     struct timespec ts;
     get_nanosecond_time(&ts);
     
