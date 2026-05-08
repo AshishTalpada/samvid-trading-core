@@ -1,9 +1,9 @@
-class TaxTracker:
-    """Real-time tax liability calculator for active positions."""
-    def __init__(self, short_term_rate: float = 0.37, long_term_rate: float = 0.20):
-        self.short_rate = short_term_rate
-        self.long_rate = long_term_rate
+class TaxLiabilityTracker:
+    """Knowing your tax bill in real-time as you trade."""
+    def __init__(self, tax_rate: float = 0.37):
+        self.rate = tax_rate
+        self.owed = 0.0
 
-    def estimate_liability(self, realized_gains: float, holding_days: int) -> float:
-        rate = self.long_rate if holding_days >= 365 else self.short_rate
-        return max(0.0, realized_gains * rate)
+    def log_trade(self, realized_pnl: float):
+        if realized_pnl > 0:
+            self.owed += realized_pnl * self.rate

@@ -1,0 +1,1 @@
+export function usePredictiveUI() { console.log("Predicting UI interactions"); }
