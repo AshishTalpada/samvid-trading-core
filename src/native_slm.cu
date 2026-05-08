@@ -1,7 +1,4 @@
-#include "cuda_runtime.h"
-#ifndef __NVCC__
-extern "C" float expf(float x);
-#endif
+#include "cuda/cuda_runtime.h"
 
 #ifdef _WIN32
 #include <windows.h>
