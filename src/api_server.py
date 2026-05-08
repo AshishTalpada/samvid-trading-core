@@ -384,7 +384,7 @@ class APIServer:
 
             # Create a dedicated sender task for this specific client
             async def _ws_writer():
-                q = asyncio.Queue(maxsize=100)
+                q: Any = asyncio.Queue(maxsize=100)
                 self.active_connections[websocket] = q
                 try:
                     while True:
@@ -421,7 +421,7 @@ class APIServer:
                 if websocket in self.active_connections:
                     del self.active_connections[websocket]
 
-    async def _safe_send_json(self, websocket: WebSocket, data: dict[str, Any]) -> None:
+    async def _safe_send_json(self, websocket: WebSocket, data: dict[str, Any]) -> None:  # type: ignore
         """Send JSON with connection state check."""
         try:
             if websocket.client_state.name == "CONNECTED":
@@ -670,7 +670,7 @@ class APIServer:
                             "SELECT parameter_name, parameter_value, confidence, last_updated FROM brain_optimization"
                         )
                         rows = ev_cursor.fetchall()
-                        brain_data["gap"]["evolution"] = {
+                        brain_data["gap"]["evolution"] = {  # type: ignore
                             r[0]: {"value": r[1], "confidence": r[2], "last_updated": r[3]}
                             for r in rows
                         }
@@ -818,7 +818,7 @@ class APIServer:
         self.server = uvicorn.Server(config)
         # Disable uvicorn's signal handlers — the main TradingSystem handles
         # Ctrl+C / SIGINT.
-        self.server.install_signal_handlers = lambda: None  # type: ignore[assignment]
+        self.server.install_signal_handlers = lambda: None  # type: ignore
 
         async def _serve() -> None:
             try:

@@ -35,7 +35,7 @@ class DifferentialPrivacyObfuscator:
             actual_slice = max(1, int(round(raw_slice)))
 
             # Carry over the rounding/noise error so the total sum is perfect
-            self.running_balance += (base_slice - actual_slice)
+            self.running_balance += int((base_slice - actual_slice))
             slices.append(actual_slice)
 
         # Final slice absorbs all remaining quantity

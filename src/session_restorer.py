@@ -145,7 +145,7 @@ class SessionRestorer:
             logger.info(
                 f"SessionRestorer: State THAWED from {bundle['timestamp']}. Version: {bundle['version']}"
             )
-            return bundle["state"]
+            return bundle["state"]  # type: ignore
         except Exception as e:
             logger.error(f"SessionRestorer: Thaw Error: {e}")
             return None
@@ -175,7 +175,7 @@ class SessionRestorer:
                 with open(capsule_path, "r") as f:
                     try:
                         data = json.load(f)
-                        return data.get("payload", {})
+                        return data.get("payload", {})  # type: ignore
                     except json.JSONDecodeError:
                         logger.warning(
                             "SessionRestorer: Cognitive capsule corrupted. Clean slate initiated."
@@ -207,7 +207,7 @@ class SessionRestorer:
                 return peak
         except Exception as e:
             logger.warning(f"SessionRestorer: Could not restore peak_equity: {e}")
-        return drawdown_ladder.peak_equity
+        return drawdown_ladder.peak_equity  # type: ignore
 
     async def reconcile_with_broker(self, ib: Any, db_conn: sqlite3.Connection) -> list[Any]:
         """

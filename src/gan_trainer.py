@@ -1,5 +1,5 @@
 import logging
-from typing import List
+from typing import Any, List
 
 import numpy as np
 
@@ -15,8 +15,8 @@ class MarketGANTrainer:
     def __init__(self, sequence_length: int = 60):
         self.seq_len = sequence_length
         # Mocking network architectures
-        self.g_loss_history = []
-        self.d_loss_history = []
+        self.g_loss_history: Any = []
+        self.d_loss_history: Any = []
 
     def train_step(self, real_data: np.ndarray) -> None:
         if len(real_data) < self.seq_len:

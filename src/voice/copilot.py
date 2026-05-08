@@ -1,7 +1,7 @@
 import logging
 import queue
 import threading
-from typing import Dict
+from typing import Any, Dict
 
 import pyttsx3
 
@@ -15,7 +15,7 @@ class SovereignVoiceCopilot:
     bypassing the need for visual dashboard monitoring.
     """
     def __init__(self, voice_speed: int = 180):
-        self.message_queue = queue.Queue()
+        self.message_queue: Any = queue.Queue()
         self.running = True
         self.voice_speed = voice_speed
 

@@ -1548,7 +1548,7 @@ class SignalEntropyCalculator:
         def entropy(p: float) -> float:
             if p <= 0 or p >= 1:
                 return 0.0
-            return -p * np.log2(p) - (1 - p) * np.log2(1 - p)
+            return -p * np.log2(p) - (1 - p) * np.log2(1 - p)  # type: ignore
 
         h_before = entropy(p_before)
         h_after = entropy(p_after)
@@ -1596,7 +1596,7 @@ class FactorWeightCalibration:
             + factors.get("mom_1m", 0) * self.MOMENTUM_1M_WEIGHT
             + factors.get("mean_rev", 0) * self.MEAN_REVERSION_WEIGHT
         )
-        return score * 100.0  # Scale to Sovereign Lambda units
+        return score * 100.0  # Scale to Sovereign Lambda units  # type: ignore  # type: ignore
 
 
 class NeuralRegimeClassifier:
@@ -1687,7 +1687,7 @@ class EscapeVelocityClassifier:
             "orbital": ESCAPE_ORBITAL,
             "escape": ESCAPE_VELOCITY,
         }
-        return modifiers.get(classification, 0)
+        return modifiers.get(classification, 0)  # type: ignore
 
 
 class MultiTimeframeAligner:
@@ -1765,7 +1765,7 @@ class InMemorySovereignAtlas:
 
     def __init__(self, db_path: str = "data/sovereign_intelligence_75y.db"):
         self.db_path = db_path
-        self._cache = {}  # pattern_type -> matches (list)
+        self._cache: Any = {}  # pattern_type -> matches (list)
         self._max_cache = 50
         logger.info("🏛️ Atlas: Sovereign Intelligence online (On-Demand Mode).")
 

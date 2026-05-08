@@ -80,7 +80,8 @@ async def test_scenarios():
             f"   Input -> {ctx['symbol']} | {ctx['regime']} | {ctx['dhatu_state']}"
         )
 
-        result = await slm.evaluate_proposal(ctx)  # type: ignore[arg-type]
+        result = await slm.evaluate_proposal(ctx)
+
 
         vote_icon = "✅" if result["vote"] == "YES" else "❌"
         print(f"   SLM BIAS: {result['bias']}")

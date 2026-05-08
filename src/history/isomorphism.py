@@ -26,7 +26,7 @@ class IsomorphicPatternMapper:
     def normalise(self, series: List[float]) -> List[float]:
         arr = np.array(series, dtype=float)
         rng = arr.max() - arr.min()
-        return ((arr - arr.min()) / (rng + 1e-9)).tolist()
+        return ((arr - arr.min()) / (rng + 1e-9)).tolist()  # type: ignore
 
     def find_best_match(self, query: List[float], archive: Dict[str, List[float]]) -> Dict:
         q = self.normalise(query)

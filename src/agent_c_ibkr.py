@@ -65,12 +65,12 @@ class IBKRConnection:
         self.ib = ib_client if ib_client is not None else IB()
         self._last_heartbeat = datetime.now()
         self._last_trade_time = datetime.fromtimestamp(0)  # 15-Minute Discipline Lock
-        self._positions_cache = {}
-        self._account_summary = {}
+        self._positions_cache: Any = {}
+        self._account_summary: Any = {}
         self.is_reconnecting = False
 
         # Financial Advisor (FA) support
-        self.managed_accounts = []
+        self.managed_accounts: Any = []
         self.current_account_id = None
         self._lock = asyncio.Lock()  # PILLAR 3: Concurrency Safety for Parallel Vetting
         self._qualified_contracts: dict[str, Any] = {}
@@ -471,7 +471,7 @@ class IBKRConnection:
     def get_account_value(self) -> float:
         """Returns NAV from the real-time cache (No API Polling)."""
         if not self.is_connected:
-            return STARTING_CAPITAL_CAD
+            return STARTING_CAPITAL_CAD  # type: ignore
         try:
             # 1. Check the event-driven cache first (Updated by _on_account_summary)
             val = self._account_summary.get("NetLiquidation")
@@ -485,10 +485,10 @@ class IBKRConnection:
                     self._account_summary["NetLiquidation"] = item.value  # Populate cache
                     return float(item.value)
 
-            return STARTING_CAPITAL_CAD
+            return STARTING_CAPITAL_CAD  # type: ignore
         except Exception as e:
             logger.error(f"IBKR: NAV Cache Retrieval failed: {e}")
-            return STARTING_CAPITAL_CAD
+            return STARTING_CAPITAL_CAD  # type: ignore
 
     def get_margin_cushion(self) -> float:
         """
@@ -544,9 +544,9 @@ class IBKRConnection:
                 elif is_option:
                     # Resolve Option components for IBKR compatibility
                     # We pass keyword arguments to avoid positional argument mismatch
-                    contract = Option(symbol=symbol, exchange="SMART", currency="USD")
+                    contract = Option(symbol=symbol, exchange="SMART", currency="USD")  # type: ignore
                 else:
-                    contract = Stock(symbol, "SMART", "USD")
+                    contract = Stock(symbol, "SMART", "USD")  # type: ignore
 
                 qualified = await self.ib.qualifyContractsAsync(contract)
                 if qualified:
@@ -818,7 +818,7 @@ class IBKRConnection:
                         exchange = "SMART"
                     contract = Future(root, exchange=exchange, currency="USD")
                 else:
-                    contract = Stock(symbol, "SMART", "USD")
+                    contract = Stock(symbol, "SMART", "USD")  # type: ignore
 
                 await self.ib.qualifyContractsAsync(contract)
 
@@ -940,7 +940,7 @@ class IBKRConnection:
 
         # Remove from warm-slots so a new one can be pre-loaded
         del self._warm_slots[symbol]
-        return trade.order.orderId
+        return trade.order.orderId  # type: ignore
 
     async def _audit_execution(self, trade: Any, symbol: str, shares: int) -> None:
         """

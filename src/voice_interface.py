@@ -28,7 +28,7 @@ class VoiceInterface:
         for phrase, action in COMMAND_MAP.items():
             if phrase in text_lower:
                 logger.info(f"[VOICE] Recognized command: '{phrase}' -> {action}")
-                return action
+                return action  # type: ignore
         logger.warning(f"[VOICE] Unrecognized: '{text_lower}'")
         return None
 

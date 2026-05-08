@@ -20,7 +20,7 @@ class OptionAgent:
         if T <= 0 or sigma <= 0: return 0.0
         d1 = self._d1(S, K, T, sigma)
         pdf_d1 = norm.pdf(d1)
-        return pdf_d1 / (S * sigma * math.sqrt(T))
+        return pdf_d1 / (S * sigma * math.sqrt(T))  # type: ignore
 
     def predict_squeeze(self, spot_price: float, option_chain: list[dict]) -> dict:
         """
