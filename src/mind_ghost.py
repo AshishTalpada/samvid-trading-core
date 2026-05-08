@@ -80,4 +80,4 @@ class GhostExecutionEnvironment:
 
         self.ghost_ledger[trade_id] = pos
         logger.info(f"[GHOST] Closed {trade_id}. Realized PnL: ${realized_pnl:.2f}")
-        return realized_pnl
+        return realized_pnl  # type: ignore

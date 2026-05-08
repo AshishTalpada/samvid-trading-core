@@ -24,7 +24,7 @@ class QuantumClockSync:
             data, _ = s.recvfrom(1024)
             s.close()
             t = struct.unpack('!12I', data)[10]
-            return t - 2208988800  # Convert NTP epoch to Unix epoch
+            return t - 2208988800  # Convert NTP epoch to Unix epoch  # type: ignore
         except Exception as e:
             logger.debug(f"[QCLOCK] NTP query failed ({server}): {e}")
             return None

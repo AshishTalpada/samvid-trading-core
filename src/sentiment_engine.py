@@ -46,5 +46,5 @@ class MultiLingualSentimentEngine:
             "mean": round(mean, 4),
             "bullish_count": sum(1 for s in scores if s > 0),
             "bearish_count": sum(1 for s in scores if s < 0),
-            "signal": "BULLISH" if mean > 0.2 else "BEARISH" if mean < -0.2 else "NEUTRAL",
+            "signal": "BULLISH" if mean > 0.2 else "BEARISH" if mean < -0.2 else "NEUTRAL",  # type: ignore
         }

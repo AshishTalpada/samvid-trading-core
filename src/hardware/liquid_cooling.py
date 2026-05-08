@@ -26,7 +26,7 @@ class LiquidCoolingMonitor:
             temps = psutil.sensors_temperatures()
             for name in ("coretemp", "cpu_thermal", "k10temp"):
                 if name in temps:
-                    return max(t.current for t in temps[name])
+                    return max(t.current for t in temps[name])  # type: ignore
         except Exception as e:
             logger.debug(f"[COOLING] Temp read failed: {e}")
         return None

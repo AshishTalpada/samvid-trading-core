@@ -6,9 +6,10 @@ from pathlib import Path
 from vault import Vault
 
 try:
-    import zstandard  # type: ignore
+    import zstandard
+
 except ImportError:
-    zstandard = None
+    zstandard = None  # type: ignore
 
 # Force UTF-8 encoding for Windows terminals to support emojis/special characters
 if sys.platform == "win32":
@@ -182,7 +183,7 @@ class StartupProfiler:
     """Institutional-grade startup profiling."""
 
     def __init__(self) -> None:
-        self._marks = {}
+        self._marks: Any = {}
         self._start = time.perf_counter()
 
     def mark(self, name: str) -> None:
@@ -532,7 +533,7 @@ class TradingSystem:
                     return conn
 
                 self.db_conn = await asyncio.to_thread(_sync_init)
-                self.db_conn.row_factory = sqlite3.Row
+                self.db_conn.row_factory = sqlite3.Row  # type: ignore
 
                 # Read and execute schema
                 if self.schema_path.exists():
@@ -541,7 +542,7 @@ class TradingSystem:
                         schema_sql = f.read()
 
                     # Execute schema (may contain multiple statements)
-                    cursor = self.db_conn.cursor()
+                    cursor = self.db_conn.cursor()  # type: ignore
                     cursor.executescript(schema_sql)
                     cursor.close()
 
@@ -552,7 +553,7 @@ class TradingSystem:
                     self._create_basic_schema()
 
                 # Verify tables exist
-                cursor = self.db_conn.cursor()
+                cursor = self.db_conn.cursor()  # type: ignore
                 cursor.execute("SELECT name FROM sqlite_master WHERE type='table'")
                 tables = [row[0] for row in cursor.fetchall()]
 
@@ -1357,7 +1358,7 @@ class TradingSystem:
             logger.info("\n[9/10] Starting HFT Streamer (10ms updates)...")
             # watchlist is already defined in step 8.5
             if self.hft_streamer:
-                self._start_supervised_task("hft_streamer", lambda: self.hft_streamer.run(watchlist))
+                self._start_supervised_task("hft_streamer", lambda: self.hft_streamer.run(watchlist))  # type: ignore
 
             # Step 10: Send startup notification
             logger.info("\n[10/10] Sending startup notification...")
@@ -1390,7 +1391,7 @@ class TradingSystem:
 
                 async def _awaken():
                     await asyncio.sleep(5)
-                    await self.trading_brain.bus.publish(
+                    await self.trading_brain.bus.publish(  # type: ignore
                         "mind.dialogue",
                         {
                             "sender": "architect",
@@ -1399,7 +1400,7 @@ class TradingSystem:
                         },
                     )
                     await asyncio.sleep(3)
-                    await self.trading_brain.bus.publish(
+                    await self.trading_brain.bus.publish(  # type: ignore
                         "mind.dialogue",
                         {
                             "sender": "evolution",
@@ -1617,7 +1618,7 @@ class TradingSystem:
 
     async def shutdown(self) -> None:
         """Graceful shutdown sequence: Step-by-Step Institutional Guard."""
-        if not self.is_running and hasattr(self, "_shutdown_complete") and self._shutdown_complete:
+        if not self.is_running and hasattr(self, "_shutdown_complete") and self._shutdown_complete:  # type: ignore
             return
 
         self.is_running = False

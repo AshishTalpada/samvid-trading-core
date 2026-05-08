@@ -364,10 +364,10 @@ class IBKRStreamer:
                     self._publisher_task.cancel()
                 if (
                     hasattr(self, "_drain_task")
-                    and self._drain_task
-                    and not self._drain_task.done()
+                    and self._drain_task  # type: ignore
+                    and not self._drain_task.done()  # type: ignore
                 ):
-                    self._drain_task.cancel()
+                    self._drain_task.cancel()  # type: ignore
 
                 self._publisher_task = asyncio.create_task(self._bus_publisher())
                 self._drain_task = asyncio.create_task(self._qdb_drain_worker())

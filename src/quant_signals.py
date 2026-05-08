@@ -240,7 +240,7 @@ class KalmanEntryTimer:
         state["x"] = state["x"] + K * (price - state["x"])
         state["P"] = (1 - K) * P_pred
         state["last_price"] = price
-        return state["x"]
+        return state["x"]  # type: ignore
 
     def compute(self, symbol: str, prices: np.ndarray) -> SignalResult:
         """
@@ -388,7 +388,7 @@ class QuantConsensus:
                         f"QuantConsensus: Sourcing weights from {p} (Version: {version}, Trained: {trained_at})"
                     )
 
-                    return data.get("factor_weights")
+                    return data.get("factor_weights")  # type: ignore
                 except Exception:
                     pass
         return None

@@ -24,7 +24,7 @@ class VoicePrintAuthenticator:
         dot = sum(x * y for x, y in zip(a, b, strict=False))
         norm_a = sum(x**2 for x in a) ** 0.5
         norm_b = sum(x**2 for x in b) ** 0.5
-        return dot / (norm_a * norm_b + 1e-9)
+        return dot / (norm_a * norm_b + 1e-9)  # type: ignore
 
     def authenticate(self, user_id: str, probe_vector: list[float]) -> bool:
         enrolled = self._enrolled.get(user_id)

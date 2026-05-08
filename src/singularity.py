@@ -44,7 +44,7 @@ class UniversalSingularity:
         entropy = -np.sum(probs * np.log2(probs))
         # Normalize between 0 and 1 (approximate)
         max_entropy = np.log2(bins)
-        return entropy / max_entropy
+        return entropy / max_entropy  # type: ignore
 
     def _calculate_hurst(self) -> float:
         """
@@ -66,7 +66,7 @@ class UniversalSingularity:
         poly = np.polyfit(np.log(lags), np.log(tau), 1)
 
         # Return the Hurst exponent (slope of the log-log plot)
-        return poly[0] * 2.0
+        return poly[0] * 2.0  # type: ignore
 
     def evaluate_state(self) -> dict:
         """

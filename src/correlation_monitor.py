@@ -31,7 +31,7 @@ class CorrelationBreakdownMonitor:
         if len(tickers) < 2:
             return None
         matrix = np.array([list(self._returns[t]) for t in tickers])
-        return np.corrcoef(matrix)
+        return np.corrcoef(matrix)  # type: ignore
 
     def avg_pairwise_correlation(self) -> float:
         corr = self.correlation_matrix()

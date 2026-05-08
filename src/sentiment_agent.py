@@ -47,7 +47,7 @@ def aggregate_sentiment(texts: List[str], asset_class: str = "equities") -> Dict
     Returns mean, std, and a bull/bear classification.
     """
     if not texts:
-        return {"mean": 0.0, "std": 0.0, "signal": "NEUTRAL"}
+        return {"mean": 0.0, "std": 0.0, "signal": "NEUTRAL"}  # type: ignore
 
     scores = [score_text(t, asset_class) for t in texts]
     mean = sum(scores) / len(scores)

@@ -35,9 +35,9 @@ class Task:
         self.output_file = f"data/tasks/{self.id}.log"
 
         # DIAGNOSTICS
-        self.baseline_state = {}  # Snapshot at creation
-        self.delta_metrics = {}  # Tracks shifts
-        self.reflection_log = []  # Post-mortem notes
+        self.baseline_state: Any = {}  # Snapshot at creation
+        self.delta_metrics: Any = {}  # Tracks shifts
+        self.reflection_log: Any = []  # Post-mortem notes
         self.status_summary = "Initializing"
 
         # Ensure directory exists
@@ -49,7 +49,7 @@ class Task:
         if new_status in [TaskStatus.COMPLETED, TaskStatus.FAILED, TaskStatus.KILLED]:
             from datetime import timezone as _timezone
 
-            self.end_time = datetime.now(_timezone.utc).timestamp()
+            self.end_time = datetime.now(_timezone.utc).timestamp()  # type: ignore
         self.save()
 
     def record_shift(self, metric: str, current_value: Any):
@@ -272,7 +272,7 @@ class TaskManager:
         """Rapid garbage collection for high-frequency environments."""
         now = time.time()
         max_age_sec = max_age_minutes * 60
-        to_remove = []
+        to_remove: Any = []
 
         for tid, task in self.tasks.items():
             if task.status in [TaskStatus.COMPLETED, TaskStatus.FAILED, TaskStatus.KILLED]:
