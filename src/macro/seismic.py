@@ -1,14 +1,6 @@
-import logging
-
-logger = logging.getLogger(__name__)
-
-class SeismicGuard:
-    """Detects micro-quakes near oil/gas infrastructure and adjusts commodity exposure."""
-    def __init__(self, risk_radius_km: float = 50.0):
-        self.risk_radius_km = risk_radius_km
-
-    def assess_risk(self, epicenter_km: float, magnitude: float) -> float:
-        if epicenter_km > self.risk_radius_km:
-            return 0.0
-        proximity_factor = 1.0 - (epicenter_km / self.risk_radius_km)
-        return float(min(1.0, proximity_factor * magnitude / 5.0))
+class SeismicGauges:
+    """Detect micro-quakes near oil/gas infrastructure."""
+    def calculate_disruption_risk(self, richter_scale: float, distance_km: float) -> float:
+        if richter_scale > 4.5 and distance_km < 50:
+            return 0.85 # High disruption probability
+        return 0.01
