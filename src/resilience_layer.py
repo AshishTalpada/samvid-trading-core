@@ -346,3 +346,46 @@ class ApexExoskeleton:
                 },
             ]
         return None
+
+
+class CorrelationWatchdog:
+    """
+    PILLAR 117/141: Correlation Decay Watchdog.
+    Monitors the 'Lead-Lag' relationship between a symbol and its sector ETF.
+    If correlation drops below 0.4 during a trade, it signals a 'DECAY' exit.
+    """
+
+    def __init__(self, decay_threshold: float = 0.4):
+        self.decay_threshold = decay_threshold
+        self._history: Dict[str, deque] = {}  # symbol -> deque of (price, sector_price)
+
+    def record(self, symbol: str, price: float, sector_price: float):
+        from collections import deque
+
+        if symbol not in self._history:
+            self._history[symbol] = deque(maxlen=50)
+        self._history[symbol].append((price, sector_price))
+
+    def evaluate(self, symbol: str) -> bool:
+        """Returns True if correlation is healthy, False if decayed."""
+        import numpy as np
+
+        hist = self._history.get(symbol)
+        if not hist or len(hist) < 20:
+            return True  # Assume healthy during warmup
+
+        prices = np.array([x[0] for x in hist])
+        sector_prices = np.array([x[1] for x in hist])
+
+        # Calculate rolling correlation
+        if len(np.unique(prices)) < 2 or len(np.unique(sector_prices)) < 2:
+            return True
+
+        correlation = np.corrcoef(prices, sector_prices)[0, 1]
+
+        if correlation < self.decay_threshold:
+            logger.warning(
+                f"🚨 CORRELATION DECAY: {symbol} decoupled from sector (Corr: {correlation:.2f})."
+            )
+            return False
+        return True
