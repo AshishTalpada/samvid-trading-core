@@ -1,2 +1,13 @@
 CompileFlags:
-  Add: [-xcuda, -nocudainc, -nocudalib, -Isrc/cuda, -Wno-implicit-function-declaration]
+  Add: [
+    -xcuda, 
+    -nocudainc, 
+    -nocudalib, 
+    -Isrc/cuda, 
+    -Wno-implicit-function-declaration,
+    -D__shared__=,
+    -D__global__=,
+    -D__restrict__=,
+    -D__device__=,
+    -D__host__=
+  ]
