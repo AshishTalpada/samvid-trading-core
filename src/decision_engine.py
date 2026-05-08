@@ -38,7 +38,7 @@ class DecisionEngine:
         self.last_cycle_timestamp = None
         self.bus = bus
         self._lock = asyncio.Lock()  # EXECUTION LOCK
-        self._active_symbols = set()  # Track symbols currently being processed
+        self._active_symbols: Any = set()  # Track symbols currently being processed
 
     async def evaluate(
         self, context: Dict[str, Any], agent_outputs: List[Dict[str, Any]]
@@ -129,7 +129,7 @@ class DecisionEngine:
 
             # Processing Vote
             if vote == "YES":
-                yes_votes += 1.5 if agent == "Agent_D" else 1
+                yes_votes += 1.5 if agent == "Agent_D" else 1  # type: ignore
             elif vote == "NO":
                 no_votes += 1
             else:

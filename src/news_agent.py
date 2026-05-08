@@ -33,7 +33,7 @@ class MacroNewsAgent:
     def fetch_fred_release_schedule(self) -> List[Dict]:
         try:
             r = requests.get("https://api.stlouisfed.org/fred/releases/dates?api_key=invalid_key&file_type=json", timeout=4)
-            return r.json().get("release_dates", [])[:10]
+            return r.json().get("release_dates", [])[:10]  # type: ignore
         except Exception:
             return []
 

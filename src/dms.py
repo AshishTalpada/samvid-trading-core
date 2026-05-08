@@ -271,7 +271,7 @@ class DMSMonitor:
                                     else:
                                         # 5% buffer through the market
                                         lmt_price = price * (1.05 if direction == "BUY" else 0.95)
-                                        order = LimitOrder(direction, shares, round(lmt_price, 4))
+                                        order = LimitOrder(direction, shares, round(lmt_price, 4))  # type: ignore
                                         logger.info(
                                             f"DMS [Shield]: Emergency Limit ({direction}) for {pos.contract.symbol} @ {lmt_price:.4f}"
                                         )

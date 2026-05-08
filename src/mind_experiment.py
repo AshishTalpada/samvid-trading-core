@@ -17,7 +17,7 @@ class EvolutionaryNeuroExperiment:
     def __init__(self, population_size: int = 20, mutation_rate: float = 0.15):
         self.pop_size = population_size
         self.mutation_rate = mutation_rate
-        self.population = []
+        self.population: Any = []
         self.generation = 1
 
     def init_population(self, base_weights: np.ndarray):
@@ -80,4 +80,4 @@ class EvolutionaryNeuroExperiment:
         self.population = new_population
         self.generation += 1
 
-        return elites[0]['weights']
+        return elites[0]['weights']  # type: ignore

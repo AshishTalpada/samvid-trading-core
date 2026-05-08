@@ -105,7 +105,7 @@ class MetaTrader5Agent:
             "comment": result.comment
         }
 
-    def close_all_positions(self, symbol: str = None):
+    def close_all_positions(self, symbol: Optional[str] = None):
         """Emergency function to liquidate all positions associated with the Sovereign magic number."""
         if not self.connected:
             return

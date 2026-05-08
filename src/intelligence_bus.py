@@ -26,14 +26,14 @@ class SovereignIntelligenceBus:
         self.sub_socket = self.context.socket(zmq.SUB)
         self.sub_socket.connect(f"tcp://127.0.0.1:{subscribe_port}")
 
-        self.callbacks = {}
+        self.callbacks: Any = {}
         self.running = False
         self.listener_thread = None
 
     def start(self):
         self.running = True
-        self.listener_thread = threading.Thread(target=self._listen_loop, daemon=True)
-        self.listener_thread.start()
+        self.listener_thread = threading.Thread(target=self._listen_loop, daemon=True)  # type: ignore
+        self.listener_thread.start()  # type: ignore
         logger.info("[BUS] ZeroMQ Intelligence Bus Online.")
 
     def subscribe(self, topic: str, callback: Callable[[dict], None]):

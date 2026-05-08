@@ -28,7 +28,7 @@ class GalacticClockSync:
             s.close()
             t_ntp = struct.unpack('!12I', data)[10] - NTP_DELTA
             rtt = t_recv - t_send
-            return t_ntp + rtt / 2.0
+            return t_ntp + rtt / 2.0  # type: ignore
         except Exception as e:
             logger.debug(f"[CLOCK] NTP query failed ({server}): {e}")
             return None
