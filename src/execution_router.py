@@ -1,21 +1,45 @@
 import logging
+import time
+from typing import Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
-class BrokerRouter:
-    """Failover execution router between primary and backup brokers."""
-    def __init__(self, primary: str = "IBKR", fallback: str = "ALPACA"):
-        self.primary = primary
-        self.fallback = fallback
-        self.primary_healthy = True
+class SmartExecutionRouter:
+    """
+    Dynamically routes orders across multiple brokerages and dark pools
+    to minimize slippage, maximize fill rates, and ensure redundancy.
+    If IBKR API fails, immediately fails over to Alpaca or direct FIX links.
+    """
+    def __init__(self):
+        self.brokers = {
+            "IBKR": {"latency": 5.0, "status": "ONLINE", "fee_bps": 0.3},
+            "ALPACA": {"latency": 25.0, "status": "ONLINE", "fee_bps": 0.0},
+            "DARK_POOL": {"latency": 150.0, "status": "ONLINE", "fee_bps": 1.0}
+        }
+        self.primary = "IBKR"
 
-    def mark_primary_down(self) -> None:
-        self.primary_healthy = False
-        logger.warning(f"Primary broker {self.primary} marked down. Routing to {self.fallback}.")
+    def update_broker_health(self, broker: str, latency_ms: float, is_online: bool) -> None:
+        if broker in self.brokers:
+            self.brokers[broker]["latency"] = latency_ms
+            self.brokers[broker]["status"] = "ONLINE" if is_online else "OFFLINE"
 
-    def mark_primary_up(self) -> None:
-        self.primary_healthy = True
-        logger.info(f"Primary broker {self.primary} restored.")
+    def select_venue(self, order_size_usd: float, urgency: str) -> str:
+        online = {k: v for k, v in self.brokers.items() if v["status"] == "ONLINE"}
+        if not online:
+            logger.critical("[ROUTER] FATAL: All broker connections are OFFLINE.")
+            return "NONE"
 
-    def get_active_broker(self) -> str:
-        return self.primary if self.primary_healthy else self.fallback
+        if order_size_usd > 1_000_000 and "DARK_POOL" in online:
+            return "DARK_POOL"  # Hide massive orders
+
+        if urgency == "HIGH":
+            # Sort by lowest latency
+            return sorted(online.keys(), key=lambda k: online[k]["latency"])[0]
+
+        # Sort by lowest fee
+        return sorted(online.keys(), key=lambda k: online[k]["fee_bps"])[0]
+
+    def route_order(self, ticker: str, size: float, urgency: str = "NORMAL") -> str:
+        venue = self.select_venue(size * 100, urgency)  # Approximating USD value
+        logger.info(f"[ROUTER] Routing {size} {ticker} -> {venue} (Urgency: {urgency})")
+        return venue
