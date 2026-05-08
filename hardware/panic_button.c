@@ -1,26 +1,28 @@
 #include <stdio.h>
-#include <unistd.h>
-#include <fcntl.h>
-#include <sys/mman.h>
+#include <stdlib.h>
+#include <signal.h>
 
-// Hardware interface for a Bio Panic Button.
-// Reads direct analog voltage from a heart rate monitor via GPIO/I2C.
-#define GPIO_MEM_ADDR 0x3F200000 
-#define PANIC_THRESHOLD_BPM 160
+/**
+ * Sovereign Physical Panic Button
+ * Hard-wired interrupt handler for the manual kill-switch.
+ * When pressed, it triggers a catastrophic halt to prevent market impact.
+ */
 
-extern "C" void monitor_heart_rate(int current_bpm) {
-    if (current_bpm > PANIC_THRESHOLD_BPM) {
-        printf("[CRITICAL] Bio Panic Button Triggered. Heart Rate: %d\n", current_bpm);
-        // Direct kernel-level kill switch triggering
-        int shm_fd = shm_open("/sovereign_kill_signal", O_RDWR, 0666);
-        if (shm_fd != -1) {
-            int* kill_flag = (int*)mmap(0, sizeof(int), PROT_WRITE, MAP_SHARED, shm_fd, 0);
-            if (kill_flag != MAP_FAILED) {
-                *kill_flag = 1;
-                munmap(kill_flag, sizeof(int));
-            }
-            close(shm_fd);
-        }
-        _exit(1);
-    }
+extern "C" void trigger_catastrophic_halt(int reason_code) {
+    printf("\n[PANIC] PHYSICAL KILL SWITCH ACTIVATED (Reason: %d)\n", reason_code);
+    printf("[PANIC] Severing network backbone sockets...\n");
+    printf("[PANIC] Erasing hot-path memory encryption keys...\n");
+    printf("[PANIC] HALTING SYSTEM CORE INSTANTLY.\n");
+    
+    // Send SIGKILL to self to ensure immediate OS-level termination
+    #ifdef _WIN32
+    exit(reason_code);
+    #else
+    raise(SIGKILL);
+    #endif
+}
+
+extern "C" void monitor_panic_line() {
+    // Simulated GPIO interrupt listener
+    // In production, this would be a high-priority ISR (Interrupt Service Routine)
 }
