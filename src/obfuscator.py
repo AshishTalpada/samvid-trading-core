@@ -1,6 +1,7 @@
 import random
 from typing import Tuple
 
+
 class OrderObfuscator:
     """Hides true order intentions by randomizing size slices and execution timing."""
 
@@ -24,11 +25,11 @@ class OrderObfuscator:
         # Size jitter: +/- max_size_jitter_pct
         jitter_amount = target_size * self.max_size_jitter_pct
         size_offset = random.uniform(-jitter_amount, jitter_amount)
-        
+
         obfuscated_size = round(target_size + size_offset)
         obfuscated_size = max(1, obfuscated_size)
-        
+
         # Time jitter
         delay_seconds = random.uniform(0, self.max_time_jitter_ms) / 1000.0
-        
+
         return obfuscated_size, delay_seconds

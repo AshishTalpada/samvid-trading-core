@@ -1,5 +1,7 @@
-import numpy as np
 from typing import Any
+
+import numpy as np
+
 
 class FractalAgent:
     """
@@ -24,9 +26,9 @@ class FractalAgent:
         N = len(data)
         if N < k_max * 2:
             return 1.5 # Default random walk if not enough data
-            
+
         data_arr = np.array(data)
-        
+
         for k in range(1, k_max + 1):
             Lk = []
             for m in range(0, k):
@@ -35,32 +37,32 @@ class FractalAgent:
                 if max_i > 0:
                     for i in range(1, max_i + 1):
                         Lmk += abs(data_arr[m + i * k] - data_arr[m + (i - 1) * k])
-                    
+
                     Lmk = Lmk * (N - 1) / (max_i * k) / k
                     Lk.append(Lmk)
-            
+
             if Lk:
                 # Average length for this k
                 L.append(np.log(np.mean(Lk)))
                 x.append(np.log(1.0 / k))
-            
+
         if len(x) < 2:
             return 1.5
-            
+
         # Fit a line: L = m*x + c, the slope 'm' is the fractal dimension
         coeffs = np.polyfit(x, L, 1)
         return float(coeffs[0])
-        
+
     def analyze_trend(self, data: list[float]) -> dict[str, Any]:
         fd = self.higuchi_fd(data)
-        
+
         if fd < 1.3:
             state = "STRONG_TREND"
         elif fd < 1.55:
             state = "RANDOM_WALK"
         else:
             state = "CHOPPY_MEAN_REVERTING"
-            
+
         return {
             "fractal_dimension": fd,
             "market_state": state,

@@ -1,5 +1,5 @@
 import logging
-from typing import List, Dict
+from typing import Dict, List
 
 logger = logging.getLogger(__name__)
 
@@ -24,7 +24,7 @@ class TrapDetector:
             "price": price,
             "side": side
         })
-        
+
         # Keep window small to prevent memory bloat
         if len(self.recent_cancels) > 1000:
             self.recent_cancels = self.recent_cancels[-500:]
@@ -43,11 +43,11 @@ class TrapDetector:
         """
         if current_top_size <= 0:
             return 0.0
-            
+
         # Look for cancellations on the same side, at similar prices, that were very large and short-lived
         spoof_matches = 0
         total_spoofed_size = 0.0
-        
+
         for cancel in self.recent_cancels:
             if cancel["side"] == side and cancel["duration_ms"] < self.cancel_threshold_ms:
                 # If the canceled order was suspiciously large
@@ -57,9 +57,9 @@ class TrapDetector:
                     if price_diff_pct < 0.001:
                         spoof_matches += 1
                         total_spoofed_size += cancel["size"]
-                        
+
         if spoof_matches >= 3:
             logger.warning(f"Spoofing trap detected on {side}! {spoof_matches} rapid massive cancels observed.")
             return min(1.0, spoof_matches / 10.0)
-            
+
         return 0.0

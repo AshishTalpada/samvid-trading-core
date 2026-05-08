@@ -1,5 +1,7 @@
-import numpy as np
 from typing import List, Tuple
+
+import numpy as np
+
 
 class HistoricalIsomorphism:
     """Finds repeated price patterns across different market eras."""

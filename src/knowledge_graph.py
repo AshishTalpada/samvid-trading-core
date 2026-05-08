@@ -1,5 +1,6 @@
 from typing import Dict, Set
 
+
 class KnowledgeGraph:
     """Models relationships between macro events and asset sectors."""
     def __init__(self):

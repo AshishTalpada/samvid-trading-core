@@ -1,5 +1,6 @@
 import logging
-from typing import Dict, Any
+from typing import Any, Dict
+
 logger = logging.getLogger(__name__)
 
 class ApexDirective:
@@ -12,7 +13,7 @@ class ApexDirective:
             "require_positive_expectancy": True,
         }
 
-    def validate(self, daily_loss_pct: float, position_pct: float, 
+    def validate(self, daily_loss_pct: float, position_pct: float,
                  drawdown_pct: float, expectancy: float) -> tuple[bool, list[str]]:
         violations = []
         if daily_loss_pct > self.rules["max_daily_loss_pct"]:
