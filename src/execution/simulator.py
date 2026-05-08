@@ -1,8 +1,9 @@
-import numpy as np
-import math
 import logging
-from typing import Dict, List, Tuple
+import math
 from dataclasses import dataclass
+from typing import Dict, List, Tuple
+
+import numpy as np
 
 logger = logging.getLogger(__name__)
 
@@ -28,16 +29,16 @@ class ImpactSimulator:
         """
         self.adv = adv_data
         self.volatility = daily_volatility_data
-        
+
         # Empirical coefficients calibrated from historical institutional flow
         self.gamma = 0.314  # Temporary impact coefficient (liquidity demanding)
         self.eta = 0.142    # Permanent impact coefficient (information content)
 
     def calculate_market_impact(
-        self, 
-        ticker: str, 
-        order_size_shares: int, 
-        current_price: float, 
+        self,
+        ticker: str,
+        order_size_shares: int,
+        current_price: float,
         trade_duration_minutes: float = 30.0
     ) -> MarketImpactResult:
         """
@@ -45,11 +46,11 @@ class ImpactSimulator:
         """
         daily_vol = self.adv.get(ticker, 1_000_000)
         daily_vol_pct = self.volatility.get(ticker, 0.02)
-        
+
         if daily_vol <= 0 or current_price <= 0:
             logger.warning(f"Invalid ADV or Price for {ticker}. Returning zero impact.")
             return MarketImpactResult(0.0, 0.0, 0.0, 1, 0.0)
-            
+
         # 1. Participation Rate: What % of the volume during this window are we?
         # Assuming 390 trading minutes in a day
         window_volume = daily_vol * (trade_duration_minutes / 390.0)
@@ -57,11 +58,11 @@ class ImpactSimulator:
             participation_rate = 1.0
         else:
             participation_rate = order_size_shares / window_volume
-            
+
         # If we exceed 20% participation, we are the market. Impact scales non-linearly.
         if participation_rate > 0.20:
             logger.warning(f"High Participation Rate ({participation_rate*100:.1f}%) for {ticker}. Massive impact expected.")
-            
+
         # 2. Temporary Impact (Square Root Law)
         # Driven by the speed of execution and taking liquidity from the book.
         # Formula: I_temp = gamma * sigma * sqrt(OrderSize / WindowVolume)
@@ -85,7 +86,7 @@ class ImpactSimulator:
         optimal_slices = 1
         if temp_impact_bps > 2.0:
             optimal_slices = int(math.ceil(temp_impact_bps / 1.5))
-            
+
         return MarketImpactResult(
             temporary_impact_bps=temp_impact_bps,
             permanent_impact_bps=perm_impact_bps,
@@ -105,33 +106,33 @@ class ImpactSimulator:
         daily_vol = self.adv.get(ticker, 1_000_000)
         daily_vol_pct = self.volatility.get(ticker, 0.02)
         variance = (current_price * daily_vol_pct) ** 2
-        
+
         # Simplified half-life parameter 'kappa' balancing impact and variance
         # kappa = sqrt((risk_aversion * variance) / temp_impact_coefficient)
         # Using a highly simplified heuristic for the schedule generation
-        
+
         total_time_mins = 60 # Default 1 hour horizon
         schedule = []
-        
+
         # Determine N discrete slices
         N = 10
         dt = total_time_mins / N
-        
+
         # Generate an execution trajectory (U-shaped smile typical of institutional execution)
         shares_remaining = order_size_shares
-        
+
         for i in range(N):
             # Smile curve: Execute more at the beginning and end of the window
             t = i / N
             smile_factor = 1.0 + 0.5 * ((t - 0.5) ** 2)
-            
+
             if i == N - 1:
                 slice_size = shares_remaining
             else:
                 slice_size = int((order_size_shares / N) * smile_factor)
                 slice_size = min(slice_size, shares_remaining)
-                
+
             schedule.append((int(i * dt), slice_size))
             shares_remaining -= slice_size
-            
+
         return schedule
