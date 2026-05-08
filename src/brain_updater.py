@@ -1,4 +1,5 @@
 import logging
+
 logger = logging.getLogger(__name__)
 
 class MicroWeightUpdater:
@@ -7,4 +8,4 @@ class MicroWeightUpdater:
 
     def apply_update(self, current_weights: list[float], gradient: list[float]) -> list[float]:
         logger.debug("Applying micro-weight updates post-fill.")
-        return [w - self.learning_rate * g for w, g in zip(current_weights, gradient)]
+        return [w - self.learning_rate * g for w, g in zip(current_weights, gradient, strict=False)]

@@ -47,9 +47,9 @@ try:
             raise e
 
     if hasattr(yf_history, "History"):
-        setattr(yf_history.History, "history", _patched_history)
+        yf_history.History.history = _patched_history
     elif hasattr(yf_history, "history"):
-        setattr(yf_history, "history", _patched_history)
+        yf_history.history = _patched_history
 except Exception:
     pass
 import yfinance as yf

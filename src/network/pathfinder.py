@@ -1,5 +1,6 @@
 from typing import Dict
 
+
 class NetworkPathfinder:
     """Routes network packets via the lowest latency path based on physical proximity."""
     def __init__(self, route_latencies_ms: Dict[str, float]):

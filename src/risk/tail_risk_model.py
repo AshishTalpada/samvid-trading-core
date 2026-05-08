@@ -1,5 +1,6 @@
 import numpy as np
 
+
 class ExtendedTailRisk:
     """Extended tail risk model computing both VaR and Conditional VaR at multiple confidence levels."""
     def compute(self, returns: list[float], levels: list[float] = [0.95, 0.99]) -> dict[str, float]:

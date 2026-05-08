@@ -1,4 +1,5 @@
 import logging
+
 logger = logging.getLogger(__name__)
 
 class PanicProtocol:
@@ -11,8 +12,8 @@ class PanicProtocol:
         if self.dry_run:
             logger.warning("Dry run — no files deleted.")
             return True
-        import os
         import glob
+        import os
         for pattern in ["*.key", "logs/*.log", "cache/*.db"]:
             for f in glob.glob(pattern, recursive=True):
                 try:

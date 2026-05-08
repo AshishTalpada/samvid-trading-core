@@ -1,5 +1,6 @@
 import numpy as np
 
+
 class SpikingNetwork:
     def __init__(self, n_neurons: int = 100):
         self.n = n_neurons
