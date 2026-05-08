@@ -104,8 +104,9 @@ from workload_manager import WorkloadManager
 if TYPE_CHECKING:
     import sqlite3
 
-    from dhatu_oracle import DhatuOracle
-    from native_slm import NativeSLM
+    from data_pipeline import DataPipeline
+    from dms import DMSMonitor
+    from shadow_sim import GhostShadowSim
 
 # DRAWDOWN LADDER
 
@@ -647,6 +648,9 @@ class TradingBrain:
         self.wisdom = WisdomRepository()
         self.skill_tree = SkillTreeManager()
         self.wisdom_context = "SYSTEM_WARMUP: Wisdom hydration in progress..."
+        
+        # --- PILLAR 150: Ghost Shadow-Sim ---
+        self.shadow_sim = GhostShadowSim()
 
         # --- MATRIX INFRASTRUCTURE (Pillar 2) ---
         self.session_restorer = SessionRestorer()

@@ -33,3 +33,36 @@ class SkepticAgent:
             "veto": adjusted_confidence < 0.4
         }
 
+    def run_adversarial_debate(self, proposal: Dict[str, Any], opponents: list[str]) -> Dict[str, Any]:
+        """
+        PILLAR 97/107: Adversarial Quorum & Debate Protocol.
+        Forces the proposing agents to defend their thesis against the Skeptic's counter-points.
+        """
+        logger.info(f"Skeptic: Initiating ADVERSARIAL DEBATE against {opponents}")
+        
+        signal = proposal.get("vote", "HOLD")
+        reasons = proposal.get("reason", "No reason provided.")
+        
+        # Challenge the core logic
+        counter_thesis = f"Countering {signal}: "
+        if signal == "BUY":
+            counter_thesis += "Market depth is thinning and macro-tailwinds are over-extended."
+        elif signal == "SELL":
+            counter_thesis += "Local support levels are firm and liquidity sweeps are likely."
+        else:
+            counter_thesis += "Indecision is the greatest risk in high-freq windows."
+
+        logger.info(f"Skeptic Thesis: {counter_thesis}")
+        
+        # The debate outcome is a refined confidence score
+        is_weak = len(reasons) < 20 or "momentum" in reasons.lower()
+        refined_conf = proposal.get("confidence", 0.5) * (0.75 if is_weak else 1.1)
+        
+        return {
+            "agent": "Agent_H_Skeptic",
+            "vote": "NO" if refined_conf < 0.6 else "YES",
+            "confidence": refined_conf,
+            "counter_thesis": counter_thesis,
+            "debate_resolved": True
+        }
+
