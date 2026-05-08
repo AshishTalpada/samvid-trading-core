@@ -1,5 +1,4 @@
 #include "cuda_runtime.h"
-#include <stdio.h>
 
 /**
  * Sparse Compute Kernel

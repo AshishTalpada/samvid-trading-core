@@ -1,5 +1,4 @@
 #include "cuda_runtime.h"
-#include <stdio.h>
 
 /**
  * HBM3 Optimized Memory Kernel for NVIDIA H100
