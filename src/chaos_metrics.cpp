@@ -1,55 +1,77 @@
 #include <cmath>
 #include <vector>
+#include <numeric>
 #include <algorithm>
+#include <stdexcept>
 
-// Rosenstein's algorithm for calculating the Largest Lyapunov Exponent (LLE)
-extern "C" double compute_lyapunov_exponent(const double* series, int n, int tau, int m) {
-    if (n < m * tau) return 0.0;
+// Deep Dive: Chaos Theory & Non-linear Dynamics for HFT
+// Computes the Largest Lyapunov Exponent (LLE) using Rosenstein's algorithm.
+// If LLE > 0, the market is deterministic chaos (predictable short-term).
+// If LLE <= 0, the market is a random walk or mean-reverting (unpredictable).
 
-    // 1. Phase space reconstruction
-    int num_vectors = n - (m - 1) * tau;
-    std::vector<std::vector<double>> phase_space(num_vectors, std::vector<double>(m));
-    
-    for (int i = 0; i < num_vectors; ++i) {
-        for (int j = 0; j < m; ++j) {
-            phase_space[i][j] = series[i + j * tau];
+extern "C" {
+
+    double compute_lyapunov_exponent(const double* time_series, int n, int embedding_dimension, int time_delay) {
+        if (n <= embedding_dimension * time_delay) {
+            return 0.0;
         }
-    }
 
-    double sum_log_divergence = 0.0;
-    int valid_pairs = 0;
+        // 1. Phase Space Reconstruction via Takens' Theorem
+        int num_vectors = n - (embedding_dimension - 1) * time_delay;
+        std::vector<std::vector<double>> phase_space(num_vectors, std::vector<double>(embedding_dimension));
+        
+        for (int i = 0; i < num_vectors; ++i) {
+            for (int j = 0; j < embedding_dimension; ++j) {
+                phase_space[i][j] = time_series[i + j * time_delay];
+            }
+        }
 
-    // 2. Find nearest neighbors and track divergence
-    for (int i = 0; i < num_vectors; ++i) {
-        double min_dist = 1e9;
-        int nearest_idx = -1;
+        double sum_lyapunov = 0.0;
+        int valid_points = 0;
 
-        for (int j = 0; j < num_vectors; ++j) {
-            if (abs(i - j) > tau) { // Exclude temporally close points
-                double dist = 0.0;
-                for (int d = 0; d < m; ++d) {
-                    dist += std::pow(phase_space[i][d] - phase_space[j][d], 2);
+        // 2. Find nearest neighbors in the reconstructed phase space
+        for (int i = 0; i < num_vectors; ++i) {
+            double min_distance = 1e12;
+            int nearest_idx = -1;
+
+            for (int j = 0; j < num_vectors; ++j) {
+                // Theiler window: ignore temporally correlated points
+                if (std::abs(i - j) > time_delay) { 
+                    double dist_sq = 0.0;
+                    for (int d = 0; d < embedding_dimension; ++d) {
+                        double diff = phase_space[i][d] - phase_space[j][d];
+                        dist_sq += diff * diff;
+                    }
+                    
+                    if (dist_sq > 0 && dist_sq < min_distance) {
+                        min_distance = dist_sq;
+                        nearest_idx = j;
+                    }
                 }
-                if (dist > 0 && dist < min_dist) {
-                    min_dist = dist;
-                    nearest_idx = j;
+            }
+
+            // 3. Track orbital divergence over time
+            if (nearest_idx != -1) {
+                int evolution_time = 1; // Look forward 1 step
+                if (i + evolution_time < num_vectors && nearest_idx + evolution_time < num_vectors) {
+                    double evolved_dist_sq = 0.0;
+                    for (int d = 0; d < embedding_dimension; ++d) {
+                        double diff = phase_space[i + evolution_time][d] - phase_space[nearest_idx + evolution_time][d];
+                        evolved_dist_sq += diff * diff;
+                    }
+                    
+                    if (evolved_dist_sq > 0) {
+                        // LLE = (1/t) * ln(dist(t) / dist(0))
+                        double divergence = std::log(std::sqrt(evolved_dist_sq) / std::sqrt(min_distance));
+                        sum_lyapunov += divergence;
+                        valid_points++;
+                    }
                 }
             }
         }
 
-        // Check divergence after 1 time step
-        if (nearest_idx != -1 && i + 1 < num_vectors && nearest_idx + 1 < num_vectors) {
-            double div_dist = 0.0;
-            for (int d = 0; d < m; ++d) {
-                div_dist += std::pow(phase_space[i+1][d] - phase_space[nearest_idx+1][d], 2);
-            }
-            if (div_dist > 0) {
-                sum_log_divergence += std::log(sqrt(div_dist) / sqrt(min_dist));
-                valid_pairs++;
-            }
-        }
+        if (valid_points == 0) return 0.0;
+        
+        return sum_lyapunov / valid_points; 
     }
-
-    if (valid_pairs == 0) return 0.0;
-    return sum_log_divergence / valid_pairs; // >0 implies chaos
 }
