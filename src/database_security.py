@@ -37,7 +37,8 @@ class DatabaseSecurity:
         """Generate an HMAC signature for data integrity verification."""
         if cls._hmac_key is None:
             cls._get_fernet()
-        return hmac.new(cls._hmac_key, data, hashlib.sha256).hexdigest()
+        from typing import cast
+        return hmac.new(cast(bytes, cls._hmac_key), data, hashlib.sha256).hexdigest()
 
     @classmethod
     def encrypt(cls, data: str) -> str:

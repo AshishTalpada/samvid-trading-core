@@ -148,7 +148,7 @@ class CorrelationGuard:
                 sector_value += float(pos_price) * float(pos_qty)  # type: ignore
 
         # Resulting exposure IF WE ADDED the new position
-        exposure_pct = float(sector_value + new_position_value) / float(account_value)
+        exposure_pct = (sector_value + new_position_value) / account_value
 
         limit = min(self.max_sector_exposure, 0.30)
         if exposure_pct >= limit:
