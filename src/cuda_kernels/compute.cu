@@ -1,19 +1,41 @@
 #include "cuda_runtime.h"
+#include <math.h>
 
 /**
- * Sparse Compute Kernel
- * Focuses GPU compute only on "Moving" symbols, ignoring dead tickers.
- * Massively reduces power consumption and frees up CUDA cores for
- * high-volatility targets.
+ * Sovereign Neural Sparse Compute Kernel
+ * Computes deep non-linear regime transformations for 
+ * market hyper-vectors. Automatically ignores dead or halted 
+ * tickers via the active_mask to conserve H100 wattage.
  */
 
-__global__ void sparse_update_kernel(const float* prices, const int* active_mask, float* output, int N) {
+#define TENSOR_DIM 128
+
+extern "C" __global__ void sparse_neural_update_kernel(
+    const float* __restrict__ prices, 
+    const float* __restrict__ weights, 
+    const int* __restrict__ active_mask, 
+    float* __restrict__ output, 
+    int N) 
+{
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
     
-    // Only execute heavy compute if the mask is 1 (Active/Moving)
+    // Only execute heavy neural transformations if the ticker is active
     if (idx < N && active_mask[idx] == 1) {
-        // Simulated heavy neural network transformation
-        float val = prices[idx];
-        output[idx] = val * val * 0.99f; 
+        
+        float accum = 0.0f;
+        
+        // Unrolled matrix-vector multiplication simulation
+        #pragma unroll 8
+        for(int i = 0; i < TENSOR_DIM; i++) {
+            // FMA (Fused Multiply-Add) execution
+            accum += prices[idx * TENSOR_DIM + i] * weights[i];
+        }
+        
+        // Swish (SiLU) Activation Function: x * sigmoid(x)
+        // High execution throughput via fast math builtins
+        float sigmoid = 1.0f / (1.0f + expf(-accum));
+        float activated = accum * sigmoid;
+        
+        output[idx] = activated;
     }
 }
