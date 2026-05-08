@@ -1,22 +1,30 @@
+import logging
+from typing import List
+
 import numpy as np
 
+logger = logging.getLogger(__name__)
 
-class ScentDetector:
-    """Detects early breakout conditions before volume confirms the move."""
-    def __init__(self, vol_ratio_threshold: float = 1.5, price_compression_threshold: float = 0.005):
-        self.vol_ratio_threshold = vol_ratio_threshold
-        self.price_compression = price_compression_threshold
+class NeuralScentDetector:
+    """
+    Detects the 'smell' of a breakout before volume arrives.
+    Analyzes micro-structure anomalies (e.g. shrinking bid-ask spread combined
+    with tiny aggressive sweeps) that precede a massive institutional order.
+    """
+    def __init__(self, sensitivity: float = 2.0):
+        self.sensitivity = sensitivity
 
-    def detect(self, recent_volumes: list[float], recent_highs: list[float],
-               recent_lows: list[float]) -> bool:
-        if len(recent_volumes) < 10:
-            return False
-        avg_vol = np.mean(recent_volumes[:-3])
-        recent_vol = np.mean(recent_volumes[-3:])
-        vol_ratio = recent_vol / avg_vol if avg_vol > 0 else 1.0
+    def detect_scent(self, spreads: List[float], aggressive_buy_ratios: List[float]) -> float:
+        if len(spreads) < 10 or len(aggressive_buy_ratios) < 10:
+            return 0.0
 
-        compression = np.mean(np.array(recent_highs[-5:]) - np.array(recent_lows[-5:]))
-        avg_range = np.mean(np.array(recent_highs) - np.array(recent_lows))
-        price_compressed = compression < avg_range * (1 - self.price_compression)
+        spread_compression = spreads[0] / (np.mean(spreads[-3:]) + 1e-9)
+        agg_buying = np.mean(aggressive_buy_ratios[-3:])
 
-        return vol_ratio > self.vol_ratio_threshold and price_compressed
+        # High scent if spread compresses AND aggressive buying increases
+        scent_score = spread_compression * agg_buying * self.sensitivity
+
+        if scent_score > 3.0:
+            logger.info(f"[SCENT] High breakout probability detected. Scent={scent_score:.2f}")
+
+        return float(min(1.0, scent_score / 5.0)) # Normalize 0 to 1
