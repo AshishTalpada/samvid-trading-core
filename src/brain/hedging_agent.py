@@ -4,7 +4,6 @@ logger = logging.getLogger(__name__)
 
 class HedgingAgent:
     """
-    Item 280: Option Hedging
     Auto-buys Puts when the SLM or tail-risk model senses a crash coming.
     """
     def __init__(self, hedge_ratio: float = 0.05):

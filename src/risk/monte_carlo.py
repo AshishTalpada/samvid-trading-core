@@ -5,7 +5,6 @@ logger = logging.getLogger(__name__)
 
 class MonteCarloRisk:
     """
-    Item 151: RT Monte Carlo
     Runs fast vectorized Monte Carlo simulations to calculate Ruin Probability.
     """
     def __init__(self, simulations: int = 10000, horizon_steps: int = 100):
