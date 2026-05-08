@@ -1,7 +1,27 @@
-#include <sys/mman.h>
-#include <unistd.h>
 #include <stdio.h>
 #include <errno.h>
+
+#ifdef _WIN32
+#include <windows.h>
+#include <process.h>
+// Windows compatibility for POSIX memory protection
+#define PROT_READ 0x1
+#define PROT_EXEC 0x4
+#define _SC_PAGESIZE 0
+static inline long sysconf(int name) {
+    SYSTEM_INFO si;
+    GetSystemInfo(&si);
+    return (long)si.dwPageSize;
+}
+static inline int mprotect(void* addr, size_t len, int prot) {
+    DWORD old;
+    return VirtualProtect(addr, len, PAGE_EXECUTE_READ, &old) ? 0 : -1;
+}
+#define _exit exit
+#else
+#include <sys/mman.h>
+#include <unistd.h>
+#endif
 
 /**
  * Memory Poisoning / I-Cache Protection
