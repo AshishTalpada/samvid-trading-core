@@ -1,8 +1,9 @@
-import pyttsx3
-import threading
-import queue
 import logging
+import queue
+import threading
 from typing import Dict
+
+import pyttsx3
 
 logger = logging.getLogger(__name__)
 
@@ -17,10 +18,10 @@ class SovereignVoiceCopilot:
         self.message_queue = queue.Queue()
         self.running = True
         self.voice_speed = voice_speed
-        
+
         # System state tracking to avoid repeating the same warning
         self.last_alerts: Dict[str, float] = {}
-        
+
         self.worker = threading.Thread(target=self._speech_loop, daemon=True)
         self.worker.start()
         logger.info("Sovereign Voice Co-Pilot online.")
@@ -29,14 +30,14 @@ class SovereignVoiceCopilot:
         # Initialize pyttsx3 inside the thread as it relies on COM objects on Windows
         engine = pyttsx3.init()
         engine.setProperty('rate', self.voice_speed)
-        
+
         # Attempt to set a distinct, authoritative voice (e.g., Zira or David on Windows)
         voices = engine.getProperty('voices')
         for voice in voices:
             if "Zira" in voice.name or "Hazel" in voice.name:
                 engine.setProperty('voice', voice.id)
                 break
-                
+
         engine.say("Sovereign architecture initialized and monitoring execution streams.")
         engine.runAndWait()
 
@@ -44,12 +45,12 @@ class SovereignVoiceCopilot:
             try:
                 # Block until a message is available, timeout allows checking self.running
                 priority, msg_id, message = self.message_queue.get(timeout=1.0)
-                
+
                 logger.debug(f"[COPILOT SPEAKS]: {message}")
                 engine.say(message)
                 engine.runAndWait()
                 self.message_queue.task_done()
-                
+
             except queue.Empty:
                 continue
             except Exception as e:
@@ -61,19 +62,19 @@ class SovereignVoiceCopilot:
         """
         import time
         current_time = time.time()
-        
+
         # Debounce: Don't repeat the exact same alert ID within 60 seconds
         if msg_id in self.last_alerts:
             if current_time - self.last_alerts[msg_id] < 60:
                 return
-                
+
         self.last_alerts[msg_id] = current_time
-        
+
         if priority == 0:
             # Clear the queue for critical alerts (e.g., Flash Crash, Margin Call)
             with self.message_queue.mutex:
                 self.message_queue.queue.clear()
-                
+
         self.message_queue.put((priority, msg_id, message))
 
     def shutdown(self):

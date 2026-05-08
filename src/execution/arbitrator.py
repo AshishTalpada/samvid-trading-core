@@ -1,7 +1,7 @@
 import logging
 import time
-from typing import Dict, Optional
 from dataclasses import dataclass
+from typing import Dict, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -18,7 +18,7 @@ class FIXExecutionReport:
     leaves_qty: float
     cum_qty: float
     transact_time: str
-    
+
     # NBBO at time of fill
     nbbo_bid: float
     nbbo_ask: float
@@ -31,7 +31,7 @@ class BrokerArbitrator:
     If a fill is executed outside the NBBO (a predatory or illegal fill under Reg NMS),
     this agent instantly disputes the trade via FIX Tag 35=DK (Don't Know Trade).
     """
-    
+
     # Standard FIX Tag definitions
     TAG_MSG_TYPE = "35"
     TAG_ORDER_ID = "11"
@@ -43,10 +43,10 @@ class BrokerArbitrator:
     TAG_FILL_QTY = "32"
     TAG_FILL_PRICE = "31"
     TAG_TEXT = "58"
-    
+
     # Thresholds
     ALLOWED_SLIPPAGE_BPS = 0.5  # 0.5 basis points allowed for market orders
-    
+
     def __init__(self):
         self.active_orders: Dict[str, dict] = {}
         self.disputed_trades: list = []
@@ -71,17 +71,17 @@ class BrokerArbitrator:
         Returns True if the fill is accepted, False if disputed.
         """
         tags = self._parse_fix_message(fix_message)
-        
+
         msg_type = tags.get(self.TAG_MSG_TYPE)
         if msg_type != "8":
             # Not an ExecutionReport
             return True
-            
+
         ord_status = tags.get(self.TAG_ORD_STATUS)
         if ord_status not in ["1", "2"]:
             # Not a Partial Fill (1) or Filled (2) status
             return True
-            
+
         try:
             report = FIXExecutionReport(
                 order_id=tags.get(self.TAG_ORDER_ID, "UNKNOWN"),
@@ -113,10 +113,10 @@ class BrokerArbitrator:
 
         expected_price = order_intent["expected_price"]
         side = report.side
-        
+
         # 1: Buy, 2: Sell (FIX Standard)
         is_buy = side == "1"
-        
+
         # Calculate slippage in Basis Points
         if is_buy:
             slippage_bps = ((report.fill_price - expected_price) / expected_price) * 10000
@@ -145,7 +145,7 @@ class BrokerArbitrator:
         # Clean fill. Remove from active intent tracking if fully filled.
         if report.ord_status == "2":
             del self.active_orders[report.order_id]
-            
+
         return True
 
     def _dispute_fill(self, report: FIXExecutionReport, reason: str):
@@ -157,7 +157,7 @@ class BrokerArbitrator:
         dk_msg = f"8=FIX.4.4|35=Q|11={report.order_id}|17={report.exec_id}|39={report.ord_status}|"
         dk_msg += f"55={report.symbol}|54={report.side}|32={report.fill_qty}|31={report.fill_price}|"
         dk_msg += f"127=OTHER|58={reason}|"
-        
+
         logger.warning(f"[ARBITRATOR] Sending FIX Dispute to Broker: {dk_msg}")
         self.disputed_trades.append({
             "report": report,
@@ -171,7 +171,7 @@ class BrokerArbitrator:
         # Note: Usually SOH is \x01, but we use '|' here for readability in logs
         delim = '\x01' if '\x01' in fix_string else '|'
         pairs = fix_string.split(delim)
-        
+
         tags = {}
         for pair in pairs:
             if '=' in pair:

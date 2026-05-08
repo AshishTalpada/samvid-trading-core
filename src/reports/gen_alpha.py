@@ -1,5 +1,6 @@
 import datetime
 import logging
+
 logger = logging.getLogger(__name__)
 
 class AlphaReportGenerator:
@@ -10,17 +11,16 @@ class AlphaReportGenerator:
         week_str = now.strftime("Week of %Y-%m-%d")
         lines = [
             f"# Sovereign Alpha Report — {week_str}",
-            f"",
-            f"## Performance Summary",
+            "",
+            "## Performance Summary",
             f"- PnL: ${week_pnl:,.2f}",
             f"- Trades: {trades}",
             f"- Win Rate: {win_rate:.1%}",
             f"- Sharpe Ratio: {sharpe:.2f}",
-            f"",
-            f"## System Evolution",
+            "",
+            "## System Evolution",
         ]
         for module in new_modules:
             lines.append(f"- Deployed: {module}")
         logger.info(f"Alpha report generated for {week_str}")
-        return "
-".join(lines)
+        return "\n".join(lines)
