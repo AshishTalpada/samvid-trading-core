@@ -1,50 +1,70 @@
-import logging
-
 import numpy as np
+import logging
+from typing import List
 
 logger = logging.getLogger(__name__)
 
 class AntiFragilityEngine:
-    """
+    '''
     Identifies if an asset exhibits anti-fragile properties 
     (gains disproportionately from volatility/chaos).
-    """
-    def __init__(self, lookback_window: int = 20):
-        self.lookback_window = lookback_window
+    Based on Nassim Taleb's mathematical definition of convexity.
+    '''
+    def __init__(self, window: int = 60):
+        self.window = window
 
-    def calculate_fragility_score(self, asset_returns: list[float],
-                                  market_volatility: list[float]) -> float:
-        """
+    def calculate_antifragility(self, asset_returns: List[float], market_volatility: List[float]) -> dict:
+        '''
         Measures the correlation between asset returns and market volatility spikes.
+        Calculates the Second Derivative (Convexity) of the asset's payoff profile 
+        with respect to systemic market stress.
+        '''
+        if len(asset_returns) < self.window or len(market_volatility) < self.window:
+            return {"score": 0.0, "is_antifragile": False, "convexity": 0.0}
+
+        ret_array = np.array(asset_returns[-self.window:])
+        vol_array = np.array(market_volatility[-self.window:])
+
+        # 1. Asymmetric Beta Profile (Upside Capture vs Downside Capture during High Volatility)
+        # Find periods of extremely high systemic volatility (top 20th percentile)
+        vol_threshold = np.percentile(vol_array, 80)
+        high_vol_mask = vol_array >= vol_threshold
         
-        Args:
-            asset_returns: List of asset percentage returns.
-            market_volatility: List of market volatility metrics (e.g., VIX changes).
-            
-        Returns:
-            Anti-fragility score (-1.0 to 1.0). 
-            > 0.5 means highly anti-fragile.
-            < -0.5 means highly fragile.
-        """
-        if len(asset_returns) < self.lookback_window or len(market_volatility) < self.lookback_window:
-            return 0.0
+        returns_in_high_vol = ret_array[high_vol_mask]
+        returns_in_low_vol = ret_array[~high_vol_mask]
 
-        returns = np.array(asset_returns[-self.lookback_window:])
-        volatility = np.array(market_volatility[-self.lookback_window:])
+        if len(returns_in_high_vol) == 0 or len(returns_in_low_vol) == 0:
+            return {"score": 0.0, "is_antifragile": False, "convexity": 0.0}
 
-        # Calculate correlation between returns and volatility
-        correlation_matrix = np.corrcoef(returns, volatility)
+        mean_high_vol_ret = np.mean(returns_in_high_vol)
+        mean_low_vol_ret = np.mean(returns_in_low_vol)
 
-        if np.isnan(correlation_matrix[0, 1]):
-            return 0.0
+        # 2. Local Convexity Estimation
+        # Fit a 2nd degree polynomial: Return = a + b(Vol) + c(Vol^2)
+        # If 'c' (the second derivative) is strongly positive, the asset is strictly anti-fragile.
+        poly_fit = np.polyfit(vol_array, ret_array, 2)
+        convexity_coeff = poly_fit[0]  # The 'c' term in ax^2 + bx + c
 
-        score = correlation_matrix[0, 1]
+        # 3. Fragility Score
+        # Bounded between -1.0 (Highly Fragile) and 1.0 (Highly Anti-Fragile)
+        # A positive score means the asset makes MORE money when the market is crashing/volatile.
+        
+        volatility_capture_spread = mean_high_vol_ret - mean_low_vol_ret
+        
+        # Normalize the score somewhat heuristically based on the spread and convexity
+        raw_score = (volatility_capture_spread * 100) + (convexity_coeff * 1000)
+        score = np.clip(raw_score, -1.0, 1.0)
+        
+        is_anti = score > 0.4 and convexity_coeff > 0.001
 
-        # Adjust score by the magnitude of positive outlier returns
-        # Anti-fragile assets should have positive fat tails
-        positive_tails = returns[returns > np.mean(returns) + np.std(returns)]
-        if len(positive_tails) > 0:
-            tail_multiplier = 1.0 + min(0.5, np.mean(positive_tails) * 10)
-            score *= tail_multiplier
+        if is_anti:
+            logger.info(f"[FRAGILITY] Anti-Fragile asset detected. Score: {score:.2f}, Convexity: {convexity_coeff:.4f}")
+        elif score < -0.6:
+            logger.warning(f"[FRAGILITY] HIGHLY FRAGILE asset detected. Avoid holding during VIX spikes.")
 
-        return float(np.clip(score, -1.0, 1.0))
+        return {
+            "score": float(score),
+            "is_antifragile": bool(is_anti),
+            "convexity": float(convexity_coeff),
+            "high_vol_avg_return": float(mean_high_vol_ret)
+        }
