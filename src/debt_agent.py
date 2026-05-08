@@ -1,8 +1,37 @@
-class DebtCycleTracker:
-    def __init__(self, long_term_debt_to_gdp: float):
-        self.debt_ratio = long_term_debt_to_gdp
+import logging
+from typing import Dict
 
-    def get_macro_risk(self) -> str:
-        if self.debt_ratio > 1.3:
-            return "DELEVERAGING_RISK"
-        return "EXPANSION"
+import requests
+
+logger = logging.getLogger(__name__)
+
+FRED_API = "https://fred.stlouisfed.org/graph/fredgraph.json"
+
+class DebtCycleTracker:
+    """
+    Tracks Ray Dalio's long-term debt cycle metrics via FRED economic data.
+    Key indicators: Total credit / GDP ratio, debt service ratio, M2 growth.
+    When credit/GDP > 200% and M2 growth decelerates -> major deleveraging risk.
+    """
+    FRED_SERIES = {
+        "total_credit_gdp": "TCMDO",
+        "household_debt_service": "TDSP",
+        "m2_money_supply": "M2SL",
+        "federal_debt_gdp": "GFDEGDQ188S",
+    }
+
+    def get_fred_series(self, series_id: str) -> float:
+        try:
+            r = requests.get(f"{FRED_API}?id={series_id}", timeout=5)
+            obs = r.json().get("observations", [])
+            return float(obs[-1]["value"]) if obs else 0.0
+        except Exception as e:
+            logger.error(f"[DEBT] FRED fetch failed ({series_id}): {e}")
+            return 0.0
+
+    def debt_cycle_stage(self) -> Dict[str, float | str]:
+        credit_gdp = self.get_fred_series("GFDEGDQ188S")
+        m2 = self.get_fred_series("M2SL")
+        stage = "EXPANSION" if credit_gdp < 100 else "PEAK" if credit_gdp < 130 else "DELEVERAGING"
+        logger.info(f"[DEBT] Fed Debt/GDP={credit_gdp:.1f}% | Stage={stage}")
+        return {"credit_to_gdp": credit_gdp, "m2": m2, "cycle_stage": stage}

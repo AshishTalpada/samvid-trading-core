@@ -1,8 +1,8 @@
-import os
 import json
 import logging
+import os
 from datetime import datetime
-from typing import Dict, List, Any
+from typing import Any, Dict, List
 
 logger = logging.getLogger(__name__)
 
@@ -16,23 +16,23 @@ class AutoThesisGenerator:
         os.makedirs(self.output_dir, exist_ok=True)
 
     def generate_thesis(
-        self, 
-        trade_id: str, 
-        ticker: str, 
-        action: str, 
+        self,
+        trade_id: str,
+        ticker: str,
+        action: str,
         size: float,
         macro_context: Dict[str, Any],
         agent_consensus: Dict[str, Any],
         risk_metrics: Dict[str, Any],
         order_book_state: Dict[str, Any]
     ) -> str:
-        
+
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         filepath = os.path.join(self.output_dir, f"{ticker}_{trade_id}.md")
-        
+
         # Calculate conviction score
         conviction = agent_consensus.get("conviction_score", 0.0) * 100
-        
+
         content = f"""# Sovereign Trade Thesis: {action} {ticker}
 **Trade ID:** `{trade_id}`
 **Execution Time:** {timestamp}
@@ -78,6 +78,6 @@ The Sovereign Hive Mind elected to execute a **{action}** position on **{ticker}
 """
         with open(filepath, "w", encoding="utf-8") as f:
             f.write(content)
-            
+
         logger.info(f"Thesis successfully generated at {filepath}")
         return filepath

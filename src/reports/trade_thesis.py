@@ -1,5 +1,6 @@
 import datetime
 
+
 class TradeThesisGenerator:
     """Generates a structured trade thesis document for every filled order."""
     def generate(self, ticker: str, direction: str, entry: float,
@@ -17,5 +18,4 @@ class TradeThesisGenerator:
         lines += ["", "## Agent Quorum"]
         for agent, vote in agent_votes.items():
             lines.append(f"- {agent}: {vote}")
-        return "
-".join(lines)
+        return "\n".join(lines)
