@@ -1,8 +1,5 @@
 #include <cmath>
 #include <vector>
-#include <numeric>
-#include <algorithm>
-#include <stdexcept>
 
 // Deep Dive: Chaos Theory & Non-linear Dynamics for HFT
 // Computes the Largest Lyapunov Exponent (LLE) using Rosenstein's algorithm.
