@@ -1,5 +1,6 @@
-import numpy as np
 import logging
+
+import numpy as np
 
 logger = logging.getLogger(__name__)
 
@@ -24,20 +25,20 @@ class DrawdownPredictor:
         """
         if current_state == target_state:
             return 0.0
-            
+
         n = self.transition_matrix.shape[0]
-        
+
         # Remove the target state row and column to create matrix Q
         states_to_keep = [i for i in range(n) if i != target_state]
         Q = self.transition_matrix[np.ix_(states_to_keep, states_to_keep)]
-        
+
         # Fundamental matrix N = (I - Q)^-1
         I = np.eye(len(states_to_keep))
         try:
             N = np.linalg.inv(I - Q)
             # Expected times to absorption are the row sums of N
             expected_times = np.sum(N, axis=1)
-            
+
             # Map current_state to its index in the reduced matrix
             idx = states_to_keep.index(current_state)
             return float(expected_times[idx])

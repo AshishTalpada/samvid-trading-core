@@ -1,6 +1,7 @@
+import logging
+
 import numpy as np
 from scipy.integrate import solve_ivp
-import logging
 
 logger = logging.getLogger(__name__)
 
@@ -36,10 +37,10 @@ class NeuralODE:
 
         state_array = np.array(current_state, dtype=np.float64)
         t_span = (0.0, dt_seconds)
-        
+
         # Use an explicit Runge-Kutta method (RK45) to integrate the learned dynamics
         sol = solve_ivp(self._dynamics, t_span, state_array, method='RK45')
-        
+
         if sol.success:
             final_state = sol.y[:, -1]
             return float(final_state[0]) # Return predicted price
