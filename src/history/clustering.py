@@ -1,5 +1,7 @@
-import numpy as np
 from typing import List
+
+import numpy as np
+
 
 class RegimeClusterer:
     """Discovers market regimes via k-means clustering on return/vol data."""

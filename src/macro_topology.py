@@ -1,5 +1,6 @@
 from src.knowledge_graph import KnowledgeGraph
 
+
 class MacroTopology:
     """Pre-builds the macro knowledge graph with known market relationships."""
     def __init__(self):

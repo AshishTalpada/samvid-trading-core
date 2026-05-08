@@ -1,5 +1,6 @@
 import numpy as np
 
+
 class HyperbolicRisk:
     def __init__(self, curvature: float = -1.0):
         self.curvature = curvature

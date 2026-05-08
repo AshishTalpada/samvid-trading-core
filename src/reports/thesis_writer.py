@@ -1,5 +1,6 @@
 import datetime
 
+
 class AutonomousThesisWriter:
     def write_thesis(self, pnl: float, top_themes: list[str]) -> str:
         date_str = datetime.datetime.utcnow().strftime("%Y-%m-%d")

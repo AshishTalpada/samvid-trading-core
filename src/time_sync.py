@@ -1,10 +1,11 @@
 import asyncio
-import aiohttp
 import logging
 import socket
 import struct
 import time
 from datetime import datetime, timezone
+
+import aiohttp
 
 logger = logging.getLogger(__name__)
 

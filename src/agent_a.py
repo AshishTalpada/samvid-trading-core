@@ -11,9 +11,10 @@ import random
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from enum import Enum
+from typing import Any, Dict, Optional, Union, cast
+
 import numpy as np
 import polars as pl
-from typing import Any, Dict, cast, Union, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -325,7 +326,7 @@ class PatternDetector:
         last_vol = float(df["volume"][-1])
         _m_vol = df["volume"][-10:-1].mean()
         avg_vol = float(cast(Any, _m_vol)) if _m_vol is not None and _m_vol != 0 else 1.0
-        
+
         _curr_close = float(df["close"][-1])
         _prev_close = float(df["close"][-2])
         price_move = abs(_curr_close - _prev_close)
@@ -366,7 +367,7 @@ class PatternDetector:
         last_5 = df[-5:]
         _avg_vol = df["volume"][-20:-5].mean()
         avg_vol = float(cast(Any, _avg_vol)) if _avg_vol is not None else 1.0
-        
+
         _highs = df["high"][-20:-5]
         _lows = df["low"][-20:-5]
         avg_range = float(cast(Any, (_highs - _lows).mean()))
@@ -408,7 +409,7 @@ class PatternDetector:
         # Volatility Compression (Volatility 'Scents' the Breakout)
         _std_20 = df["close"][-20:].std()
         _avg_std = df["close"][-50:-20].std()
-        
+
         std_20 = float(cast(Any, _std_20)) if _std_20 is not None else 0.0
         avg_std = float(cast(Any, _avg_std)) if _avg_std is not None else 1.0
 
@@ -1617,7 +1618,7 @@ class NeuralRegimeClassifier:
         _l_min = float(cast(Any, _l_min_val)) if _l_min_val is not None else 0.0
         _curr_close = float(cast(Any, df["close"][-1]))
         atr_pct = (_h_max - _l_min) / (_curr_close + 1e-10)
-        
+
         _curr_vol = float(cast(Any, df["volume"][-1]))
         _m_vol = df["volume"][-20:].mean()
         vol_ratio = _curr_vol / (float(cast(Any, _m_vol)) if _m_vol is not None else 1.0 + 1e-10)

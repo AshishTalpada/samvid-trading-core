@@ -1,5 +1,6 @@
 import numpy as np
 
+
 class SentimentDecay:
     """Models how news sentiment fades over time using exponential decay."""
     def __init__(self, half_life_hours: float = 6.0):

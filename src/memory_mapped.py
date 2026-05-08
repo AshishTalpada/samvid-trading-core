@@ -1,6 +1,7 @@
 import mmap
 import os
 
+
 class MemoryMappedDB:
     """Maps the entire QuestDB history into RAM for zero-latency queries."""
     def __init__(self, filepath: str):
