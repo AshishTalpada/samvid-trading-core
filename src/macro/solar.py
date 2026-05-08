@@ -1,13 +1,7 @@
-import logging
-
-logger = logging.getLogger(__name__)
-
-class SolarFlareGuard:
-    """Reduces satellite-dependent data risk during geomagnetic storm events."""
-    KP_RISK_THRESHOLD = 5
-
-    def should_reduce_satellite_exposure(self, kp_index: float) -> bool:
-        if kp_index >= self.KP_RISK_THRESHOLD:
-            logger.warning(f"Solar storm: Kp={kp_index}. Reducing satellite data reliance.")
-            return True
-        return False
+class SolarPrediction:
+    """Reduce risk on satellite data during solar flares."""
+    def adjust_satellite_trust(self, x_ray_flux: float) -> float:
+        # X-class flare threshold
+        if x_ray_flux > 1e-4:
+            return 0.1 # Don't trust satellite downlinks
+        return 1.0
