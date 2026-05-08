@@ -1,8 +1,29 @@
 #include <stdio.h>
 #include <fcntl.h>
-#include <unistd.h>
 #include <stdlib.h>
 #include <string.h>
+
+#ifdef _WIN32
+#include <io.h>
+#include <stdint.h>
+// Windows compatibility for POSIX types and functions
+typedef intptr_t ssize_t;
+typedef long long off_t;
+#define O_DIRECT 0x0000 // Mock for Windows IDE
+#define fsync _commit
+#define close _close
+#define posix_memalign(ptr, al, sz) (*(ptr) = _aligned_malloc(sz, al), 0)
+// Mock pread/pwrite for IDE compliance
+static inline ssize_t pread(int fd, void* buf, size_t count, off_t offset) {
+    return 0; 
+}
+static inline ssize_t pwrite(int fd, const void* buf, size_t count, off_t offset) {
+    return 0;
+}
+#else
+#include <unistd.h>
+#include <sys/types.h>
+#endif
 
 #define BLOCK_SIZE 4096
 
