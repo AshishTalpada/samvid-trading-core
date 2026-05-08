@@ -1,5 +1,5 @@
 #include <stdio.h>
-#include <errno.h>
+#include <stdint.h>
 
 #ifdef _WIN32
 #include <windows.h>
@@ -33,7 +33,7 @@ static inline int mprotect(void* addr, size_t len, int prot) {
 void lock_executable_memory(void* address, size_t len) {
     // Get page size boundary
     long page_size = sysconf(_SC_PAGESIZE);
-    void* page_start = (void*)((long)address & ~(page_size - 1));
+    void* page_start = (void*)((uintptr_t)address & ~((uintptr_t)page_size - 1));
 
     // Remove WRITE permissions, keep READ | EXECUTE
     if (mprotect(page_start, len, PROT_READ | PROT_EXEC) == -1) {
