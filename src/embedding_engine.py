@@ -1,8 +1,8 @@
 import logging
 import threading
 from typing import Any, List, Optional, Union, cast
-import numpy as np
 
+import numpy as np
 from chromadb import Documents, EmbeddingFunction, Embeddings
 
 logger = logging.getLogger(__name__)

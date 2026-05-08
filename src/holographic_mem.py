@@ -1,5 +1,6 @@
 import numpy as np
 
+
 class HolographicMemory:
     def __init__(self, dim: int = 1024):
         self.dim = dim

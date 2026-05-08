@@ -1,5 +1,6 @@
 import logging
 from typing import Dict, Optional
+
 logger = logging.getLogger(__name__)
 
 SECTOR_ADAPTER_MAP: Dict[str, str] = {

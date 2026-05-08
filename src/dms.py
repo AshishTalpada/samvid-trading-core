@@ -17,6 +17,7 @@ from typing import TYPE_CHECKING, Any, Optional
 
 import aiohttp
 import MetaTrader5 as MT5
+
 mt5: Any = MT5
 
 if TYPE_CHECKING:

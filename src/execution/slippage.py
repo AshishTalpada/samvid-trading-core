@@ -1,5 +1,5 @@
 import logging
-from typing import Dict, Any
+from typing import Any, Dict
 
 logger = logging.getLogger(__name__)
 
@@ -9,7 +9,7 @@ class SlippageModel:
     def __init__(self, base_impact_bps: float = 1.5):
         self.base_impact_bps = base_impact_bps
 
-    def predict_slippage(self, order_size: float, bid_ask_spread: float, 
+    def predict_slippage(self, order_size: float, bid_ask_spread: float,
                          book_liquidity_at_price: float) -> float:
         """
         Estimates the slippage for a given order size against current liquidity.
@@ -29,6 +29,6 @@ class SlippageModel:
         # Square root impact model: Impact ~ sqrt(OrderSize / Liquidity)
         ratio = order_size / book_liquidity_at_price
         impact = self.base_impact_bps * (ratio ** 0.5) / 10000.0
-        
+
         expected_slippage = (bid_ask_spread / 2.0) + impact
         return float(expected_slippage)

@@ -76,7 +76,7 @@ def train():
 
     tokenizer: PreTrainedTokenizer = cast(PreTrainedTokenizer, AutoTokenizer.from_pretrained(MODEL_ID))
     if tokenizer is not None:
-        setattr(tokenizer, "pad_token", getattr(tokenizer, "eos_token", None))
+        tokenizer.pad_token = getattr(tokenizer, "eos_token", None)
 
     # Load Base Model
     model = AutoModelForCausalLM.from_pretrained(
@@ -151,7 +151,7 @@ def train():
     model.save_pretrained(OUTPUT_DIR)
     logger.info("✅ Adapter saved. Merging weights...")
 
-    _merge_fn = getattr(model, "merge_and_unload")
+    _merge_fn = model.merge_and_unload
     merged_model: PreTrainedModel = cast(PreTrainedModel, _merge_fn())
     merged_model.save_pretrained(MERGED_PATH)
     tokenizer.save_pretrained(MERGED_PATH)

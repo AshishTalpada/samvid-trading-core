@@ -1,5 +1,6 @@
-import numpy as np
 import logging
+
+import numpy as np
 
 logger = logging.getLogger(__name__)
 
@@ -26,22 +27,22 @@ class MonteCarloRisk:
         if len(returns) < 10:
             logger.warning("Insufficient returns data for Monte Carlo simulation.")
             return 0.0
-            
+
         ret_arr = np.array(returns)
         mu = np.mean(ret_arr)
         sigma = np.std(ret_arr)
-        
+
         # Generate random returns for all simulations and steps
         random_returns = np.random.normal(mu, sigma, (self.simulations, self.horizon_steps))
-        
+
         # Cumulative returns over the horizon
         cumulative_returns = np.cumprod(1 + random_returns, axis=1)
-        
+
         # Equity paths
         equity_paths = current_equity * cumulative_returns
-        
+
         # Find paths that hit the ruin level
         ruin_hits = np.any(equity_paths <= ruin_level, axis=1)
-        
+
         ruin_probability = np.sum(ruin_hits) / self.simulations
         return float(ruin_probability)

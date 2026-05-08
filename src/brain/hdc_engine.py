@@ -1,5 +1,6 @@
 import numpy as np
 
+
 class HDCEngine:
     """Represents signals as 10,000-bit hyperdimensional vectors for ultra-fast comparison."""
     DIMS = 10000

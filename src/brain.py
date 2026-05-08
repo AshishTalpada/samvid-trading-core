@@ -1491,10 +1491,10 @@ class TradingBrain:
 
         # 1. Update Real-time Matrix Memory
         self.last_tick_prices[symbol] = float(price)
-        
+
         bid_val = data.get("bid")
         self.last_tick_bids[symbol] = float(bid_val) if bid_val is not None else float(price)
-        
+
         ask_val = data.get("ask")
         self.last_tick_asks[symbol] = float(ask_val) if ask_val is not None else float(price)
 
