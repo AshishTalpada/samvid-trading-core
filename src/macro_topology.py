@@ -1,25 +1,46 @@
-from src.knowledge_graph import KnowledgeGraph
+import logging
+from typing import Dict, List, Set
 
+logger = logging.getLogger(__name__)
 
-class MacroTopology:
-    """Pre-builds the macro knowledge graph with known market relationships."""
+class MacroTopologyGraph:
+    """
+    Maps nth-degree macro ripple effects.
+    e.g. "TSMC Earnings Miss" -> "Nvidia Drops" -> "S&P 500 Drops" -> "Volatility Spikes" -> "Bonds Rally".
+    Calculates the shortest topological path between a breaking news event and an asset.
+    """
     def __init__(self):
-        self.graph = KnowledgeGraph()
-        self._seed()
+        self.nodes: Set[str] = set()
+        self.adjacency: Dict[str, Dict[str, float]] = {}
 
-    def _seed(self) -> None:
-        relationships = [
-            ("FED_RATE_HIKE", "TECH_SELLOFF"),
-            ("FED_RATE_HIKE", "BANK_RALLY"),
-            ("OIL_SPIKE", "AIRLINE_DROP"),
-            ("OIL_SPIKE", "ENERGY_RALLY"),
-            ("CHINA_SLOWDOWN", "COMMODITY_DROP"),
-            ("DOLLAR_STRENGTH", "EM_SELLOFF"),
-            ("TSMC_EARNINGS", "NVDA_MOVE"),
-            ("TSMC_EARNINGS", "AAPL_MOVE"),
-        ]
-        for cause, effect in relationships:
-            self.graph.add_relationship(cause, effect)
+    def add_link(self, source: str, target: str, impact_weight: float) -> None:
+        self.nodes.add(source)
+        self.nodes.add(target)
+        if source not in self.adjacency:
+            self.adjacency[source] = {}
+        self.adjacency[source][target] = impact_weight
 
-    def get_effects(self, event: str) -> set:
-        return self.graph.get_ripple_effects(event)
+    def calculate_ripple_impact(self, event_node: str, target_asset: str, max_depth: int = 3) -> float:
+        if event_node not in self.adjacency:
+            return 0.0
+
+        # Dijkstra-style or DFS search for max impact path
+        best_impact = 0.0
+
+        def dfs(current: str, depth: int, current_impact: float):
+            nonlocal best_impact
+            if current == target_asset:
+                best_impact = max(best_impact, current_impact)
+                return
+            if depth >= max_depth:
+                return
+
+            for neighbor, weight in self.adjacency.get(current, {}).items():
+                dfs(neighbor, depth + 1, current_impact * weight)
+
+        dfs(event_node, 0, 1.0)
+
+        if best_impact > 0:
+            logger.info(f"[TOPOLOGY] {event_node} -> {target_asset} ripple impact: {best_impact:.3f}")
+
+        return best_impact
