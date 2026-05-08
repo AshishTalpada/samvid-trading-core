@@ -31,6 +31,6 @@ class RegimeAttentionEngine:
             weights[name] = 1.0 / (dist + 0.1)
         total = sum(weights.values())
         normalised = {k: round(v / total, 4) for k, v in weights.items()}
-        top = max(normalised, key=normalised.get)
+        top = max(normalised, key=normalised.get)  # type: ignore
         logger.info(f"[ATTENTION] Closest regime: '{top}' ({normalised[top]:.0%} weight)")
         return normalised

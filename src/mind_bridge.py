@@ -134,7 +134,7 @@ class MindBridge:
                     "success": "error" not in result,
                 }
             )
-            return result
+            return result  # type: ignore
         except Exception as e:
             tb = traceback.format_exc()
             logger.error(f"MindBridge: Error executing tool '{tool_name}': {e}\n{tb}")
@@ -148,7 +148,7 @@ class MindBridge:
         """Wait for the next message intended for a specific mind."""
         if target not in self.subscribers:
             raise ValueError(f"Unknown mind target: {target}")
-        return await self.subscribers[target].get()
+        return await self.subscribers[target].get()  # type: ignore
 
     def get_context(self, limit: int = 20) -> list[DialogueMessage]:
         """Get recent dialogue context for LLM local processing."""

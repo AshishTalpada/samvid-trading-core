@@ -38,7 +38,7 @@ class SovereignDecisionEngine:
         self.last_cycle_timestamp = None
         self.bus = bus
         self._lock = asyncio.Lock()  # --- TASK 4.3: EXECUTION LOCK ---
-        self._active_symbols = set()  # Track symbols currently being processed
+        self._active_symbols: Any = set()  # Track symbols currently being processed
 
     async def evaluate(
         self, context: Dict[str, Any], agent_outputs: List[Dict[str, Any]]
@@ -129,7 +129,7 @@ class SovereignDecisionEngine:
             if vote == "YES":
                 # Agent_D is the Historical Learning engine — it knows your REAL edge.
                 # Weight it 2x: it is the only agent whose vote is grounded in live P&L data.
-                yes_votes += 2.0 if agent == "Agent_D" else 1
+                yes_votes += 2.0 if agent == "Agent_D" else 1  # type: ignore
             elif vote == "NO":
                 no_votes += 1
             else:

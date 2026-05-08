@@ -551,6 +551,7 @@ class QuestDBAdapter:
                 self._executor.shutdown(wait=False)
             except Exception:
                 pass
-            self._executor = None  # type: ignore[assignment]
+            self._executor = None
+
 
         self.is_active = False

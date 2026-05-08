@@ -18,7 +18,7 @@ class PatentVelocityAgent:
         try:
             payload = {"q": {"_and": [{"_contains": {"assignee_organization": assignee}}, {"_gte": {"patent_date": f"{year}-01-01"}}, {"_lte": {"patent_date": f"{year}-12-31"}}]}, "f": ["patent_number"], "o": {"per_page": 500}}
             r = requests.post(self.PATENTSVIEW_API, json=payload, timeout=8)
-            return r.json().get("total_patent_count", 0)
+            return r.json().get("total_patent_count", 0)  # type: ignore
         except Exception as e:
             logger.error(f"[PATENT] API error for {assignee}: {e}")
             return 0

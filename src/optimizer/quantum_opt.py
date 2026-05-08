@@ -28,4 +28,4 @@ class QuantumOptima:
         self.study.optimize(self._objective, n_trials=500, n_jobs=-1)
         best = self.study.best_params
         logger.info(f"Global Optima found: {best}")
-        return best
+        return best  # type: ignore

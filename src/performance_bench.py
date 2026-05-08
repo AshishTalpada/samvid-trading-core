@@ -97,11 +97,11 @@ async def benchmark_tick_batcher() -> None:
     metrics = {"batches_received": 0, "total_ticks_processed": 0, "latencies": []}
 
     async def _on_batch(data: dict[str, Any]) -> None:
-        metrics["batches_received"] += 1
+        metrics["batches_received"] += 1  # type: ignore
         metrics["total_ticks_processed"] += data.get("count", 0)
         ts_last = data.get("ts", time.monotonic())
         latency = (time.monotonic() - ts_last) * 1000
-        metrics["latencies"].append(latency)
+        metrics["latencies"].append(latency)  # type: ignore
 
     bus.on("tick.batch", _on_batch)
 

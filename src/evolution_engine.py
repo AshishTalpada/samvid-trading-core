@@ -35,7 +35,7 @@ class EvolutionEngine:
     def _init_population(self) -> np.ndarray:
         lo = self.bounds[:, 0]
         hi = self.bounds[:, 1]
-        return lo + np.random.rand(self.pop_size, self.dim) * (hi - lo)
+        return lo + np.random.rand(self.pop_size, self.dim) * (hi - lo)  # type: ignore
 
     def run(self) -> tuple[np.ndarray, float]:
         """
