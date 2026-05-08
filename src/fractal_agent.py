@@ -2,7 +2,6 @@ import numpy as np
 
 class FractalAgent:
     """
-    Item 111: Fractal Dimension
     Distinguish between a "Real Trend" and a "Fake-out" by measuring the Fractal Dimension.
     """
     def higuchi_fd(self, data: list[float], k_max: int = 10) -> float:
