@@ -1,5 +1,4 @@
 #include <stdio.h>
-#include <stdlib.h>
 
 /**
  * Encrypted Memory Guard (AMD SME/SEV Integration wrapper)
