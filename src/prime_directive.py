@@ -1,23 +1,41 @@
 import logging
+from typing import Any, Callable
 
 logger = logging.getLogger(__name__)
 
-class PrimeDirective:
-    """Enforces biometric consent gate for changes to core system rules."""
+class BiometricPrimeDirective:
+    """
+    Core safety protocol enforcing that fundamental system rule changes
+    (e.g., maximum drawdown limit, leverage limit) require physical biometric
+    verification (FaceID/TouchID via mobile link) to prevent remote hijack
+    or AI-hallucinated parameter drift.
+    """
     def __init__(self):
-        self.authorized = False
+        self._biometric_verifier: Callable[[], bool] = lambda: False
+        self._prime_rules = {
+            "max_daily_loss_pct": 2.0,
+            "max_leverage": 3.0,
+            "allow_crypto": False
+        }
 
-    def authenticate(self, biometric_hash: str, expected_hash: str) -> bool:
-        if biometric_hash == expected_hash:
-            self.authorized = True
-            logger.info("Prime Directive: Biometric authentication successful.")
+    def register_verifier(self, verifier_fn: Callable[[], bool]) -> None:
+        self._biometric_verifier = verifier_fn
+
+    def request_rule_change(self, rule: str, new_value: Any) -> bool:
+        if rule not in self._prime_rules:
+            logger.error(f"[PRIME DIRECTIVE] Cannot change unknown rule: {rule}")
+            return False
+
+        logger.warning(f"[PRIME DIRECTIVE] Requesting change to {rule} -> {new_value}. Awaiting BIOMETRIC VERIFICATION.")
+
+        if self._biometric_verifier():
+            old_val = self._prime_rules[rule]
+            self._prime_rules[rule] = new_value
+            logger.critical(f"[PRIME DIRECTIVE] BIOMETRIC VERIFIED. {rule} changed from {old_val} to {new_value}.")
             return True
-        logger.critical("Prime Directive: Authentication FAILED. Core rule change blocked.")
+
+        logger.error("[PRIME DIRECTIVE] BIOMETRIC VERIFICATION FAILED. Rule change rejected.")
         return False
 
-    def authorize_rule_change(self, rule_name: str) -> bool:
-        if not self.authorized:
-            logger.critical(f"Unauthorized attempt to change rule: {rule_name}")
-            return False
-        self.authorized = False
-        return True
+    def get_rule(self, rule: str) -> Any:
+        return self._prime_rules.get(rule)

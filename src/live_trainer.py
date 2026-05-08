@@ -1,22 +1,43 @@
 import logging
+from typing import Dict, List
+
+import numpy as np
 
 logger = logging.getLogger(__name__)
 
-class LiveTrainer:
-    """Applies gradient updates to agent parameters after every successful live trade."""
-    def __init__(self, lr: float = 1e-6, batch_size: int = 32):
-        self.lr = lr
-        self.batch_size = batch_size
-        self.buffer: list[dict] = []
+class OnlineLiveTrainer:
+    """
+    Real-time online learning loop. Updates agent weights immediately after
+    every closed trade, effectively giving the Sovereign System a learning rate
+    that compounds on every single execution (The Singularity engine driver).
+    """
+    def __init__(self, learning_rate: float = 0.001):
+        self.lr = learning_rate
+        self.agent_weights: Dict[str, float] = {}
 
-    def add_experience(self, state: list[float], action: str, reward: float) -> None:
-        self.buffer.append({"state": state, "action": action, "reward": reward})
+    def register_agent(self, agent_name: str, initial_weight: float = 1.0) -> None:
+        self.agent_weights[agent_name] = initial_weight
 
-    def should_update(self) -> bool:
-        return len(self.buffer) >= self.batch_size
+    def update_from_trade(self, trade_pnl_pct: float, agent_votes: Dict[str, float]) -> None:
+        if not agent_votes:
+            return
 
-    def flush(self) -> list[dict]:
-        batch = self.buffer[-self.batch_size:]
-        self.buffer = []
-        logger.debug(f"Live trainer flushing batch of {len(batch)} experiences.")
-        return batch
+        # Positive PNL rewards agents proportional to their conviction.
+        # Negative PNL punishes them.
+        reward = trade_pnl_pct * 100.0  # Scale up for weight update
+
+        for agent, vote_conviction in agent_votes.items():
+            if agent not in self.agent_weights:
+                self.register_agent(agent)
+
+            # Gradient update step
+            update = self.lr * reward * vote_conviction
+            self.agent_weights[agent] += update
+
+            # Bound weights
+            self.agent_weights[agent] = max(0.1, min(5.0, self.agent_weights[agent]))
+
+        logger.info(f"[LIVE TRAINER] Updated weights after trade (PNL: {trade_pnl_pct:.2%})")
+
+    def get_weights(self) -> Dict[str, float]:
+        return self.agent_weights

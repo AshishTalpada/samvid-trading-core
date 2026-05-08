@@ -1,20 +1,44 @@
 import logging
+from collections import deque
+from typing import Dict, List
+
+import numpy as np
 
 logger = logging.getLogger(__name__)
 
 class ContagionSentinel:
-    """Detects cross-asset contagion - e.g. crypto sell-off bleeding into tech."""
-    def __init__(self, correlation_drop_threshold: float = 0.4):
-        self.threshold = correlation_drop_threshold
+    """
+    Detects cross-asset contagion - e.g. crypto sell-off bleeding into tech.
+    Maintains a rolling correlation window. A sudden spike in correlation across normally
+    uncorrelated assets indicates a liquidity event / systemic shock.
+    """
+    def __init__(self, window: int = 20, correlation_spike_threshold: float = 0.5):
+        self.window = window
+        self.threshold = correlation_spike_threshold
+        self._history: Dict[str, deque] = {}
 
-    def detect_contagion(self, asset_a_returns: list[float], asset_b_returns: list[float],
-                         baseline_correlation: float) -> bool:
-        if len(asset_a_returns) < 5 or len(asset_b_returns) < 5:
+    def ingest(self, symbol: str, returns: float) -> None:
+        if symbol not in self._history:
+            self._history[symbol] = deque(maxlen=self.window)
+        self._history[symbol].append(returns)
+
+    def detect_contagion(self, baseline_correlation: float = 0.2) -> bool:
+        if len(self._history) < 2:
             return False
-        import numpy as np
-        current_corr = float(np.corrcoef(asset_a_returns, asset_b_returns)[0, 1])
-        drop = baseline_correlation - current_corr
-        if drop > self.threshold:
-            logger.warning(f"Contagion detected: correlation dropped by {drop:.2f}")
+
+        valid_symbols = [s for s, hist in self._history.items() if len(hist) == self.window]
+        if len(valid_symbols) < 2:
+            return False
+
+        matrix = np.array([list(self._history[s]) for s in valid_symbols])
+        corr_matrix = np.corrcoef(matrix)
+
+        n = corr_matrix.shape[0]
+        upper_tri = [corr_matrix[i, j] for i in range(n) for j in range(i + 1, n)]
+        current_avg_corr = float(np.mean(upper_tri))
+
+        spike = current_avg_corr - baseline_correlation
+        if spike > self.threshold:
+            logger.critical(f"[CONTAGION] Detected systemic correlation spike: {current_avg_corr:.2f} (jumped {spike:.2f})")
             return True
         return False
