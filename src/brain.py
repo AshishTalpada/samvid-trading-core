@@ -66,6 +66,7 @@ from agent_d import (
     StatisticalSignificanceGate,
     SystemEntropyMonitor,
 )
+from agent_h_skeptic import SkepticAgent
 from agent_e import CorrelationGuard
 from config import (
     FORCED_PAPER_MODE,
@@ -651,6 +652,7 @@ class TradingBrain:
         
         # --- PILLAR 150: Ghost Shadow-Sim ---
         self.shadow_sim = GhostShadowSim()
+        self.skeptic = SkepticAgent()
 
         # --- MATRIX INFRASTRUCTURE (Pillar 2) ---
         self.session_restorer = SessionRestorer()
@@ -1495,6 +1497,9 @@ class TradingBrain:
 
         # 1. Update Real-time Matrix Memory
         self.last_tick_prices[symbol] = float(price)
+
+        # 1.1 Update Ghost Shadow-Sim (PILLAR 150)
+        self.shadow_sim.update(symbol, float(price))
 
         bid_val = data.get("bid")
         self.last_tick_bids[symbol] = float(bid_val) if bid_val is not None else float(price)
