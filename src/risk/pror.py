@@ -1,6 +1,5 @@
 class ContinuousPRoR:
     """
-    Item 186: Continuous Probability of Ruin (PRoR)
     Live calculation of bankruptcy probability based on dynamic win rate and payoff ratio.
     """
     def calculate_pror(self, win_rate: float, payoff_ratio: float, risk_per_trade: float) -> float:
