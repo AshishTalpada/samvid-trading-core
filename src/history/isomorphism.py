@@ -1,27 +1,18 @@
-from typing import List, Tuple
-
 import numpy as np
+import scipy.spatial.distance as dist
 
 
-class HistoricalIsomorphism:
-    """Finds repeated price patterns across different market eras."""
-    def __init__(self, tolerance: float = 0.05):
-        self.tolerance = tolerance
+class IsomorphicLogic:
+    """Finding repeated fractal patterns across different markets/timeframes."""
+    def __init__(self, historical_embeddings: np.ndarray):
+        self.history = historical_embeddings
 
-    def _normalize(self, series: List[float]) -> np.ndarray:
-        arr = np.array(series, dtype=float)
-        r = arr.max() - arr.min()
-        return (arr - arr.min()) / (r + 1e-9)
-
-    def match(self, query: List[float], history: List[Tuple[str, List[float]]]) -> List[str]:
-        q = self._normalize(query)
-        matches = []
-        for label, series in history:
-            if len(series) < len(q):
-                continue
-            for i in range(len(series) - len(q) + 1):
-                window = self._normalize(series[i:i + len(q)])
-                if float(np.mean(np.abs(q - window))) < self.tolerance:
-                    matches.append(label)
-                    break
+    def find_fractal_match(self, current_regime: np.ndarray, tolerance: float = 0.05) -> list[int]:
+        """
+        Uses dynamic time warping or cosine similarity to find geometrically identical
+        setups from 10 years ago, even if the absolute price scale is completely different.
+        """
+        distances = dist.cdist([current_regime], self.history, metric='cosine')[0]
+        # Find indices where cosine distance is less than tolerance (highly isomorphic)
+        matches = np.where(distances < tolerance)[0].tolist()
         return matches
