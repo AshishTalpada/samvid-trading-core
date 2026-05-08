@@ -1,0 +1,2 @@
+CompileFlags:
+  Add: [-xcuda, -nocudainc, -nocudalib, -Isrc/cuda, -Wno-implicit-function-declaration]
