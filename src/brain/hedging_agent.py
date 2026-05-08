@@ -1,5 +1,5 @@
 import logging
-
+from typing import Any
 logger = logging.getLogger(__name__)
 
 class HedgingAgent:
@@ -11,7 +11,7 @@ class HedgingAgent:
         self.hedge_ratio = hedge_ratio
         
     def evaluate_hedge_requirements(self, portfolio_value: float, vix_level: float, 
-                                  slm_crash_probability: float, tail_risk_var: float) -> dict[str, any]:
+                                  slm_crash_probability: float, tail_risk_var: float) -> dict[str, Any]:
         """
         Determine if the portfolio needs protective puts based on market conditions.
         """

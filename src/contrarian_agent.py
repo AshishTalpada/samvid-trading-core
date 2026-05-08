@@ -1,5 +1,5 @@
 import logging
-
+from typing import Any
 logger = logging.getLogger(__name__)
 
 class ContrarianAgent:
@@ -10,7 +10,7 @@ class ContrarianAgent:
         self.crowd_sentiment_score = 0.0 # -1.0 to 1.0
         
     def evaluate_crowd_error(self, retail_long_ratio: float, retail_short_ratio: float, 
-                             influencer_bull_mentions: int, influencer_bear_mentions: int) -> dict[str, any]:
+                             influencer_bull_mentions: int, influencer_bear_mentions: int) -> dict[str, Any]:
         """
         Evaluate if the crowd is leaning too heavily in one direction.
         
