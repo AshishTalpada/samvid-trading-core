@@ -25,6 +25,6 @@ __global__ void hbm_optimized_vector_dot(const float* __restrict__ A, const floa
 extern "C" void launch_hbm_kernel(float* d_A, float* d_B, float* d_C, int N) {
     int threads = 256;
     int blocks = (N + threads - 1) / threads;
-    hbm_optimized_vector_dot<<<blocks, threads>>>(d_A, d_B, d_C, N);
+    KERNEL_LAUNCH(hbm_optimized_vector_dot, blocks, threads, d_A, d_B, d_C, N);
     cudaDeviceSynchronize();
 }
