@@ -1,4 +1,5 @@
 import numpy as np
+from typing import Any
 
 class FractalAgent:
     """
@@ -50,7 +51,7 @@ class FractalAgent:
         coeffs = np.polyfit(x, L, 1)
         return float(coeffs[0])
         
-    def analyze_trend(self, data: list[float]) -> dict[str, any]:
+    def analyze_trend(self, data: list[float]) -> dict[str, Any]:
         fd = self.higuchi_fd(data)
         
         if fd < 1.3:
