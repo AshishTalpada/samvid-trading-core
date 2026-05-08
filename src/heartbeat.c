@@ -23,7 +23,11 @@
 
 int heartbeat_fd = -1;
 
-extern "C" int init_hardware_watchdog(const char* device_path) {
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+int init_hardware_watchdog(const char* device_path) {
 #ifdef __linux__
     heartbeat_fd = open(device_path, O_WRONLY);
     if (heartbeat_fd < 0) {
@@ -45,7 +49,7 @@ extern "C" int init_hardware_watchdog(const char* device_path) {
 #endif
 }
 
-extern "C" void pulse_heartbeat() {
+void pulse_heartbeat() {
 #ifdef __linux__
     if (heartbeat_fd >= 0) {
         int dummy;
@@ -56,7 +60,7 @@ extern "C" void pulse_heartbeat() {
 #endif
 }
 
-extern "C" void close_heartbeat() {
+void close_heartbeat() {
 #ifdef __linux__
     if (heartbeat_fd >= 0) {
         // Magic character 'V' tells the watchdog driver we are closing intentionally
