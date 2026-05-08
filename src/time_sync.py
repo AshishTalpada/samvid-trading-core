@@ -1,138 +1,63 @@
-import asyncio
-import logging
+import time
 import socket
 import struct
-import time
-from datetime import datetime, timezone
-
-import aiohttp
+import logging
 
 logger = logging.getLogger(__name__)
 
-
-class TimeSync:
+class PrecisionTimeSyncer:
     """
-    Sovereign Time Synchronization Protocol.
-    Synchronizes system clock with global NTP pool to prevent stale signal execution.
+    Sub-millisecond Network Time Protocol (NTP) Synchronizer.
+    HFT operations require microsecond alignment between the local CPU clock 
+    and exchange matching engines to prevent false arbitrage triggers.
     """
+    NTP_SERVER = "time.nist.gov"
+    TIME1970 = 2208988800 # 1970-01-01 00:00:00
 
-    NTP_SERVERS = [
-        "pool.ntp.org",
-        "time.google.com",
-        "time.nist.gov",
-        "time.cloudflare.com",
-        "time.windows.com",
-    ]
-    _offset = 0.0  # system_time + offset = ntp_time
-    _is_periodic_running = False
+    def __init__(self):
+        self.clock_offset_ms = 0.0
 
-    @classmethod
-    async def sync(cls):
-        """Asynchronously determine the NTP offset."""
-        for server in cls.NTP_SERVERS:
-            try:
-                loop = asyncio.get_running_loop()
-                addr_info = await loop.getaddrinfo(server, 123, proto=socket.IPPROTO_UDP)
-                if not addr_info:
-                    continue
-                ip_addr = addr_info[0][4][0]
-
-                logger.info(f"Synchronizing clock with {server} ({ip_addr})...")
-                offset = await cls._get_ntp_offset(ip_addr)
-                cls._offset = offset
-                logger.info(f"✅ Clock Synchronized. Offset: {offset:.4f}s")
-                return True
-            except Exception as e:
-                logger.warning(f"Failed to sync with {server}: {e}")
-
+    def synchronize(self) -> bool:
+        """
+        Queries an authoritative atomic clock server via UDP.
+        Calculates the round-trip latency to determine the exact clock offset.
+        """
+        client = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        client.settimeout(2.0)
+        
+        # NTP packet format: 48 bytes. First byte 0x1B = Client mode, Version 3
+        data = b'\x1b' + 47 * b'\0'
+        
         try:
-            from session_manager import SovereignSession
-
-            session = await SovereignSession.get_session()
-            t0 = time.time()
-            # Use a lightweight HEAD request to Cloudflare for minimal latency
-            async with session.head("https://1.1.1.1", timeout=aiohttp.ClientTimeout(total=5)) as resp:
-                t1 = time.time()
-                date_str = resp.headers.get("Date")
-                if date_str:
-
-                    def _parse_date(ds):
-                        import email.utils
-
-                        parsed_date = email.utils.parsedate_tz(ds)
-                        if parsed_date:
-                            return email.utils.mktime_tz(parsed_date)
-                        return None
-
-                    ntp_ts = await asyncio.to_thread(_parse_date, date_str)
-                    if ntp_ts:
-                        latency = (t1 - t0) / 2.0
-                        # is at the start of the second. Adding 0.5s reduces mean error.
-                        cls._offset = (ntp_ts + 0.5) - (t1 - latency)
-                        logger.info(
-                            f"✅ Clock Synchronized via HTTP Fallback. Offset: {cls._offset:.4f}s (Latency Adj: {latency:.4f}s)"
-                        )
-                        return True
+            t1 = time.time()
+            client.sendto(data, (self.NTP_SERVER, 123))
+            msg, _ = client.recvfrom(1024)
+            t4 = time.time()
+            
+            # Unpack the 64-bit Transmit Timestamp (seconds and fraction)
+            s, f = struct.unpack('!12I', msg)[10:12]
+            
+            # Convert fraction to seconds
+            ntp_time = s - self.TIME1970 + (f / 2**32)
+            
+            # The round trip time (RTT)
+            rtt = t4 - t1
+            
+            # The local time when the packet was processed by the server
+            local_time_at_server_tx = t4 - (rtt / 2.0)
+            
+            # Clock offset: Positive means our clock is BEHIND the server
+            self.clock_offset_ms = (ntp_time - local_time_at_server_tx) * 1000.0
+            
+            logger.info(f"[TIME SYNC] Synced with {self.NTP_SERVER}. RTT: {rtt*1000:.2f}ms. Clock Offset: {self.clock_offset_ms:.3f}ms")
+            return True
+            
         except Exception as e:
-            logger.warning(f"HTTP Time fallback failed: {e}")
+            logger.error(f"[TIME SYNC] NTP Synchronization failed: {e}")
+            return False
+        finally:
+            client.close()
 
-        logger.error("❌ NTP Sync Failed across all protocols. Using local system clock (Risky).")
-        return False
-
-    @classmethod
-    async def start_periodic_sync(cls, interval_hours: int = 6):
-        """Background task that periodically re-syncs the clock to prevent drift in long sessions."""
-        if cls._is_periodic_running:
-            return
-        cls._is_periodic_running = True
-        logger.info(f"TimeSync: Background drift correction active (Interval: {interval_hours}h).")
-
-        while cls._is_periodic_running:
-            await asyncio.sleep(interval_hours * 3600)
-            await cls.sync()
-
-    @staticmethod
-    async def _get_ntp_offset(host: str):
-        """Standard NTP UDP request (RFC 5905)."""
-        # NTP packet is 48 bytes.
-        # First byte is 0x1B (LI=0, VN=3, Mode=3 client)
-        packet = bytearray(48)
-        packet[0] = 0x1B
-
-        # Use a thread since socket.sendto/recvfrom are blocking
-        loop = asyncio.get_event_loop()
-
-        def _exchange():
-            with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
-                s.settimeout(5.0)
-                # Send request
-                send_time = time.time()
-                s.sendto(packet, (host, 123))
-                # Receive response
-                data, _ = s.recvfrom(48)
-                recv_time = time.time()
-
-                # Extract transmit timestamp (bytes 40-48)
-                # Format is 32-bit seconds since 1900, 32-bit fraction
-                unpacked = struct.unpack("!12I", data)
-                ntp_seconds = unpacked[10] - 2208988800  # Convert to Unix epoch
-                ntp_fraction = unpacked[11] / (2**32)
-                ntp_time = ntp_seconds + ntp_fraction
-
-                # Round trip delay calculation (simplified)
-                # t0 = send_time, t3 = recv_time, t2 = ntp_time
-                # offset = ((t1-t0) + (t2-t3)) / 2
-                # Assuming symmetric network delay: ntp_time - (send+recv)/2
-                return ntp_time - ((send_time + recv_time) / 2)
-
-        return await loop.run_in_executor(None, _exchange)
-
-    @classmethod
-    def now(cls) -> datetime:
-        """Returns the synchronized datetime."""
-        synchronized_ts = time.time() + cls._offset
-        return datetime.fromtimestamp(synchronized_ts, tz=timezone.utc)
-
-    @classmethod
-    def get_offset(cls) -> float:
-        return cls._offset
+    def get_synced_time_ms(self) -> float:
+        """Returns the current timestamp in milliseconds, corrected by the atomic clock offset."""
+        return (time.time() * 1000.0) + self.clock_offset_ms
