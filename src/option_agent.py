@@ -1,6 +1,7 @@
-import math
-from scipy.stats import norm
 import logging
+import math
+
+from scipy.stats import norm
 
 logger = logging.getLogger(__name__)
 
@@ -27,18 +28,18 @@ class OptionAgent:
         a sharp upward move forces them to buy the underlying, triggering a Gamma Squeeze.
         """
         total_dealer_gamma = 0.0
-        
+
         for opt in option_chain:
             # opt expected to have: strike, dte (days to exp), iv (implied vol), open_interest, type (call/put), dealer_position (long/short)
             T = opt['dte'] / 365.0
             gamma_per_contract = self.calculate_gamma(spot_price, opt['strike'], T, opt['iv'])
-            
+
             position_multiplier = 1.0 if opt['dealer_position'] == 'long' else -1.0
             total_dealer_gamma += gamma_per_contract * opt['open_interest'] * 100 * position_multiplier
 
         # If dealers are short gamma, they must buy into rallies (positive feedback loop)
         squeeze_risk = total_dealer_gamma < -1000000.0 # Arbitrary threshold for major short gamma
-        
+
         return {
             "total_dealer_gamma": total_dealer_gamma,
             "squeeze_imminent": squeeze_risk,
