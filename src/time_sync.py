@@ -1,4 +1,5 @@
 import asyncio
+import aiohttp
 import logging
 import socket
 import struct
@@ -49,7 +50,7 @@ class TimeSync:
             session = await SovereignSession.get_session()
             t0 = time.time()
             # Use a lightweight HEAD request to Cloudflare for minimal latency
-            async with session.head("https://1.1.1.1", timeout=5) as resp:
+            async with session.head("https://1.1.1.1", timeout=aiohttp.ClientTimeout(total=5)) as resp:
                 t1 = time.time()
                 date_str = resp.headers.get("Date")
                 if date_str:

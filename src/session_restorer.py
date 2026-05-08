@@ -44,7 +44,7 @@ class SessionRestorer:
 
             # 2. Serialize and Sign
             data = json.dumps(bundle, default=str).encode("utf-8")
-            signature = hashlib.sha256(data + self.secret_key.encode()).hexdigest()
+            signature = hashlib.sha256(data + str(self.secret_key).encode()).hexdigest()
 
             # 3. Write Atomic (Safe-Write pattern)
             temp_path = f"{self.path}.tmp"
@@ -134,7 +134,7 @@ class SessionRestorer:
             data, signature = parts[0], parts[1].decode()
 
             # Verify Integrity
-            expected_signature = hashlib.sha256(data + self.secret_key.encode()).hexdigest()
+            expected_signature = hashlib.sha256(data + str(self.secret_key).encode()).hexdigest()
             if signature != expected_signature:
                 logger.critical(
                     "SECURITY ALERT: Session state signature MISMATCH. Potential tampering detected."
@@ -247,7 +247,7 @@ class SessionRestorer:
                         try:
                             # Attempt to get last tick from IB cache
                             ticker = ib.ticker(p.contract)
-                            price = ticker.last or ticker.close or ticker.marketPrice() or 0.0
+                            price = (ticker.last or ticker.close or ticker.marketPrice() or 0.0) if ticker else 0.0
                             logger.info(
                                 f"Reconciler: avgCost was 0 for {symbol}. Fetched marketPrice: ${price:.2f}"
                             )
@@ -296,7 +296,7 @@ class SessionRestorer:
                             "Sovereign Adoption Protocol v1.0-beta",
                         ),
                     )
-                    adopted.db_id = cursor.lastrowid
+                    adopted.db_id = cursor.lastrowid if cursor.lastrowid is not None else 0
                     adopted_positions.append(adopted)
                     logger.info(
                         f"✓ Reconciler: Adopted {symbol} (Target: {adopted.take_profit:.2f}, Stop: {adopted.stop_loss:.2f})"
@@ -348,5 +348,4 @@ class SessionRestorer:
 
         except Exception as e:
             logger.error(f"Reconciler: Recovery Loop Failed: {e}")
-            return []
             return []

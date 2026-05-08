@@ -1,6 +1,7 @@
 import json
 import logging
 import os
+from typing import cast
 
 import torch
 from datasets import Dataset, concatenate_datasets, load_dataset
@@ -9,12 +10,14 @@ from transformers import (
     AutoModelForCausalLM,
     AutoTokenizer,
     DataCollatorForSeq2Seq,
+    PreTrainedModel,
+    PreTrainedTokenizer,
     Trainer,
     TrainingArguments,
 )
 
 # Set CPU threads to keep system smooth
-torch.set_num_threads(max(1, os.cpu_count() // 2))
+torch.set_num_threads(max(1, (os.cpu_count() or 4) // 2))
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("SLM_Supercharger")
@@ -71,8 +74,9 @@ def train():
 
     logger.info("🚀 Starting SUPERCHARGED Sovereign SLM Training...")
 
-    tokenizer = AutoTokenizer.from_pretrained(MODEL_ID)
-    tokenizer.pad_token = tokenizer.eos_token
+    tokenizer: PreTrainedTokenizer = cast(PreTrainedTokenizer, AutoTokenizer.from_pretrained(MODEL_ID))
+    if tokenizer is not None:
+        setattr(tokenizer, "pad_token", getattr(tokenizer, "eos_token", None))
 
     # Load Base Model
     model = AutoModelForCausalLM.from_pretrained(
@@ -96,6 +100,7 @@ def train():
 
     # Load Real Data
     real_dataset = load_dataset("json", data_files=DATA_PATH, split="train")
+    assert isinstance(real_dataset, Dataset), f"Expected Dataset, got {type(real_dataset)}"
 
     # Augment with Synthetic Strategy
     synth_dataset = generate_synthetic_expert_data()
@@ -111,10 +116,12 @@ def train():
             prompts.append(full_text)
 
         tokenized = tokenizer(prompts, truncation=True, padding="max_length", max_length=128)
-        tokenized["labels"] = [ids.copy() for ids in tokenized["input_ids"]]
+        input_ids: list[list[int]] = cast(list[list[int]], tokenized["input_ids"])
+        tokenized["labels"] = [list(ids) for ids in input_ids]
         return tokenized
 
-    tokenized_dataset = dataset.map(tokenize_function, batched=True, remove_columns=dataset.column_names)
+    column_names: list[str] = cast(list[str], dataset.column_names)
+    tokenized_dataset = dataset.map(tokenize_function, batched=True, remove_columns=column_names)
 
     # Optimized Training Arguments for CPU Stability
     training_args = TrainingArguments(
@@ -133,7 +140,7 @@ def train():
     trainer = Trainer(
         model=model,
         args=training_args,
-        train_dataset=tokenized_dataset,
+        train_dataset=cast(Dataset, tokenized_dataset),
         data_collator=DataCollatorForSeq2Seq(tokenizer, model=model),
     )
 
@@ -144,7 +151,8 @@ def train():
     model.save_pretrained(OUTPUT_DIR)
     logger.info("✅ Adapter saved. Merging weights...")
 
-    merged_model = model.merge_and_unload()
+    _merge_fn = getattr(model, "merge_and_unload")
+    merged_model: PreTrainedModel = cast(PreTrainedModel, _merge_fn())
     merged_model.save_pretrained(MERGED_PATH)
     tokenizer.save_pretrained(MERGED_PATH)
     logger.info(f"🏆 MISSION COMPLETE: Supercharged brain ready at {MERGED_PATH}")

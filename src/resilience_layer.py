@@ -1,7 +1,7 @@
 import asyncio
 import logging
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Callable, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
@@ -13,12 +13,12 @@ class FailedOrder:
 
     symbol: str
     direction: str
-    shares: int
+    shares: float | int
     price: float
     attempt: int = 0
     max_attempts: int = 3
     reason: str = ""
-    ts_first_fail: datetime = field(default_factory=datetime.utcnow)
+    ts_first_fail: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     task_id: str = ""
 
 
@@ -46,7 +46,7 @@ class DeadLetterQueue:
         self,
         symbol: str,
         direction: str,
-        shares: int,
+        shares: float | int,
         price: float,
         reason: str = "",
         task_id: str = "",
@@ -189,7 +189,7 @@ class ApexExoskeleton:
         price: float,
         decision: Dict[str, Any],
         all_votes: List[Dict[str, Any]],
-        shares: int,
+        shares: float | int,
     ):
         """Zone B: Persist decision outcome to regional cache."""
         self._cortex_cache[symbol] = {
@@ -277,7 +277,8 @@ class ApexExoskeleton:
 
         async def _poll_safe(name, func):
             try:
-                if asyncio.iscoroutinefunction(func):
+                import inspect
+                if inspect.iscoroutinefunction(func):
                     res = await func()
                 else:
                     # Sync-safe bridge: run in thread pool to prevent blocking the event loop
