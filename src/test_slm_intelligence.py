@@ -74,12 +74,13 @@ async def test_scenarios():
     ]
 
     for scenario in scenarios:
+        ctx: dict = scenario["context"]  # type: ignore[assignment]
         print(f"\n{scenario['name']}")
         print(
-            f"   Input -> {scenario['context']['symbol']} | {scenario['context']['regime']} | {scenario['context']['dhatu_state']}"
+            f"   Input -> {ctx['symbol']} | {ctx['regime']} | {ctx['dhatu_state']}"
         )
 
-        result = await slm.evaluate_proposal(scenario["context"])
+        result = await slm.evaluate_proposal(ctx)  # type: ignore[arg-type]
 
         vote_icon = "✅" if result["vote"] == "YES" else "❌"
         print(f"   SLM BIAS: {result['bias']}")

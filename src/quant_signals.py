@@ -190,7 +190,10 @@ class MultiFactorAlpha:
             if any(isinstance(v, dict) for v in self.weights.values()):
                 w_map = self.weights.get(regime, self.weights.get("DEFAULT", self.weights))
 
-            score = float(sum(w_map[k] * v for k, v in factors.items()))
+            if w_map is None:
+                w_map = self.weights if not any(isinstance(v, dict) for v in self.weights.values()) else self.weights.get("DEFAULT", {})
+
+            score = float(sum(w_map.get(k, 0) * v for k, v in factors.items()))
             confidence = min(0.95, 0.5 + abs(score) * 0.5)
 
             return SignalResult(

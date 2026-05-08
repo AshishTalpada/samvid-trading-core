@@ -11,10 +11,9 @@ import random
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from enum import Enum
-from typing import Any, Dict
-
 import numpy as np
 import polars as pl
+from typing import Any, Dict, cast, Union, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -151,7 +150,8 @@ class ImpactOracle:
             volatility = np.std(returns) if len(returns) > 0 else 0.001
 
             # 2. Daily Volume Approximation (Assuming 1m scale, 390 mins/day)
-            avg_volume_1m = df["volume"][-21:-1].mean()
+            _avg_vol = df["volume"][-21:-1].mean()
+            avg_volume_1m = float(cast(Any, _avg_vol)) if _avg_vol is not None else 1.0
             estimated_day_volume = avg_volume_1m * 390
 
             # 3. Square Root Impact Formula
@@ -159,7 +159,7 @@ class ImpactOracle:
             participation_ratio = (
                 shares / estimated_day_volume if estimated_day_volume > 0 else 0.001
             )
-            impact_pct = volatility * np.sqrt(participation_ratio) * self.slippage_coefficient
+            impact_pct = float(volatility * np.sqrt(participation_ratio) * self.slippage_coefficient)
 
             # 4. Ceiling/Floor Guards
             # Minimum 5bps slippage (Broker side), max 2.5% (to trigger Veto elsewhere)
@@ -324,9 +324,12 @@ class PatternDetector:
         # This signals 'Layering' or 'Spoofing' where orders are being flashed without intention to fill.
         last_vol = float(df["volume"][-1])
         _m_vol = df["volume"][-10:-1].mean()
-        avg_vol = float(_m_vol) if _m_vol is not None and _m_vol != 0 else 1.0
-        price_move = abs(float(df["close"][-1] - df["close"][-2]))
-        price_threshold = float(df["close"][-1] * 0.0001)  # 1 basis point
+        avg_vol = float(cast(Any, _m_vol)) if _m_vol is not None and _m_vol != 0 else 1.0
+        
+        _curr_close = float(df["close"][-1])
+        _prev_close = float(df["close"][-2])
+        price_move = abs(_curr_close - _prev_close)
+        price_threshold = _curr_close * 0.0001  # 1 basis point
 
         if last_vol > (avg_vol * 3.5) and price_move < price_threshold:
             entry = float(df["close"][-1])
@@ -361,19 +364,23 @@ class PatternDetector:
             return None
 
         last_5 = df[-5:]
-        avg_vol = df["volume"][-20:-5].mean()
-        avg_range = (df["high"][-20:-5] - df["low"][-20:-5]).mean()
+        _avg_vol = df["volume"][-20:-5].mean()
+        avg_vol = float(cast(Any, _avg_vol)) if _avg_vol is not None else 1.0
+        
+        _highs = df["high"][-20:-5]
+        _lows = df["low"][-20:-5]
+        avg_range = float(cast(Any, (_highs - _lows).mean()))
 
-        current_vol = last_5["volume"].mean()
-        current_range = last_5["high"].max() - last_5["low"].min()
+        current_vol = float(cast(Any, last_5["volume"].mean()))
+        current_range = float(cast(Any, last_5["high"].max())) - float(cast(Any, last_5["low"].min()))
 
         # We mirror the institution. If vol is 1.8x and range is <60% of avg, it's a Wall.
         if current_vol > (avg_vol * 1.8) and current_range < (avg_range * 0.6):
-            is_accumulation = df["close"][-1] < df["close"][-20]
+            is_accumulation = float(df["close"][-1]) < float(df["close"][-20])
             name = "Institutional Accumulation" if is_accumulation else "Institutional Distribution"
 
-            entry = last_5["high"].max() if is_accumulation else last_5["low"].min()
-            stop = last_5["low"].min() if is_accumulation else last_5["high"].max()
+            entry = float(cast(Any, last_5["high"].max() if is_accumulation else last_5["low"].min()))
+            stop = float(cast(Any, last_5["low"].min() if is_accumulation else last_5["high"].max()))
             # Projection based on 'Institutional Flush' targets
             target = entry + (avg_range * 5) if is_accumulation else entry - (avg_range * 5)
 
@@ -399,12 +406,17 @@ class PatternDetector:
             return None
 
         # Volatility Compression (Volatility 'Scents' the Breakout)
-        std_20 = df["close"][-20:].std()
-        avg_std = df["close"][-50:-20].std()
+        _std_20 = df["close"][-20:].std()
+        _avg_std = df["close"][-50:-20].std()
+        
+        std_20 = float(cast(Any, _std_20)) if _std_20 is not None else 0.0
+        avg_std = float(cast(Any, _avg_std)) if _avg_std is not None else 1.0
 
         if std_20 < (avg_std * 0.4):  # Massive compression (The Sovereign Calm)
-            if df["volume"][-1] > df["volume"][-2]:  # Volume Scent detected
-                entry = df["close"][-1]
+            _last_vol = float(df["volume"][-1])
+            _prev_vol = float(df["volume"][-2])
+            if _last_vol > _prev_vol:  # Volume Scent detected
+                entry = float(df["close"][-1])
                 # Project target based on 'Historical Velocity' from Atlas
                 target = entry * 1.03
                 stop = entry * 0.99
@@ -434,8 +446,8 @@ class PatternDetector:
             return None
 
         # Require strong prior uptrend (pole)
-        pole_start = df["close"][-20]
-        pole_end = df["close"][-10]
+        pole_start = float(df["close"][-20])
+        pole_end = float(df["close"][-10])
         pole_gain = (pole_end - pole_start) / (pole_start + 1e-10)
 
         if pole_gain < 0.002:  # Massively relaxed: 0.2%+ pole
@@ -443,25 +455,29 @@ class PatternDetector:
 
         # Detect consolidation (flag)
         flag_period = df[-10:]
-        flag_range = (flag_period["high"].max() - flag_period["low"].min()) / (pole_end + 1e-10)
+        _f_high = float(cast(Any, flag_period["high"].max()))
+        _f_low = float(cast(Any, flag_period["low"].min()))
+        flag_range = (_f_high - _f_low) / (pole_end + 1e-10)
 
         if flag_range > 0.025:  # Relaxed further
             return None
 
         # Volume should contract during flag
-        vol_ratio = flag_period["volume"].mean() / (df["volume"][-20:-10].mean() + 1e-10)
+        _flag_vol = float(cast(Any, flag_period["volume"].mean()))
+        _prior_vol = float(cast(Any, df["volume"][-20:-10].mean()))
+        vol_ratio = _flag_vol / (_prior_vol + 1e-10)
         if vol_ratio > 0.95:  # Allow almost any volume action
             return None
 
-        current_price = df["close"][-1]
-        resistance = flag_period["high"].max()
+        current_price = float(df["close"][-1])
+        resistance = _f_high
 
-        prev_close = df["close"][-2]
+        prev_close = float(df["close"][-2])
         confirmed = current_price > resistance and prev_close > (resistance * 0.999)
 
         # Entry on breakout above resistance
         entry = resistance * 1.002  # 0.2% above
-        stop = flag_period["low"].min()
+        stop = _f_low
         target = entry + (pole_end - pole_start)  # Project pole height
 
         r_r = (target - entry) / (entry - stop + 1e-10)
@@ -490,8 +506,8 @@ class PatternDetector:
             return None
 
         # Prior downtrend (pole)
-        pole_start = df["close"][-20]
-        pole_end = df["close"][-10]
+        pole_start = float(df["close"][-20])
+        pole_end = float(df["close"][-10])
         pole_drop = (pole_start - pole_end) / (pole_start + 1e-10)
 
         if pole_drop < 0.002:
@@ -499,25 +515,29 @@ class PatternDetector:
 
         # Consolidation (flag)
         flag_period = df[-10:]
-        flag_range = (flag_period["high"].max() - flag_period["low"].min()) / pole_end
+        _f_high = float(cast(Any, flag_period["high"].max()))
+        _f_low = float(cast(Any, flag_period["low"].min()))
+        flag_range = (_f_high - _f_low) / (pole_end + 1e-10)
         if flag_range > 0.025:
             return None
 
         # Volume contract
-        vol_ratio = flag_period["volume"].mean() / df["volume"][-20:-10].mean()
+        _flag_vol = float(cast(Any, flag_period["volume"].mean()))
+        _prior_vol = float(cast(Any, df["volume"][-20:-10].mean()))
+        vol_ratio = _flag_vol / (_prior_vol + 1e-10)
         if vol_ratio > 1.05:
             return None
 
-        current_price = df["close"][-1]
-        support = flag_period["low"].min()
+        current_price = float(df["close"][-1])
+        support = _f_low
 
         # Entry on breakdown
         entry = support * 0.998
-        stop = flag_period["high"].max()
+        stop = _f_high
         target = entry - (pole_start - pole_end)
 
         r_r = (entry - target) / (stop - entry + 1e-10)
-        prev_close = df["close"][-2]
+        prev_close = float(df["close"][-2])
         confirmed = current_price < support and prev_close < (support * 1.001)
 
         return PatternResult(
@@ -573,15 +593,16 @@ class PatternDetector:
             return None
 
         # Calculate neckline (support connecting troughs) — pandas-compatible rolling min
-        neckline = float(df["low"][-30:].rolling_min(5).tail(10).mean())
+        _neckline_val = df["low"][-30:].rolling_min(5).tail(10).mean()
+        neckline = float(cast(Any, _neckline_val)) if _neckline_val is not None else 0.0
 
-        current_price = df["close"][-1]
+        current_price = float(df["close"][-1])
         entry = neckline * 0.998  # Enter on neckline break
         stop = head_price
-        target = entry - (head_price - neckline)  # Project pattern height
+        target = entry - (stop - neckline)  # Project pattern height
 
         r_r = (entry - target) / (stop - entry + 1e-10)
-        prev_close = df["close"][-2]
+        prev_close = float(df["close"][-2])
         confirmed = current_price < neckline and prev_close < (neckline * 1.001)
 
         confidence = 89.0 if confirmed else 78.0
@@ -634,22 +655,24 @@ class PatternDetector:
             return None
 
         # Volume should decline into apex
-        early_vol = recent["volume"][:10].mean()
-        late_vol = recent["volume"][-10:].mean()
+        _early_vol = recent["volume"][:10].mean()
+        _late_vol = recent["volume"][-10:].mean()
+        early_vol = float(cast(Any, _early_vol)) if _early_vol is not None else 1.0
+        late_vol = float(cast(Any, _late_vol)) if _late_vol is not None else 1.0
 
         if late_vol > early_vol * 0.8:
             return None
 
-        current_price = df["close"][-1]
-        resistance = np.polyval(high_coef, len(highs) - 1)
+        current_price = float(df["close"][-1])
+        resistance = float(np.polyval(high_coef, len(highs) - 1))
 
         entry = resistance * 1.005  # Breakout above
-        stop = np.polyval(low_coef, len(lows) - 1)
-        wedge_height = recent["high"].max() - recent["low"].min()
+        stop = float(np.polyval(low_coef, len(lows) - 1))
+        wedge_height = float(cast(Any, recent["high"].max())) - float(cast(Any, recent["low"].min()))
         target = entry + wedge_height
 
         r_r = (target - entry) / (entry - stop + 1e-10)
-        prev_close = df["close"][-2]
+        prev_close = float(df["close"][-2])
         confirmed = current_price > resistance and prev_close > (resistance * 0.999)
 
         confidence = 83.0 if confirmed else 72.0
@@ -688,15 +711,16 @@ class PatternDetector:
         if low_coef[0] <= high_coef[0]:
             return None
 
-        current_price = df["close"][-1]
-        support = np.polyval(low_coef, len(lows) - 1)
+        current_price = float(df["close"][-1])
+        support = float(np.polyval(low_coef, len(lows) - 1))
 
         entry = support * 0.995  # Breakdown
-        stop = np.polyval(high_coef, len(highs) - 1)
-        target = entry - (recent["high"].max() - recent["low"].min())
+        stop = float(np.polyval(high_coef, len(highs) - 1))
+        wedge_height = float(cast(Any, recent["high"].max())) - float(cast(Any, recent["low"].min()))
+        target = entry - wedge_height
 
         r_r = (entry - target) / (stop - entry + 1e-10)
-        prev_close = df["close"][-2]
+        prev_close = float(df["close"][-2])
         confirmed = current_price < support and prev_close < (support * 1.001)
 
         return PatternResult(
@@ -736,26 +760,27 @@ class PatternDetector:
             recent_price_low = df["low"][-5:].min()
             prior_price_low = price_window["low"].min()
 
-            if recent_price_low < prior_price_low:
+            if float(cast(Any, recent_price_low)) < float(cast(Any, prior_price_low)):
                 recent_rsi_low = df["rsi"][-5:].min()
                 prior_rsi_low = price_window["rsi"].min()
 
-                if recent_rsi_low <= prior_rsi_low:  # No divergence
+                if float(cast(Any, recent_rsi_low)) <= float(cast(Any, prior_rsi_low)):  # No divergence
                     return None
 
                 if df["volume"][-1] <= df["volume"][-2]:
                     return None
 
-        current_price = df["close"][-1]
+        current_price = float(df["close"][-1])
 
         # Support level from recent lows
-        support = df["low"][-20:].min()
+        support = float(cast(Any, df["low"][-20:].min()))
 
         entry = current_price
         stop = support * 0.98
 
         # Target first resistance (20-period high)
-        target = df["high"][-20:].quantile(0.75)
+        _target_val = df["high"][-20:].quantile(0.75)
+        target = float(cast(Any, _target_val)) if _target_val is not None else entry * 1.01
 
         r_r = (target - entry) / (entry - stop + 1e-10)
         confirmed = current_rsi < 25  # Deep oversold
@@ -805,22 +830,23 @@ class PatternDetector:
             return None
 
         # Volume surge on stock
-        avg_volume = df["volume"][-20:-1].mean()
-        current_volume = df["volume"][-1]
+        _avg_vol_val = df["volume"][-20:-1].mean()
+        avg_volume = float(cast(Any, _avg_vol_val)) if _avg_vol_val is not None else 1.0
+        current_volume = float(cast(Any, df["volume"][-1]))
 
         if current_volume < avg_volume * 1.5:
             return None
 
-        current_price = df["close"][-1]
+        current_price = float(cast(Any, df["close"][-1]))
 
         entry = current_price
-        stop = df["low"][-5:].min()
+        _min_low = df["low"][-5:].min()
+        stop = float(cast(Any, _min_low)) if _min_low is not None else entry * 0.99
 
         # Target: catch up to sector performance
-        datetime.now(timezone.utc).strftime("%Y%m%d_%H%M")
         target = current_price * (1 + sector_gain)
 
-        r_r = (target - entry) / (entry - stop)
+        r_r = (target - entry) / (entry - stop + 1e-10)
         confirmed = current_volume > avg_volume * 2.0
 
         confidence = 65.0 if confirmed else 55.0
@@ -850,11 +876,11 @@ class PatternDetector:
             return None
 
         # Detect gap between yesterday's close and today's open
-        prev_close = df["close"][-2]
-        today_open = df["open"][-1]
-        current_price = df["close"][-1]
+        prev_close = float(cast(Any, df["close"][-2]))
+        today_open = float(cast(Any, df["open"][-1]))
+        current_price = float(cast(Any, df["close"][-1]))
 
-        gap_pct = abs(today_open - prev_close) / prev_close
+        gap_pct = abs(today_open - prev_close) / (prev_close + 1e-10)
 
         if gap_pct < 0.001:  # Require just 0.1%+ gap
             return None
@@ -864,12 +890,11 @@ class PatternDetector:
             # Trade to fill gap (short)
             entry = today_open
             target = prev_close
-            stop = df["high"][-1] * 1.01
+            stop = float(cast(Any, df["high"][-1])) * 1.01
 
-            prev_close_val = df["close"][-2]
             confirmed = (
                 current_price < (today_open + prev_close) / 2
-                and prev_close_val < (today_open + prev_close) / 1.99
+                and float(cast(Any, df["close"][-2])) < (today_open + prev_close) / 1.99
             )
 
         # Gap down scenario
@@ -877,12 +902,11 @@ class PatternDetector:
             # Trade to fill gap (long)
             entry = today_open
             target = prev_close
-            stop = df["low"][-1] * 0.99
+            stop = float(cast(Any, df["low"][-1])) * 0.99
 
-            prev_close_val = df["close"][-2]
             confirmed = (
                 current_price > (today_open + prev_close) / 2
-                and prev_close_val > (today_open + prev_close) / 2.01
+                and float(cast(Any, df["close"][-2])) > (today_open + prev_close) / 2.01
             )
 
         r_r = abs(target - entry) / abs(entry - stop)
@@ -914,23 +938,26 @@ class PatternDetector:
             return None
 
         recent = df[-5:]
-        avg_vol = df["volume"][-20:-5].mean() if len(df) >= 20 else recent["volume"].mean()
+        _avg_vol_val = df["volume"][-20:-5].mean() if len(df) >= 20 else recent["volume"].mean()
+        avg_vol = float(cast(Any, _avg_vol_val)) if _avg_vol_val is not None else 1.0
 
         # We need a volume spike on minimal price movement (absorption)
-        current_vol = recent["volume"][-1]
+        current_vol = float(cast(Any, recent["volume"][-1]))
         if current_vol < avg_vol * 1.5:  # Lowered requirement
             return None
 
-        price_range = recent["high"].max() - recent["low"].min()
-        current_price = recent["close"][-1]
+        _range_max = float(cast(Any, recent["high"].max()))
+        _range_min = float(cast(Any, recent["low"].min()))
+        price_range = _range_max - _range_min
+        current_price = float(cast(Any, recent["close"][-1]))
 
-        if price_range / current_price > 0.001:  # Movement too large for absorption
+        if price_range / (current_price + 1e-10) > 0.001:  # Movement too large for absorption
             return None
 
         # Assume absorption at the bid (bullish imbalance) if closing near highs
-        if current_price >= recent["high"].max() * 0.9999:
+        if current_price >= _range_max * 0.9999:
             entry = current_price
-            stop = recent["low"].min() * 0.999
+            stop = _range_min * 0.999
             target = entry + (entry - stop) * 2  # 1:2 R:R scalp
 
             return PatternResult(
@@ -969,7 +996,7 @@ class PatternDetector:
 
         # Bearish divergence scalp
         entry = current_price
-        stop = df["high"][-5:].max() * 1.001
+        stop = float(cast(Any, df["high"][-5:].max())) * 1.001
         target = closes[0]  # Revert to start of move
 
         # Guard against zero-division if stop == entry
@@ -1002,18 +1029,18 @@ class PatternDetector:
 
         # Calculate 20-period std dev (Bollinger Bands)
         closes = df["close"].to_numpy()[-20:]
-        sma = np.mean(closes)
-        std = np.std(closes)
+        sma = float(np.mean(closes))
+        std = float(np.std(closes))
 
         upper_band = sma + (2 * std)
-        current_price = closes[-1]
+        current_price = float(cast(Any, closes[-1]))
 
         # Squeeze check: Bands must be very tight
-        band_width_pct = (upper_band - sma) / sma
+        band_width_pct = (upper_band - sma) / (sma + 1e-10)
         if band_width_pct > 0.002:  # Relaxed to 0.20% width
             return None
 
-        prev_close = closes[-2]
+        prev_close = float(closes[-2])
         if current_price > upper_band and prev_close > (upper_band * 0.999):
             entry = current_price
             stop = sma  # Stop at mean
@@ -1076,18 +1103,19 @@ class PatternDetector:
             return None
 
         # 3. Identify Pivot Point (Resistance at high of last contraction)
-        pivot_resistance = np.max(c3)
+        pivot_resistance = float(cast(Any, np.max(c3)))
 
-        prev_close = df["close"][-2]
+        _prev_close = float(cast(Any, df["close"][-2]))
+        current_price = float(cast(Any, df["close"][-1]))
         if current_price < pivot_resistance:
             # Pattern forming but not confirmed
             confirmed = False
         else:
-            confirmed = prev_close > (pivot_resistance * 0.9995)
+            confirmed = _prev_close > (pivot_resistance * 0.9995)
 
         entry = pivot_resistance * 1.001
-        stop = np.min(c3)
-        target = entry + (np.max(c1) - np.min(c1))  # Target is height of first base
+        stop = float(np.min(c3))
+        target = entry + float(np.max(c1) - np.min(c1))  # Target is height of first base
 
         r_r = abs(target - entry) / abs(entry - stop + 1e-10)
 
@@ -1125,8 +1153,8 @@ class PatternDetector:
         return {
             "structural_high": m_high,
             "structural_low": m_low,
-            "value_high": float(np.mean(top_5_highs)),
-            "value_low": float(np.mean(bot_5_lows)),
+            "value_high": float(cast(Any, np.mean(top_5_highs))),
+            "value_low": float(cast(Any, np.mean(bot_5_lows))),
         }
 
     # HARDCORE MICRO-STRUCTURAL DEEP ANALYSIS
@@ -1147,13 +1175,13 @@ class PatternDetector:
 
         ofi_accum = 0.0
         for i in range(1, len(closes)):
-            delta_p = closes[i] - closes[i - 1]
+            delta_p = float(closes[i] - closes[i - 1])
             if delta_p > 0:
-                ofi_accum += volumes[i]  # Aggressor Buy
+                ofi_accum += float(volumes[i])  # Aggressor Buy
             elif delta_p < 0:
-                ofi_accum -= volumes[i]  # Aggressor Sell
+                ofi_accum -= float(volumes[i])  # Aggressor Sell
 
-        return ofi_accum / (np.mean(volumes) * 5 + 1e-10)
+        return ofi_accum / (float(np.mean(volumes)) * 5 + 1e-10)
 
     def detect_tick_tape_absorption(
         self, df: "pl.DataFrame", sensitivity: float = 1.0
@@ -1167,16 +1195,20 @@ class PatternDetector:
             return None
 
         recent = df[-5:]
-        avg_vol = df["volume"][-20:-5].mean()
+        _avg_vol_val = df["volume"][-20:-5].mean()
+        avg_vol = float(cast(Any, _avg_vol_val)) if _avg_vol_val is not None else 1.0
 
         # Adjust sensitivity - institutional fingerprints are often subtle
         vol_threshold = 2.5 / sensitivity
         price_tight_threshold = 0.0005 * sensitivity
 
-        vol_spike = recent["volume"].max() > avg_vol * vol_threshold
-        price_tight = (recent["high"].max() - recent["low"].min()) / recent["close"][
-            -1
-        ] < price_tight_threshold
+        _recent_vol_max = float(cast(Any, recent["volume"].max()))
+        _recent_high_max = float(cast(Any, recent["high"].max()))
+        _recent_low_min = float(cast(Any, recent["low"].min()))
+        _recent_close_last = float(cast(Any, recent["close"][-1]))
+
+        vol_spike = _recent_vol_max > avg_vol * vol_threshold
+        price_tight = (_recent_high_max - _recent_low_min) / (_recent_close_last + 1e-10) < price_tight_threshold
 
         if vol_spike and price_tight:
             # Absorption detected. Direction identified by OFI.
@@ -1188,9 +1220,9 @@ class PatternDetector:
                     name=f"Deep Tape Absorption ({direction})",
                     category="HFT",
                     confidence=94.0,
-                    entry=recent["close"][-1],
-                    stop=recent["low"].min() if ofi > 0 else recent["high"].max(),
-                    target=recent["close"][-1] * (1 + (0.005 if ofi > 0 else -0.005)),
+                    entry=_recent_close_last,
+                    stop=_recent_low_min if ofi > 0 else _recent_high_max,
+                    target=_recent_close_last * (1 + (0.005 if ofi > 0 else -0.005)),
                     r_r_ratio=3.0,
                     confirmed=True,
                     lambda_val=20,
@@ -1209,20 +1241,24 @@ class PatternDetector:
 
         # High volume on ultra-low range (Zero-Result Effort VSA principle)
         vol_window = df["volume"][-5:]
-        avg_vol = df["volume"][-60:-5].mean()
+        _avg_vol_val = df["volume"][-60:-5].mean()
+        avg_vol = float(cast(Any, _avg_vol_val)) if _avg_vol_val is not None else 1.0
 
-        vol_explosion = vol_window.max() > avg_vol * 4.0
+        vol_explosion = float(cast(Any, vol_window.max())) > avg_vol * 4.0
 
-        price_range = df["high"][-5:].max() - df["low"][-5:].min()
-        price_std = df["close"][-60:].std()
+        _high_max = float(cast(Any, df["high"][-5:].max()))
+        _low_min = float(cast(Any, df["low"][-5:].min()))
+        price_range = _high_max - _low_min
+        _price_std_val = df["close"][-60:].std()
+        price_std = float(cast(Any, _price_std_val)) if _price_std_val is not None else 0.01
         range_compression = price_range < (price_std * 0.15)
 
         # We ensure that the massive volume is actually 'sinking' into a specific level
         # rather than just volatile churning over a wide range.
-        typical_price = df["close"][-5:].mean()
-        concentration_window = (
-            df["close"][-5:].between(typical_price * 0.9995, typical_price * 1.0005).sum()
-        )
+        _typical_price_val = df["close"][-5:].mean()
+        typical_price = float(cast(Any, _typical_price_val)) if _typical_price_val is not None else float(cast(Any, df["close"][-1]))
+        _matches = df["close"][-5:].to_numpy()
+        concentration_window = np.sum((_matches >= typical_price * 0.9995) & (_matches <= typical_price * 1.0005))
         is_concentrated = concentration_window >= 4  # 4 out of 5 bars at same level
 
         if vol_explosion and range_compression and is_concentrated:
@@ -1261,11 +1297,11 @@ class PatternDetector:
         data = df["close"].to_numpy()[-60:]
 
         # 1. Left Rim (Recent High)
-        left_rim = np.max(data[:20])
+        left_rim = float(np.max(data[:20]))
         # 2. Bottom of Cup (Midpoint)
-        bottom = np.min(data[20:40])
+        bottom = float(np.min(data[20:40]))
         # 3. Right Rim (Attempt to reach left rim)
-        right_rim = np.max(data[40:55])
+        right_rim = float(np.max(data[40:55]))
 
         # Cup shape: Rim >> Bottom
         if bottom > left_rim * 0.95 or right_rim < left_rim * 0.90:
@@ -1273,8 +1309,8 @@ class PatternDetector:
 
         # 4. Handle (Small pullback from right rim)
         handle = data[55:]
-        handle_max = np.max(handle)
-        handle_min = np.min(handle)
+        handle_max = float(np.max(handle))
+        handle_min = float(np.min(handle))
 
         # Handle should be shallow (less than 15% of cup depth)
         cup_depth = left_rim - bottom
@@ -1283,7 +1319,7 @@ class PatternDetector:
         if handle_depth > (cup_depth * 0.15):
             return None
 
-        current_price = data[-1]
+        current_price = float(cast(Any, data[-1]))
         confirmed = current_price > handle_max
 
         return PatternResult(
@@ -1309,13 +1345,13 @@ class PatternDetector:
         lows = df["low"].to_numpy()[-40:]
 
         # Double Top Logic
-        peak1 = np.max(highs[:15])
-        trough = np.min(lows[15:25])
-        peak2 = np.max(highs[25:])
+        peak1 = float(np.max(highs[:15]))
+        trough = float(np.min(lows[15:25]))
+        peak2 = float(np.max(highs[25:]))
 
         # Peaks should be within 1% of each other
-        if abs(peak1 - peak2) / peak1 < 0.01 and peak1 > trough * 1.05:
-            current_price = df["close"][-1]
+        if abs(peak1 - peak2) / (peak1 + 1e-10) < 0.01 and peak1 > trough * 1.05:
+            current_price = float(cast(Any, df["close"][-1]))
             confirmed = current_price < trough
             return PatternResult(
                 name="Double Top (Reversal)",
@@ -1330,13 +1366,13 @@ class PatternDetector:
             )
 
         # Double Bottom Logic
-        b1 = np.min(lows[:15])
-        peak = np.max(highs[15:25])
-        b2 = np.min(lows[25:])
+        b1 = float(np.min(lows[:15]))
+        peak = float(np.max(highs[15:25]))
+        b2 = float(np.min(lows[25:]))
 
-        if abs(b1 - b2) / b1 < 0.01 and peak > b1 * 1.05:
-            current_price = df["close"][-1]
-            prev_close = df["close"][-2]
+        if abs(b1 - b2) / (b1 + 1e-10) < 0.01 and peak > b1 * 1.05:
+            current_price = float(cast(Any, df["close"][-1]))
+            prev_close = float(cast(Any, df["close"][-2]))
             confirmed = current_price > peak and prev_close > (peak * 0.999)
             return PatternResult(
                 name="Double Bottom (Reversal)",
@@ -1363,9 +1399,9 @@ class PatternDetector:
         lows = df["low"].to_numpy()[-30:]
 
         # Flat Top resistance check
-        resistance = np.max(highs)
+        resistance = float(np.max(highs))
         # Check if multiple bars hit this level (+/- 0.2%)
-        hits = np.sum(np.abs(highs - resistance) / resistance < 0.002)
+        hits = np.sum(np.abs(highs - resistance) / (resistance + 1e-10) < 0.002)
         if hits < 3:
             return None
 
@@ -1375,16 +1411,16 @@ class PatternDetector:
         if slope <= 0:
             return None
 
-        current_price = df["close"][-1]
-        prev_close = df["close"][-2]
+        current_price = float(cast(Any, df["close"][-1]))
+        prev_close = float(cast(Any, df["close"][-2]))
         entry = resistance * 1.002
-        stop = lows[-1]
+        stop = float(lows[-1])
 
         # Ensure target is sufficiently far away from entry
         target_dist = max((resistance - lows[0]), resistance * 0.005)
         target = entry + target_dist
 
-        r_r = (target - entry) / (entry - stop) if entry > stop else 0.0
+        r_r = (target - entry) / (entry - stop + 1e-10) if entry > stop else 0.0
         if r_r < 0.5:
             return None
 
@@ -1414,8 +1450,8 @@ class PatternDetector:
         lows = recent["low"].to_numpy()
 
         # Horizontal Support
-        support = lows.min()
-        touches = np.sum(np.abs(lows - support) / support < 0.002)
+        support = float(lows.min())
+        touches = np.sum(np.abs(lows - support) / (support + 1e-10) < 0.002)
         if touches < 3:
             return None
 
@@ -1425,19 +1461,20 @@ class PatternDetector:
         if high_coef[0] >= 0:
             return None  # Must slope down
 
-        current_price = df["close"][-1]
+        current_price = float(df["close"][-1])
         entry = support * 0.998
-        stop = recent["high"][-10:].max()
+        stop = float(cast(Any, recent["high"][-10:].max()))
 
         # Ensure target is sufficiently far away from entry
-        target_dist = max((recent["high"].max() - support), support * 0.005)
+        _recent_high_max = float(cast(Any, recent["high"].max()))
+        target_dist = max((_recent_high_max - support), support * 0.005)
         target = entry - target_dist
 
-        r_r = (entry - target) / (stop - entry) if stop > entry else 0.0
+        r_r = (entry - target) / (stop - entry + 1e-10) if stop > entry else 0.0
         if r_r < 0.5:
             return None
 
-        prev_close = df["close"][-2]
+        prev_close = float(cast(Any, df["close"][-2]))
         confirmed = current_price < support and prev_close < (support * 1.001)
 
         return PatternResult(
@@ -1574,8 +1611,16 @@ class NeuralRegimeClassifier:
         if len(df) < 50:
             return "INDETERMINATE"
 
-        atr_pct = (df["high"][-20:].max() - df["low"][-20:].min()) / df["close"][-1]
-        vol_ratio = df["volume"][-1] / (df["volume"][-20:].mean() + 1e-10)
+        _h_max_val = df["high"][-20:].max()
+        _l_min_val = df["low"][-20:].min()
+        _h_max = float(cast(Any, _h_max_val)) if _h_max_val is not None else 1.0
+        _l_min = float(cast(Any, _l_min_val)) if _l_min_val is not None else 0.0
+        _curr_close = float(cast(Any, df["close"][-1]))
+        atr_pct = (_h_max - _l_min) / (_curr_close + 1e-10)
+        
+        _curr_vol = float(cast(Any, df["volume"][-1]))
+        _m_vol = df["volume"][-20:].mean()
+        vol_ratio = _curr_vol / (float(cast(Any, _m_vol)) if _m_vol is not None else 1.0 + 1e-10)
 
         if atr_pct < 0.015:
             return "LOW_VOL_ACCUMULATION"
@@ -1673,8 +1718,9 @@ class MultiTimeframeAligner:
 
             # Simple trend determination: last close vs. moving average
             if "close" in df.columns:
-                current = df["close"][-1]
-                ma = df["close"].rolling_mean(window_size=min(20, len(df)))[-1]
+                current = float(cast(Any, df["close"][-1]))
+                _ma_val = df["close"].rolling_mean(window_size=min(20, len(df)))[-1]
+                ma = float(cast(Any, _ma_val)) if _ma_val is not None else current
 
                 # Bullish if above MA
                 signals.append(1 if current > ma else -1)
@@ -1967,13 +2013,15 @@ def agent_a_validate_trade(
             return {"agent": "Agent_A", "vote": "NO", "reason": f"Regime Veto: {regime}"}
 
     # PHASE 2: PROFIT DENSITY (FTMO $500 Account Protection)
-    entry, target = pattern.entry, pattern.target
-    shares = kwargs.get("shares", 100)
-    expected_gain = abs(target - entry) * shares
+    _p_entry = float(cast(Any, pattern.entry))
+    _p_target = float(cast(Any, pattern.target))
+    shares = int(kwargs.get("shares", 100))
+    expected_gain = abs(_p_target - _p_entry) * shares
 
-    atr = kwargs.get("atr_20", 0.5)
-    spread_buffer = entry * 0.0002
-    commission = 0.01 * (shares / 100)
+    _atr_val = kwargs.get("atr_20", 0.5)
+    atr = float(cast(Any, _atr_val)) if _atr_val is not None else 0.5
+    spread_buffer = _p_entry * 0.0002
+    commission = 0.01 * (shares / 100.0)
     min_hurdle = (spread_buffer * shares) + commission + (0.5 * atr * shares)
 
     if expected_gain < min_hurdle:
@@ -2009,11 +2057,12 @@ def agent_a_validate_trade(
     final_lambda *= regime_mult
 
     # PHASE 5: RISK/REWARD & FRICTION
-    atr = kwargs.get("atr_20", 4.0)
-    friction = (max(2.5, shares * 0.005) * 2 / shares) + (pattern.entry * 0.0005)
+    _atr_val2 = kwargs.get("atr_20", 4.0)
+    atr = float(cast(Any, _atr_val2)) if _atr_val2 is not None else 4.0
+    friction = (max(2.5, float(shares) * 0.005) * 2 / (float(shares) + 1e-10)) + (_p_entry * 0.0005)
     # Scalping patterns don't target 1.5 ATR. Lowering hurdle to 0.1 ATR to allow fast momentum trades.
     profit_hurdle = (0.1 * atr) + friction
-    if abs(pattern.target - pattern.entry) < profit_hurdle:
+    if abs(_p_target - _p_entry) < profit_hurdle:
         if task:
             task.transition(TaskStatus.FAILED)
         return {"agent": "Agent_A", "vote": "NO", "reason": "Friction Veto: Hurdle not met."}
@@ -2055,7 +2104,7 @@ def agent_a_validate_trade(
             return {"agent": "Agent_A", "vote": "NO", "reason": "Strike Filter Veto."}
 
     if task:
-        task.transition(TaskStatus.SUCCESS)
+        task.transition(TaskStatus.COMPLETED)
         task.log(f"Sovereign APPROVED: Lambda={final_lambda:.1f}")
 
     return {

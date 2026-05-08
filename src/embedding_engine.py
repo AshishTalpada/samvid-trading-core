@@ -1,6 +1,7 @@
 import logging
 import threading
-from typing import List, Optional
+from typing import Any, List, Optional, Union, cast
+import numpy as np
 
 from chromadb import Documents, EmbeddingFunction, Embeddings
 
@@ -14,7 +15,7 @@ class SharedEmbeddingEngine:
     """
 
     _instance: Optional["SharedEmbeddingEngine"] = None
-    _model: Optional[any] = None
+    _model: Optional[Any] = None
     _lock = threading.Lock()
 
     def __new__(cls):
@@ -78,7 +79,9 @@ class SovereignEmbeddingWrapper(EmbeddingFunction):
         self.engine = SharedEmbeddingEngine()
 
     def __call__(self, input: Documents) -> Embeddings:
-        return self.engine.embed(list(input))
+        embeddings = self.engine.embed(list(input))
+        # Ensure we return the specific format Pyrefly/Chroma expects
+        return cast(Embeddings, [np.array(e, dtype=np.float32) for e in embeddings])
 
 
 # Globally accessible instance for ChromaDB collections

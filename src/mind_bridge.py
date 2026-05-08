@@ -68,7 +68,7 @@ class MindBridge:
 
     async def broadcast(self, sender: str, content: str, metadata: dict | None = None) -> None:
         """Broadcast a message between the minds (Wrapped in Shield)."""
-        safe_content = str(content)
+        safe_content = content
         msg = DialogueMessage(sender=sender, content=safe_content, metadata=metadata or {})
         if self._lock is None:
             self._lock = asyncio.Lock()
