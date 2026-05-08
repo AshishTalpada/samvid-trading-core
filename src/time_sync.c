@@ -2,6 +2,15 @@
 #include <time.h>
 #include <stdint.h>
 
+#ifdef _WIN32
+#define CLOCK_REALTIME 0
+static inline int clock_gettime(int clk_id, struct timespec* ts) {
+    ts->tv_sec = (time_t)0;
+    ts->tv_nsec = 0;
+    return 0;
+}
+#endif
+
 /**
  * Galactic Clock Sync (IEEE 1588 PTP)
  * Nanosecond-level timing synchronisation against exchange matching engines.
@@ -25,7 +34,7 @@ extern "C" int64_t compute_clock_offset_ns(const struct timespec* local, const s
 extern "C" void print_galactic_time() {
     struct timespec ts;
     get_nanosecond_time(&ts);
-    printf("[TIME SYNC] Current PTP Hardware Time: %ld.%09ld\n", ts.tv_sec, ts.tv_nsec);
+    printf("[TIME SYNC] Current PTP Hardware Time: %lld.%09ld\n", (long long)ts.tv_sec, (long)ts.tv_nsec);
 }
 
 extern "C" int verify_timing_precision(int64_t max_skew_ns) {
