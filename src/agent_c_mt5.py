@@ -1,7 +1,9 @@
-import MetaTrader5 as mt5
+import MetaTrader5 as mt5_raw
 import logging
 import time
 from typing import Dict, Any, Optional
+
+mt5: Any = mt5_raw
 
 logger = logging.getLogger(__name__)
 
