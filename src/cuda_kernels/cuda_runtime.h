@@ -20,6 +20,8 @@ extern dim3_mock threadIdx;
 static inline float __ldg(const float* ptr) { return *ptr; }
 static inline void __stcs(float* ptr, float val) { *ptr = val; }
 
+extern "C" int cudaConfigureCall(dim3_mock gridDim, dim3_mock blockDim, size_t sharedMem = 0, void *stream = 0);
+
 static inline void cudaDeviceSynchronize() {}
 #endif
 
