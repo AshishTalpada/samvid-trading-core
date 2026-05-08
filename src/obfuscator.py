@@ -25,7 +25,7 @@ class OrderObfuscator:
         jitter_amount = target_size * self.max_size_jitter_pct
         size_offset = random.uniform(-jitter_amount, jitter_amount)
         
-        obfuscated_size = int(round(target_size + size_offset))
+        obfuscated_size = round(target_size + size_offset)
         obfuscated_size = max(1, obfuscated_size)
         
         # Time jitter
