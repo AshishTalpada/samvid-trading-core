@@ -38,8 +38,7 @@ import hmac
 import json
 import logging
 import weakref
-from collections.abc import Callable
-from typing import Any
+from typing import Any, Callable, Coroutine, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -63,9 +62,9 @@ class SharedIntelligenceBus:
 
     def __init__(self) -> None:
         # topic → list of subscriber queues
-        self._subscribers: dict[str, list[asyncio.PriorityQueue]] = {}
+        self._subscribers: dict[str, list[weakref.ref[asyncio.PriorityQueue]]] = {}
         # topic → list of async callbacks (spawned as tasks on publish)
-        self._callbacks: dict[str, list[Callable]] = {}
+        self._callbacks: dict[str, list[Callable[..., Any]]] = {}
         # id(handler) -> (Queue, Task) to prevent task-bombing
         self._callback_workers: dict[int, tuple[Any, asyncio.Task]] = {}
         self._relay_queues: list[asyncio.PriorityQueue] = []
@@ -99,11 +98,8 @@ class SharedIntelligenceBus:
 
         async def get(self) -> Any:
             priority_tuple = await super().get()
-            if isinstance(priority_tuple, tuple) and len(priority_tuple) == 4:
-                return priority_tuple[3]
-            # Backward compatibility for (priority, ts, payload)
-            if isinstance(priority_tuple, tuple) and len(priority_tuple) == 3:
-                return priority_tuple[2]
+            if isinstance(priority_tuple, (list, tuple)) and len(priority_tuple) >= 3:
+                return priority_tuple[-1]
             return priority_tuple
 
     # Subscribe via Queue (pull model)
@@ -126,12 +122,13 @@ class SharedIntelligenceBus:
         if topic in self._subscribers:
             # Match by the underlying object the weakref points to
             self._subscribers[topic] = [
-                r for r in self._subscribers[topic] if r() is not None and r() is not queue
+                r for r in self._subscribers[topic]
+                if (deref := r()) is not None and deref is not queue
             ]
 
     # Subscribe via Callback (push model)
 
-    def on(self, topic: str, handler: Callable) -> None:
+    def on(self, topic: str, handler: Callable[..., Any]) -> None:
         """
         Register a callback for a topic.
         Uses weak references to prevent memory leaks from old/restarted agents.
@@ -155,9 +152,9 @@ class SharedIntelligenceBus:
 
         h_id = id(handler)
         if h_id not in self._callback_workers:
-            q = self.PriorityQueueWrapper(maxsize=100)
+            q: asyncio.PriorityQueue = self.PriorityQueueWrapper(maxsize=100)
             worker = asyncio.create_task(self._handler_worker(ref, q))
-            self._callback_workers[h_id] = (q, worker)
+            self._callback_workers[h_id] = (q, worker)  # type: ignore[assignment]
 
             def _cleanup_worker(task: asyncio.Task, bus_ref: weakref.ReferenceType, hid: int):
                 task.cancel()
@@ -227,7 +224,7 @@ class SharedIntelligenceBus:
                 logger.error(f"BUS: handler {h_name} raised error: {e}")
                 await asyncio.sleep(0.1)  # Cool down
 
-    def off(self, topic: str, handler: Callable) -> None:
+    def off(self, topic: str, handler: Callable[..., Any]) -> None:
         """Remove an async callback."""
         if topic in self._callbacks:
             try:
@@ -417,12 +414,17 @@ class SharedIntelligenceBus:
                     break
 
                 try:
-                    msg = json.loads(data.decode())
+                    raw_msg = data.decode().strip()
+                    if not raw_msg:
+                        continue
+                    msg = json.loads(raw_msg)
+                    if not isinstance(msg, dict):
+                        continue
                     topic = msg.get("topic")
                     payload = msg.get("payload")
                     if topic:
                         # Inject external intelligence into the local bus
-                        await self.publish(topic, payload)
+                        await self.publish(str(topic), payload)
                 except json.JSONDecodeError:
                     continue
         except Exception as e:

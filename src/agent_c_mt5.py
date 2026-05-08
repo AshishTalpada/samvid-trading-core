@@ -4,7 +4,11 @@ import os
 from datetime import datetime, timedelta
 from datetime import time as dt_time
 
-import MetaTrader5 as mt5
+import MetaTrader5 as _mt5
+from typing import Any, Optional, cast
+
+# Re-assign to Any to suppress missing attribute diagnostics across all environments
+mt5: Any = _mt5
 import numpy as np
 
 logger = logging.getLogger(__name__)
@@ -59,7 +63,7 @@ class MT5Connection:
             # Try to find path autonomously if first attempt failed
             found_path = Vault.get("MT5_PATH")
             if found_path:
-                effective_path = str(found_path)
+                effective_path = found_path
                 if os.path.isdir(effective_path):
                     potential_exe = os.path.join(effective_path, "terminal64.exe")
                     if os.path.exists(potential_exe):
@@ -101,16 +105,20 @@ class MT5Connection:
             "_tool_trigger_logic",
             "run",
         }
-        caller_frame = inspect.currentframe().f_back
+        caller_frame = inspect.currentframe()
+        if caller_frame:
+            caller_frame = caller_frame.f_back
+        
         caller_name = caller_frame.f_code.co_name if caller_frame else "unknown"
         if caller_name not in AUTHORIZED_CALLERS:
             # Try one more level up if it's an async wrapper
-            caller_frame = caller_frame.f_back if caller_frame else None
+            if caller_frame:
+                caller_frame = caller_frame.f_back
             caller_name = caller_frame.f_code.co_name if caller_frame else "unknown"
 
         # Bug 36 FIX: Whitelist Signature Guard
         # We now verify the module name AND the function name to prevent local spoofing.
-        caller_module = caller_frame.f_globals.get("__name__", "unknown")
+        caller_module = caller_frame.f_globals.get("__name__", "unknown") if caller_frame else "unknown"
 
         AUTHORIZED_MODULES = {
             "brain",
@@ -282,7 +290,7 @@ class MT5PositionSizer:
         # so we fetch balance here.
         account = (
             self._conn.get_account_info()
-            if hasattr(self, "_conn")
+            if hasattr(self, "_conn") and self._conn is not None
             else mt5.account_info()._asdict()
             if mt5.account_info()
             else {}
@@ -319,11 +327,15 @@ class MT5PositionSizer:
             "repair_state",
             "run",
         }
-        caller_frame = inspect.currentframe().f_back
+        caller_frame = inspect.currentframe()
+        if caller_frame:
+            caller_frame = caller_frame.f_back
+        
         caller_name = caller_frame.f_code.co_name if caller_frame else "unknown"
         if caller_name not in AUTHORIZED_CALLERS:
             # Try one more level up if it's an async wrapper
-            caller_frame = caller_frame.f_back if caller_frame else None
+            if caller_frame:
+                caller_frame = caller_frame.f_back
             caller_name = caller_frame.f_code.co_name if caller_frame else "unknown"
 
         if caller_name not in AUTHORIZED_CALLERS:

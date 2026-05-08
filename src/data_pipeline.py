@@ -6,7 +6,7 @@ import sqlite3
 import time
 from datetime import datetime, timedelta, timezone
 from datetime import time as dt_time
-from typing import TYPE_CHECKING, Any, Optional
+from typing import TYPE_CHECKING, Any, Optional, cast
 from zoneinfo import ZoneInfo
 
 import aiohttp
@@ -18,12 +18,18 @@ try:
     import yfinance.scrapers.history as yf_history
 
     _orig_history = (
-        yf_history.History.history if hasattr(yf_history, "History") else yf_history.history
+        getattr(yf_history.History, "history", None)
+        if hasattr(yf_history, "History")
+        else getattr(yf_history, "history", None)
     )
 
     def _patched_history(*args, **kwargs):
         try:
             # Handle both function and method calls depending on yfinance version
+            if _orig_history is None:
+                import pandas as pd
+                return pd.DataFrame()
+
             if (
                 hasattr(yf_history, "History")
                 and len(args) > 0
@@ -41,9 +47,9 @@ try:
             raise e
 
     if hasattr(yf_history, "History"):
-        yf_history.History.history = _patched_history
-    else:
-        yf_history.history = _patched_history
+        setattr(yf_history.History, "history", _patched_history)
+    elif hasattr(yf_history, "history"):
+        setattr(yf_history, "history", _patched_history)
 except Exception:
     pass
 import yfinance as yf
@@ -129,11 +135,11 @@ class DataPipeline:
         """
         Initialize DataPipeline.
         """
-        self.db_path = str(db_path)
+        self.db_path = db_path
 
         if not finnhub_key or finnhub_key == "YOUR_FINNHUB_KEY":
             # Harmonize with main.py and vault.py (FINNHUB_API_KEY)
-            finnhub_key = Vault.get("FINNHUB_API_KEY", "") or Vault.get("FINNHUB_KEY", "")
+            finnhub_key = str(Vault.get("FINNHUB_API_KEY", "") or Vault.get("FINNHUB_KEY", ""))
 
         if not finnhub_key:
             logger.critical(
@@ -141,7 +147,7 @@ class DataPipeline:
             )
 
         # Explicit type-safety cast for Vault-retrieved keys
-        self.finnhub_key = str(finnhub_key) if finnhub_key else ""
+        self.finnhub_key = finnhub_key if finnhub_key else ""
         self.is_running = False
         self._last_reality_check: dict[str, float] = {}  # symbol -> timestamp (time.monotonic)
 
@@ -162,6 +168,7 @@ class DataPipeline:
         self._active_db_tasks = 0
         self._active_tasks_lock = asyncio.Lock()
 
+        self.news_memory: Optional[ChromaDeepMemory] = None
         try:
             self.news_memory = ChromaDeepMemory(collection_name="market_news_v8")
         except Exception as e:
@@ -390,8 +397,8 @@ class DataPipeline:
 
             if len(df) > 1:
                 # Check for gaps > 15 mins in historical index
-                diffs = df.index.to_series().diff().dropna().dt.total_seconds()
-                max_gap = diffs.max()
+                diffs = df.index.to_series().diff().dropna().apply(lambda x: x.total_seconds())
+                max_gap = float(diffs.max()) if not diffs.empty else 0.0
                 if max_gap > 900:  # 15 mins
                     logger.warning(
                         f"GAP DETECTED: {symbol} has a data gap of {max_gap / 60:.1f} minutes."
@@ -427,7 +434,7 @@ class DataPipeline:
             try:
                 row = await self.qdb.fetch_latest_price(symbol)
                 if row and row > 0:
-                    return float(row)
+                    return row
             except Exception as e:
                 logger.debug(f"QuestDB: T1 price fetch failed for {symbol}: {e}")
 
@@ -693,7 +700,7 @@ class DataPipeline:
                                     ),
                                 }
                             )
-                logger.info(f"Finnhub fetched {len(data[:5])} news items for {symbol}")
+                        logger.info(f"Finnhub fetched {len(data[:5])} news items for {symbol}")
             except Exception as e:
                 logger.error(f"Finnhub news fetch failed for {symbol}: {e}")
 
@@ -1109,6 +1116,7 @@ class DataPipeline:
                         ):
                             continue
 
+                        df = cast(pl.DataFrame, df)
                         try:
                             last_p = float(df["Close"][-1])
 
@@ -1250,9 +1258,10 @@ class DataPipeline:
         try:
             ticker = await asyncio.to_thread(yf.Ticker, symbol)
             info = await asyncio.to_thread(lambda: ticker.fast_info)
-            if hasattr(info, "last_price"):
+            if hasattr(info, "last_price") and info.last_price is not None:
                 return float(info.last_price)
-            return float(info["lastPrice"])
+            if info is not None and "lastPrice" in info and info["lastPrice"] is not None:
+                return float(info["lastPrice"])
         except Exception:
             return None
 
@@ -1376,12 +1385,12 @@ class DataPipeline:
         """Sovereign News Search: Resonates with news context semantically."""
         if not self.news_memory:
             return "News memory unavailable for search."
-        memories = await self.news_memory.query_memory(symbol)
+        memories, _ = await self.news_memory.search_memory(symbol)
         if not memories:
             return "No recent news resonance found."
 
         # Merge top 3 related fragments
-        context = "\n".join([m.get("summary", "") for m in memories[:3]])
+        context = "\n".join([m.get("summary", "") if isinstance(m, dict) else m for m in memories[:3]])
         return f"RESONANCE DETECTED for {symbol}: {context}"
 
     async def _run_research_loop(self) -> None:

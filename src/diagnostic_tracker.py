@@ -69,6 +69,7 @@ class DiagnosticTracker:
             return []
 
         # 1. AST Syntax Check (The 'Blood' check)
+        content = ""
         try:
             with open(file_path, encoding="utf-8") as f:
                 content = f.read()
@@ -78,7 +79,7 @@ class DiagnosticTracker:
                 Diagnostic(
                     message=str(e),
                     severity="Error",
-                    line=e.lineno,
+                    line=e.lineno or 0,
                     character=e.offset or 0,
                     source="AST",
                 )

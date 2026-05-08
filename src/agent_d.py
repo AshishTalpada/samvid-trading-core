@@ -227,8 +227,8 @@ class StatisticalSignificanceGate:
             z * math.sqrt(p_hat * (1 - p_hat) / total + (z**2) / (4 * total**2))
         ) / denominator
 
-        lower = max(0.0, float(centre - margin))
-        upper = min(1.0, float(centre + margin))
+        lower = max(0.0, centre - margin)
+        upper = min(1.0, centre + margin)
         return (float(f"{lower:.4f}"), float(f"{upper:.4f}"))
 
     def format_stat(self, win_rate: float, n: int) -> str:
@@ -635,7 +635,7 @@ class ConditionalExpectancyMatrix:
         """Bug 39 FIX: Regime Normalization (Chala -> VOLATILE mapping)."""
         if not regime:
             return "UNKNOWN"
-        r = str(regime).upper()
+        r = regime.upper()
         if r in ("CHALA", "VOLATILE", "HIGH_VOL"):
             return "VOLATILE"
         if r in ("BULL", "BULLISH", "UPTREND"):

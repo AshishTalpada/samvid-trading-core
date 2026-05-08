@@ -12,7 +12,7 @@ class LatencyWatchdog:
     def __init__(self, description: str, threshold_ms: float = 20.0):
         self.description = description
         self.threshold = threshold_ms
-        self.start_time = None
+        self.start_time: float = 0.0
 
     def __enter__(self):
         self.start_time = time.perf_counter()
@@ -238,7 +238,7 @@ class MindUltrathink:
             return getattr(self.STATE_LOCK, "locked_ids", set())
         return set()
 
-    def _distill_wisdom_index(self, results: list[dict] = None):
+    def _distill_wisdom_index(self, results: list[dict] | None = None):
         r"""
         Dream Cycle logic (Ported from D:\Claude memdir.ts)
         NOW WITH STATE-LOCK PROTECTION.
@@ -347,6 +347,7 @@ class MindUltrathink:
 
     def _safe_json_loads(self, text: str) -> dict:
         """Robust JSON parser that handles trailing commas and Markdown code block noise."""
+        cleaned = text
         try:
             # Clean common LLM noise
             cleaned = text.strip()
