@@ -4,7 +4,6 @@ logger = logging.getLogger(__name__)
 
 class ContrarianAgent:
     """
-    Item 135: Inverse Cramer / Contrarian Edge
     Tracks extreme retail or 'talking head' sentiment to profit from crowd errors.
     """
     def __init__(self):
