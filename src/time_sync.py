@@ -19,6 +19,14 @@ class TimeSync:
         syncer = TimeSync()
         return syncer.synchronize()
 
+    @staticmethod
+    def now():
+        """Returns the current synced time as a datetime object (UTC)."""
+        from datetime import datetime, timezone
+        # If we had a global singleton with offset, we'd use it here.
+        # For now, return UTC now to maintain compatibility with existing calls.
+        return datetime.now(timezone.utc)
+
     def __init__(self):
         self.clock_offset_ms = 0.0
 

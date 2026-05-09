@@ -14,7 +14,7 @@ class EvolutionaryNeuroExperiment:
     (simulated via genetic algorithms), and runs them in a shadow (paper) environment
     to "breed" a stronger, adapted successor model.
     '''
-    def __init__(self, population_size: int = 20, mutation_rate: float = 0.15):
+    def __init__(self, population_size: int = 20, mutation_rate: float = 0.15, **kwargs):
         self.pop_size = population_size
         self.mutation_rate = mutation_rate
         self.population: Any = []
