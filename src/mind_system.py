@@ -16,7 +16,7 @@ class MindSystem:
     Inspired by Claude-Code's 'BashTool' and 'findExecutable' logic.
     """
 
-    def __init__(self, bridge: MindBridge) -> None:
+    def __init__(self, bridge: Any = None, **kwargs) -> None:
         self.bridge = bridge
         self.is_running = False
         self.lock = asyncio.Lock()

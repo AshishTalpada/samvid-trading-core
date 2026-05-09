@@ -11,7 +11,7 @@ class MindMath:
     Ensures that every AI-proposed trade obeys the 'Geometry of Risk'.
     """
 
-    def __init__(self, bridge: Any) -> None:
+    def __init__(self, bridge: Any = None, **kwargs) -> None:
         self.bridge = bridge
         self.bridge.register_tool("validate_geometry", self._tool_validate_geometry)
 

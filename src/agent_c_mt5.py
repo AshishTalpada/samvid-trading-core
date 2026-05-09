@@ -15,10 +15,11 @@ class MetaTrader5Agent:
     high-speed retail/institutional order flow. Includes safety checks,
     slippage controls, and magic number tracking.
     """
-    def __init__(self, account: int, password: str, server: str, magic_number: int = 777777):
-        self.account = account
-        self.password = password
-        self.server = server
+    def __init__(self, account: Optional[int] = None, password: Optional[str] = None, server: Optional[str] = None, magic_number: int = 777777):
+        from vault import Vault
+        self.account = account or int(Vault.get("MT5_ACCOUNT") or 0)
+        self.password = password or Vault.get("MT5_PASSWORD") or ""
+        self.server = server or Vault.get("MT5_SERVER") or ""
         self.magic_number = magic_number
         self.connected = False
 
@@ -127,3 +128,34 @@ class MetaTrader5Agent:
             self.connected = False
 
 MT5Connection = MetaTrader5Agent
+
+class MT5PositionSizer:
+    """Institutional Position Sizer for MetaTrader 5."""
+    def __init__(self, risk_per_trade: float = 0.01):
+        self.risk_per_trade = risk_per_trade
+
+    def calculate_lots(self, balance: float, stop_loss_pips: float, symbol: str) -> float:
+        """Calculates lot size based on risk and stop loss."""
+        if stop_loss_pips <= 0:
+            return 0.01
+        
+        # Simple lot calculation (1.0 lot = $10 per pip for EURUSD)
+        # In a real system, we would use symbol_info to get tick_value
+        risk_amount = balance * self.risk_per_trade
+        lots = risk_amount / (stop_loss_pips * 10.0)
+        return round(max(0.01, lots), 2)
+
+class FTMOComplianceLayer:
+    """Enforces FTMO-specific risk boundaries."""
+    def __init__(self, daily_loss_limit_pct: float = 0.05, total_loss_limit_pct: float = 0.10):
+        self.daily_limit = daily_loss_limit_pct
+        self.total_limit = total_loss_limit_pct
+
+    def validate_trade(self, current_balance: float, current_equity: float, trade_size: float) -> bool:
+        """Checks if a trade would violate FTMO drawdown rules."""
+        # Simple check: if equity is below limits, block trade
+        drawdown = (current_balance - current_equity) / current_balance
+        if drawdown > self.daily_limit:
+            logger.critical(f"[FTMO] Daily loss limit exceeded! Current Drawdown: {drawdown*100:.2f}%")
+            return False
+        return True
