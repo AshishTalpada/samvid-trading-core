@@ -2,6 +2,9 @@ from typing import Dict, List
 
 import numpy as np
 
+def warmup():
+    """JIT Warmup placeholder for Sovereign Numba pre-compilation."""
+    pass
 
 def calculate_kelly_criterion(win_rate: float, win_loss_ratio: float, fraction: float = 0.5) -> float:
     '''Calculates the optimal bet size based on the Kelly Criterion. Includes fractional Kelly for safety.'''

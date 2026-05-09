@@ -81,3 +81,5 @@ class EvolutionaryNeuroExperiment:
         self.generation += 1
 
         return elites[0]['weights']  # type: ignore
+
+MindExperiment = EvolutionaryNeuroExperiment
