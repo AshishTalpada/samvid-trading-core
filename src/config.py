@@ -136,7 +136,7 @@ IBKR_MAX_RECONNECT_ATTEMPTS = 5
 
 DATA_INGESTION_INTERVAL = int(str(Vault.get("DATA_INGESTION_INTERVAL", "40")))
 DATA_MAINTENANCE_INTERVAL = int(str(Vault.get("DATA_MAINTENANCE_INTERVAL", "300")))
-BRAIN_SCAN_INTERVAL = float(str(Vault.get("BRAIN_SCAN_INTERVAL", "0.05")))
+BRAIN_SCAN_INTERVAL = float(str(Vault.get("BRAIN_SCAN_INTERVAL", "0.25")))
 
 QUESTDB_ENABLED = True  # Activated after successful installation
 QUESTDB_HOST = "localhost"
