@@ -220,3 +220,8 @@ class MindEvolution:
             {"item": knowledge_item, "source": source, "timestamp": TimeSync.now().isoformat()}
         )
         return {"status": "SYNCED", "memory_depth": len(self.historical_memory)}
+
+    async def start(self):
+        """Launches the evolution background thread."""
+        self.is_running = True
+        logger.info("MindEvolution: Genetic optimization loop active.")

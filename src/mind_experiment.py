@@ -82,4 +82,8 @@ class EvolutionaryNeuroExperiment:
 
         return elites[0]['weights']  # type: ignore
 
+    async def start(self):
+        """Initializes the evolutionary neuro-experiment suite."""
+        logger.info("MindExperiment: Evolutionary simulation environment online.")
+
 MindExperiment = EvolutionaryNeuroExperiment

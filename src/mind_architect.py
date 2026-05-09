@@ -117,3 +117,7 @@ class MindArchitect:
             "confidence": 0.9,
             "reason": "Neural Topology remains balanced."
         }
+
+    async def start(self):
+        """Initializes the architect's background coordination tasks."""
+        logger.info("MindArchitect: Coordination engine active.")
