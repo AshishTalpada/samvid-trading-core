@@ -79,3 +79,13 @@ class SovereignTelegramBot:
         msg += f"*Conviction:* {conviction*100:.1f}%\n"
 
         self.send_alert(msg)
+
+def send_telegram_alert(message: str, bot_token: Optional[str] = None, chat_id: Optional[str] = None):
+    """Global utility to send alerts without manually managing bot instances."""
+    from vault import Vault
+    token = bot_token or Vault.get("TELEGRAM_BOT_TOKEN")
+    cid = chat_id or Vault.get("TELEGRAM_CHAT_ID")
+    if token and cid:
+        bot = SovereignTelegramBot(token, cid)
+        return bot.send_alert(message)
+    return False

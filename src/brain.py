@@ -97,6 +97,7 @@ from session_restorer import SessionRestorer
 from sovereign_decision_engine import SovereignDecisionEngine
 from sovereign_task import TaskManager
 from swarm_predictor import SwarmPredictor
+from shadow_sim import GhostShadowSim
 from system_types import Position
 from vault import Vault
 from wisdom import SkillTreeManager, WisdomRepository
@@ -107,7 +108,6 @@ if TYPE_CHECKING:
 
     from data_pipeline import DataPipeline
     from dms import DMSMonitor
-    from shadow_sim import GhostShadowSim
 
 # DRAWDOWN LADDER
 

@@ -13,7 +13,7 @@ class MindUltrathink:
     It aggressively allocates all available compute (simulated here via heavy Monte Carlo
     and recursive multi-step forecasting) to break ties.
     '''
-    def __init__(self, simulation_depth: int = 10000):
+    def __init__(self, simulation_depth: int = 10000, **kwargs):
         self.simulation_depth = simulation_depth
         self.active_simulations = 0
 

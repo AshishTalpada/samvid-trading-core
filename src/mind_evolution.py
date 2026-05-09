@@ -18,7 +18,7 @@ class MindEvolution:
     Inspired by Claude-Code's 'memory.ts' and 'learning.ts' logic.
     """
 
-    def __init__(self, bridge: MindBridge) -> None:
+    def __init__(self, bridge: Any = None, **kwargs) -> None:
         self.bridge = bridge
         self.is_running = False
         self.peak_equity = 0.0
