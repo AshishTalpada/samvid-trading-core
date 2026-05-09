@@ -3874,4 +3874,14 @@ class TradingBrain:
                     logger.error(f"Error stopping {mind_attr}: {e}")
 
         await self.qdb.stop()
-        logger.info("Trading Brain stopped.")
+
+        # Final persistent save
+        if hasattr(self, "task_manager") and self.task_manager:
+            try:
+                logger.info("Saving final Task Registry...")
+                self.task_manager.save_registry(allow_empty=True)
+                logger.info("✓ Task Registry persisted.")
+            except Exception as e:
+                logger.error(f"TradingBrain: Final registry save failed: {e}")
+
+        logger.info("Trading Brain stopped successfully.")
