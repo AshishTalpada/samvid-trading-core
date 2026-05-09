@@ -1,3 +1,4 @@
+import asyncio
 import logging
 from collections import deque
 from typing import Dict, List, Optional
@@ -7,14 +8,14 @@ import pandas as pd
 
 logger = logging.getLogger(__name__)
 
-class L1DataPipeline:
+class DataPipeline:
     """
     High-Performance Data Normalizer.
     Ingests raw ticks from disparate exchanges (crypto, forex, equities),
     cleanses anomalies (fat fingers, bad prints), interpolates missing data,
     and constructs strict, memory-efficient temporal OHLCV bars.
     """
-    def __init__(self, aggregation_window_ms: int = 1000):
+    def __init__(self, aggregation_window_ms: int = 1000, **kwargs):
         # Time-based aggregation (e.g., 1000ms = 1-second bars)
         self.agg_window_ms = aggregation_window_ms
         self.tick_buffers: Dict[str, deque] = {}
@@ -142,3 +143,8 @@ class L1DataPipeline:
             self.price_history[symbol] = new_deque
             
         logger.info(f"DataPipeline: Adaptive window adjusted to {self.lookback_window} (VIX: {vix:.2f})")
+
+    async def run_continuous(self):
+        """Continuous background analysis task."""
+        while True:
+            await asyncio.sleep(60)

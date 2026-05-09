@@ -5,7 +5,7 @@ import time
 
 logger = logging.getLogger(__name__)
 
-class PrecisionTimeSyncer:
+class TimeSync:
     """
     Sub-millisecond Network Time Protocol (NTP) Synchronizer.
     HFT operations require microsecond alignment between the local CPU clock
@@ -13,6 +13,11 @@ class PrecisionTimeSyncer:
     """
     NTP_SERVER = "time.nist.gov"
     TIME1970 = 2208988800 # 1970-01-01 00:00:00
+
+    @staticmethod
+    async def sync():
+        syncer = TimeSync()
+        return syncer.synchronize()
 
     def __init__(self):
         self.clock_offset_ms = 0.0

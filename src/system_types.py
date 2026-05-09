@@ -25,6 +25,35 @@ class MarketTick:
         return (self.ask + self.bid) / 2.0
 
 @dataclass
+class Position:
+    symbol: str
+    qty: float
+    entry_price: float
+    entry_time: datetime
+    pattern: str
+    initial_belief: float
+    current_belief: float
+    initial_stop: float
+    stop_loss: float
+    take_profit: float
+    trade_id: str
+    task_id: str
+    account_type: str
+    catalyst_score: float = 0.5
+    regime_at_entry: str = "UNKNOWN"
+    commission_cost: float = 0.0
+    slippage_cost: float = 0.0
+    mfe: float = 0.0
+    mae: float = 0.0
+    unrealized_pnl: float = 0.0
+    current_price: float = 0.0
+    status: str = "OPEN"
+    meta: Dict = field(default_factory=dict)
+
+    def to_dict(self):
+        return {k: v for k, v in self.__dict__.items()}
+
+@dataclass
 class OrderIntent:
     symbol: str
     side: str # "BUY" or "SELL"

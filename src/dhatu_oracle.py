@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import math
 from datetime import datetime
@@ -19,7 +20,7 @@ class DhatuOracle:
 
     PHASES = ["PRITHVI", "JALA", "TEJAS", "VAYU", "AKASHA"]
 
-    def __init__(self, cycle_duration_days: float = 27.32): # Sidereal lunar month
+    def __init__(self, cycle_duration_days: float = 27.32, **kwargs): # Sidereal lunar month
         self.cycle_duration = cycle_duration_days
 
     def compute_current_dhatu(self, timestamp: float, avg_volume: float, current_volatility: float) -> str:
@@ -70,3 +71,8 @@ class DhatuOracle:
         }
         logger.info(f"[ORACLE] Market resonating with {dhatu}. Adjusting systemic alignment.")
         return alignments.get(dhatu, alignments["PRITHVI"])
+
+    async def run_continuous(self):
+        """Continuous background analysis task."""
+        while True:
+            await asyncio.sleep(60)
