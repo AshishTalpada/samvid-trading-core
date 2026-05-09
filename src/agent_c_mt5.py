@@ -23,6 +23,10 @@ class MetaTrader5Agent:
         self.magic_number = magic_number
         self.connected = False
 
+    @property
+    def is_connected(self) -> bool:
+        return self.connected
+
     def connect(self) -> bool:
         """Initializes the MT5 terminal and logs into the trading server."""
         if not mt5.initialize():
@@ -120,6 +124,23 @@ class MetaTrader5Agent:
                 action = "BUY" if pos.type == 1 else "SELL" # Reverse the position type to close it
                 logger.warning(f"[MT5] Liquidating Position {pos.ticket} ({pos.symbol})")
                 self.execute_market_order(pos.symbol, action, pos.volume, slippage_pts=50)
+
+    def get_all_positions(self) -> Dict[str, float]:
+        """Returns a mapping of {symbol: qty} for all open MT5 positions."""
+        if not self.connected:
+            return {}
+        
+        positions = mt5.positions_get()
+        if positions is None:
+            return {}
+            
+        reality = {}
+        for pos in positions:
+            if pos.magic == self.magic_number:
+                # MT5 quantities are positive; polarity is determined by type
+                qty = pos.volume if pos.type == mt5.POSITION_TYPE_BUY else -pos.volume
+                reality[pos.symbol] = reality.get(pos.symbol, 0.0) + qty
+        return reality
 
     def shutdown(self):
         if self.connected:
