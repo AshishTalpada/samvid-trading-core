@@ -14,7 +14,7 @@ class MindObserver:
     Inspired by Claude-Code's WebFetch and Search patterns.
     """
 
-    def __init__(self, bridge: MindBridge, qdb: Any = None) -> None:
+    def __init__(self, bridge: Any = None, qdb: Any = None, **kwargs) -> None:
         self.bridge = bridge
         self.qdb = qdb
         self.is_running = False
