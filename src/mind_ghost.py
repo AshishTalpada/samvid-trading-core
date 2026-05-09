@@ -16,6 +16,18 @@ class GhostExecutionEnvironment:
     def __init__(self, **kwargs):
         self.ghost_ledger: Dict[str, dict] = {}
         self.active_ghost_positions: Dict[str, dict] = {}
+        self.heartbeats: Dict[str, float] = {}
+
+    async def update_heartbeat(self, component: str):
+        '''
+        Records a heartbeat for a specific ghost component.
+        '''
+        self.heartbeats[component] = time.time()
+        logger.debug(f"[GHOST] Heartbeat updated for {component}")
+
+    async def start(self):
+        '''Launch Agent J (Shadow Environment).'''
+        logger.info("[GHOST] Ghost Protocol ENGAGED. Shadow execution environment online.")
 
     def route_shadow_trade(self, symbol: str, action: str, price: float, size: float, logic_signature: str) -> str:
         '''

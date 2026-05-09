@@ -2907,7 +2907,7 @@ class TradingBrain:
                         logger.warning(f"⚖️ IBKR SYNC: Direct poll failed: {sync_e}")
 
             mt5_reality: dict[str, float] = {}
-            if self.mt5_conn and await self.mt5_conn.is_connected():
+            if self.mt5_conn and self.mt5_conn.is_connected:
                 mt5_reality = await asyncio.to_thread(self.mt5_conn.get_all_positions)
 
             # 2. Sanitize Memory
