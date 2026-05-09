@@ -36,9 +36,9 @@ class Position:
     initial_stop: float
     stop_loss: float
     take_profit: float
-    trade_id: str
-    task_id: str
     account_type: str
+    trade_id: str
+    task_id: str = "NONE"
     catalyst_score: float = 0.5
     regime_at_entry: str = "UNKNOWN"
     commission_cost: float = 0.0
@@ -49,6 +49,10 @@ class Position:
     current_price: float = 0.0
     status: str = "OPEN"
     meta: Dict = field(default_factory=dict)
+    target_exit_time: Optional[datetime] = None
+    account_id: str = "UNKNOWN"
+    dhatu_state: str = "UNKNOWN"
+    r_r_ratio: float = 2.0
 
     def to_dict(self):
         return {k: v for k, v in self.__dict__.items()}
