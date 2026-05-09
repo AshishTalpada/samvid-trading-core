@@ -123,5 +123,7 @@ class MetaTrader5Agent:
     def shutdown(self):
         if self.connected:
             mt5.shutdown()
-            self.connected = False
             logger.info("[MT5] Terminal connection cleanly severed.")
+            self.connected = False
+
+MT5Connection = MetaTrader5Agent
