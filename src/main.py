@@ -372,11 +372,14 @@ class TradingSystem:
 
         await self._verify_watchdog()
 
-        # --- PILLAR 16: GraalPy/JIT Optimization Check ---
+        # --- PILLAR 16: JIT Optimization Check ---
+        from quant_math import HAS_NUMBA
         if "GraalVM" in sys.version or hasattr(sys, "graalvm_home"):
             logger.info("🚀 HIGH-PERFORMANCE RUNTIME: GraalPy detected. Loop latencies minimized.")
+        elif HAS_NUMBA:
+            logger.info("🚀 OPTIMIZED RUNTIME: Numba JIT detected. Math kernels accelerated.")
         else:
-            logger.warning("STANDARD RUNTIME: Not running on GraalPy. JIT math optimizations may be limited.")
+            logger.warning("STANDARD RUNTIME: No JIT detected (GraalPy/Numba). Latency may be affected.")
 
         # --- PILLAR 40: Sub-Millisecond GC Hardening ---
         # Disable automatic GC to prevent pauses during tick ingestion
@@ -2195,40 +2198,50 @@ if __name__ == "__main__":
     except Exception as e:
         print(f"\n[SOVEREIGN] Fatal Error: {e}")
     finally:
+        # --- SOVEREIGN RESILIENT SHUTDOWN ---
+        # We use a robust shutdown sequence that guards against secondary interrupts (double Ctrl+C).
         try:
             # Step 1: Sequential Shutdown of the Sovereign Engine
             try:
-                loop.run_until_complete(asyncio.wait_for(s.shutdown(), timeout=45.0))
+                # Use a slightly more generous timeout for the primary shutdown
+                loop.run_until_complete(asyncio.wait_for(s.shutdown(), timeout=60.0))
+            except (KeyboardInterrupt, asyncio.CancelledError):
+                print("\n[SOVEREIGN] Shutdown interrupted by user. Escalating to emergency cleanup...")
             except Exception as e:
-                print(f"[SOVEREIGN] Primary Shutdown Exception: {e}")
+                print(f"\n[SOVEREIGN] Shutdown sequence encountered an error: {e}")
 
             # Step 2: Clean up remaining loose tasks
-            pending = [t for t in asyncio.all_tasks(loop) if not t.done()]
+            try:
+                pending = [t for t in asyncio.all_tasks(loop) if not t.done()]
+                if pending:
+                    logger.info(f"Shutting down {len(pending)} active tasks...")
+                    for task in pending:
+                        task.cancel()
 
-            if pending:
-                logger.info(f"Shutting down {len(pending)} active tasks...")
-                for task in pending:
-                    task.cancel()
-
-                # Drain the loop with a 10s hard timeout
-                try:
+                    # Drain the loop with a 10s hard timeout
                     loop.run_until_complete(asyncio.wait(pending, timeout=10.0))
-                except (KeyboardInterrupt, asyncio.TimeoutError):
-                    logger.warning(
-                        "Shutdown: Timeout or double Ctrl+C detected. Force closing loop."
-                    )
-                except Exception as e:
-                    logger.debug(f"Shutdown: Loop drain exception: {e}")
+            except (KeyboardInterrupt, asyncio.TimeoutError):
+                logger.warning("Shutdown: Timeout or secondary interrupt. Skipping task drain.")
+            except Exception as e:
+                logger.debug(f"Shutdown: Loop drain exception: {e}")
 
-            # Ensure all handles are closed before loop.close() to prevent UVHandle warnings
+            # Step 3: Final Loop Teardown
             try:
                 loop.run_until_complete(loop.shutdown_asyncgens())
-            except Exception:
+            except BaseException:
                 pass
 
-            loop.close()
-        except Exception as e:
-            print(f"Shutdown Error: {e}")
+            if not loop.is_closed():
+                loop.close()
+            
+            print("\n[SOVEREIGN] System Offline. All cognitive nodes disengaged.")
+
+        except BaseException as fatal_shutdown_err:
+            print(f"\n[SOVEREIGN] CRITICAL: Shutdown protocol failed: {fatal_shutdown_err}")
+            # Ensure loop is at least closed if possible
+            if 'loop' in locals() and not loop.is_closed():
+                try: loop.close()
+                except: pass
 
         print("[SOVEREIGN] Shutdown Complete.")
         sys.exit(0)
