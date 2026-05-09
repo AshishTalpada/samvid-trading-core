@@ -13,7 +13,7 @@ class GhostExecutionEnvironment:
     instead of the real Broker Arbitrator. The Ghost environment simulates slippage, liquidity
     impact, and queue positions to track how the trade *would* have performed.
     '''
-    def __init__(self):
+    def __init__(self, **kwargs):
         self.ghost_ledger: Dict[str, dict] = {}
         self.active_ghost_positions: Dict[str, dict] = {}
 
