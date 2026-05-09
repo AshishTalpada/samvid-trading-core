@@ -1841,7 +1841,7 @@ class TradingBrain:
             # Guard: skip entropy check if no symbols were successfully scanned to avoid false flushes.
             scanned_count = stats["scanned"]
             signal_density = stats["detected"] / scanned_count if scanned_count > 0 else 0.0
-            if signal_density > 0.8:
+            if signal_density > 0.95:
                 logger.warning(
                     f"SYSTEM ENTROPY CRITICAL (Density: {signal_density:.2f}): Performing Cognitive Flush..."
                 )

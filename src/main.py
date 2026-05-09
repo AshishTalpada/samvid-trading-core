@@ -1914,7 +1914,7 @@ class TradingSystem:
                 await self._on_hft_pulse(data)
                 self._hft_pulse_queue.task_done()
             except asyncio.CancelledError:
-                break
+                raise
             except Exception as e:
                 logger.error(f"Main: HFT Worker Error: {e}")
                 await asyncio.sleep(0.1)

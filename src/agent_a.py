@@ -1422,7 +1422,7 @@ class PatternDetector:
         target = entry + target_dist
 
         r_r = (target - entry) / (entry - stop + 1e-10) if entry > stop else 0.0
-        if r_r < 0.5:
+        if r_r < 1.5:
             return None
 
         confirmed = current_price > resistance and prev_close > (resistance * 0.999)
@@ -1472,7 +1472,7 @@ class PatternDetector:
         target = entry - target_dist
 
         r_r = (entry - target) / (stop - entry + 1e-10) if stop > entry else 0.0
-        if r_r < 0.5:
+        if r_r < 1.5:
             return None
 
         prev_close = float(cast(Any, df["close"][-2]))
