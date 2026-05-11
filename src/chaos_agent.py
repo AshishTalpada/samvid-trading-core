@@ -1,8 +1,10 @@
-import logging
 import ctypes
-import numpy as np
+import logging
 import os
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
+
+import numpy as np
+
 from config import PROJECT_PATH
 
 logger = logging.getLogger(__name__)
@@ -27,9 +29,9 @@ class ChaosAgent:
             if os.path.exists(lib_path):
                 self._lib = ctypes.CDLL(lib_path)
                 self._lib.compute_lyapunov_exponent.argtypes = [
-                    ctypes.POINTER(ctypes.c_double), 
-                    ctypes.c_int, 
-                    ctypes.c_int, 
+                    ctypes.POINTER(ctypes.c_double),
+                    ctypes.c_int,
+                    ctypes.c_int,
                     ctypes.c_int
                 ]
                 self._lib.compute_lyapunov_exponent.restype = ctypes.c_double
@@ -70,7 +72,7 @@ class ChaosAgent:
         if random.random() < self.failure_prob:
             self.faults_injected += 1
             fault_type = random.choice(["DROP", "CORRUPT", "LATENCY"])
-            
+
             if fault_type == "DROP":
                 return None
             elif fault_type == "CORRUPT" and "price" in data:
@@ -78,5 +80,5 @@ class ChaosAgent:
             elif fault_type == "LATENCY":
                 import time
                 time.sleep(0.05) # 50ms artificial lag
-                
+
         return data

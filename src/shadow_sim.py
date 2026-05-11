@@ -1,7 +1,7 @@
 import logging
 from dataclasses import dataclass
-from typing import Dict, List, Optional
 from datetime import datetime
+from typing import Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -29,7 +29,7 @@ class GhostShadowSim:
         """Creates a shadow trade for a signal."""
         if symbol in self.active_trades:
             return # Already tracking
-        
+
         trade = ShadowTrade(symbol=symbol, entry_price=price, side=side, timestamp=datetime.now())
         self.active_trades[symbol] = trade
         logger.info(f"👻 SHADOW-SIM: Opened {side} for {symbol} at ${price:.2f}")
@@ -52,7 +52,7 @@ class GhostShadowSim:
     def close_shadow_trade(self, symbol: str, exit_price: float):
         if symbol not in self.active_trades:
             return
-        
+
         trade = self.active_trades.pop(symbol)
         trade.is_closed = True
         self.total_shadow_pnl += trade.pnl

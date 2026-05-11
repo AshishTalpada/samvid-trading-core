@@ -66,8 +66,8 @@ from agent_d import (
     StatisticalSignificanceGate,
     SystemEntropyMonitor,
 )
-from agent_h_skeptic import SkepticAgent
 from agent_e import CorrelationGuard
+from agent_h_skeptic import SkepticAgent
 from config import (
     FORCED_PAPER_MODE,
     IBKR_MAX_TRADES_PER_DAY,
@@ -94,10 +94,10 @@ from portfolio_analyzer import PORTFOLIO_ANALYZER
 from quant_signals import QuantConsensus
 from questdb_adapter import QuestDBAdapter
 from session_restorer import SessionRestorer
+from shadow_sim import GhostShadowSim
 from sovereign_decision_engine import SovereignDecisionEngine
 from sovereign_task import TaskManager
 from swarm_predictor import SwarmPredictor
-from shadow_sim import GhostShadowSim
 from system_types import Position
 from vault import Vault
 from wisdom import SkillTreeManager, WisdomRepository
@@ -107,7 +107,9 @@ if TYPE_CHECKING:
     import sqlite3
 
     from data_pipeline import DataPipeline
+    from dhatu_oracle import DhatuOracle
     from dms import DMSMonitor
+    from native_slm import NativeSLM
 
 # DRAWDOWN LADDER
 
@@ -649,7 +651,7 @@ class TradingBrain:
         self.wisdom = WisdomRepository()
         self.skill_tree = SkillTreeManager()
         self.wisdom_context = "SYSTEM_WARMUP: Wisdom hydration in progress..."
-        
+
         # --- PILLAR 150: Ghost Shadow-Sim ---
         self.shadow_sim = GhostShadowSim()
         self.skeptic = SkepticAgent()
