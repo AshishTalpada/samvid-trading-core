@@ -342,6 +342,7 @@ class TradingSystem:
             logger.error(f"Failed to verify single instance or write PID: {e}")
 
     async def async_init(self) -> None:
+        """
         Parallelizes the cognitive matrix for sub-100ms startup.
         """
         self.profiler.mark("ASYNC_INIT_START")
