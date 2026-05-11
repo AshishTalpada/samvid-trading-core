@@ -92,6 +92,13 @@ class GhostExecutionEnvironment:
 
         self.ghost_ledger[trade_id] = pos
         logger.info(f"[GHOST] Closed {trade_id}. Realized PnL: ${realized_pnl:.2f}")
-        return realized_pnl  # type: ignore
+
+        # Prune ledger to keep memory lean
+        if len(self.ghost_ledger) > 1000:
+            # Pop the oldest entry
+            oldest_id = next(iter(self.ghost_ledger))
+            self.ghost_ledger.pop(oldest_id)
+
+        return realized_pnl
 
 MindGhost = GhostExecutionEnvironment

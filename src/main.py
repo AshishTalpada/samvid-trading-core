@@ -348,7 +348,7 @@ class TradingSystem:
         self.profiler.mark("ASYNC_INIT_START")
 
         self.mind_system = MindSystem(self.bridge)
-        logger.info("MindSystem: Scanning for software scients and verifying environment...")
+        logger.info("MindSystem: Scanning for software scents and verifying environment...")
         executable_found = await self.mind_system._tool_find_executable("ibkr")
         if not executable_found:
             logger.error(
