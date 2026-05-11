@@ -96,6 +96,9 @@ class MindArchitect:
                     new_rep = current_rep + self.learning_rate * (1.0 - current_rep)
 
             self.agent_reputations[agent] = max(0.1, min(0.99, new_rep))
+            # PERSIST: Save the updated reputation to the Vault
+            from vault import Vault
+            Vault.put(f"REP_{agent}", str(new_rep))
 
         logger.debug(f"[ARCHITECT] Neural Topologies adjusted. New Reputations: {self.agent_reputations}")
 
