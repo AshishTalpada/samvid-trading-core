@@ -10,7 +10,11 @@
  * When pressed, it triggers a catastrophic halt to prevent market impact.
  */
 
-extern "C" void trigger_catastrophic_halt(int reason_code) {
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+void trigger_catastrophic_halt(int reason_code) {
     printf("\n[PANIC] PHYSICAL KILL SWITCH ACTIVATED (Reason: %d)\n", reason_code);
     printf("[PANIC] Severing network backbone sockets...\n");
     printf("[PANIC] Erasing hot-path memory encryption keys...\n");
@@ -24,7 +28,11 @@ extern "C" void trigger_catastrophic_halt(int reason_code) {
     #endif
 }
 
-extern "C" void monitor_panic_line() {
+void monitor_panic_line() {
     // Simulated GPIO interrupt listener
     // In production, this would be a high-priority ISR (Interrupt Service Routine)
 }
+
+#ifdef __cplusplus
+}
+#endif

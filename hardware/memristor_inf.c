@@ -1,5 +1,5 @@
-#include <stdio.h>
 #include <stdint.h>
+#include <stdio.h>
 
 /**
  * Memristor Crossbar Inference Engine
@@ -14,7 +14,11 @@ typedef struct {
     uint32_t active_rows;
 } MemristorArray;
 
-extern "C" void compute_analog_inference(MemristorArray* array, const float* input_voltages, float* output_currents) {
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+void compute_analog_inference(MemristorArray* array, const float* input_voltages, float* output_currents) {
     // Ohm's Law: I = V * G
     // Kirchhoff's Current Law: Sum of currents at node
     for (uint32_t col = 0; col < CROSSBAR_SIZE; col++) {
@@ -26,9 +30,13 @@ extern "C" void compute_analog_inference(MemristorArray* array, const float* inp
     }
 }
 
-extern "C" void program_memristor_weights(MemristorArray* array, const float* weights) {
+void program_memristor_weights(MemristorArray* array, const float* weights) {
     printf("[MEMRISTOR] Programming analog crossbar array weights...\n");
     for (uint32_t i = 0; i < CROSSBAR_SIZE * CROSSBAR_SIZE; i++) {
         ((float*)array->conductance_matrix)[i] = weights[i];
     }
 }
+
+#ifdef __cplusplus
+}
+#endif
