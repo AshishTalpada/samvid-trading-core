@@ -1,7 +1,10 @@
 import asyncio
 import logging
 import os
+from datetime import timezone
 from typing import Any
+
+import psutil
 
 from mind_bridge import MindBridge
 from vault import Vault
@@ -263,7 +266,6 @@ class MindSystem:
 
     async def _tool_get_system_metrics(self) -> dict[str, Any]:
         """Provides the Ghost Mind (Agent J) with the hardware telemetry."""
-        import psutil
 
         cpu = await asyncio.to_thread(psutil.cpu_percent)
         vmem = await asyncio.to_thread(psutil.virtual_memory)
@@ -293,8 +295,6 @@ class MindSystem:
 
             logger.warning(f"MindSystem: CRITICAL SERVICE REBOOT: {service_name}...")
             cmds = self.CERTIFIED_COMMANDS[service_name]
-
-            from vault import Vault
 
             interface_val = Vault.get("IBKR_INTERFACE", "gateway")
             interface = interface_val.lower() if interface_val else "gateway"
@@ -334,26 +334,6 @@ class MindSystem:
 
             return {"service": service_name, "actions": results}
 
-    async def _tool_run_system_command(self, alias: str) -> dict[str, Any]:
-        """Runs a safe, aliased system command (e.g., CHECK_NETWORK)."""
-        async with self.lock:
-            if alias not in self.CERTIFIED_COMMANDS:
-                return {"error": "Alias not certified"}
-
-            cmd = self.CERTIFIED_COMMANDS[alias][0]  # First cmd only for check aliases
-            try:
-                # Non-blocking shell check
-                proc = await asyncio.create_subprocess_shell(
-                    cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
-                )
-                stdout, _stderr = await proc.communicate()
-                return {
-                    "alias": alias,
-                    "success": proc.returncode == 0,
-                    "output": stdout.decode(errors="replace")[:250],
-                }
-            except Exception as e:
-                return {"alias": alias, "error": str(e)}
 
     async def _tool_sovereign_flush(self) -> dict[str, Any]:
         """Sovereign Purification: Non-destructively flushes zombie processes to recover ports."""
