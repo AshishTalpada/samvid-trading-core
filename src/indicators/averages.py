@@ -42,14 +42,20 @@ class SMA:
         self.period = period
         self._buf: deque[float] = deque(maxlen=period)
         self._sum = 0.0
+        self._count = 0
         self.initialized = False
 
     def update(self, price: float) -> float | None:
+        self._count += 1
         if len(self._buf) == self.period:
             self._sum -= self._buf[0]
 
         self._buf.append(price)
         self._sum += price
+
+        # Periodic refresh to prevent floating-point drift over millions of ticks
+        if self._count % 5000 == 0:
+            self._sum = sum(self._buf)
 
         if len(self._buf) == self.period:
             self.initialized = True
@@ -65,6 +71,7 @@ class SMA:
     def reset(self) -> None:
         self._buf.clear()
         self._sum = 0.0
+        self._count = 0
         self.initialized = False
 
 
