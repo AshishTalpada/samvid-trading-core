@@ -1,7 +1,26 @@
-import uuid
-from dataclasses import dataclass, field
-from datetime import datetime, timedelta, timezone
+from enum import Enum
 from typing import Dict, List, Optional
+from datetime import datetime, timedelta, timezone
+from dataclasses import dataclass, field
+
+# --- INSTITUTIONAL SCHEMA PARITY (D-DRIVE) ---
+
+class OrderSide(str, Enum):
+    BUY = "BUY"
+    SELL = "SELL"
+    SSHORT = "SSHORT"
+
+class OrderType(str, Enum):
+    MKT = "MKT"
+    LMT = "LMT"
+    STP = "STP"
+    STP_LMT = "STP_LMT"
+
+class TradePhase(str, Enum):
+    ENTRY = "ENTRY"
+    MANAGEMENT = "MANAGEMENT"
+    EXIT = "EXIT"
+    AUDIT = "AUDIT"
 
 # Deep Dive: Extreme Static Typing & Schema Definition
 # These schemas enforce strict type boundaries across the entire system, preventing
