@@ -65,7 +65,11 @@ class SharedIntelligenceBus:
                 except Exception as e:
                     logger.error(f"[BUS] Callback Error for {topic}: {e}")
 
-        asyncio.create_task(_callback_wrapper())
+        if not hasattr(self, "_bg_tasks"):
+            self._bg_tasks = set()
+        task = asyncio.create_task(_callback_wrapper())
+        self._bg_tasks.add(task)
+        task.add_done_callback(self._bg_tasks.discard)
 
     async def publish(self, topic: str, payload: dict):
         """Broadcasts a JSON payload to all subscribers."""
