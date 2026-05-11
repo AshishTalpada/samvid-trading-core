@@ -1,8 +1,12 @@
 import asyncio
 import logging
+from datetime import timezone
 from typing import Any
 
+import pandas as pd
+
 from mind_bridge import MindBridge
+from time_sync import TimeSync
 
 logger = logging.getLogger(__name__)
 
@@ -74,8 +78,6 @@ class MindObserver:
                     new_sentiment = "NEUTRAL"
 
                 # Debounce: Prevent 'Sentiment Oscillation Bomb'
-                from time_sync import TimeSync
-
                 now = TimeSync.now().timestamp()
 
                 # Allow immediate flips (Bull <-> Bear) but debounce flickers (Bull <-> Neutral)
@@ -108,7 +110,6 @@ class MindObserver:
 
     async def _tool_fetch_sentiment(self) -> dict[str, Any]:
         """Simulates fetching global sentiment from external feeds (MCP-compatible)."""
-        from time_sync import TimeSync
 
         return {
             "sentiment": self.current_market_sentiment,
@@ -121,10 +122,6 @@ class MindObserver:
         if not self.qdb or not self.qdb.enabled:
             return {"status": "OFFLINE", "reason": "QuestDB not active"}
 
-        import pandas as pd
-
-        from time_sync import TimeSync
-
         stale_symbols = []
         now_ts = TimeSync.now().timestamp()
 
@@ -132,7 +129,11 @@ class MindObserver:
         core_symbols = ["SPY", "QQQ", "IWM", "DIA", "XLK"]
         for symbol in core_symbols:
             try:
-                df = await self.qdb.fetch_ohlcv_pandas(symbol, timeframe="1m", limit=1)
+                # Institutional Safeguard: 15-second timeout on DB pulse checks
+                df = await asyncio.wait_for(
+                    self.qdb.fetch_ohlcv_pandas(symbol, timeframe="1m", limit=1),
+                    timeout=15.0
+                )
                 if df is not None and not df.empty:
                     # QuestDB timestamps are typically UTC. Force UTC to avoid local timezone drift.
                     last_ts = pd.to_datetime(df["timestamp"].iloc[0], utc=True).timestamp()
