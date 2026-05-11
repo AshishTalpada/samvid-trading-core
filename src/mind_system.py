@@ -13,7 +13,6 @@ class MindSystem:
     """
     Agent I: The System-Level Bash Mind.
     Focuses on 'System Scent' and 'Service Recovery'.
-    Inspired by Claude-Code's 'BashTool' and 'findExecutable' logic.
     """
 
     def __init__(self, bridge: Any = None, **kwargs) -> None:
