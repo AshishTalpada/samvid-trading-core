@@ -129,11 +129,11 @@ class MetaTrader5Agent:
         """Returns a mapping of {symbol: qty} for all open MT5 positions."""
         if not self.connected:
             return {}
-        
+
         positions = mt5.positions_get()
         if positions is None:
             return {}
-            
+
         reality = {}
         for pos in positions:
             if pos.magic == self.magic_number:
@@ -159,7 +159,7 @@ class MT5PositionSizer:
         """Calculates lot size based on risk and stop loss."""
         if stop_loss_pips <= 0:
             return 0.01
-        
+
         # Simple lot calculation (1.0 lot = $10 per pip for EURUSD)
         # In a real system, we would use symbol_info to get tick_value
         risk_amount = balance * self.risk_per_trade

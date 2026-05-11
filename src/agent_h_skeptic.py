@@ -39,10 +39,10 @@ class SkepticAgent:
         Forces the proposing agents to defend their thesis against the Skeptic's counter-points.
         """
         logger.info(f"Skeptic: Initiating ADVERSARIAL DEBATE against {opponents}")
-        
+
         signal = proposal.get("vote", "HOLD")
         reasons = proposal.get("reason", "No reason provided.")
-        
+
         # Challenge the core logic
         counter_thesis = f"Countering {signal}: "
         if signal == "BUY":
@@ -53,11 +53,11 @@ class SkepticAgent:
             counter_thesis += "Indecision is the greatest risk in high-freq windows."
 
         logger.info(f"Skeptic Thesis: {counter_thesis}")
-        
+
         # The debate outcome is a refined confidence score
         is_weak = len(reasons) < 20 or "momentum" in reasons.lower()
         refined_conf = proposal.get("confidence", 0.5) * (0.75 if is_weak else 1.1)
-        
+
         return {
             "agent": "Agent_H_Skeptic",
             "vote": "NO" if refined_conf < 0.6 else "YES",
