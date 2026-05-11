@@ -37,7 +37,7 @@ class MindObserver:
         if self._task and not self._task.done():
             self._task.cancel()
             logger.info("MindObserver: Background observation loop terminated.")
-        
+
         # Cleanup subscription if possible
         if hasattr(self, "_news_queue") and self._news_queue:
             try:

@@ -47,7 +47,7 @@ class SMA:
     def update(self, price: float) -> float | None:
         if len(self._buf) == self.period:
             self._sum -= self._buf[0]
-        
+
         self._buf.append(price)
         self._sum += price
 
