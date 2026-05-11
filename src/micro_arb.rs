@@ -47,7 +47,11 @@ impl MicroVolArb {
             // Inventory Skewing:
             // If we have too much long inventory, lower our ask to sell faster,
             // and lower our bid to avoid buying more.
-            let skew = self.inventory / self.max_inventory;
+            let skew = if self.max_inventory > 0.0 {
+                self.inventory / self.max_inventory
+            } else {
+                0.0
+            };
             
             let skewed_bid = quote_bid - (skew * spread * 0.5);
             let skewed_ask = quote_ask - (skew * spread * 0.5);

@@ -62,6 +62,9 @@ cdef class L3OrderBook:
             return False # Order already exists
             
         cdef OrderNode* new_order = <OrderNode*>malloc(sizeof(OrderNode))
+        if new_order == NULL:
+            raise MemoryError("Failed to allocate OrderNode")
+            
         new_order.order_id = order_id
         new_order.price = price
         new_order.quantity = quantity
