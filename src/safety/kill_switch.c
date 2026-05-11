@@ -42,12 +42,12 @@ void arm_hardware_kill_switch() {
     sa.sa_flags = SA_RESTART;
     
     // Intercept violent crashes
-    sigaction(SIGSEGV, &sa, NULL); // Segmentation fault
-    sigaction(SIGABRT, &sa, NULL); // Abort
-    sigaction(SIGILL,  &sa, NULL); // Illegal instruction
+    if (sigaction(SIGSEGV, &sa, NULL) == -1) perror("sigaction SIGSEGV");
+    if (sigaction(SIGABRT, &sa, NULL) == -1) perror("sigaction SIGABRT");
+    if (sigaction(SIGILL,  &sa, NULL) == -1) perror("sigaction SIGILL");
     
     // Manual Sovereign Panic Trigger
-    sigaction(SIGUSR1, &sa, NULL);
+    if (sigaction(SIGUSR1, &sa, NULL) == -1) perror("sigaction SIGUSR1");
     
     printf("[SECURITY] Hardware Kill Switch Armed. Listening for SIGUSR1 and SIGSEGV.\n");
 }

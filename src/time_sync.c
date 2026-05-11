@@ -50,6 +50,8 @@ void print_galactic_time() {
 }
 
 int verify_timing_precision(int64_t max_skew_ns) {
+    if (max_skew_ns < 0) return 0;  // Invalid parameter
+    
     struct timespec ts;
     get_nanosecond_time(&ts);
     
