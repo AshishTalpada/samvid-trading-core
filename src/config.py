@@ -38,15 +38,15 @@ CORRELATION_THRESHOLD = 0.7  # F13
 FTMO_DAILY_LIMIT = 0.04  # 4% daily loss limit (safety buffer below FTMO's 5%)
 FTMO_DRAWDOWN_LIMIT = 0.08  # 8% maximum drawdown (safety buffer below FTMO's 10%)
 MAX_TRADES_PER_DAY = 2  # FTMO challenge limit — DO NOT INCREASE
-IBKR_MAX_TRADES_PER_DAY = int(str(Vault.get("IBKR_MAX_TRADES_PER_DAY", "20")))  # IBKR paper/live
+IBKR_MAX_TRADES_PER_DAY = int(Vault.get("IBKR_MAX_TRADES_PER_DAY", "20"))  # IBKR paper/live
 FTMO_ACCOUNT_SIZE = 25000
 FTMO_BEST_DAY_RATIO = 2.0 / 3.0
 
 # Commission (Reduced for $500 account agility)
-COMMISSION_PER_ROUND_TRIP = float(str(Vault.get("COMMISSION_PER_ROUND_TRIP", "1.00")))
+COMMISSION_PER_ROUND_TRIP = float(Vault.get("COMMISSION_PER_ROUND_TRIP", "1.00"))
 
 # Cognitive Memory Cap (FIFO eviction above this count)
-COGNITIVE_MEMORY_MAX_ENTRIES = int(str(Vault.get("COGNITIVE_MEMORY_MAX_ENTRIES", "5000")))
+COGNITIVE_MEMORY_MAX_ENTRIES = int(Vault.get("COGNITIVE_MEMORY_MAX_ENTRIES", "5000"))
 
 # IBKR
 IBKR_PAPER_PORT = 7497
@@ -114,14 +114,14 @@ TRADING_INSTRUMENTS = ["SPY", "QQQ", "MSFT", "NVDA", "XAUUSD", "US100"]
 PANIC_LIQUIDATE = False  # Set to True to force-close all positions on startup
 
 # Capital Calibration: Set to $500 for Live Account Alignment
-STARTING_CAPITAL_CAD = float(str(Vault.get("TOTAL_CAPITAL", "500.0")))
+STARTING_CAPITAL_CAD = float(Vault.get("TOTAL_CAPITAL", "500.0"))
 IBKR_ALLOCATION_CAD = STARTING_CAPITAL_CAD * 0.40  # Reduced to 40% for safer margin
 FTMO_ALLOCATION_CAD = STARTING_CAPITAL_CAD * 0.49
 RISK_PER_TRADE_PCT = 0.005  # 0.5% - Institutional fractional form
 COMMISSION_PER_ROUND_TRIP = 1.0  # Standard IBKR minimum
 
 # USD -> CAD conversion rate for cross-border asset execution.
-USD_CAD_RATE = float(str(Vault.get("USD_CAD_RATE", "1.35")))
+USD_CAD_RATE = float(Vault.get("USD_CAD_RATE", "1.35"))
 
 # Quit Criteria
 QUIT_AFTER_N_LOSSES = 200
@@ -134,9 +134,9 @@ DMS_TIMEOUT_SECONDS = 600  # 10 minutes
 DMS_MAX_RETRY_BLIPS = 3  # Number of blips allowed before panic
 IBKR_MAX_RECONNECT_ATTEMPTS = 5
 
-DATA_INGESTION_INTERVAL = int(str(Vault.get("DATA_INGESTION_INTERVAL", "40")))
-DATA_MAINTENANCE_INTERVAL = int(str(Vault.get("DATA_MAINTENANCE_INTERVAL", "300")))
-BRAIN_SCAN_INTERVAL = float(str(Vault.get("BRAIN_SCAN_INTERVAL", "0.25")))
+DATA_INGESTION_INTERVAL = int(Vault.get("DATA_INGESTION_INTERVAL", "40"))
+DATA_MAINTENANCE_INTERVAL = int(Vault.get("DATA_MAINTENANCE_INTERVAL", "300"))
+BRAIN_SCAN_INTERVAL = float(Vault.get("BRAIN_SCAN_INTERVAL", "0.05"))
 
 QUESTDB_ENABLED = True  # Activated after successful installation
 QUESTDB_HOST = "localhost"

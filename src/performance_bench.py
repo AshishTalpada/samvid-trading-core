@@ -11,7 +11,7 @@ Usage:
 import asyncio
 import logging
 import time
-from typing import Any, cast
+from typing import Any
 
 import numpy as np
 
@@ -35,10 +35,6 @@ def benchmark_jit_math() -> None:
 
     try:
         from quant_math import NUMBA_AVAILABLE, bollinger_bands, ema_array, rsi_array
-        # Cast to Any to suppress 'Not callable' diagnostics from JIT-decorated functions
-        bollinger_bands = cast(Any, bollinger_bands)
-        ema_array = cast(Any, ema_array)
-        rsi_array = cast(Any, rsi_array)
     except ImportError:
         logger.error("quant_math module not found. Run from project root.")
         return
@@ -97,13 +93,13 @@ async def benchmark_tick_batcher() -> None:
     metrics = {"batches_received": 0, "total_ticks_processed": 0, "latencies": []}
 
     async def _on_batch(data: dict[str, Any]) -> None:
-        metrics["batches_received"] += 1  # type: ignore
+        metrics["batches_received"] += 1
         metrics["total_ticks_processed"] += data.get("count", 0)
         ts_last = data.get("ts", time.monotonic())
         latency = (time.monotonic() - ts_last) * 1000
-        metrics["latencies"].append(latency)  # type: ignore
+        metrics["latencies"].append(latency)
 
-    bus.on("tick.batch", _on_batch)
+    bus.subscribe("tick.batch", _on_batch)
 
     # Start bus dispatch loop if it has one (or mock it)
     dispatch_task = None

@@ -75,7 +75,7 @@ class Vault:
             # get_password can hang under high load — failures fall through to env.
             val = keyring.get_password(Vault.SERVICE_NAME, key)
             if val is not None:
-                final_val = val.strip()
+                final_val = str(val).strip()
                 Vault._cache[key] = final_val  # Cache for performance
                 return final_val
         except Exception as e:

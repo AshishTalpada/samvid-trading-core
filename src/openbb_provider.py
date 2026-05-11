@@ -21,9 +21,8 @@ logger = logging.getLogger(__name__)
 
 # Previously loaded at module scope, consuming 500+ MB of RAM and taking
 # minutes to import. Now lazy-loaded only when initialize() is called.
-_OPENBB_AVAILABLE: bool | None = None  # None = not yet checked, True/False = checked
-obb = None
-
+_OPENBB_AVAILABLE = None  # None = not yet checked, True/False = checked
+obb = None  # type: ignore[assignment]
 
 
 def _try_load_openbb():
@@ -122,7 +121,7 @@ class OpenBBProvider:
         async with self._load_lock:
             # Re-check after acquiring lock
             if _OPENBB_AVAILABLE is not None:
-                return bool(_OPENBB_AVAILABLE)
+                return _OPENBB_AVAILABLE
 
             try:
                 # OpenBB takes ~15-30s to load on first use, increased timeout accordingly.
@@ -150,8 +149,8 @@ class OpenBBProvider:
             if pat:
                 try:
                     # Attempt Hub Login if supported by the installed version
-                    if hasattr(obb, "account") and hasattr(obb.account, "login"):  # type: ignore
-                        obb.account.login(token=pat)  # type: ignore
+                    if hasattr(obb, "account") and hasattr(obb.account, "login"):
+                        obb.account.login(token=pat)
                         logger.info("✓ OpenBB Hub Session ACTIVE (via PAT)")
                     else:
                         # Fallback for older ODP versions: Environment variable injection
@@ -174,7 +173,7 @@ class OpenBBProvider:
             }
 
             for key, val in creds.items():
-                if val and obb is not None and hasattr(obb, "user") and obb.user is not None:
+                if val:
                     setattr(obb.user.credentials, key, val)
 
             logger.info("✓ OpenBB Provider synchronized with Sovereign Vault.")
