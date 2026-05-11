@@ -168,7 +168,7 @@ class ApexExoskeleton:
         # Prevent ZeroDivisionError in the Cortex Bypass
         denom = cache["price"] if cache["price"] > 0 else 1.0
         price_delta = abs(current_price - cache["price"]) / denom
-        age = (datetime.now() - cache["timestamp"]).total_seconds()
+        age = (datetime.now(timezone.utc) - cache["timestamp"]).total_seconds()
 
         if price_delta < 0.0005 and age < 60:
             logger.info(
@@ -204,7 +204,7 @@ class ApexExoskeleton:
             "decision": decision,
             "all_votes": all_votes,
             "shares": shares,
-            "timestamp": datetime.now(),
+            "timestamp": datetime.now(timezone.utc),
         }
 
     async def run_parallel_tier(self, shared_context: Dict[str, Any]) -> List[Dict[str, Any]]:
@@ -247,9 +247,9 @@ class ApexExoskeleton:
                 logger.error(f"Exoskeleton: Agent D poll failed: {e}")
                 return {
                     "agent": "Agent_D",
-                    "vote": "YES",
-                    "confidence": 0.5,
-                    "reason": "Fallback",
+                    "vote": "NO",
+                    "reason": f"Agent D Failure: {e}",
+                    "confidence": 0.0,
                     "timestamp": timestamp,
                 }
 
