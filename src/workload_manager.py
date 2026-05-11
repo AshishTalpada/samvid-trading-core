@@ -35,7 +35,7 @@ class WorkloadManager:
     def current_mission(self) -> str:
         """Return the current active mission name."""
         with self._lock:
-            return self.mission_board.get("current_mission", "UNKNOWN")  # type: ignore
+            return self.mission_board.get("current_mission", "UNKNOWN")
 
     def _ensure_exists(self) -> None:
         """Ensure mission directory and file exist before first save."""

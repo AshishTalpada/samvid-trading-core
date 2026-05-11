@@ -1,47 +1,28 @@
-from enum import Enum
-from typing import Dict, List, Optional
-from datetime import datetime, timedelta, timezone
 from dataclasses import dataclass, field
+from datetime import datetime, timedelta, timezone
+from enum import Enum
+from typing import Any
 
-# --- INSTITUTIONAL SCHEMA PARITY (D-DRIVE) ---
 
-class OrderSide(str, Enum):
+class OrderSide(Enum):
     BUY = "BUY"
     SELL = "SELL"
-    SSHORT = "SSHORT"
 
-class OrderType(str, Enum):
+
+class OrderType(Enum):
     MKT = "MKT"
     LMT = "LMT"
     STP = "STP"
-    STP_LMT = "STP_LMT"
 
-class TradePhase(str, Enum):
-    ENTRY = "ENTRY"
-    MANAGEMENT = "MANAGEMENT"
-    EXIT = "EXIT"
-    AUDIT = "AUDIT"
 
-# Deep Dive: Extreme Static Typing & Schema Definition
-# These schemas enforce strict type boundaries across the entire system, preventing
-# silent failures, NoneType exceptions, and runtime crashes during high-volatility execution.
+class TradePhase(Enum):
+    DISCOVERY = "DISCOVERY"
+    ANALYSIS = "ANALYSIS"
+    VETTING = "VETTING"
+    CALIBRATION = "CALIBRATION"
+    EXECUTION = "EXECUTION"
+    LEARNING = "LEARNING"
 
-@dataclass
-class MarketTick:
-    symbol: str
-    bid: float
-    ask: float
-    volume: float
-    timestamp_ns: int
-    exchange: str
-
-    @property
-    def spread(self) -> float:
-        return self.ask - self.bid
-
-    @property
-    def mid_price(self) -> float:
-        return (self.ask + self.bid) / 2.0
 
 @dataclass
 class Position:
@@ -49,6 +30,7 @@ class Position:
     Sovereign Position-State Entity.
     Decoupled from Brain/Coordinator to prevent circular imports.
     """
+
     symbol: str
     qty: float
     entry_price: float
@@ -69,6 +51,7 @@ class Position:
     r_r_ratio: float = 2.0
     sl_pct: float = 0.01
     tp_pct: float = 0.02
+
     shares_remaining: float = 0.0
     commission_cost: float = 0.0
     slippage_cost: float = 0.0
@@ -79,18 +62,39 @@ class Position:
     runner_active: bool = False
     unrealized_pnl: float = 0.0
     current_price: float = 0.0
-    db_id: int = 0
+
+    db_id: int = 0  # Persistent DB RowID for precision tracking
+
     status: str = "OPEN"
     task_id: str = "N/A"
-    meta: Dict = field(default_factory=dict)
+    meta: dict[str, Any] = field(default_factory=dict)
 
     def __post_init__(self):
         # If the position is live (qty != 0) but tracking is 0, sync them.
         if self.shares_remaining == 0.0 and self.qty != 0.0:
             self.shares_remaining = abs(self.qty)
+# ── LOCAL-ONLY SOVEREIGN EXTENSIONS ─────────────────────────────────────
 
-    def to_dict(self):
-        return {k: v for k, v in self.__dict__.items() if not k.startswith("_")}
+
+@dataclass
+class MarketTick:
+    symbol: str
+    bid: float
+    ask: float
+    volume: float
+    timestamp_ns: int
+    exchange: str
+
+    @property
+    def spread(self) -> float:
+        return self.ask - self.bid
+
+    @property
+    def mid_price(self) -> float:
+        return (self.ask + self.bid) / 2.0
+
+@dataclass
+
 
 @dataclass
 class OrderIntent:
@@ -101,6 +105,9 @@ class OrderIntent:
     logic_signature: str # Which neural agent/quorum authorized this?
     intent_id: str = field(default_factory=lambda: uuid.uuid4().hex)
     created_at: datetime = field(default_factory=datetime.utcnow)
+
+@dataclass
+
 
 @dataclass
 class ExecutionFill:
@@ -114,6 +121,9 @@ class ExecutionFill:
     is_partial: bool = False
 
 @dataclass
+
+
+@dataclass
 class RiskState:
     current_drawdown_pct: float
     daily_realized_pnl: float
@@ -121,6 +131,9 @@ class RiskState:
     value_at_risk_99: float
     is_quarantined: bool = False
     active_circuit_breakers: List[str] = field(default_factory=list)
+
+@dataclass
+
 
 @dataclass
 class AgentVote:

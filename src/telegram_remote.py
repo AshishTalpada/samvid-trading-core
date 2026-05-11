@@ -78,11 +78,11 @@ class TelegramRemote:
 
     async def _poll_loop(self):
         """Main polling loop for Telegram updates."""
-        api_base = (Vault.get("TELEGRAM_API_URL") or "https://api.telegram.org").rstrip("/")
+        api_base = Vault.get("TELEGRAM_API_URL", "https://api.telegram.org").rstrip("/")
         url = f"{api_base}/bot{self.token}/getUpdates"
 
         try:
-            async with self.session.get(f"{api_base}/bot{self.token}/deleteWebhook") as dw:  # type: ignore[union-attr]
+            async with self.session.get(f"{api_base}/bot{self.token}/deleteWebhook") as dw:
                 await dw.json()
         except Exception:
             pass
@@ -90,7 +90,7 @@ class TelegramRemote:
         while self.is_running:
             try:
                 params = {"offset": self.last_update_id + 1, "timeout": 30}
-                async with self.session.get(url, params=params) as resp:  # type: ignore[union-attr]
+                async with self.session.get(url, params=params) as resp:
                     if resp.status == 200:
                         data = await resp.json()
                         for update in data.get("result", []):
@@ -249,7 +249,7 @@ class TelegramRemote:
             if s and len(s) > 3 and s in redacted_text:
                 redacted_text = redacted_text.replace(s, "[REDACTED]")
 
-        api_base = (Vault.get("TELEGRAM_API_URL") or "https://api.telegram.org").rstrip("/")
+        api_base = Vault.get("TELEGRAM_API_URL", "https://api.telegram.org").rstrip("/")
         url = f"{api_base}/bot{self.token}/sendMessage"
         payload = {"chat_id": target_id, "text": redacted_text, "parse_mode": "HTML"}
         try:

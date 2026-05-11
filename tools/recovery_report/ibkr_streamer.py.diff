@@ -1,0 +1,38 @@
+--- LOCAL/ibkr_streamer.py
++++ D-DRIVE/ibkr_streamer.py
+@@ -223,9 +223,9 @@
+         for ticker in tickers:
+             symbol = ticker.contract.symbol
+ 
+-            bid = float(ticker.bid) if ticker.bid and ticker.bid > 0 else 0.0
+-            ask = float(ticker.ask) if ticker.ask and ticker.ask > 0 else 0.0
+-            last_p = float(ticker.last) if ticker.last and ticker.last > 0 else 0.0
++            bid = float(ticker.bid) if ticker.bid > 0 else 0.0
++            ask = float(ticker.ask) if ticker.ask > 0 else 0.0
++            last_p = float(ticker.last) if ticker.last > 0 else 0.0
+ 
+             # Reject ticks that are older than 500ms to prevent trading on 'Cold' price data.
+             if ticker.time:
+@@ -364,10 +364,10 @@
+                     self._publisher_task.cancel()
+                 if (
+                     hasattr(self, "_drain_task")
+-                    and self._drain_task  # type: ignore
+-                    and not self._drain_task.done()  # type: ignore
++                    and self._drain_task
++                    and not self._drain_task.done()
+                 ):
+-                    self._drain_task.cancel()  # type: ignore
++                    self._drain_task.cancel()
+ 
+                 self._publisher_task = asyncio.create_task(self._bus_publisher())
+                 self._drain_task = asyncio.create_task(self._qdb_drain_worker())
+@@ -385,7 +385,7 @@
+                 contracts = [Stock(symbol=s, exchange="SMART", currency="USD") for s in symbols]
+ 
+                 # 2. Subscribe to all symbols
+-                current_tickers = {t.contract.symbol for t in self.ib.tickers() if t.contract is not None}
++                current_tickers = {t.contract.symbol for t in self.ib.tickers()}
+                 for contract in contracts:
+                     if contract.symbol not in current_tickers:
+                         try:

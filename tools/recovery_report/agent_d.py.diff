@@ -1,0 +1,81 @@
+--- LOCAL/agent_d.py
++++ D-DRIVE/agent_d.py
+@@ -227,8 +227,8 @@
+             z * math.sqrt(p_hat * (1 - p_hat) / total + (z**2) / (4 * total**2))
+         ) / denominator
+ 
+-        lower = max(0.0, centre - margin)
+-        upper = min(1.0, centre + margin)
++        lower = max(0.0, float(centre - margin))
++        upper = min(1.0, float(centre + margin))
+         return (float(f"{lower:.4f}"), float(f"{upper:.4f}"))
+ 
+     def format_stat(self, win_rate: float, n: int) -> str:
+@@ -495,7 +495,7 @@
+     def save_priors(self) -> None:
+         """Persist current weighted matrix as dynamic priors for the next session."""
+         try:
+-            output: Any = {}
++            output = {}
+             for key, data in self.matrix.items():
+                 # Format: Pattern|Regime|Session
+                 parts = key.split("|")
+@@ -635,7 +635,7 @@
+         """Bug 39 FIX: Regime Normalization (Chala -> VOLATILE mapping)."""
+         if not regime:
+             return "UNKNOWN"
+-        r = regime.upper()
++        r = str(regime).upper()
+         if r in ("CHALA", "VOLATILE", "HIGH_VOL"):
+             return "VOLATILE"
+         if r in ("BULL", "BULLISH", "UPTREND"):
+@@ -959,8 +959,7 @@
+         avg_r = statistics.mean(r_values) if r_values else 0.0
+ 
+         # Entropy — simplified (use win rate trend as proxy)
+-        recent_50 = list(trade_history[-50:]) if len(trade_history) >= 50 else trade_history
+-
++        recent_50 = list(trade_history[-50:]) if len(trade_history) >= 50 else trade_history  # type: ignore
+         recent_wins = sum(1 for t in recent_50 if t.get("outcome") == "WIN")
+         recent_wr = recent_wins / len(recent_50) if recent_50 else wr
+         wr_trend = recent_wr - wr  # Positive = improving, negative = declining
+@@ -1037,8 +1036,7 @@
+             # Build rolling windows for crowding signals (chunks of 10)
+             chunk_size = max(5, n_p // 5)
+             chunks = [
+-                pattern_trades[i : i + chunk_size]
+-
++                pattern_trades[i : i + chunk_size]  # type: ignore
+                 for i in range(0, n_p, chunk_size)
+             ]
+ 
+@@ -1107,10 +1105,8 @@
+             }
+ 
+         # Split: in-sample is everything except last `window` trades
+-        in_sample = trade_history[:-window]
+-
+-        out_sample = trade_history[-window:]
+-
++        in_sample = trade_history[:-window]  # type: ignore
++        out_sample = trade_history[-window:]  # type: ignore
+ 
+         def calc_wr(trades: list[dict]) -> float:
+             if not trades:
+@@ -1525,6 +1521,7 @@
+         if self._matrix.activated:
+             await self._publish_calibration()
+ 
++        # --- PILLAR 7: AUTODREAM REFLECTION (SE-11 Port) ---
+         last_dream_at = 0
+         DREAM_INTERVAL = 3600 * 2  # dream every 2 hours
+ 
+@@ -1540,7 +1537,7 @@
+                         "🧠 [Agent D]: Initiating Sovereign Dream (Deep Reflection)..."
+                     )
+                     await self._deep_reflection()
+-                    last_dream_at = int(now)
++                    last_dream_at = now
+ 
+                 # Wait for a trade exit
+                 try:

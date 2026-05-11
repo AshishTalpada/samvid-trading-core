@@ -15,6 +15,7 @@ logger = logging.getLogger(__name__)
 class SessionRestorer:
     """
     Quantum Session Restoration.
+    Inspired by Claude-Code's tmuxSocket.ts and terminalPanel.ts.
     Allows for 'State Freezing' and 'Thawing' of the cognitive process.
     """
 
@@ -43,7 +44,7 @@ class SessionRestorer:
 
             # 2. Serialize and Sign
             data = json.dumps(bundle, default=str).encode("utf-8")
-            signature = hashlib.sha256(data + str(self.secret_key).encode()).hexdigest()
+            signature = hashlib.sha256(data + self.secret_key.encode()).hexdigest()
 
             # 3. Write Atomic (Safe-Write pattern)
             temp_path = f"{self.path}.tmp"
@@ -66,7 +67,7 @@ class SessionRestorer:
             return False
 
     def record_transcript(self, messages: list[dict[str, Any]]) -> bool:
-        """
+        """PILLAR 6: Transcript Persistence (9.99 Upgrade)
         Saves a full conversation transcript for resumable sessions.
         """
         from time_sync import TimeSync
@@ -74,7 +75,7 @@ class SessionRestorer:
         transcript_dir = os.path.join(PROJECT_PATH, "data", "transcripts")
         os.makedirs(transcript_dir, exist_ok=True)
 
-        timestamp = TimeSync.now().strftime("%Y%m%d_%H%M%S_%f")
+        timestamp = TimeSync.now().strftime("%Y%m%d_%H%M%S")
         transcript_path = os.path.join(transcript_dir, f"session_{timestamp}.json")
 
         try:
@@ -87,7 +88,7 @@ class SessionRestorer:
             return False
 
     def make_file_snapshot(self, filepath: str) -> str:
-        """
+        """PILLAR 6: File History Snapshots (9.99 Upgrade)
         Creates a versioned backup before surgical system edits.
         """
         from time_sync import TimeSync
@@ -133,7 +134,7 @@ class SessionRestorer:
             data, signature = parts[0], parts[1].decode()
 
             # Verify Integrity
-            expected_signature = hashlib.sha256(data + str(self.secret_key).encode()).hexdigest()
+            expected_signature = hashlib.sha256(data + self.secret_key.encode()).hexdigest()
             if signature != expected_signature:
                 logger.critical(
                     "SECURITY ALERT: Session state signature MISMATCH. Potential tampering detected."
@@ -144,7 +145,7 @@ class SessionRestorer:
             logger.info(
                 f"SessionRestorer: State THAWED from {bundle['timestamp']}. Version: {bundle['version']}"
             )
-            return bundle["state"]  # type: ignore
+            return bundle["state"]
         except Exception as e:
             logger.error(f"SessionRestorer: Thaw Error: {e}")
             return None
@@ -154,7 +155,7 @@ class SessionRestorer:
         from time_sync import TimeSync
 
         try:
-            capsule_path = os.path.join(PROJECT_PATH, "data", "cognitive_capsule.json")
+            capsule_path = "data/cognitive_capsule.json"
             os.makedirs(os.path.dirname(capsule_path), exist_ok=True)
             with open(capsule_path, "w") as f:
                 json.dump({"timestamp": TimeSync.now().isoformat(), "payload": state}, f, indent=4)
@@ -174,7 +175,7 @@ class SessionRestorer:
                 with open(capsule_path, "r") as f:
                     try:
                         data = json.load(f)
-                        return data.get("payload", {})  # type: ignore
+                        return data.get("payload", {})
                     except json.JSONDecodeError:
                         logger.warning(
                             "SessionRestorer: Cognitive capsule corrupted. Clean slate initiated."
@@ -206,7 +207,7 @@ class SessionRestorer:
                 return peak
         except Exception as e:
             logger.warning(f"SessionRestorer: Could not restore peak_equity: {e}")
-        return drawdown_ladder.peak_equity  # type: ignore
+        return drawdown_ladder.peak_equity
 
     async def reconcile_with_broker(self, ib: Any, db_conn: sqlite3.Connection) -> list[Any]:
         """
@@ -246,7 +247,7 @@ class SessionRestorer:
                         try:
                             # Attempt to get last tick from IB cache
                             ticker = ib.ticker(p.contract)
-                            price = (ticker.last or ticker.close or ticker.marketPrice() or 0.0) if ticker else 0.0
+                            price = ticker.last or ticker.close or ticker.marketPrice() or 0.0
                             logger.info(
                                 f"Reconciler: avgCost was 0 for {symbol}. Fetched marketPrice: ${price:.2f}"
                             )
@@ -295,7 +296,7 @@ class SessionRestorer:
                             "Sovereign Adoption Protocol v1.0-beta",
                         ),
                     )
-                    adopted.db_id = cursor.lastrowid if cursor.lastrowid is not None else 0
+                    adopted.db_id = cursor.lastrowid
                     adopted_positions.append(adopted)
                     logger.info(
                         f"✓ Reconciler: Adopted {symbol} (Target: {adopted.take_profit:.2f}, Stop: {adopted.stop_loss:.2f})"
@@ -347,4 +348,5 @@ class SessionRestorer:
 
         except Exception as e:
             logger.error(f"Reconciler: Recovery Loop Failed: {e}")
+            return []
             return []
