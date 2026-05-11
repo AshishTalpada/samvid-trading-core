@@ -6,7 +6,7 @@ import time
 import traceback
 from collections.abc import Callable
 from dataclasses import asdict, dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 
 from mind_macros import MindMacros
@@ -20,7 +20,7 @@ class DialogueMessage:
 
     sender: str
     content: str
-    timestamp: datetime = field(default_factory=lambda: __import__("time_sync").TimeSync.now())
+    timestamp: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     metadata: dict[str, Any] = field(default_factory=dict)
 
     def to_json(self) -> str:
@@ -46,7 +46,7 @@ class MindBridge:
         self.initial_context = initial_context
         self.dialogue_history: list[DialogueMessage] = []
         self.tools: dict[str, Callable] = {}
-        self._lock: asyncio.Lock | None = None  # Lazy-init: created on first async use
+        self._lock = asyncio.Lock()
         self.is_running = False
 
         # Subscriptions for the minds
@@ -70,8 +70,6 @@ class MindBridge:
         """Broadcast a message between the minds (Wrapped in Shield)."""
         safe_content = content
         msg = DialogueMessage(sender=sender, content=safe_content, metadata=metadata or {})
-        if self._lock is None:
-            self._lock = asyncio.Lock()
         async with self._lock:
             self.dialogue_history.append(msg)
             if len(self.dialogue_history) > 1000:
@@ -125,7 +123,7 @@ class MindBridge:
             else:
                 result = func(**kwargs)
 
-            # 2. Store Audit Data
+            # 2. Store Audit Data (Capped to 500 entries to prevent memory leaks)
             self.call_telemetry.append(
                 {
                     "tool": tool_name,
@@ -133,6 +131,8 @@ class MindBridge:
                     "success": "error" not in result,
                 }
             )
+            if len(self.call_telemetry) > 500:
+                self.call_telemetry.pop(0)
             return result  # type: ignore
         except Exception as e:
             tb = traceback.format_exc()
