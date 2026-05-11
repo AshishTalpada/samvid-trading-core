@@ -9,6 +9,9 @@
 extern "C" {
 
     double compute_lyapunov_exponent(const double* time_series, int n, int embedding_dimension, int time_delay) {
+        if (time_series == NULL || n <= 0 || embedding_dimension <= 0 || time_delay <= 0) {
+            return 0.0;
+        }
         if (n <= embedding_dimension * time_delay) {
             return 0.0;
         }
@@ -32,8 +35,9 @@ extern "C" {
             int nearest_idx = -1;
 
             for (int j = 0; j < num_vectors; ++j) {
-                // Theiler window: ignore temporally correlated points
-                if (std::abs(i - j) > time_delay) { 
+                // Theiler window: ignore temporally correlated points (hot path)
+                int time_diff = std::abs(i - j);
+                if (__builtin_expect(time_diff > time_delay, 1)) { 
                     double dist_sq = 0.0;
                     int base_i = i * embedding_dimension;
                     int base_j = j * embedding_dimension;

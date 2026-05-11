@@ -31,8 +31,12 @@ static inline int mprotect(void* addr, size_t len, int prot) {
  */
 
 void lock_executable_memory(void* address, size_t len) {
+    if (address == NULL || len == 0) return;
+    
     // Get page size boundary
     long page_size = sysconf(_SC_PAGESIZE);
+    if (page_size <= 0) page_size = 4096;  // Fallback
+    
     void* page_start = (void*)((uintptr_t)address & ~((uintptr_t)page_size - 1));
 
     // Remove WRITE permissions, keep READ | EXECUTE
