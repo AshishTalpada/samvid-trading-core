@@ -89,9 +89,10 @@ class SovereignFormatter(logging.Formatter):
         super().__init__(fmt, datefmt)
         self._secrets = secrets or []
         import re
+        self._re = re
 
-        # Escape secrets to prevent regex injection
-        escaped_secrets = [re.escape(s) for s in self._secrets if len(s) > 3]
+        # Escape secrets to prevent regex injection, filter out None/non-strings
+        escaped_secrets = [re.escape(str(s)) for s in self._secrets if s and len(str(s)) > 3]
         if escaped_secrets:
             self._pattern: Optional[Pattern[str]] = re.compile("|".join(escaped_secrets))
         else:
