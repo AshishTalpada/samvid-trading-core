@@ -1,9 +1,11 @@
 #include <immintrin.h>  // AVX2 SIMD intrinsics
+#include <cstring>  // For memcmp
 
 // Deep Implementation: SIMD Accelerated Hyperdimensional Computing (HDC)
 // Uses 256-bit AVX2 registers to compute bitwise Hamming distance for 
 // ultra-fast vector similarity in hardware.
 extern "C" double compute_hdc_similarity(const int* v1, const int* v2, int size) {
+    if (size <= 0) return 0.0;
     if (size % 8 != 0) {
         // Fallback for non-aligned sizes
         int matches = 0;

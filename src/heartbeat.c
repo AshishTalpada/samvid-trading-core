@@ -28,6 +28,8 @@ extern "C" {
 #endif
 
 int init_hardware_watchdog(const char* device_path) {
+    if (device_path == NULL) return -1;  // Invalid parameter
+    
 #ifdef __linux__
     heartbeat_fd = open(device_path, O_WRONLY);
     if (heartbeat_fd < 0) {
@@ -38,6 +40,8 @@ int init_hardware_watchdog(const char* device_path) {
     int timeout = 5; // 5 seconds grace period
     if (ioctl(heartbeat_fd, WDIOC_SETTIMEOUT, &timeout) < 0) {
         perror("[HEARTBEAT] Failed to set watchdog timeout");
+        close(heartbeat_fd);
+        heartbeat_fd = -1;
         return -1;
     }
     

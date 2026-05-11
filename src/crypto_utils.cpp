@@ -1,6 +1,7 @@
 #include <fstream>
 #include <stdint.h>
 #include <immintrin.h>
+#include <ctime>
 
 /**
  * Sovereign Crypto Utilities
@@ -37,7 +38,9 @@ extern "C" uint64_t get_qrng_entropy() {
     #endif
 }
 
-extern "C" void xor_buffers(uint8_t* out, const uint8_t* in1, const uint8_t* in2, size_t len) {
+extern "C" void xor_buffers(uint8_t* __restrict__ out, const uint8_t* __restrict__ in1, const uint8_t* __restrict__ in2, size_t len) {
+    if (out == NULL || in1 == NULL || in2 == NULL || len == 0) return;  // Validate
+    
     size_t i = 0;
     // SIMD optimized XOR
     #if defined(__AVX2__)
@@ -47,6 +50,7 @@ extern "C" void xor_buffers(uint8_t* out, const uint8_t* in1, const uint8_t* in2
         _mm256_storeu_si256((__m256i*)(out + i), _mm256_xor_si256(v1, v2));
     }
     #endif
+    // Cleanup remaining bytes
     for (; i < len; i++) {
         out[i] = in1[i] ^ in2[i];
     }

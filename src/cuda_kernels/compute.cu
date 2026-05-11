@@ -10,7 +10,8 @@
 
 #define TENSOR_DIM 128
 
-extern "C" __global__ void sparse_neural_update_kernel(
+// Kernel (not extern "C" - CUDA doesn't support that for kernels)
+__global__ void sparse_neural_update_kernel(
     const float* __restrict__ prices, 
     const float* __restrict__ weights, 
     const int* __restrict__ active_mask, 
@@ -19,8 +20,11 @@ extern "C" __global__ void sparse_neural_update_kernel(
 {
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
     
+    // Bounds check
+    if (idx >= N) return;
+    
     // Only execute heavy neural transformations if the ticker is active
-    if (idx < N && active_mask[idx] == 1) {
+    if (active_mask[idx] == 1) {
         
         float accum = 0.0f;
         

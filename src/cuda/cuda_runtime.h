@@ -34,12 +34,10 @@ float sqrtf(float x);
 
 extern "C" unsigned cudaConfigureCall(dim3 gridDim, dim3 blockDim, size_t sharedMem = 0, void *stream = 0);
 
-#define KERNEL_LAUNCH(func, grid, block, shmem, stream, ...) func(__VA_ARGS__)
 #define SHARED_MEM
 
 static inline void cudaDeviceSynchronize() {}
 #else
-#define KERNEL_LAUNCH(func, grid, block, shmem, stream, ...) func<<<grid, block, shmem, stream>>>(__VA_ARGS__)
 #define SHARED_MEM __shared__
 #endif
 
