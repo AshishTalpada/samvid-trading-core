@@ -3,13 +3,10 @@ import json
 import logging
 import os
 import sqlite3
-import sys
-from datetime import timezone
 from typing import Any
 
 from config import PROJECT_PATH
 from mind_bridge import MindBridge
-from time_sync import TimeSync
 
 logger = logging.getLogger(__name__)
 
@@ -18,9 +15,10 @@ class MindEvolution:
     """
     Agent D/E: The Self-Evolution Mind.
     Focuses on 'Strategic Learning' and 'Peak Equity Preservation'.
+    Inspired by Claude-Code's 'memory.ts' and 'learning.ts' logic.
     """
 
-    def __init__(self, bridge: Any = None, **kwargs) -> None:
+    def __init__(self, bridge: MindBridge) -> None:
         self.bridge = bridge
         self.is_running = False
         self.peak_equity = 0.0
@@ -29,6 +27,8 @@ class MindEvolution:
 
         self.db_path = os.path.join(PROJECT_PATH, "data", "trading.db")
         os.makedirs(os.path.dirname(self.db_path), exist_ok=True)
+
+        from time_sync import TimeSync
 
         self._last_peak_save = TimeSync.now().timestamp()
 
@@ -48,7 +48,10 @@ class MindEvolution:
                 self.peak_equity = float(row[0])
                 logger.info(f"MindEvolution: Restored High Water Mark: ${self.peak_equity:.2f}")
         except Exception as e:
-            logger.error(f"MindEvolution: Could not load peak_equity on startup: {e}")
+            import sys
+
+            print(f"CRITICAL: MindEvolution DB Recovery Failed: {e}", file=sys.stderr)
+            logger.debug(f"MindEvolution: Could not load peak_equity on startup: {e}")
 
         # Register Strategic Tools with the Bridge
         self.bridge.register_tool("optimize_thresholds", self._tool_optimize_thresholds)
@@ -61,49 +64,38 @@ class MindEvolution:
             "update_knowledge", self._tool_update_knowledge
         )  # Team Memory Sync
 
-        self._background_tasks = set()
-
     async def start(self) -> None:
         """Launch the Evolution Mind process."""
         self.is_running = True
         logger.info("MindEvolution: Strategic improvement layer active.")
-
-        t1 = asyncio.create_task(self._monitor_equity_peaks())
-        t2 = asyncio.create_task(self._process_strategic_dialogue())
-        t3 = asyncio.create_task(self._autonomous_heuristic_refinement())
-
-        for t in [t1, t2, t3]:
-            self._background_tasks.add(t)
-            t.add_done_callback(self._background_tasks.discard)
+        asyncio.create_task(self._monitor_equity_peaks())
+        asyncio.create_task(self._process_strategic_dialogue())
+        asyncio.create_task(self._autonomous_heuristic_refinement())
 
     async def _autonomous_heuristic_refinement(self) -> None:
-        """Audits the system configuration against discovered wisdom and REAL performance."""
-        from decision_ledger import LEDGER
-
+        """
+        The 'Self-Healing' cycle (SE-11 Architect).
+        Periodically audits the system configuration against discovered wisdom.
+        """
         while self.is_running:
             try:
-                # 1. Fetch real-world performance metrics from the Ledger
-                stats = LEDGER.summary_stats()
-                win_rate = (
-                    stats["wins"] / (stats["wins"] + stats["losses"])
-                    if (stats["wins"] + stats["losses"]) > 0
-                    else 0.5
-                )
-
-                # 2. Audit against Strategic Wisdom
-                wisdom_path = os.path.join(PROJECT_PATH, "data", "wisdom.json")
+                db_path = os.path.join(PROJECT_PATH, "data", "trading.db")
+                conn = sqlite3.connect(db_path, timeout=60)
+                conn.execute("PRAGMA journal_mode=WAL;")
+                conn.execute("PRAGMA busy_timeout = 60000;")
+                conn.cursor()
+                wisdom_path = os.path.join(PROJECT_PATH, "data/wisdom.json")
                 if os.path.exists(wisdom_path):
                     with open(wisdom_path, "r") as f:
                         wisdom = json.load(f)
 
-                    # Trigger EVOLUTION if performance is lagging OR entropy is high
-                    if wisdom.get("entropy_state") == "HIGH ENTROPY" or win_rate < 0.45:
+                    # If entropy is high, force a threshold tightening
+                    if wisdom.get("entropy_state") == "HIGH ENTROPY":
                         logger.warning(
-                            f"🚨 [Evolution]: Strategic Lag Detected (WR: {win_rate:.2%}). Tightening DNA."
+                            "🚨 [Evolution]: High System Entropy detected. Tightening Catalysts."
                         )
                         await self._tool_evolve_strategy(
-                            "performance_tightening",
-                            {"expected_profit_factor": 2.5, "min_win_rate": 0.55},
+                            "config_tightening", {"expected_profit_factor": 2.5}
                         )
 
                 await asyncio.sleep(3600 * 4)  # Audit every 4 hours
@@ -172,6 +164,8 @@ class MindEvolution:
         return {"success": False, "error": mutation_result.get("error", "Unknown mutation error")}
 
     async def _tool_report_peak(self) -> dict[str, Any]:
+        from time_sync import TimeSync
+
         return {"peak": self.peak_equity, "at_time": TimeSync.now().isoformat()}
 
     async def _fetch_current_equity(self) -> float:
@@ -220,13 +214,9 @@ class MindEvolution:
     async def _tool_update_knowledge(self, knowledge_item: str, source: str) -> dict[str, Any]:
         """Synchronizes session-level 'Learnings' across all minds via Team Context."""
         logger.info(f"MindEvolution: Knowledge Update from '{source}': {knowledge_item[:50]}...")
+        from time_sync import TimeSync
 
         self.historical_memory.append(
             {"item": knowledge_item, "source": source, "timestamp": TimeSync.now().isoformat()}
         )
-        # Cap memory to 200 items to prevent memory leaks
-        if len(self.historical_memory) > 200:
-            self.historical_memory.pop(0)
-
         return {"status": "SYNCED", "memory_depth": len(self.historical_memory)}
-

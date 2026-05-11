@@ -1,0 +1,334 @@
+--- LOCAL/agent_c_ibkr.py
++++ D-DRIVE/agent_c_ibkr.py
+@@ -11,7 +11,6 @@
+ import asyncio
+ import hashlib
+ import hmac
+-import json
+ import logging
+ import os
+ import sqlite3
+@@ -62,30 +61,26 @@
+         Handles Fault-Tolerant Broker Handshakes and FA-Routing.
+     """
+ 
+-    def __init__(self, ib_client=None, bridge: Any = None) -> None:
++    def __init__(self, ib_client=None) -> None:
+         self.ib = ib_client if ib_client is not None else IB()
+         self._last_heartbeat = datetime.now()
+         self._last_trade_time = datetime.fromtimestamp(0)  # 15-Minute Discipline Lock
+-        self._positions_cache: Any = {}
+-        self._account_summary: Any = {}
++        self._positions_cache = {}
++        self._account_summary = {}
+         self.is_reconnecting = False
+ 
+         # Financial Advisor (FA) support
+-        self.managed_accounts: Any = []
++        self.managed_accounts = []
+         self.current_account_id = None
++        self._lock = asyncio.Lock()  # PILLAR 3: Concurrency Safety for Parallel Vetting
+         self._qualified_contracts: dict[str, Any] = {}
+         self._warm_slots: dict[str, Any] = {}  # Hyper-Sovereign Warm Path
+         self._exec_secret = (
+             Vault.get("EXEC_SECRET", "SETO_SOVEREIGN_EXEC_V22") or "SETO_SOVEREIGN_EXEC_V22"
+         )
+-        self.brain: Any = None
+-        self.bus: Any = bridge  # Correctly bind the bridge/bus for alerts
+-        self._lock = asyncio.Lock()  # Initialize the execution lock
+         self._setup_callbacks()
+ 
+         self._recovered_orders: set[int] = set()
+-        self.db_path = os.path.join("data", "trading.db")
+-        os.makedirs("data", exist_ok=True)
+ 
+     def generate_exec_token(self, symbol: str) -> str:
+         """Generate a time-limited HMAC token for order authorization."""
+@@ -133,7 +128,7 @@
+         direction: str,
+         shares: int,
+         price: float,
+-        account_id: str | None = None,
++        account_id: str = None,
+         is_close: bool = False,
+     ) -> tuple[bool, str]:
+         """Institutional pre-flight validation: TradingState, throttle, notional, account, purchasing power, margin."""
+@@ -154,7 +149,7 @@
+             # 1. Account Alignment
+             from config import IBKR_ACCOUNT_ID
+ 
+-            target_acc = account_id or (IBKR_ACCOUNT_ID.strip() if IBKR_ACCOUNT_ID else None)
++            target_acc = account_id or IBKR_ACCOUNT_ID.strip()
+             if target_acc and target_acc not in self.ib.wrapper.accounts:
+                 return False, f"ACCOUNT_MISMATCH: Target {target_acc} not found in broker session."
+ 
+@@ -230,7 +225,7 @@
+ 
+     def _on_disconnect(self) -> None:
+         logger.warning("IBKR: Matrix Connection Severed. Initiating Recovery...")
+-        if self.bus:
++        if hasattr(self, "bus") and self.bus:
+             try:
+                 self.bus.publish_sync(
+                     "system.alert",
+@@ -240,8 +235,8 @@
+                         "message": "IBKR Connection Severed. Please check TWS/Gateway login.",
+                     },
+                 )
+-            except Exception as e:
+-                logger.error(f"IBKR: Failed to publish disconnect alert: {e}")
++            except Exception:
++                pass
+ 
+     def _on_position(self, pos) -> None:
+         self._positions_cache[pos.contract.symbol] = pos.position
+@@ -258,9 +253,13 @@
+             if not hasattr(self, "_order_persistence"):
+                 self._order_persistence = {}
+ 
++            # Bug 31 FIX: Persistent Order Tracking (SQLite Bridge)
+             def _persist_order_status():
+                 try:
+-                    conn = sqlite3.connect(self.db_path, timeout=60.0)
++                    db_path = os.path.join("data", "trading.db")
++                    if not os.path.exists("data"):
++                        os.makedirs("data")
++                    conn = sqlite3.connect(db_path, timeout=60.0)
+                     conn.execute("PRAGMA journal_mode=WAL;")
+                     conn.execute("PRAGMA busy_timeout = 60000;")
+                     conn.execute(
+@@ -274,7 +273,7 @@
+                             status,
+                             trade.orderStatus.filled,
+                             trade.orderStatus.remaining,
+-                            datetime.now(pytz.UTC).isoformat(),
++                            datetime.now().isoformat(),
+                         ),
+                     )
+                     conn.commit()
+@@ -282,7 +281,9 @@
+                 except Exception as e:
+                     logger.error(f"🚨 ORDER PERSISTENCE FAILURE: {e}")
+ 
+-            asyncio.get_event_loop().run_in_executor(None, _persist_order_status)
++            import asyncio as _asyncio
++
++            _asyncio.get_event_loop().run_in_executor(None, _persist_order_status)
+ 
+             self._order_persistence[trade.order.orderId] = {
+                 "symbol": symbol,
+@@ -306,10 +307,16 @@
+ 
+                 # Autonomous Post-Mortem (Zero-Sync background write)
+                 reason = str(trade.log[-1].message) if trade.log else "UNKNOWN REASON"
++
+                 def _write_post_mortem():
+                     try:
++                        import os
+                         import sqlite3
+-                        conn = sqlite3.connect(self.db_path, timeout=60.0)
++
++                        db_path = os.path.join("data", "trading.db")
++                        if not os.path.exists("data"):
++                            os.makedirs("data")
++                        conn = sqlite3.connect(db_path, timeout=60.0)
+                         conn.execute("PRAGMA journal_mode=WAL;")
+                         conn.execute("PRAGMA busy_timeout = 60000;")
+                         conn.execute(
+@@ -318,7 +325,7 @@
+                         conn.execute(
+                             "INSERT INTO failure_post_mortem (timestamp, symbol, action, status, reason) VALUES (?, ?, ?, ?, ?)",
+                             (
+-                                datetime.now(pytz.UTC).isoformat(),
++                                datetime.now().isoformat(),
+                                 symbol,
+                                 trade.order.action,
+                                 status,
+@@ -408,11 +415,7 @@
+             return False
+ 
+         if self.is_connected and not self._recovered_orders:
+-            if not hasattr(self, "_bg_tasks"):
+-                self._bg_tasks = set()
+-            task = asyncio.create_task(self.recover_orphaned_orders())
+-            self._bg_tasks.add(task)
+-            task.add_done_callback(self._bg_tasks.discard)
++            asyncio.create_task(self.recover_orphaned_orders())
+ 
+         return True
+ 
+@@ -468,7 +471,7 @@
+     def get_account_value(self) -> float:
+         """Returns NAV from the real-time cache (No API Polling)."""
+         if not self.is_connected:
+-            return STARTING_CAPITAL_CAD  # type: ignore
++            return STARTING_CAPITAL_CAD
+         try:
+             # 1. Check the event-driven cache first (Updated by _on_account_summary)
+             val = self._account_summary.get("NetLiquidation")
+@@ -482,10 +485,10 @@
+                     self._account_summary["NetLiquidation"] = item.value  # Populate cache
+                     return float(item.value)
+ 
+-            return STARTING_CAPITAL_CAD  # type: ignore
++            return STARTING_CAPITAL_CAD
+         except Exception as e:
+             logger.error(f"IBKR: NAV Cache Retrieval failed: {e}")
+-            return STARTING_CAPITAL_CAD  # type: ignore
++            return STARTING_CAPITAL_CAD
+ 
+     def get_margin_cushion(self) -> float:
+         """
+@@ -540,10 +543,10 @@
+                     contract = Crypto(symbol, "PAXOS", "USD")
+                 elif is_option:
+                     # Resolve Option components for IBKR compatibility
+-                    # We pass keyword arguments to avoid positional argument mismatch
+-                    contract = Option(symbol=symbol, exchange="SMART", currency="USD")  # type: ignore
++                    # For simple string-based options, we can often just pass the symbol to qualify
++                    contract = Option(symbol, "SMART", "USD")
+                 else:
+-                    contract = Stock(symbol, "SMART", "USD")  # type: ignore
++                    contract = Stock(symbol, "SMART", "USD")
+ 
+                 qualified = await self.ib.qualifyContractsAsync(contract)
+                 if qualified:
+@@ -598,13 +601,6 @@
+             )
+             return []
+ 
+-        # --- SOVEREIGN SAFETY CHAIN: TradingState Check ---
+-        if not TradingStateManager.allow_order(direction == "BUY" or direction == "SHORT"):
+-            logger.warning(
+-                f"🏛️ SAFETY GATE: Order for {symbol} REJECTED due to current TradingState ({TradingStateManager.state.value})."
+-            )
+-            return []
+-
+         # Reduced from 30s to 1s to allow Scalping/HFT while preventing API flooding
+         wait_seconds = (datetime.now() - self._last_trade_time).total_seconds()
+         if wait_seconds < 1.0:
+@@ -645,9 +641,8 @@
+                 # Bug 30 FIX: Limit Price Bias Guard
+                 # If the spread is wider than 0.5%, use the actual Bid/Ask instead of Mid to ensure fill.
+                 # Use the brain's real-time tick cache
+-                brain = getattr(self, "brain", None)
+-                bid = brain.last_tick_bids.get(symbol, 0.0) if brain else 0.0
+-                ask = brain.last_tick_asks.get(symbol, 0.0) if brain else 0.0
++                bid = self.brain.last_tick_bids.get(symbol, 0.0)
++                ask = self.brain.last_tick_asks.get(symbol, 0.0)
+ 
+                 if bid > 0 and ask > 0:
+                     if (ask - bid) / bid > 0.005:
+@@ -693,7 +688,7 @@
+                 # could lead to unintended execution on multiple accounts.
+                 from config import IBKR_ACCOUNT_ID
+ 
+-                target_acc = IBKR_ACCOUNT_ID.strip() if IBKR_ACCOUNT_ID else None
++                target_acc = IBKR_ACCOUNT_ID.strip()
+ 
+                 if not target_acc:
+                     if self.ib.wrapper.accounts:
+@@ -747,6 +742,8 @@
+         """Write a persistent execution log entry for audit trail and manual recovery."""
+         try:
+             log_file = "data/execution_persistence.json"
++            import json
++            import os
+ 
+             os.makedirs("data", exist_ok=True)
+             entry = {
+@@ -820,7 +817,7 @@
+                         exchange = "SMART"
+                     contract = Future(root, exchange=exchange, currency="USD")
+                 else:
+-                    contract = Stock(symbol, "SMART", "USD")  # type: ignore
++                    contract = Stock(symbol, "SMART", "USD")
+ 
+                 await self.ib.qualifyContractsAsync(contract)
+ 
+@@ -829,20 +826,13 @@
+ 
+                 # --- HYPER-SOVEREIGN BREAKTHROUGH: WARM-PATH MODIFICATION ---
+                 # Attempt to modify an existing dormant order for sub-ms priority
+-                warm_trade = await self._execute_via_warm_slot(symbol, direction, shares, limit_price)
+-                if warm_trade:
+-                    # Register audit watchdog even for warm slots
+-                    if not hasattr(self, "_bg_tasks"):
+-                        self._bg_tasks = set()
+-                    task = asyncio.create_task(self._audit_execution(warm_trade, symbol, shares))
+-                    self._bg_tasks.add(task)
+-                    task.add_done_callback(self._bg_tasks.discard)
+-                    return warm_trade.order.orderId
++                warm_id = await self._execute_via_warm_slot(symbol, direction, shares, limit_price)
++                if warm_id:
++                    return warm_id
+ 
+                 from config import IBKR_ACCOUNT_ID
+ 
+-                target_acc = IBKR_ACCOUNT_ID.strip() if IBKR_ACCOUNT_ID else None
+-                primary_id = None
++                target_acc = IBKR_ACCOUNT_ID.strip()
+ 
+                 if not target_acc:
+                     if self.ib.wrapper.accounts:
+@@ -891,12 +881,7 @@
+                     trade = self.ib.placeOrder(contract, o)
+                     if i == 0:
+                         primary_id = trade.order.orderId
+-                        # Prevent premature GC
+-                        if not hasattr(self, "_bg_tasks"):
+-                            self._bg_tasks = set()
+-                        task = asyncio.create_task(self._audit_execution(trade, symbol, shares))
+-                        self._bg_tasks.add(task)
+-                        task.add_done_callback(self._bg_tasks.discard)
++                        asyncio.create_task(self._audit_execution(trade, symbol, shares))
+ 
+                 self._last_trade_time = datetime.now()  # Update Discipline Lock
+                 return primary_id
+@@ -930,7 +915,7 @@
+ 
+     async def _execute_via_warm_slot(
+         self, symbol: str, direction: str, shares: int, price: float
+-    ) -> Any | None:
++    ) -> int | None:
+         """Executes a trade by MODIFYING an existing dormant order (The Hyper-Sovereign Leap)."""
+         if symbol not in self._warm_slots:
+             return None
+@@ -953,7 +938,7 @@
+ 
+         # Remove from warm-slots so a new one can be pre-loaded
+         del self._warm_slots[symbol]
+-        return trade
++        return trade.order.orderId
+ 
+     async def _audit_execution(self, trade: Any, symbol: str, shares: int) -> None:
+         """
+@@ -1098,9 +1083,10 @@
+         stop = kwargs.get("stop_price", price * 0.99)
+         spread = kwargs.get("spread", 0.0)
+ 
+-        # Real risk per share: Entry (Price) - Stop.
+-        # If Price is Ask and Stop is Bid, the spread is already included in the difference.
+-        risk_per_share = abs(price - stop)
++        # Real risk per share must include the spread we cross to enter.
++        # For long: Entry is ASK, Stop is BID. Diff = (Ask - Bid) + (Bid - Stop) = Ask - Stop.
++        # But we also factor in a 'Slippage Buffer' (0.5 ticks) for fast markets.
++        risk_per_share = abs(price - stop) + (spread)
+ 
+         # REAL R:R (Friction-Aware)
+         target = kwargs.get("target_price", price * 1.01)
+@@ -1175,12 +1161,12 @@
+                 logger.warning(
+                     f"Sizer: [IMPACT_GUARD] {instrument} slippage {est_slippage:.2%} > 15% of reward. Downsizing 50% for safety."
+                 )
+-                step8_shares = max(1, round(step8_shares * 0.5))
++                step8_shares = max(1, int(round(step8_shares * 0.5)))
+         elif step8_shares > 0 and not kwargs.get("is_probe"):
+             logger.warning(
+                 f"Sizer: [IMPACT_GAP] No OHLCV data for {instrument} impact estimation. Applying 30% blind downsizing."
+             )
+-            step8_shares = max(1, round(step8_shares * 0.7))
++            step8_shares = max(1, int(round(step8_shares * 0.7)))
+ 
+         # If the expected profit is less than round-trip commission, the trade is a guaranteed loss.
+         from config import COMMISSION_PER_ROUND_TRIP

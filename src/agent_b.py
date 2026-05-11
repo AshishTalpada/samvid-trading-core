@@ -212,8 +212,7 @@ class DhatuClassifier:
         self._last_state = state
         self._state_history.append(state)
         if len(self._state_history) > 100:
-            self._state_history = self._state_history[-100:]
-
+            self._state_history = self._state_history[-100:]  # type: ignore
 
         return state
 
@@ -582,10 +581,8 @@ class ABHAVADetector:
         # Pattern 3: Check for catalyst absence over declining period
         # "down >15% from high, decline 5+ days, no ongoing catalyst"
         if len(history) >= 5:
-            total_decline = sum(h.get("price_change", 0) for h in history[-5:])
-
-            any_catalyst = any(h.get("has_catalyst", False) for h in history[-5:])
-
+            total_decline = sum(h.get("price_change", 0) for h in history[-5:])  # type: ignore
+            any_catalyst = any(h.get("has_catalyst", False) for h in history[-5:])  # type: ignore
 
             if total_decline < -0.015 and not any_catalyst:
                 self._record_detection(

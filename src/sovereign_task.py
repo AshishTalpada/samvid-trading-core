@@ -22,7 +22,7 @@ class SovereignTask:
     A first-class, persistent unit of work (Trade or Monitor).
     """
 
-    def __init__(self, task_id: str, task_type: str, description: str, metadata: dict | None = None):
+    def __init__(self, task_id: str, task_type: str, description: str, metadata: dict = None):
         self.id = task_id
         self.type = task_type  # 'trade', 'monitor', 'dream'
         self.status = TaskStatus.PENDING
@@ -34,9 +34,9 @@ class SovereignTask:
         self.end_time = None
         self.output_file = f"data/tasks/{self.id}.log"
 
-        self.baseline_state: Any = {}  # Snapshot at creation
-        self.delta_metrics: Any = {}  # Tracks shifts
-        self.reflection_log: Any = []  # Post-mortem notes
+        self.baseline_state = {}  # Snapshot at creation
+        self.delta_metrics = {}  # Tracks shifts
+        self.reflection_log = []  # Post-mortem notes
         self.status_summary = "Initializing"
 
         # Ensure directory exists
@@ -48,7 +48,7 @@ class SovereignTask:
         if new_status in [TaskStatus.COMPLETED, TaskStatus.FAILED, TaskStatus.KILLED]:
             from datetime import timezone as _timezone
 
-            self.end_time = datetime.now(_timezone.utc).timestamp()  # type: ignore
+            self.end_time = datetime.now(_timezone.utc).timestamp()
         self.save()
 
     def record_shift(self, metric: str, current_value: Any):
@@ -90,36 +90,24 @@ class SovereignTask:
         import time as _time
 
         for attempt in range(5):
-            temp_file = f"{state_file}.tmp"
             try:
+                temp_file = f"{state_file}.tmp"
                 with open(temp_file, "w", encoding="utf-8") as f:
                     json.dump(state, f, indent=2)
-
-                # Atomic swap
                 if os.path.exists(state_file):
                     try:
                         os.replace(temp_file, state_file)
                     except PermissionError:
+                        # Fallback: Windows sometimes holds the handle too long
                         _time.sleep(0.05 * (attempt + 1))
                         continue
                 else:
                     os.replace(temp_file, state_file)
                 break
-            except (Exception, KeyboardInterrupt) as e:
-                if isinstance(e, KeyboardInterrupt):
-                    # Try to finish the rename if the file was fully written
-                    if os.path.exists(temp_file) and os.path.getsize(temp_file) > 0:
-                        try: os.replace(temp_file, state_file)
-                        except: pass
-                    raise e # Re-raise to allow shutdown
+            except Exception as e:
                 if attempt == 4:
                     logger.error(f"Task {self.id}: Save failed after 5 attempts: {e}")
                 _time.sleep(0.05)
-            finally:
-                # Cleanup temp file if it still exists (e.g. failed write)
-                if os.path.exists(temp_path := f"{state_file}.tmp"):
-                    try: os.remove(temp_path)
-                    except: pass
 
     def to_dict(self) -> dict:
         """Returns a serializable dictionary of the task state."""
@@ -198,7 +186,7 @@ class TaskManager:
             logger.error(f"TaskManager: Registry load failed: {e}")
 
     def save_registry(self, allow_empty: bool = False):
-        """Atomically save task registry with Windows-safe retry logic and interrupt hardening."""
+        """Atomically save task registry with Windows-safe retry logic."""
         try:
             if not self.tasks and os.path.exists(self.registry_path) and not allow_empty:
                 logger.error(
@@ -208,12 +196,12 @@ class TaskManager:
 
             if os.path.exists(self.registry_path):
                 import shutil
-                try:
-                    shutil.copy2(self.registry_path, f"{self.registry_path}.bak")
-                except: pass
+
+                shutil.copy2(self.registry_path, f"{self.registry_path}.bak")
 
             data = {tid: t.to_dict() for tid, t in self.tasks.items()}
             temp_path = f"{self.registry_path}.tmp"
+
             import time as _time
 
             for attempt in range(5):
@@ -221,7 +209,6 @@ class TaskManager:
                     with open(temp_path, "w", encoding="utf-8") as f:
                         json.dump(data, f, indent=2)
 
-                    # Swap
                     if os.path.exists(self.registry_path):
                         try:
                             os.replace(temp_path, self.registry_path)
@@ -231,22 +218,10 @@ class TaskManager:
                     else:
                         os.replace(temp_path, self.registry_path)
                     break
-                except (Exception, KeyboardInterrupt) as e:
-                    if isinstance(e, KeyboardInterrupt):
-                        # Force final attempt to preserve registry integrity
-                        if os.path.exists(temp_path) and os.path.getsize(temp_path) > 0:
-                            try: os.replace(temp_path, self.registry_path)
-                            except: pass
-                        raise e
+                except Exception as e:
                     if attempt == 4:
                         raise e
                     _time.sleep(0.1)
-                finally:
-                    if os.path.exists(temp_path):
-                        try: os.remove(temp_path)
-                        except: pass
-        except KeyboardInterrupt:
-            raise
         except Exception as e:
             logger.error(f"TaskManager: Registry save failed: {e}")
 

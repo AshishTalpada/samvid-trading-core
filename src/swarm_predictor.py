@@ -21,7 +21,7 @@ import os
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from enum import Enum
-from typing import Any, Dict, List, Optional, cast
+from typing import Any, Dict
 
 import httpx
 
@@ -165,11 +165,8 @@ class ChromaDeepMemory:
                 return "", 0.0
 
             # If we find highly similar memories, compact them into a single truth token
-            docs = (results.get("documents") or [[]])[0] if results else []
-            metas = cast(list[dict], (results.get("metadatas") or [[]])[0] if results else [])
-
-            if not docs or not metas:
-                return "", 0.0
+            docs = results["documents"][0]
+            metas = results["metadatas"][0]
 
             compacted_truth = await self._compact_memories(docs, metas)
             if compacted_truth:
@@ -182,10 +179,10 @@ class ChromaDeepMemory:
             memory_contexts = []
             max_conf = 0.0
             scored_memories = []
-            for meta, doc in zip(metas or [], docs or [], strict=False):
+            for meta, doc in zip(metas, docs, strict=False):
                 score = 0
                 if meta:
-                    score += int(float(meta.get("confidence", 0.0)) * 10)
+                    score += float(meta.get("confidence", 0.0)) * 10
                     if meta.get("bias") != "NEUTRAL":
                         score += 5
                 scored_memories.append((score, meta, doc))
@@ -271,24 +268,24 @@ class SwarmPredictor:
         self._api_url = api_url  # Stored for compatibility and tests
         self.consensus_history: list[SwarmConsensus] = []
         self._last_consensus: SwarmConsensus | None = None
-        self._memory_queue: Any = asyncio.Queue()
+        self._memory_queue = asyncio.Queue()
         self._prompt_semaphore = asyncio.Semaphore(2)
         self.is_running = False
         self._cache_minutes = cache_minutes
         self._available: bool = False
         self._memory = ChromaDeepMemory()
-        self._memory_queue: asyncio.Queue = asyncio.Queue(maxsize=100)  # type: ignore
+        self._memory_queue: asyncio.Queue = asyncio.Queue(maxsize=100)
         self._memory_loop: asyncio.Task | None = None
 
         # 2. SEEDS: Check for Local vs Cloud reasoning
 
         use_local_str = Vault.get("USE_LOCAL_LLM", "true")
-        self.use_local = use_local_str.lower() == "true" if use_local_str else True
-        self._openai_key = Vault.get("OPENAI_API_KEY", "") or ""
+        self.use_local = str(use_local_str).lower() == "true" if use_local_str else True
+        self._openai_key = Vault.get("OPENAI_API_KEY")
         self._openai_client: Any = None
 
         if self.use_local:
-            urls_str = str(Vault.get("OLLAMA_URLS", "http://localhost:11434/v1"))
+            urls_str = Vault.get("OLLAMA_URLS", "http://localhost:11434/v1")
             self._ollama_urls = [u.strip() for u in urls_str.split(",") if u.strip()]
             self._url_index = 0
 
@@ -438,7 +435,7 @@ class SwarmPredictor:
             bias = SwarmBias.BULLISH if "BULLISH" in deep_memory_str.upper() else SwarmBias.BEARISH
             consensus = SwarmConsensus(
                 bias=bias,
-                confidence=min(1.0, top_confidence),
+                confidence=float(min(1.0, top_confidence)),
                 summary=f"Flash Resonance Hit: Mirroring historical win (Conf: {top_confidence:.1%})",
                 agent_count=1000807,
                 generated_at=datetime.now(timezone.utc),
@@ -553,38 +550,30 @@ class SwarmPredictor:
         symbol = context.get("symbol", "UNKNOWN")
         consensus = await self.get_market_forecast(symbol, context)
 
-        # Swarm Consensus Logic:
-        # YES if bias matches direction and confidence > 60%
-        # VETO if bias contradicts direction
-        # NO if bias is NEUTRAL (uncertainty is risk)
+        # Swarm Consensus Logic
+        # YES if bias matches direction (default long) and confidence > 55%
+        # NO if bias contradicts direction or confidence is too low
         entry_side = context.get("side", "long")
+        vote = "YES"
+        reason = f"Swarm: {consensus.bias.value} (Conf: {consensus.confidence:.1%})"
 
         if consensus.should_block_entry(entry_side):
-            return {
-                "agent": "Swarm_Predictor",
-                "vote": "NO",
-                "confidence": consensus.confidence,
-                "reason": f"VETO: Swarm contradictions detected! Bias: {consensus.bias.value} vs {entry_side}",
-                "bias": consensus.bias.value
-            }
-
-        if consensus.bias == SwarmBias.NEUTRAL or consensus.confidence < 0.55:
-            return {
-                "agent": "Swarm_Predictor",
-                "vote": "NO",
-                "confidence": consensus.confidence,
-                "reason": f"CAUTION: Swarm is NEUTRAL or low-conviction ({consensus.confidence:.1%}).",
-                "bias": SwarmBias.NEUTRAL.value
-            }
+            vote = "NO"
+            reason = (
+                f"VETO: Swarm contradictions detected! Bias: {consensus.bias.value} vs {entry_side}"
+            )
+        elif consensus.confidence < 0.55 and consensus.bias != SwarmBias.NEUTRAL:
+            # Weak directional conviction: flag as low-confidence but don't veto
+            reason = f"LOW CONVICTION: {consensus.bias.value} @ {consensus.confidence:.1%} — proceed with caution"
 
         return {
             "agent": "Swarm_Predictor",
-            "vote": "YES",
+            "vote": vote,
             "confidence": consensus.confidence,
             "signal_strength": consensus.get_confidence_modifier(),
-            "risk_flag": False,
+            "risk_flag": consensus.bias == SwarmBias.NEUTRAL or consensus.confidence < 0.60,
             "timestamp": context.get("timestamp", datetime.now(timezone.utc).isoformat()),
-            "reason": f"Swarm: {consensus.bias.value} (Conf: {consensus.confidence:.1%})",
+            "reason": reason,
             "bias": consensus.bias.value,
             "agent_count": consensus.agent_count,
         }
@@ -611,34 +600,24 @@ class SwarmPredictor:
             from thermal_guard import ThermalGuard
 
             options = await ThermalGuard.get_handshake_options(is_critical=is_critical)
+
+            kwargs = {
+                "model": self._model_fast,
+                "messages": [
+                    {"role": "system", "content": role},
+                    {
+                        "role": "user",
+                        "content": f"Analyze this market context in 2 sentences precisely. Keep to your persona.\n\n{context}",
+                    },
+                ],
+                "temperature": 0.7,
+                "max_tokens": 150,
+            }
+            if self.use_local:
+                kwargs["extra_body"] = {"options": options}
+
             async with self._prompt_semaphore:
-                if self.use_local:
-                    resp = await client.chat.completions.create(
-                        model=self._model_fast,
-                        messages=[
-                            {"role": "system", "content": role},
-                            {
-                                "role": "user",
-                                "content": f"Analyze this market context in 2 sentences precisely. Keep to your persona.\n\n{context}",
-                            },
-                        ],
-                        temperature=0.7,
-                        max_tokens=150,
-                        extra_body={"options": options}
-                    )
-                else:
-                    resp = await client.chat.completions.create(
-                        model=self._model_fast,
-                        messages=[
-                            {"role": "system", "content": role},
-                            {
-                                "role": "user",
-                                "content": f"Analyze this market context in 2 sentences precisely. Keep to your persona.\n\n{context}",
-                            },
-                        ],
-                        temperature=0.7,
-                        max_tokens=150
-                    )
+                resp = await client.chat.completions.create(**kwargs)
 
             content = resp.choices[0].message.content if resp and resp.choices else None
             return content or "No opinion."
@@ -670,46 +649,33 @@ class SwarmPredictor:
 
             client = self._openai_client
             options = await ThermalGuard.get_handshake_options(is_critical=is_critical)
+
+            kwargs = {
+                "model": self._model_heavy,
+                "messages": [
+                    {
+                        "role": "system",
+                        "content": 'You are the Chief Strategist handling a multi-agent debate. Respond ONLY in strict JSON: {"bias": "BULLISH"|"BEARISH"|"NEUTRAL", "confidence": 0.0-1.0, "summary": "1-sentence synthesis"}',
+                    },
+                    {
+                        "role": "user",
+                        "content": f"Resolve this Agent Debate for {symbol}:\n\n{debate}",
+                    },
+                ],
+                "temperature": 0.4,
+                "response_format": {"type": "json_object"},
+            }
+            if self.use_local:
+                kwargs["extra_body"] = {"options": options}
+
             async with self._prompt_semaphore:
-                if self.use_local:
-                    resp = await client.chat.completions.create(
-                        model=self._model_heavy,
-                        messages=[
-                            {
-                                "role": "system",
-                                "content": 'You are the Chief Strategist handling a multi-agent debate. Respond ONLY in strict JSON: {"bias": "BULLISH"|"BEARISH"|"NEUTRAL", "confidence": 0.0-1.0, "summary": "1-sentence synthesis"}',
-                            },
-                            {
-                                "role": "user",
-                                "content": f"Resolve this Agent Debate for {symbol}:\n\n{debate}",
-                            },
-                        ],
-                        temperature=0.4,
-                        response_format={"type": "json_object"},
-                        extra_body={"options": options}
-                    )
-                else:
-                    resp = await client.chat.completions.create(
-                        model=self._model_heavy,
-                        messages=[
-                            {
-                                "role": "system",
-                                "content": 'You are the Chief Strategist handling a multi-agent debate. Respond ONLY in strict JSON: {"bias": "BULLISH"|"BEARISH"|"NEUTRAL", "confidence": 0.0-1.0, "summary": "1-sentence synthesis"}',
-                            },
-                            {
-                                "role": "user",
-                                "content": f"Resolve this Agent Debate for {symbol}:\n\n{debate}",
-                            },
-                        ],
-                        temperature=0.4,
-                        response_format={"type": "json_object"}
-                    )
-            txt = (resp.choices[0].message.content if resp and resp.choices else "{}") or "{}"
+                resp = await client.chat.completions.create(**kwargs)
+            txt = resp.choices[0].message.content or "{}"
             try:
                 data = json.loads(txt)
             except json.JSONDecodeError:
                 logger.warning(
-                    f"SwarmPredictor: LLM returned invalid JSON — defaulting to neutral. Raw: {str(txt)[:200]}"
+                    f"SwarmPredictor: LLM returned invalid JSON — defaulting to neutral. Raw: {txt[:200]}"
                 )
                 data = {}
 
@@ -746,22 +712,21 @@ class SwarmPredictor:
             if key in ctx:
                 parts.append(f"{key.capitalize()}: {ctx[key]}")
 
-            news = ctx.get("news", [])
-            if news:
-                parts.append("\n<NEWS_DATA>")
-                injection_flags = [
-                    "ignore all ",
-                    "system override",
-                    "new instructions",
-                    "you are now",
-                    "forget everything",
-                ]
-                for h in news[:3]:
-                    safe_h = str(h)
-                    for flag in injection_flags:
-                        safe_h = safe_h.lower().replace(flag, "[REDACTED]")
-                    parts.append(f" • {safe_h}")
-                parts.append("</NEWS_DATA>")
+        if ctx.get("news"):
+            parts.append("\n<NEWS_DATA>")
+            injection_flags = [
+                "ignore all ",
+                "system override",
+                "new instructions",
+                "you are now",
+                "forget everything",
+            ]
+            for h in ctx["news"][:3]:
+                safe_h = str(h)
+                for flag in injection_flags:
+                    safe_h = safe_h.lower().replace(flag, "[REDACTED]")
+                parts.append(f" • {safe_h}")
+            parts.append("</NEWS_DATA>")
         return "\n".join(parts)
 
     @staticmethod
@@ -805,7 +770,8 @@ class SwarmPredictor:
             try:
                 await self.get_market_forecast(
                     symbol=symbol,
-                    context={"price": "0", "regime": "CONTINUOUS_SCAN"},
+                    data_context={"price": "0", "regime": "CONTINUOUS_SCAN"},
+                    rounds=1,
                 )
             except asyncio.CancelledError:
                 break

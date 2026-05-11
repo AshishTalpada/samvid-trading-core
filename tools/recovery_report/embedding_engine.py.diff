@@ -1,0 +1,32 @@
+--- LOCAL/embedding_engine.py
++++ D-DRIVE/embedding_engine.py
+@@ -1,8 +1,7 @@
+ import logging
+ import threading
+-from typing import Any, List, Optional, Union, cast
++from typing import List, Optional
+ 
+-import numpy as np
+ from chromadb import Documents, EmbeddingFunction, Embeddings
+ 
+ logger = logging.getLogger(__name__)
+@@ -15,7 +14,7 @@
+     """
+ 
+     _instance: Optional["SharedEmbeddingEngine"] = None
+-    _model: Optional[Any] = None
++    _model: Optional[any] = None
+     _lock = threading.Lock()
+ 
+     def __new__(cls):
+@@ -79,9 +78,7 @@
+         self.engine = SharedEmbeddingEngine()
+ 
+     def __call__(self, input: Documents) -> Embeddings:
+-        embeddings = self.engine.embed(list(input))
+-        # Ensure we return the specific format Pyrefly/Chroma expects
+-        return cast(Embeddings, [np.array(e, dtype=np.float32) for e in embeddings])
++        return self.engine.embed(list(input))
+ 
+ 
+ # Globally accessible instance for ChromaDB collections

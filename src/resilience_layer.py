@@ -1,8 +1,7 @@
 import asyncio
 import logging
-from collections import deque
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import Any, Callable, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
@@ -14,12 +13,12 @@ class FailedOrder:
 
     symbol: str
     direction: str
-    shares: float | int
+    shares: int
     price: float
     attempt: int = 0
     max_attempts: int = 3
     reason: str = ""
-    ts_first_fail: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    ts_first_fail: datetime = field(default_factory=datetime.utcnow)
     task_id: str = ""
 
 
@@ -47,11 +46,10 @@ class DeadLetterQueue:
         self,
         symbol: str,
         direction: str,
-        shares: float | int,
+        shares: int,
         price: float,
         reason: str = "",
         task_id: str = "",
-        attempt: int = 0,
     ) -> None:
         """Add a failed order to the retry queue."""
         order = FailedOrder(
@@ -61,7 +59,6 @@ class DeadLetterQueue:
             price=price,
             reason=reason,
             task_id=task_id,
-            attempt=attempt,
             max_attempts=self._max_attempts,
         )
         try:
@@ -76,12 +73,15 @@ class DeadLetterQueue:
 
     async def run(self, retry_fn: Callable) -> None:
         """
-        Background worker. Handles concurrent retries to prevent Head-of-Line blocking.
+        Background worker. retry_fn should match signature:
+            async def retry_fn(symbol, direction, shares, price) -> bool
+        Returns True on success, False on failure.
         """
-        logger.info("DLQ: Concurrent retry worker started.")
-
-        async def _process_retry(order: FailedOrder):
+        logger.info("DLQ: Retry worker started.")
+        while True:
+            order = await self._queue.get()
             order.attempt += 1
+
             # Exponential back-off: 1s, 2s, 4s
             delay = 2 ** (order.attempt - 1)
             await asyncio.sleep(delay)
@@ -102,18 +102,13 @@ class DeadLetterQueue:
                 self._escalate(order, f"Max retries ({order.max_attempts}) exhausted.")
             else:
                 # Re-queue for another attempt
-                self.enqueue(
-                    order.symbol, order.direction, order.shares, order.price,
-                    reason=f"Retry {order.attempt} failed", task_id=order.task_id,
-                    attempt=order.attempt
+                await self._queue.put(order)
+                logger.warning(
+                    f"DLQ: Retry #{order.attempt} failed for {order.symbol}. "
+                    f"Re-queuing (attempt {order.attempt + 1}/{order.max_attempts})."
                 )
 
             self._queue.task_done()
-
-        while True:
-            order = await self._queue.get()
-            # Spawn a concurrent task for this specific order retry
-            asyncio.create_task(_process_retry(order))
 
     def _escalate(self, order: FailedOrder, reason: str) -> None:
         """Final escalation: halt trading and log critical alert."""
@@ -165,10 +160,8 @@ class ApexExoskeleton:
             return None
 
         cache = self._cortex_cache[symbol]
-        # Prevent ZeroDivisionError in the Cortex Bypass
-        denom = cache["price"] if cache["price"] > 0 else 1.0
-        price_delta = abs(current_price - cache["price"]) / denom
-        age = (datetime.now(timezone.utc) - cache["timestamp"]).total_seconds()
+        price_delta = abs(current_price - cache["price"]) / cache["price"]
+        age = (datetime.now() - cache["timestamp"]).total_seconds()
 
         if price_delta < 0.0005 and age < 60:
             logger.info(
@@ -196,7 +189,7 @@ class ApexExoskeleton:
         price: float,
         decision: Dict[str, Any],
         all_votes: List[Dict[str, Any]],
-        shares: float | int,
+        shares: int,
     ):
         """Zone B: Persist decision outcome to regional cache."""
         self._cortex_cache[symbol] = {
@@ -204,7 +197,7 @@ class ApexExoskeleton:
             "decision": decision,
             "all_votes": all_votes,
             "shares": shares,
-            "timestamp": datetime.now(timezone.utc),
+            "timestamp": datetime.now(),
         }
 
     async def run_parallel_tier(self, shared_context: Dict[str, Any]) -> List[Dict[str, Any]]:
@@ -247,9 +240,9 @@ class ApexExoskeleton:
                 logger.error(f"Exoskeleton: Agent D poll failed: {e}")
                 return {
                     "agent": "Agent_D",
-                    "vote": "NO",
-                    "reason": f"Agent D Failure: {e}",
-                    "confidence": 0.0,
+                    "vote": "YES",
+                    "confidence": 0.5,
+                    "reason": "Fallback",
                     "timestamp": timestamp,
                 }
 
@@ -284,8 +277,7 @@ class ApexExoskeleton:
 
         async def _poll_safe(name, func):
             try:
-                import inspect
-                if inspect.iscoroutinefunction(func):
+                if asyncio.iscoroutinefunction(func):
                     res = await func()
                 else:
                     # Sync-safe bridge: run in thread pool to prevent blocking the event loop
@@ -308,7 +300,7 @@ class ApexExoskeleton:
                 }
 
         logger.info("Apex Exoskeleton: Launching Stage 1 Parallel Quorum (7-Guards Tier)...")
-        return await asyncio.gather(  # type: ignore
+        return await asyncio.gather(
             *[_poll_safe(name, func) for name, func in fast_voting_map.items()]
         )
 
@@ -353,6 +345,7 @@ class ApexExoskeleton:
                 },
             ]
         return None
+# ── LOCAL-ONLY SOVEREIGN EXTENSIONS ─────────────────────────────────────
 
 
 class CorrelationWatchdog:
