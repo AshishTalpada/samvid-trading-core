@@ -221,7 +221,3 @@ class MindEvolution:
         )
         return {"status": "SYNCED", "memory_depth": len(self.historical_memory)}
 
-    async def start(self):
-        """Launches the evolution background thread."""
-        self.is_running = True
-        logger.info("MindEvolution: Genetic optimization loop active.")

@@ -6,7 +6,9 @@ except ImportError:
     def njit(f): return f
 
 from typing import Dict, List
+
 import numpy as np
+
 
 @njit
 def _internal_kelly(win_rate: float, win_loss_ratio: float, fraction: float) -> float:
@@ -23,7 +25,7 @@ def calculate_kelly_criterion(win_rate: float, win_loss_ratio: float, fraction: 
 @njit
 def _internal_sortino(ret_array: np.ndarray, risk_free_rate: float, target_return: float) -> float:
     mean_return = np.mean(ret_array)
-    
+
     # Filter downside returns (Numba optimized)
     downside_sum = 0.0
     downside_count = 0
@@ -31,10 +33,10 @@ def _internal_sortino(ret_array: np.ndarray, risk_free_rate: float, target_retur
         if r < target_return:
             downside_sum += (r - target_return)**2
             downside_count += 1
-            
+
     if downside_count == 0:
         return 100.0 # High value for no downside
-        
+
     downside_deviation = np.sqrt(downside_sum / len(ret_array))
     if downside_deviation == 0:
         return 0.0
