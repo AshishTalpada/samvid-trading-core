@@ -1525,7 +1525,6 @@ class LiveLearningEngine:
         if self._matrix.activated:
             await self._publish_calibration()
 
-        # --- PILLAR 7: AUTODREAM REFLECTION (SE-11 Port) ---
         last_dream_at = 0
         DREAM_INTERVAL = 3600 * 2  # dream every 2 hours
 
