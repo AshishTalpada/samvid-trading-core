@@ -72,9 +72,10 @@ class HistoricalInstructor:
         sharpe = (mean_ret / std_ret * math.sqrt(252)) if std_ret > 0 else 0.0
 
         # --- Maximum Drawdown ---
-        cumulative = np.cumprod(1.0 + arr)
+        arr_clipped = np.clip(arr, -0.999, 10.0)
+        cumulative = np.cumprod(1.0 + arr_clipped)
         running_max = np.maximum.accumulate(cumulative)
-        drawdown = (cumulative - running_max) / running_max
+        drawdown = (cumulative - running_max) / (running_max + 1e-9)
         max_dd = float(np.min(drawdown))
 
         # --- Total Return ---
