@@ -61,8 +61,8 @@ def get_portfolio_metrics(returns: List[float]) -> Dict[str, float]:
     losses = [abs(r) for r in returns if r < 0]
 
     win_rate = len(wins) / len(returns) if returns else 0.0
-    avg_win = np.mean(wins) if wins else 0.0
-    avg_loss = np.mean(losses) if losses else 0.0
+    avg_win = float(np.mean(wins)) if wins else 0.0
+    avg_loss = float(np.mean(losses)) if losses else 0.0
     wlr = avg_win / avg_loss if avg_loss > 0 else 0.0
 
     return {

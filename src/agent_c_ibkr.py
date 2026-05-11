@@ -598,6 +598,13 @@ class IBKRConnection:
             )
             return []
 
+        # --- SOVEREIGN SAFETY CHAIN: TradingState Check ---
+        if not TradingStateManager.allow_order(direction == "BUY" or direction == "SHORT"):
+            logger.warning(
+                f"🏛️ SAFETY GATE: Order for {symbol} REJECTED due to current TradingState ({TradingStateManager.state.value})."
+            )
+            return []
+
         # Reduced from 30s to 1s to allow Scalping/HFT while preventing API flooding
         wait_seconds = (datetime.now() - self._last_trade_time).total_seconds()
         if wait_seconds < 1.0:
