@@ -51,11 +51,14 @@ class EvolutionaryNeuroExperiment:
                     clone["fitness"] = 0.0
                     continue
 
-                # Mean Squared Error as inverse fitness
-                mse = np.mean((predictions - target_labels) ** 2)
+                # Mean Squared Error as inverse fitness with Log-Scaling for stability
+                mse = float(np.mean((predictions - target_labels) ** 2))
 
-                # Fitness is 1 / (1 + error), with NaN protection
-                clone["fitness"] = 1.0 / (1.0 + mse) if not np.isnan(mse) else 0.0
+                if np.isnan(mse) or np.isinf(mse):
+                    clone["fitness"] = 0.0
+                else:
+                    # Log-scaling prevents fitness explosion and improves selection pressure
+                    clone["fitness"] = 1.0 / (1.0 + np.log1p(mse))
             except Exception as e:
                 logger.error(f"[EVOLUTION] Fitness calculation failed: {e}")
                 clone["fitness"] = 0.0
@@ -88,9 +91,12 @@ class EvolutionaryNeuroExperiment:
             mask = np.random.rand(*p1.shape) > 0.5
             child_weights = np.where(mask, p1, p2)
 
-            # Mutation
+            # Mutation with clipping to prevent numerical explosion
             noise = np.random.normal(loc=0.0, scale=self.mutation_rate, size=child_weights.shape)
             child_weights += noise
+
+            # Absolute limit on weight drift to maintain structural integrity
+            child_weights = np.clip(child_weights, -10.0, 10.0)
 
             new_population.append({"weights": child_weights, "fitness": 0.0})
 
