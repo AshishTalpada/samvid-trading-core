@@ -37,6 +37,14 @@ class MindObserver:
         if self._task and not self._task.done():
             self._task.cancel()
             logger.info("MindObserver: Background observation loop terminated.")
+        
+        # Cleanup subscription if possible
+        if hasattr(self, "_news_queue") and self._news_queue:
+            try:
+                self.bridge.bus.unsubscribe("news.update", self._news_queue)
+                self._news_queue = None
+            except Exception:
+                pass
 
     async def _run_observation_loop(self) -> None:
         """Continuously pulls contextual 'Scent' via Bus Events."""
@@ -45,13 +53,13 @@ class MindObserver:
             return
 
         # Subscribe to news updates from the DataPipeline
-        news_queue = self.bridge.bus.subscribe("news.update")
+        self._news_queue = self.bridge.bus.subscribe("news.update")
         self._last_broadcast_time = 0.0
 
         while self.is_running:
             try:
                 # Wait for news update from the Bus
-                payload = await news_queue.get()
+                payload = await self._news_queue.get()
                 sentiment_val = payload.get("avg_sentiment", 0.0)
                 headlines = payload.get("headlines", [])
 
