@@ -30,6 +30,7 @@ from typing import (
 import numpy as np
 import pandas as pd
 import polars as pl
+import pytz
 
 logger = logging.getLogger(__name__)
 
@@ -179,9 +180,17 @@ class DrawdownLadder:
 
         if self.level != old_level:
             logger.warning(
-                f"Drawdown ladder [{self.account_type}]: {old_level.value} -> {self.level.value} "
+                f"Drawdown ladder [{self.account_type}]: {old_level.name} -> {self.level.name} "
                 f"(DD: {dd_pct:.2%}, Peak: ${self.peak_equity:.2f}, Current: ${equity:.2f})"
             )
+            # --- SOVEREIGN WIRING: Enforce global state escalation ---
+            from trading_state import TradingStateManager
+            if self.level == DrawdownLevel.RED:
+                TradingStateManager.halt(f"Drawdown Ladder [{self.account_type}] reached RED-ZONE.")
+            elif self.level in (DrawdownLevel.YELLOW, DrawdownLevel.ORANGE):
+                TradingStateManager.reduce_only(f"Drawdown Ladder [{self.account_type}] escalation: {self.level.name}")
+            elif self.level == DrawdownLevel.NORMAL:
+                TradingStateManager.activate(f"Drawdown Ladder [{self.account_type}] recovered to NORMAL.")
 
         return self.level
 
@@ -246,12 +255,15 @@ class ConsecutiveLossTracker:
 
     def _check_daily_reset(self) -> None:
         """Hard reset loss streak if it's a new trading day (after 8 AM ET)."""
-        now = datetime.now(timezone.utc)
+        tz = pytz.timezone("US/Eastern")
+        now = datetime.now(tz)
         # Check if we've crossed the 8 AM ET boundary
-        # For simplicity, we just check if self.last_loss_time was on a previous day
-        if self.last_loss_time and self.last_loss_time.date() < now.date() and now.hour >= 8:
-            if self.consecutive_losses > 0:
-                logger.info("🌅 MORNING RESET: Clearing previous session's loss streak for a fresh start.")
+        if self.last_loss_time:
+            # Convert last_loss_time to ET for comparison
+            last_loss_et = self.last_loss_time.astimezone(tz)
+            if last_loss_et.date() < now.date() and now.hour >= 8:
+                if self.consecutive_losses > 0:
+                    logger.info("🌅 MORNING RESET: Clearing previous session's loss streak for a fresh start.")
                 self.consecutive_losses = 0
                 self.win_streak = 0
                 self.paper_mode_forced = False
@@ -1384,6 +1396,8 @@ class TradingBrain:
                             f"❄  BUS → oracle.freeze: {payload.get('dhatu')} — "
                             f"all new entries BLocked"
                         )
+                        from trading_state import TradingStateManager
+                        TradingStateManager.halt(f"ORACLE_FREEZE: {self._oracle_dhatu}")
 
                     elif label == "calibration.update":
                         n = payload.get("n_trades", 0)
