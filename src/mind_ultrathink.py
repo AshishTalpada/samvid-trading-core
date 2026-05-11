@@ -88,7 +88,7 @@ class MindUltrathink:
         # Simplified vet: check if volatility is extreme or if belief is too low
         symbol = pos_dict.get("symbol", "UNKNOWN")
         logger.debug(f"[ULTRATHINK] Vetting heartbeat for {symbol}")
-        
+
         # Return dummy DNA for now
         return {
             "approved": True,

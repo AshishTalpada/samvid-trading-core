@@ -23,10 +23,10 @@ class DataPipeline:
 
         # Anomaly detection bounds (Z-Score filter)
         self.price_history: Dict[str, deque] = {}
-        
+
         # --- PILLAR 33: Predictive Prefetching ---
         self.prefetched_data: Dict[str, pd.DataFrame] = {}
-        
+
         # --- PILLAR 119: Adaptive Look-Back ---
         self.lookback_window = 100 # Default
 
@@ -39,7 +39,7 @@ class DataPipeline:
             self.tick_buffers[symbol] = deque()
             self.price_history[symbol] = deque(maxlen=self.lookback_window)
             self.last_bar_time[symbol] = timestamp_ms - (timestamp_ms % self.agg_window_ms)
-            
+
         # --- PILLAR 119: Adaptive Look-Back Adjustment ---
         # Note: In a full implementation, this would be updated from the Brain's VIX value
         # For the pipeline, we keep it consistent with the latest observed volatility.
@@ -136,12 +136,12 @@ class DataPipeline:
             self.lookback_window = 200 # Deep history
         else:
             self.lookback_window = 100
-            
+
         # Update existing deques
         for symbol in self.price_history:
             new_deque = deque(self.price_history[symbol], maxlen=self.lookback_window)
             self.price_history[symbol] = new_deque
-            
+
         logger.info(f"DataPipeline: Adaptive window adjusted to {self.lookback_window} (VIX: {vix:.2f})")
 
     async def run_continuous(self):

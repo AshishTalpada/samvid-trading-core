@@ -94,7 +94,7 @@ class SovereignTask:
             try:
                 with open(temp_file, "w", encoding="utf-8") as f:
                     json.dump(state, f, indent=2)
-                
+
                 # Atomic swap
                 if os.path.exists(state_file):
                     try:
