@@ -18,14 +18,20 @@ class PromptEvolver:
             self._variants[prompt_id] = []
         self._variants[prompt_id].append(score)
 
-    def best_variant(self) -> str | None:
+    def best_variant(self, min_samples: int = 5) -> str | None:
+        """Returns the statistically best prompt variant, requiring a minimum sample size."""
         if not self._variants:
             return None
-        scores = {pid: sum(s) / len(s) for pid, s in self._variants.items() if s}
+        # Only consider variants with enough data to be statistically relevant
+        scores = {
+            pid: sum(s) / len(s)
+            for pid, s in self._variants.items()
+            if len(s) >= min_samples
+        }
         if not scores:
             return None
         best = max(scores, key=scores.get)  # type: ignore
-        logger.info(f"[PROMPT EVOLVER] Best variant: {best} score={scores[best]:.3f}")
+        logger.info(f"[PROMPT EVOLVER] Best variant: {best} score={scores[best]:.3f} (n={len(self._variants[best])})")
         return best
 
     def mutate(self, prompt: str, vix: float) -> str:
