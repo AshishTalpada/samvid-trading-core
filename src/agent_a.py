@@ -36,7 +36,7 @@ class SovereignErrorLevel(Enum):
 
 
 class SovereignStabilizer:
-    """Ported Claude Pattern: exponentialBackoffWithJitter."""
+    """Exponential backoff with jitter for transient error recovery."""
 
     @staticmethod
     async def try_recover(attempt: int, max_retries: int = 5):
