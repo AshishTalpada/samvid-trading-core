@@ -74,6 +74,10 @@ class ChaosAgent:
         import copy
         import random
 
+        # GLOBAL PRODUCTION SAFEGUARD: Never inject faults in production
+        if os.environ.get("SOVEREIGN_ENV") == "production":
+            return data
+
         if random.random() < self.failure_prob:
             self.faults_injected += 1
             fault_type = random.choice(["DROP", "CORRUPT", "LATENCY"])
