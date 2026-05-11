@@ -347,7 +347,6 @@ class TradingSystem:
         """
         self.profiler.mark("ASYNC_INIT_START")
 
-        # 1. Sovereign Scent Detection (Pillar 9.99)
         self.mind_system = MindSystem(self.bridge)
         logger.info("MindSystem: Scanning for software scients and verifying environment...")
         executable_found = await self.mind_system._tool_find_executable("ibkr")
@@ -372,7 +371,6 @@ class TradingSystem:
 
         await self._verify_watchdog()
 
-        # --- PILLAR 16: JIT Optimization Check ---
         from quant_math import HAS_NUMBA
         if "GraalVM" in sys.version or hasattr(sys, "graalvm_home"):
             logger.info("🚀 HIGH-PERFORMANCE RUNTIME: GraalPy detected. Loop latencies minimized.")
@@ -381,7 +379,6 @@ class TradingSystem:
         else:
             logger.warning("STANDARD RUNTIME: No JIT detected (GraalPy/Numba). Latency may be affected.")
 
-        # --- PILLAR 40: Sub-Millisecond GC Hardening ---
         # Disable automatic GC to prevent pauses during tick ingestion
         gc.disable()
         logger.info("GC: Automatic collection DISABLED for sub-millisecond tick ingestion.")
@@ -702,7 +699,6 @@ class TradingSystem:
         """Sovereign Shield: Checks if IBKR software is already running to avoid redundant launches."""
         for target in ["tws.exe", "ibgateway.exe"]:
             try:
-                # Use Windows tasklist (Pillar 6 optimized)
                 cmd = f'tasklist /FI "IMAGENAME eq {target}" /NH'
                 proc = await asyncio.create_subprocess_shell(
                     cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
@@ -1055,7 +1051,6 @@ class TradingSystem:
             # Import DataPipeline component
             from data_pipeline import DataPipeline
 
-            # PILLAR 9.99: Explicit Type-Safety Cast for Handover
             _f_key = Vault.get("FINNHUB_API_KEY", "")
             self.data_pipeline = DataPipeline(
                 db_path=str(self.db_path),
@@ -1301,7 +1296,6 @@ class TradingSystem:
             # Step 3: Database Status (Already init via async_init)
             logger.info("\n[3/10] SQLite Engine Sync Check...")
 
-            # PILLAR 6 & 9.99: MISSION PARALLELIZATION (Harvested from Leaked Goldmine)
             # 1. Instantiate Core Objects first so the Brain has valid references
             from ib_insync import IB
 
@@ -2089,7 +2083,6 @@ async def main(s: TradingSystem) -> None:
 
         await s.startup()
 
-        # PILLAR 10: PERSISTENCE - Keep the system alive indefinitely
         # This prevents main() from finishing and hitting the 'finally' shutdown block.
         logger.info("✅ Matrix fully synchronized. System operational.")
         _gc_counter = 0
@@ -2098,7 +2091,6 @@ async def main(s: TradingSystem) -> None:
             # Increased frequency to 0.2s for higher responsiveness to Ctrl+C.
             await asyncio.sleep(0.2)
 
-            # --- PILLAR 40: Sub-Millisecond GC Hardening (Idle Trigger) ---
             _gc_counter += 1
             if _gc_counter >= 100: # Every 20 seconds
                 gc.collect()
