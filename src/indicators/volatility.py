@@ -69,7 +69,7 @@ class BollingerBands:
 
         self._buf.append(price)
         self._sum_sq += price**2
-        
+
         mid = self._sma.update(price)
         if mid is None:
             return None
