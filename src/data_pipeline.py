@@ -44,8 +44,8 @@ try:
         yf_history.History.history = _patched_history
     else:
         yf_history.history = _patched_history
-except Exception:
-    pass
+except Exception as _yf_patch_err:
+    pass  # yfinance version mismatch — patch not applied (non-critical)
 import yfinance as yf
 
 from config import QUESTDB_ENABLED
