@@ -140,7 +140,3 @@ class MindObserver:
             "timestamp": now_ts,
         }
 
-    async def start(self):
-        """Initializes the market observer's pattern matching engine."""
-        self.is_running = True
-        logger.info("MindObserver: Pattern matching engine active.")
