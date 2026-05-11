@@ -16,7 +16,9 @@ from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Optional
 
 import aiohttp
-import MetaTrader5 as mt5  # type: ignore
+from typing import Any
+
+mt5: Any = None
 
 if TYPE_CHECKING:
     from intelligence_bus import SharedIntelligenceBus
@@ -24,6 +26,18 @@ if TYPE_CHECKING:
 from vault import Vault
 
 logger = logging.getLogger(__name__)
+
+
+def _get_mt5_module() -> Any:
+    global mt5
+    if mt5 is None:
+        try:
+            import MetaTrader5 as mt5_mod  # type: ignore
+        except Exception as e:
+            logger.warning(f"DMS: MetaTrader5 import failed: {e}")
+            raise
+        mt5 = mt5_mod
+    return mt5
 
 
 class DMSMonitor:
@@ -333,6 +347,7 @@ class DMSMonitor:
         mt5_count = 0
         if self.mt5_client:
             try:
+                mt5 = _get_mt5_module()
                 # Retry with 60s intervals (up to 3 attempts)
                 for attempt in range(3):
                     positions = await asyncio.to_thread(mt5.positions_get)
