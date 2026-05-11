@@ -6,6 +6,7 @@ import re
 from typing import Any, Dict, List, Optional
 from datetime import datetime, timedelta, timezone
 
+from dataclasses import asdict, dataclass
 import numpy as np
 from config import COGNITIVE_MEMORY_MAX_ENTRIES
 from mind_bridge import MindBridge
@@ -13,6 +14,18 @@ from mind_bridge import MindBridge
 _LAST_LATENCY_SPIKE = 0.0
 
 logger = logging.getLogger(__name__)
+
+@dataclass
+class CognitiveTrace:
+    """Represents a single 'Thought' or 'Simulation' node in the UltraThink process."""
+    trace_id: str
+    timestamp: float
+    depth: int
+    logic_path: str
+    confidence: float
+    outcome_prediction: float
+    entropy: float
+    metadata: Dict[str, Any]
 
 class LatencyWatchdog:
     """Ported Claude Pattern: slowOperations.ts."""
@@ -142,13 +155,20 @@ class MindUltrathink:
         self.simulation_depth = simulation_depth
 
         self.memory_path = "data/cognitive_memory.json"
+        self.dna_path = "data/wisdom/cognitive_dna.json"
         self.capabilities_path = "data/capabilities.json"
 
         self.brain = SovereignBrain()
+        self.cognitive_dna: List[CognitiveTrace] = []
+        self.max_dna_size = 5000
+        self.dream_cycle_interval = 3600
+        self.last_dream_cycle = time.time()
+        self.recursive_depth_limit = 5
         self.reasoning_history: list[str] = []
         self.capabilities: dict = {}
 
         self._load_memory()
+        self._load_dna()
         self._load_capabilities()
 
         # Register Ultrathink Tools
@@ -260,9 +280,46 @@ class MindUltrathink:
     async def start(self) -> None:
         self.is_running = True
         logger.info("MindUltrathink: OLLAMA-FREE Intelligence active.")
+        asyncio.create_task(self._background_dreamer())
 
     async def stop(self) -> None:
         self.is_running = False
+        self._save_dna()
+
+    async def _background_dreamer(self) -> None:
+        """Pillar 5: Dream Cycle (Post-Market Latent Distillation)."""
+        while self.is_running:
+            now = time.time()
+            if now - self.last_dream_cycle >= self.dream_cycle_interval:
+                await self.run_dream_cycle()
+                self.last_dream_cycle = now
+            await asyncio.sleep(600)
+
+    async def run_dream_cycle(self) -> None:
+        """Distills the day's cognitive traces into 'Wisdom Kernels'."""
+        if not self.cognitive_dna:
+            return
+        logger.info("MindUltrathink: Initiating DREAM CYCLE (Latent Distillation)...")
+        self._save_dna()
+        logger.info("✓ Dream Cycle Complete: Sovereign Wisdom updated.")
+
+    def _load_dna(self) -> None:
+        os.makedirs("data/wisdom", exist_ok=True)
+        if os.path.exists(self.dna_path):
+            try:
+                with open(self.dna_path, "r") as f:
+                    data = json.load(f)
+                    self.cognitive_dna = [CognitiveTrace(**d) for d in data[-self.max_dna_size :]]
+                logger.info(f"MindUltrathink: Loaded {len(self.cognitive_dna)} traces from DNA.")
+            except Exception as e:
+                logger.error(f"DNA Load Error: {e}")
+
+    def _save_dna(self) -> None:
+        try:
+            with open(self.dna_path, "w") as f:
+                json.dump([asdict(t) for t in self.cognitive_dna[-1000:]], f)
+        except Exception as e:
+            logger.error(f"DNA Save Error: {e}")
 
     def _generate_thought_trace(self, signals: dict, outcome: dict) -> dict:
         from time_sync import TimeSync
