@@ -2381,12 +2381,23 @@ class TradingBrain:
                 else:
                     self._loss_streak = 0
 
-            if hasattr(self, "recursive_evolution"):
+            if hasattr(self, "recursive_evolution") and self.recursive_evolution:
                 self.recursive_evolution.evolve_live(
                     pattern_name=pos.pattern or pos.meta.get("pattern", "UNKNOWN"),
                     pnl=realized_net_pnl,
                     regime=self.current_regime,
                     shares_remaining=getattr(pos, "shares_remaining", 0.0),
+                )
+
+            # --- NEURAL FEEDBACK: Reputation Update ---
+            if hasattr(self, "mind_architect") and self.mind_architect:
+                votes = pos.meta.get("votes", [])
+                # Convert list of vote dicts to a map of {agent_id: vote}
+                agent_votes = {v["agent"]: v["vote"] for v in votes if "agent" in v}
+                self.mind_architect.penalize_or_reward_agents(
+                    agent_votes=agent_votes,
+                    realized_pnl=realized_net_pnl,
+                    symbol=pos.symbol
                 )
 
             # --- EVENT PUBLISHING (Neural Bus) ---
