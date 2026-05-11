@@ -19,7 +19,14 @@ def create_task_safe(coro):
         except asyncio.CancelledError:
             pass
         except Exception as e:
-            logger.error(f"BackgroundTask: Unhandled exception in {t.get_coro()}: {e}")
+            task_name = getattr(t, "get_name", lambda: "Unknown")()
+            logger.critical(f"BackgroundTask: CRITICAL FAILURE in {task_name}: {e}")
+            # In production, we should trigger a system halt here
+            try:
+                from trading_state import TradingStateManager
+                TradingStateManager.halt(f"Critical background task failed: {e}")
+            except Exception as halt_error:
+                logger.error(f"BackgroundTask: Failed to trigger HALT: {halt_error}")
 
     task.add_done_callback(_handle_task_result)
     return task
