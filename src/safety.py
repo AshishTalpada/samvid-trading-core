@@ -15,6 +15,32 @@ from telegram_alerts import send_telegram_alert
 logger = logging.getLogger("safety")
 
 
+def _send_startup_alert(message: str) -> None:
+    try:
+        loop = None
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            loop = None
+
+        if loop and loop.is_running():
+            loop.call_soon_threadsafe(lambda: asyncio.create_task(send_telegram_alert(message)))
+        else:
+            asyncio.run(send_telegram_alert(message))
+    except RuntimeError:
+        logger.debug("Startup alert skipped because a running event loop prevented asyncio.run().")
+    except Exception as exc:
+        logger.error(f"Startup alert failed: {exc}")
+
+
+def _force_paper_mode(system: Any, reason: str) -> None:
+    system.mode = "paper"
+    logger.warning(f"Startup Safety: {reason} — forcing paper mode")
+    _send_startup_alert(
+        "🛑 SOVEREIGN: Startup safety enforced PAPER mode. Live trading is disabled until explicitly authorized."
+    )
+
+
 def apply_runtime_safety(system: Any) -> None:
     """Apply aggressive startup safety checks to the running TradingSystem instance.
 
@@ -22,69 +48,42 @@ def apply_runtime_safety(system: Any) -> None:
     - Set `system.mode` accordingly and log/notify if we force changes
     """
     try:
-        # Priority 1: If the code-level forced flag is set in config, honor it
         import config
 
         if getattr(config, "FORCED_PAPER_MODE", False):
-            system.mode = "paper"
-            logger.warning("Startup Safety: FORCED_PAPER_MODE active — forcing paper mode")
-            try:
-                try:
-                    loop = asyncio.get_running_loop()
-                except RuntimeError:
-                    loop = None
-
-                if loop and loop.is_running():
-                    loop.create_task(
-                        send_telegram_alert(
-                            "🛑 SOVEREIGN: FORCED_PAPER_MODE active — live trading disabled at startup."
-                        )
-                    )
-                else:
-                    logger.debug("No running event loop; skipping startup telegram alert")
-            except Exception:
-                pass
+            _force_paper_mode(system, "FORCED_PAPER_MODE active")
             return
 
-        # Next, check environment override
-        env_mode = os.environ.get("TRADING_MODE")
-        if env_mode:
-            env_mode = env_mode.strip().lower()
-            if env_mode in ("paper", "ibkr_paper"):
-                system.mode = env_mode
-                logger.info(f"Startup Safety: TRADING_MODE environment set to '{env_mode}'")
-                return
+        if os.environ.get("PAPER_MODE", "0").strip() == "1":
+            _force_paper_mode(system, "PAPER_MODE=1 detected")
+            return
 
-        # Lastly, check Vault value if available (the system already reads from Vault in main)
-        # If none found or unsafe value present, default to paper
-        # This is an intentionally conservative default to protect capital.
-        # Acceptable live modes must be explicitly authorized by setting
-        # the environment variable 'ALLOW_FORCE_LIVE' to '1' and TRADING_MODE to a live mode.
+        env_mode = os.environ.get("TRADING_MODE", "").strip().lower()
         allow_live = os.environ.get("ALLOW_FORCE_LIVE", "0").strip() == "1"
-        if not allow_live:
-            system.mode = "paper"
-            logger.warning(
-                "Startup Safety: No explicit live authorization found — defaulting to PAPER mode."
-            )
-            try:
-                try:
-                    loop = asyncio.get_running_loop()
-                except RuntimeError:
-                    loop = None
 
-                if loop and loop.is_running():
-                    loop.create_task(
-                        send_telegram_alert(
-                            "🛑 SOVEREIGN: Startup enforced PAPER mode. Set ALLOW_FORCE_LIVE=1 to override with caution."
-                        )
-                    )
-                else:
-                    logger.debug("No running event loop; skipping startup telegram alert")
-            except Exception:
-                pass
+        if env_mode:
+            if env_mode not in ("paper", "ibkr_paper", "live"):
+                logger.warning(
+                    f"Startup Safety: Invalid TRADING_MODE '{env_mode}' ignored. Defaulting to paper mode."
+                )
+                env_mode = ""
+            elif env_mode == "live" and not allow_live:
+                logger.warning(
+                    "Startup Safety: TRADING_MODE=live requires ALLOW_FORCE_LIVE=1. Defaulting to paper mode."
+                )
+                env_mode = ""
+
+        if env_mode:
+            system.mode = env_mode
+            logger.info(f"Startup Safety: TRADING_MODE environment set to '{env_mode}'")
+            return
+
+        if not allow_live:
+            _force_paper_mode(system, "No explicit live authorization found")
         else:
-            # Allow the mode from Vault/main to remain as-is (less intrusive)
-            logger.warning("Startup Safety: ALLOW_FORCE_LIVE detected — proceeding with configured trading mode.")
+            logger.warning(
+                "Startup Safety: ALLOW_FORCE_LIVE detected — proceeding with configured trading mode."
+            )
 
     except Exception as e:
         logger.error(f"Safety startup enforcement failed: {e}")
@@ -108,15 +107,22 @@ def EMERGENCY_HALT(reason: str = "EMERGENCY HALT invoked") -> None:
 
         # Fire-and-forget Telegram alert
         try:
-            asyncio.get_event_loop().call_soon_threadsafe(
-                lambda: asyncio.create_task(send_telegram_alert(f"🛑 EMERGENCY HALT: {reason}"))
-            )
-        except Exception:
-            # If no event loop, create a new task asynchronously
+            loop = None
             try:
+                loop = asyncio.get_running_loop()
+            except RuntimeError:
+                loop = None
+
+            if loop and loop.is_running():
+                loop.call_soon_threadsafe(
+                    lambda: asyncio.create_task(send_telegram_alert(f"🛑 EMERGENCY HALT: {reason}"))
+                )
+            else:
                 asyncio.run(send_telegram_alert(f"🛑 EMERGENCY HALT: {reason}"))
-            except Exception:
-                logger.error("Failed to send emergency Telegram alert")
+        except RuntimeError:
+            logger.debug("Emergency alert skipped because a running event loop prevented asyncio.run().")
+        except Exception:
+            logger.error("Failed to send emergency Telegram alert")
 
     except Exception as e:
         logger.error(f"EMERGENCY_HALT failed: {e}")
