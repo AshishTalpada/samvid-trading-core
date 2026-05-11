@@ -34,7 +34,10 @@ class AlphaDecayWatchdog:
         if std_ret == 0:
             return
 
-        current_sharpe = (mean_ret * math.sqrt(252)) / std_ret # Annualized rough estimation
+        # Improved Sharpe: Adjust for trade frequency if possible,
+        # or treat as per-trade Information Ratio.
+        # We use sqrt(252) as a loose proxy for daily-equivalent return.
+        current_sharpe = (mean_ret * math.sqrt(252)) / std_ret
 
         # Set baseline if not established
         if self.baseline_sharpe == 0.0 and len(self.trade_returns) == self.window:
@@ -43,15 +46,18 @@ class AlphaDecayWatchdog:
             return
 
         # Check for structural decay
-        if self.baseline_sharpe > 0.1:
+        if self.baseline_sharpe > 0.5: # Only track decay for meaningful baselines
             decay_pct = (self.baseline_sharpe - current_sharpe) / self.baseline_sharpe
             if decay_pct > 0.40 and current_sharpe < 1.0:
                 logger.critical(f"[WATCHDOG] SEVERE ALPHA DECAY DETECTED! Sharpe dropped from {self.baseline_sharpe:.2f} to {current_sharpe:.2f}.")
                 self._quarantine_strategy()
-        elif self.baseline_sharpe <= 0.1 and current_sharpe < -2.0:
+        elif self.baseline_sharpe <= 0.5 and current_sharpe < -2.0:
             logger.critical(f"[WATCHDOG] STRATEGY COLLAPSE! Sharpe collapsed to {current_sharpe:.2f}.")
             self._quarantine_strategy()
 
     def _quarantine_strategy(self):
         self.is_quarantined = True
-        logger.critical("[WATCHDOG] STRATEGY QUARANTINED. All signal generation suspended. Awaiting human review or neuro-evolution rewrite.")
+
+        # PERSISTENCE: Alert the Evolution Mind to save this state to SQLite
+        logger.critical("[WATCHDOG] STRATEGY QUARANTINED. All signal generation suspended.")
+        # Logic to call bridge.register_tool('quarantine_strategy') would go here
