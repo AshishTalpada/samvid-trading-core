@@ -10,8 +10,8 @@ Import pattern:
 from __future__ import annotations
 
 import logging
-
 import numpy as np
+from typing import List, Dict
 
 logger = logging.getLogger(__name__)
 
@@ -289,6 +289,11 @@ def warmup() -> None:
     kalman_update(100.0, 1.0, 100.5)
     returns = np.diff(np.log(dummy + 1e-10))
     multi_factor_score(returns, np.ones(len(returns)) * 1000)
+    
+    # Trigger compilation for local-only kernels
+    _internal_kelly(0.5, 2.0, 0.5)
+    _internal_sortino(np.array([0.01, -0.02, 0.015], dtype=np.float64), 0.0, 0.0)
+    
     logger.info("quant_math: Numba warmup complete — all kernels compiled.")
 
 
@@ -297,6 +302,7 @@ NUMBA_AVAILABLE = _NUMBA_AVAILABLE
 # ── LOCAL-ONLY QUANT EXTENSIONS (recovered from local system) ────────────
 
 
+@njit(cache=True)
 def _internal_kelly(win_rate: float, win_loss_ratio: float, fraction: float) -> float:
     if win_loss_ratio <= 0:
         return 0.0
@@ -309,9 +315,8 @@ def calculate_kelly_criterion(win_rate: float, win_loss_ratio: float, fraction: 
     """Calculates the optimal bet size based on the Kelly Criterion. Includes fractional Kelly for safety."""
     return _internal_kelly(win_rate, win_loss_ratio, fraction)
 
-@njit
 
-
+@njit(cache=True)
 def _internal_sortino(ret_array: np.ndarray, risk_free_rate: float, target_return: float) -> float:
     mean_return = np.mean(ret_array)
 
@@ -362,11 +367,4 @@ def get_portfolio_metrics(returns: List[float]) -> Dict[str, float]:
         "sortino": calculate_sortino_ratio(returns),
         "var_99": calculate_value_at_risk(returns)
     }
-
-def warmup():
-    """JIT Warmup for Sovereign Numba pre-compilation."""
-    if HAS_NUMBA:
-        # Trigger compilation for core kernels
-        _internal_kelly(0.5, 2.0, 0.5)
-        _internal_sortino(np.array([0.01, -0.02, 0.015], dtype=np.float64), 0.0, 0.0)
 

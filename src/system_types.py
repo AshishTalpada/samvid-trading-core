@@ -94,7 +94,6 @@ class MarketTick:
     def mid_price(self) -> float:
         return (self.ask + self.bid) / 2.0
 
-@dataclass
 
 
 @dataclass
@@ -107,7 +106,6 @@ class OrderIntent:
     intent_id: str = field(default_factory=lambda: uuid.uuid4().hex)
     created_at: datetime = field(default_factory=datetime.utcnow)
 
-@dataclass
 
 
 @dataclass
@@ -121,7 +119,6 @@ class ExecutionFill:
     timestamp_ms: int
     is_partial: bool = False
 
-@dataclass
 
 
 @dataclass
@@ -133,7 +130,6 @@ class RiskState:
     is_quarantined: bool = False
     active_circuit_breakers: List[str] = field(default_factory=list)
 
-@dataclass
 
 
 @dataclass

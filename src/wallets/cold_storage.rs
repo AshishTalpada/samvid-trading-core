@@ -1,5 +1,5 @@
 use sha2::{Sha256, Digest};
-use std::fs::{File, OpenOptions};
+use std::fs::OpenOptions;
 use std::io::Write;
 
 pub struct ColdWallet {

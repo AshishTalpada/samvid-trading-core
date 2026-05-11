@@ -3,7 +3,11 @@ import logging
 import os
 import sqlite3
 import sys
+import re
 from pathlib import Path
+from collections import Counter
+from typing import List
+import numpy as np
 
 # Ensure project root is in path to import DatabaseSecurity
 _here = Path(__file__).resolve().parent
