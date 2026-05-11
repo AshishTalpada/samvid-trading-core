@@ -1,0 +1,29 @@
+[package]
+name = "sovereign_core"
+version = "0.1.0"
+edition = "2021"
+description = "Sovereign Trading System High-Performance Native Core"
+
+[lib]
+name = "sovereign_core"
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+pyo3 = { version = "0.20", features = ["extension-module", "abi3-py37"] }
+tokio = { version = "1.0", features = ["full"] }
+crossbeam = "0.8"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+log = "0.4"
+env_logger = "0.10"
+anyhow = "1.0"
+futures = "0.3"
+async-trait = "0.1"
+chrono = { version = "0.4", features = ["serde"] }
+libp2p = { version = "0.52", features = ["tcp", "dns", "websocket", "noise", "yamux", "mplex", "kad", "identify", "ping", "macros", "tokio"] }
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+panic = "abort"
