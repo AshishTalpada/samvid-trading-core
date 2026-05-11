@@ -9,6 +9,9 @@ extern "C" {
 #endif
 
 void encrypt_stream_aes_ctr(uint8_t* buffer, int len, __m128i* key_schedule, uint8_t* nonce_counter) {
+    if (buffer == NULL || key_schedule == NULL || nonce_counter == NULL || len <= 0) {
+        return;
+    }
     __m128i nonce_block = _mm_loadu_si128((__m128i*)nonce_counter);
     __m128i one = _mm_set_epi64x(0, 1); // For incrementing the CTR block
     
