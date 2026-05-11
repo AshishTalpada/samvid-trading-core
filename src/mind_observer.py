@@ -11,7 +11,6 @@ class MindObserver:
     """
     Agent H: The Observation Mind.
     Focuses on 'Global Contextual State' and 'Information Scent'.
-    Inspired by Claude-Code's WebFetch and Search patterns.
     """
 
     def __init__(self, bridge: Any = None, qdb: Any = None, **kwargs) -> None:
@@ -92,7 +91,7 @@ class MindObserver:
                 logger.error(f"MindObserver: Observation loop error: {e}")
                 await asyncio.sleep(10)
 
-    # --- OBSERVATION TOOLS (Inspired by Claude-Code WebFetch) ---
+    # --- OBSERVATION TOOLS ---
 
     async def _tool_fetch_sentiment(self) -> dict[str, Any]:
         """Simulates fetching global sentiment from external feeds (MCP-compatible)."""
