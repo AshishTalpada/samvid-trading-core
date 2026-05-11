@@ -1,0 +1,19 @@
+--- LOCAL/test_slm_intelligence.py
++++ D-DRIVE/test_slm_intelligence.py
+@@ -74,14 +74,12 @@
+     ]
+ 
+     for scenario in scenarios:
+-        ctx: dict = scenario["context"]  # type: ignore[assignment]
+         print(f"\n{scenario['name']}")
+         print(
+-            f"   Input -> {ctx['symbol']} | {ctx['regime']} | {ctx['dhatu_state']}"
++            f"   Input -> {scenario['context']['symbol']} | {scenario['context']['regime']} | {scenario['context']['dhatu_state']}"
+         )
+ 
+-        result = await slm.evaluate_proposal(ctx)
+-
++        result = await slm.evaluate_proposal(scenario["context"])
+ 
+         vote_icon = "✅" if result["vote"] == "YES" else "❌"
+         print(f"   SLM BIAS: {result['bias']}")

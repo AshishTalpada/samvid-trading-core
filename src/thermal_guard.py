@@ -59,7 +59,7 @@ class ThermalGuard:
         try:
             import psutil
 
-            return psutil.virtual_memory().percent  # type: ignore
+            return psutil.virtual_memory().percent
         except Exception:
             return 50.0
 

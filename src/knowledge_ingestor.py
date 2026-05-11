@@ -3,7 +3,6 @@ import logging
 import os
 import re
 from datetime import datetime
-from typing import Any
 
 from swarm_predictor import ChromaDeepMemory
 from vault import Vault
@@ -19,7 +18,7 @@ class KnowledgeIngestor:
     def __init__(self, memory: ChromaDeepMemory) -> None:
         self.memory = memory
         self.ingested_count = 0
-        self.visited_paths: Any = set()
+        self.visited_paths = set()
         self.redaction_patterns = self._init_redaction()
 
     def _init_redaction(self):
@@ -131,7 +130,7 @@ async def run_full_ingestion() -> None:
 
     memory = ChromaDeepMemory()
     ingestor = KnowledgeIngestor(memory)
-    source_dir: str = Vault.get("KNOWLEDGE_SOURCE_DIR", "data/knowledge") or "data/knowledge"
+    source_dir = Vault.get("KNOWLEDGE_SOURCE_DIR", "data/knowledge")
     await ingestor.ingest_directory(source_dir)
     await ingestor.trigger_evolution_shift()
 

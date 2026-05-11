@@ -1,0 +1,51 @@
+--- LOCAL/api_server.py
++++ D-DRIVE/api_server.py
+@@ -102,11 +102,7 @@
+         if hasattr(self.system, "bus") and self.system.bus is not None:
+             # HFT topics use the Queue model to prevent memory leaks
+             self._tick_queue = self.system.bus.subscribe("tick.hft", maxsize=50)
+-            if not hasattr(self, "_bg_tasks"):
+-                self._bg_tasks = set()
+-            task = asyncio.create_task(self._run_tick_broadcaster())
+-            self._bg_tasks.add(task)
+-            task.add_done_callback(self._bg_tasks.discard)
++            asyncio.create_task(self._run_tick_broadcaster())
+ 
+             # Low-frequency topics can use callbacks safely
+             self.system.bus.on("oracle.state", self._broadcast_oracle)
+@@ -388,7 +384,7 @@
+ 
+             # Create a dedicated sender task for this specific client
+             async def _ws_writer():
+-                q: Any = asyncio.Queue(maxsize=100)
++                q = asyncio.Queue(maxsize=100)
+                 self.active_connections[websocket] = q
+                 try:
+                     while True:
+@@ -425,7 +421,7 @@
+                 if websocket in self.active_connections:
+                     del self.active_connections[websocket]
+ 
+-    async def _safe_send_json(self, websocket: WebSocket, data: dict[str, Any]) -> None:  # type: ignore
++    async def _safe_send_json(self, websocket: WebSocket, data: dict[str, Any]) -> None:
+         """Send JSON with connection state check."""
+         try:
+             if websocket.client_state.name == "CONNECTED":
+@@ -674,7 +670,7 @@
+                             "SELECT parameter_name, parameter_value, confidence, last_updated FROM brain_optimization"
+                         )
+                         rows = ev_cursor.fetchall()
+-                        brain_data["gap"]["evolution"] = {  # type: ignore
++                        brain_data["gap"]["evolution"] = {
+                             r[0]: {"value": r[1], "confidence": r[2], "last_updated": r[3]}
+                             for r in rows
+                         }
+@@ -822,7 +818,7 @@
+         self.server = uvicorn.Server(config)
+         # Disable uvicorn's signal handlers — the main TradingSystem handles
+         # Ctrl+C / SIGINT.
+-        self.server.install_signal_handlers = lambda: None  # type: ignore
++        self.server.install_signal_handlers = lambda: None  # type: ignore[assignment]
+ 
+         async def _serve() -> None:
+             try:

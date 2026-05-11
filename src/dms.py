@@ -13,12 +13,10 @@ Implements:
 import asyncio
 import logging
 from datetime import datetime, timezone
-from typing import TYPE_CHECKING, Any, Optional
+from typing import TYPE_CHECKING, Optional
 
 import aiohttp
-import MetaTrader5 as MT5
-
-mt5: Any = MT5
+import MetaTrader5 as mt5  # type: ignore
 
 if TYPE_CHECKING:
     from intelligence_bus import SharedIntelligenceBus
@@ -46,9 +44,9 @@ class DMSMonitor:
     ) -> None:
         self.bus = bus
         if not bot_token or bot_token == "YOUR_BOT_TOKEN_HERE":
-            bot_token = str(Vault.get("TELEGRAM_BOT_TOKEN", ""))
+            bot_token = Vault.get("TELEGRAM_BOT_TOKEN", "")
         if not chat_id or chat_id == "YOUR_CHAT_ID_HERE":
-            chat_id = str(Vault.get("TELEGRAM_CHAT_ID", ""))
+            chat_id = Vault.get("TELEGRAM_CHAT_ID", "")
 
         self.bot_token = bot_token
         self.chat_id = chat_id
@@ -271,7 +269,7 @@ class DMSMonitor:
                                     else:
                                         # 5% buffer through the market
                                         lmt_price = price * (1.05 if direction == "BUY" else 0.95)
-                                        order = LimitOrder(direction, shares, round(lmt_price, 4))  # type: ignore
+                                        order = LimitOrder(direction, shares, round(lmt_price, 4))
                                         logger.info(
                                             f"DMS [Shield]: Emergency Limit ({direction}) for {pos.contract.symbol} @ {lmt_price:.4f}"
                                         )
@@ -406,7 +404,6 @@ class DMSMonitor:
 
         await self._send_telegram_message(report)
         logger.critical(f"DMS FLATTEN COMPLETE: {total_flattened} positions closed")
-        return flatten_results
 
     async def send_status_ok(self) -> None:
         """Send hourly OK status message."""
