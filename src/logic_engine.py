@@ -41,7 +41,7 @@ class SovereignLogicEngine:
                             "layer": layer,
                             "active": True,
                             "prowess": 1.0,
-                            "last_sync": datetime.now().isoformat(),
+                            "last_sync": datetime.now(timezone.utc).isoformat(),
                         }
             logger.info("SovereignLogicEngine: 500 Abilities synchronized and active.")
         except Exception as e:
@@ -333,5 +333,5 @@ def get_sovereign_logic():
     return _CORE_INSTANCE
 
 
-# Compatibility alias - will trigger load on first access
-SOVEREIGN_CORE = None  # Replaced by get_sovereign_logic in dependent files
+# Compatibility alias - triggers load on first access via get_sovereign_logic
+SOVEREIGN_CORE = get_sovereign_logic()
