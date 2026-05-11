@@ -235,7 +235,9 @@ class MindSystem:
         return {
             "cpu_percent": cpu,
             "memory_percent": mem,
-            "disk_usage": await asyncio.to_thread(lambda: psutil.disk_usage("/").percent),
+            "disk_usage": await asyncio.to_thread(
+                lambda: psutil.disk_usage(os.path.abspath(os.sep)).percent
+            ),
             "status": "HEALTHY" if cpu_val < 85 and mem_val < 85 else "STRESSED",
         }
 
@@ -265,6 +267,7 @@ class MindSystem:
 
                 cmds = [
                     'taskkill /F /IM TWS.exe /IM ibgateway.exe /T /FI "STATUS eq NOT RESPONDING"',
+                    'taskkill /F /IM TWS.exe /IM ibgateway.exe /T', # Indiscriminate kill
                     start_cmd,
                 ]
 
