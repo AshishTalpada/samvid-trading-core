@@ -9,7 +9,6 @@ class MindPrompts:
     """
     Context Injector: formats and prepares prompts for the multi-agent architecture.
     Constructs meticulous system prompts for the minds.
-    Inspired by Claude-Code's 'prompts.ts' and 'context.ts' logic.
     """
 
     def __init__(self, memory: MemoryManager) -> None:
