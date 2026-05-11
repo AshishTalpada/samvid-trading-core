@@ -33,8 +33,18 @@ class HedgingAgent:
         if needs_hedge:
             # Dynamic allocation based on crash probability
             severity_multiplier = max(1.0, slm_crash_probability * 2)
-            allocation = portfolio_value * self.hedge_ratio * severity_multiplier
-            logger.info(f"Hedging Agent triggered! Reason: {reason}. Suggested Allocation: ${allocation:.2f}")
+            raw_allocation = portfolio_value * self.hedge_ratio * severity_multiplier
+            
+            # HARD CAP: Never spend more than 15% of NAV on protective premium in one go
+            allocation = min(raw_allocation, portfolio_value * 0.15)
+            
+            # MINIMUM CHECK: Don't suggest allocations too small to execute (< $100 for premium)
+            if allocation < 100.0:
+                 allocation = 0.0
+                 needs_hedge = False
+                 reason = "Hedge requirement below execution threshold ($100)"
+            else:
+                 logger.info(f"Hedging Agent triggered! Reason: {reason}. Suggested Allocation: ${allocation:.2f}")
 
         return {
             "needs_hedge": needs_hedge,
