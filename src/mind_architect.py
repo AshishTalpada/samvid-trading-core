@@ -13,10 +13,11 @@ class MindArchitect:
     def __init__(self, **kwargs):
         # The reputation score of every neural sub-agent (0.0 to 1.0)
         self.agent_reputations = {
-            "AgentC_MT5": 0.8,
-            "AgentG_GNN": 0.5,
-            "AgentO_ODE": 0.6,
-            "AgentS_Sentiment": 0.5
+            "Agent_C": 0.8,
+            "Agent_G": 0.5,
+            "Agent_O": 0.6,
+            "Agent_S": 0.5,
+            "Agent_F": 0.7
         }
         self.learning_rate = 0.05
 
@@ -78,11 +79,17 @@ class MindArchitect:
                 else:
                     new_rep = current_rep - self.learning_rate * current_rep # Penalize
             else:
-                # Agent disagreed with the trade
+                # Agent disagreed with the trade (Voted HOLD or opposite direction)
                 if is_win:
-                    new_rep = current_rep - self.learning_rate * current_rep # Penalize (missed out)
+                    if vote == "HOLD":
+                        # Neutral: Being cautious during a winner is not a penalty-worthy offense
+                        new_rep = current_rep
+                    else:
+                        # Penalize (Voted SELL when system bought a WINNER)
+                        new_rep = current_rep - self.learning_rate * current_rep
                 else:
-                    new_rep = current_rep + self.learning_rate * (1.0 - current_rep) # Reward (saved us)
+                    # Agent was right to disagree with a LOSER
+                    new_rep = current_rep + self.learning_rate * (1.0 - current_rep)
 
             self.agent_reputations[agent] = max(0.1, min(0.99, new_rep))
 
