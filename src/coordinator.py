@@ -239,6 +239,24 @@ class TradingCoordinator:
                 # Sizing Calculation for Context
                 # For probes: skip the sizer entirely — it will return 0 shares with no live data.
                 # A probe is a wiring test, not a real order, so shares=1 is sufficient to pass guards.
+
+                # --- PHASE 1: DETERMINISTIC MATH VETO (Before Sizing) ---
+                # We audit the trade geometry before calculating shares to ensure we don't
+                # waste resources on mathematically unsound trades.
+                if not is_probe:
+                    math_val = await self.brain.mind_math._tool_validate_geometry(
+                        direction=("LONG" if pattern.entry > pattern.stop else "SHORT"),
+                        entry_price=pattern.entry,
+                        stop_price=pattern.stop,
+                        target_price=pattern.target,
+                        atr=getattr(pattern, "atr", 0.0),
+                    )
+                    if not math_val["valid"]:
+                        logger.warning(
+                            f"Coordinator [{proposal_id}] 🛑 MATH VETO: {math_val['reason']}"
+                        )
+                        return False
+
                 if is_probe:
                     shares = 1
                     pos_value = pattern.entry * 1
@@ -293,6 +311,7 @@ class TradingCoordinator:
 
                     shared_context = {
                         "symbol": symbol,
+                        "brain": self.brain,
                         "timestamp": timestamp,
                         "pattern": pattern,
                         "regime": self.brain.current_regime,
@@ -314,21 +333,6 @@ class TradingCoordinator:
                         "potential_profit": abs(float(pattern.target) - float(pattern.entry)),
                         "commission": max(COMMISSION_PER_ROUND_TRIP, (shares or 1) * 0.01),
                     }
-
-                    # Probes use synthetic geometry — skip data-quality vetoes for wiring tests
-                    if not is_probe:
-                        math_val = await self.brain.mind_math._tool_validate_geometry(
-                            direction=("LONG" if shared_context["is_long"] else "SHORT"),
-                            entry_price=pattern.entry,
-                            stop_price=pattern.stop,
-                            target_price=pattern.target,
-                            atr=getattr(pattern, "atr", 0.0),
-                        )
-                        if not math_val["valid"]:
-                            logger.warning(
-                                f"Coordinator [{proposal_id}] 🛑 MATH VETO: {math_val['reason']}"
-                            )
-                            return False
 
                     try:
                         if not is_probe:
