@@ -28,8 +28,6 @@ from config import COMMISSION_PER_ROUND_TRIP
 
 class TradingCoordinator:
     """
-    Equipped with Concurrent Task-Graphing (Pillar 3), Adaptive Thinking (Pillar 5),
-    and Autonomy Skill Permissioning (Pillar 6).
     """
 
     _neural_semaphore_obj: asyncio.Semaphore | None = None

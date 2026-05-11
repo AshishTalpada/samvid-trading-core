@@ -60,7 +60,6 @@ class WisdomRepository:
         return full_context
 
     async def compress_session_wisdom(self, bridge: Any) -> None:
-        """PILLAR 5: Context Thinning (9.99 Upgrade)
         Recursively summarizes recent wisdom into a high-density 'Density Scent' file.
         """
         all_wisdom = self.load_all_wisdom()

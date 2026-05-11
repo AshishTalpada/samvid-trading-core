@@ -351,7 +351,6 @@ class ApexExoskeleton:
 
 class CorrelationWatchdog:
     """
-    PILLAR 117/141: Correlation Decay Watchdog.
     Monitors the 'Lead-Lag' relationship between a symbol and its sector ETF.
     If correlation drops below 0.4 during a trade, it signals a 'DECAY' exit.
     """

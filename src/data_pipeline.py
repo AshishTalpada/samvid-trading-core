@@ -113,7 +113,6 @@ class DataPipeline:
 
     async def prefetch_ticker_data(self, symbols: List[str]):
         """
-        PILLAR 33: Predictively pull ticker history into local RAM.
         Reduces first-tick latency by ensuring historical context is pre-loaded.
         """
         logger.info(f"DataPipeline: Initiating Predictive Prefetch for {len(symbols)} symbols...")
@@ -124,7 +123,6 @@ class DataPipeline:
 
     def adjust_lookback(self, vix: float):
         """
-        PILLAR 119: Adaptive Look-Back.
         Widens the window in low-volatility (calm) and tightens it in high-volatility (chaos).
         """
         if vix > 30:
