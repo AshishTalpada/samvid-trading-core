@@ -818,8 +818,8 @@ class TradingBrain:
                             valid_keys = {f.name for f in fields(Position)}
                             filtered_data = {k: v for k, v in p_data.items() if k in valid_keys}
                             self.positions.append(Position(**filtered_data))
-                        except Exception:
-                            pass
+                        except Exception as e:
+                            logger.warning(f"MindBrain: Failed to reconstruct Position from legacy data: {e}")
 
                 self.ibkr_drawdown.peak_equity = state.get(
                     "peak_equity", self.ibkr_drawdown.peak_equity
@@ -831,8 +831,8 @@ class TradingBrain:
                     if "last_loss_time" in lt_state and lt_state["last_loss_time"]:
                         try:
                             self.loss_tracker.last_loss_time = datetime.fromisoformat(lt_state["last_loss_time"])
-                        except Exception:
-                            pass
+                        except Exception as e:
+                            logger.warning(f"MindBrain: Failed to parse last_loss_time: {e}")
 
                 logger.info(
                     f"MindBrain: Legacy state thawed in background. {len(self.positions)} positions restored."
@@ -845,8 +845,8 @@ class TradingBrain:
             await asyncio.to_thread(
                 self.session_restorer.restore_peak_equity, self.db_path, self.ibkr_drawdown
             )
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(f"MindBrain: Failed to restore peak equity from DB: {e}")
 
     async def quant_gate(self, symbol: str, side: str, market_data: dict) -> dict:
         """Returns {'approved': bool, 'reason': str, 'consensus': dict}"""
