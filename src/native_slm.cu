@@ -78,11 +78,19 @@ extern "C" void run_slm_inference(float* d_input, float* d_weights, float* d_bia
     dim3 block = {256, 1, 1};
     dim3 grid = {(out_dim + block.x - 1) / block.x, 1, 1};
     size_t shared_mem = in_dim * sizeof(float);
-    KERNEL_LAUNCH(slm_linear_silu_kernel, grid, block, shared_mem, 0, d_input, d_weights, d_bias, d_output, in_dim, out_dim);
+#ifdef __CUDACC__
+    slm_linear_silu_kernel<<<grid, block, shared_mem>>>(d_input, d_weights, d_bias, d_output, in_dim, out_dim);
+#else
+    slm_linear_silu_kernel(d_input, d_weights, d_bias, d_output, in_dim, out_dim);
+#endif
 }
 
 extern "C" void run_slm_sampling(float* d_logits, int* d_token_id, int vocab_size) {
     dim3 block = {1, 1, 1};
     dim3 grid = {1, 1, 1};
-    KERNEL_LAUNCH(slm_argmax_kernel, grid, block, 0, 0, d_logits, d_token_id, vocab_size);
+#ifdef __CUDACC__
+    slm_argmax_kernel<<<grid, block>>>(d_logits, d_token_id, vocab_size);
+#else
+    slm_argmax_kernel(d_logits, d_token_id, vocab_size);
+#endif
 }

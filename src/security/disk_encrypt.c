@@ -72,6 +72,10 @@ void aes_ni_encrypt_block(const __m128i* plaintext, const __m128i* key_schedule,
 
 /// Bulk encryption for logging stream (Electronic Codebook mode for simple blocks)
 void aes_ni_encrypt_buffer(uint8_t* data, uint32_t len, const __m128i* key_schedule) {
+    if (data == NULL || key_schedule == NULL || (len & 0xF) != 0) {
+        // len must be multiple of 16 for AES-NI
+        return;
+    }
     for (uint32_t i = 0; i < len; i += 16) {
         __m128i block = _mm_loadu_si128((const __m128i*)(data + i));
         aes_ni_encrypt_block(&block, key_schedule, &block);

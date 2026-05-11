@@ -14,6 +14,8 @@ typedef struct {
 } HotLoopData;
 
 void prefetch_quorum_logic(HotLoopData* data_array, int size) {
+    if (data_array == NULL || size <= 0) return;  // Validate input
+    
     for (int i = 0; i < size; i++) {
         // __builtin_prefetch(addr, rw, locality)
         // rw=0 (read), locality=3 (leave in L1 cache)
@@ -22,6 +24,8 @@ void prefetch_quorum_logic(HotLoopData* data_array, int size) {
 }
 
 void execute_hot_loop(HotLoopData* data_array, int size) {
+    if (data_array == NULL || size <= 0) return;  // Validate input
+    
     // Because data is already in L1, this loop runs at maximum IPC.
     for (int i = 0; i < size; i++) {
         if (data_array[i].current_volume > 10000) {
