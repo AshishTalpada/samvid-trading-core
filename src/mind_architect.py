@@ -11,15 +11,18 @@ class MindArchitect:
     It actively alters the weights of sub-agents based on their historical accuracy.
     '''
     def __init__(self, **kwargs):
-        # The reputation score of every neural sub-agent (0.0 to 1.0)
+        from vault import Vault
+
+        # Default reputation score of neural sub-agents (0.0 to 1.0)
+        # We attempt to fetch from Vault first for dynamic tuning.
         self.agent_reputations = {
-            "Agent_C": 0.8,
-            "Agent_G": 0.5,
-            "Agent_O": 0.6,
-            "Agent_S": 0.5,
-            "Agent_F": 0.7
+            "Agent_C": float(Vault.get("REP_AGENT_C", 0.8)),
+            "Agent_G": float(Vault.get("REP_AGENT_G", 0.5)),
+            "Agent_O": float(Vault.get("REP_AGENT_O", 0.6)),
+            "Agent_S": float(Vault.get("REP_AGENT_S", 0.5)),
+            "Agent_F": float(Vault.get("REP_AGENT_F", 0.7))
         }
-        self.learning_rate = 0.05
+        self.learning_rate = float(Vault.get("AGENT_LEARNING_RATE", 0.05))
 
     def request_quorum_decision(self, agent_votes: Dict[str, str], confidences: Dict[str, float]) -> Dict[str, Any]:
         '''
