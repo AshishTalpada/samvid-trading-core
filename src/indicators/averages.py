@@ -41,22 +41,30 @@ class SMA:
     def __init__(self, period: int):
         self.period = period
         self._buf: deque[float] = deque(maxlen=period)
+        self._sum = 0.0
         self.initialized = False
 
     def update(self, price: float) -> float | None:
+        if len(self._buf) == self.period:
+            self._sum -= self._buf[0]
+        
         self._buf.append(price)
+        self._sum += price
+
         if len(self._buf) == self.period:
             self.initialized = True
-        return sum(self._buf) / len(self._buf) if self.initialized else None
+            return self._sum / self.period
+        return None
 
     @property
     def value(self) -> float | None:
         if not self.initialized:
             return None
-        return sum(self._buf) / self.period
+        return self._sum / self.period
 
     def reset(self) -> None:
         self._buf.clear()
+        self._sum = 0.0
         self.initialized = False
 
 

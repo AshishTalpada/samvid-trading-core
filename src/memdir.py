@@ -9,7 +9,6 @@ logger = logging.getLogger(__name__)
 
 class MemoryManager:
     """
-    Inspired by Claude-Code's 'memdir' and 'CLAUDE.md' patterns.
     Provides persistent 'Trading Directives' and 'Session Memory' for the Twin-Minds.
     """
 

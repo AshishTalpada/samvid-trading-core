@@ -1,3 +1,4 @@
+import asyncio
 import ctypes
 import logging
 import os
@@ -66,7 +67,7 @@ class ChaosAgent:
         except:
             return 0.0
 
-    def inject_shadow_fault(self, data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    async def inject_shadow_fault(self, data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         """Injects artificial faults into shadow environment data streams."""
         import random
         if random.random() < self.failure_prob:
@@ -78,7 +79,6 @@ class ChaosAgent:
             elif fault_type == "CORRUPT" and "price" in data:
                 data["price"] *= (1.0 + (random.random() - 0.5) * 0.1) # 5% corruption
             elif fault_type == "LATENCY":
-                import time
-                time.sleep(0.05) # 50ms artificial lag
+                await asyncio.sleep(0.05) # 50ms artificial lag
 
         return data

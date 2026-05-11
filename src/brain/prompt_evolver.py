@@ -19,8 +19,11 @@ class PromptEvolver:
         self._variants[prompt_id].append(score)
 
     def best_variant(self) -> str | None:
-        if not self._variants: return None
-        scores = {pid: sum(s)/len(s) for pid, s in self._variants.items() if s}
+        if not self._variants:
+            return None
+        scores = {pid: sum(s) / len(s) for pid, s in self._variants.items() if s}
+        if not scores:
+            return None
         best = max(scores, key=scores.get)  # type: ignore
         logger.info(f"[PROMPT EVOLVER] Best variant: {best} score={scores[best]:.3f}")
         return best
