@@ -596,7 +596,7 @@ class TradingBrain:
         self.abhava_detector = ABHAVADetector()
 
         # --- Agent C IBKR (Executor) ---
-        self.ibkr_conn = IBKRConnection(ibkr_client)
+        self.ibkr_conn = IBKRConnection(ibkr_client, bridge=self.bus)
         self.ibkr_conn.brain = self
         self.ibkr_sizer = PositionSizingChain()
         self.vix_protocol = VIXProtocol()
