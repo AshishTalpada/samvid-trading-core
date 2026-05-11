@@ -24,10 +24,8 @@ class DataPipeline:
         # Anomaly detection bounds (Z-Score filter)
         self.price_history: Dict[str, deque] = {}
 
-        # --- PILLAR 33: Predictive Prefetching ---
         self.prefetched_data: Dict[str, pd.DataFrame] = {}
 
-        # --- PILLAR 119: Adaptive Look-Back ---
         self.lookback_window = 100 # Default
 
     def ingest_raw_tick(self, symbol: str, price: float, volume: float, timestamp_ms: int) -> Optional[Dict[str, float]]:
@@ -40,7 +38,6 @@ class DataPipeline:
             self.price_history[symbol] = deque(maxlen=self.lookback_window)
             self.last_bar_time[symbol] = timestamp_ms - (timestamp_ms % self.agg_window_ms)
 
-        # --- PILLAR 119: Adaptive Look-Back Adjustment ---
         # Note: In a full implementation, this would be updated from the Brain's VIX value
         # For the pipeline, we keep it consistent with the latest observed volatility.
 

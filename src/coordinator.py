@@ -206,7 +206,6 @@ class TradingCoordinator:
                         },
                     )
 
-                # -- PILLAR 6: SKILL TREE PERMISSIONING -------------------
                 if not self.brain.skill_tree.is_unlocked("vetting"):
                     logger.warning(
                         "Coordinator: Skill 'vetting' is LOCKED. Matrix is in Training Mode."
@@ -825,7 +824,6 @@ class TradingCoordinator:
                 # Final List Conversion (Guarantees no duplicates)
                 all_votes = list(vote_registry.values())
 
-                # --- PILLAR 97/107: ADVERSARIAL DEBATE ---
                 # Force the Skeptic Mind to challenge the consensus before final engine evaluation.
                 skeptic_audit = self.brain.skeptic.run_adversarial_debate(
                     proposal=agent_a_out, # Challenge the primary signal generator
@@ -1006,7 +1004,6 @@ class TradingCoordinator:
                 )
 
                 # Log the rejected proposal as a 'Shadow Trade' for post-mortem calibration.
-                # --- PILLAR 150: Fork Signal into Shadow-Sim ---
                 self.brain.shadow_sim.fork_signal(
                     symbol=symbol,
                     price=pattern.entry,

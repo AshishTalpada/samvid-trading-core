@@ -74,7 +74,6 @@ class MindBridge:
             self._lock = asyncio.Lock()
         async with self._lock:
             self.dialogue_history.append(msg)
-            # Limit history to prevent memory bloat (from Claude-Code memory-bounded history)
             if len(self.dialogue_history) > 1000:
                 self.dialogue_history.pop(0)
 
