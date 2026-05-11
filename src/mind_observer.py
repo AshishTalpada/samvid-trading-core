@@ -77,8 +77,13 @@ class MindObserver:
                 from time_sync import TimeSync
 
                 now = TimeSync.now().timestamp()
+
+                # Allow immediate flips (Bull <-> Bear) but debounce flickers (Bull <-> Neutral)
+                is_flip = (self.current_market_sentiment == "BULLISH" and new_sentiment == "BEARISH") or \
+                          (self.current_market_sentiment == "BEARISH" and new_sentiment == "BULLISH")
+
                 if new_sentiment != self.current_market_sentiment and (
-                    now - self._last_broadcast_time > 300
+                    is_flip or now - self._last_broadcast_time > 300
                 ):
                     self.current_market_sentiment = new_sentiment
                     self._last_broadcast_time = now
@@ -129,8 +134,8 @@ class MindObserver:
             try:
                 df = await self.qdb.fetch_ohlcv_pandas(symbol, timeframe="1m", limit=1)
                 if df is not None and not df.empty:
-                    # QuestDB timestamps are typically UTC
-                    last_ts = pd.to_datetime(df["timestamp"].iloc[0]).timestamp()
+                    # QuestDB timestamps are typically UTC. Force UTC to avoid local timezone drift.
+                    last_ts = pd.to_datetime(df["timestamp"].iloc[0], utc=True).timestamp()
                     if now_ts - last_ts > 300:  # 5 minute staleness threshold
                         stale_symbols.append(symbol)
                 else:
