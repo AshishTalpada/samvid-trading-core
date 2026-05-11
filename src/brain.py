@@ -486,15 +486,35 @@ class TradingBrain:
             self.state = new_state
             logger.info(f"🧠 BRAIN STATE TRANSITION: {old_state.name} ➔ {new_state.name}")
 
-            if self.bus:
-                await self.bus.publish(
-                    "system.state",
-                    {
-                        "old": old_state.name,
-                        "new": new_state.name,
-                        "timestamp": datetime.now(timezone.utc).isoformat(),
-                    },
-                )
+            await self._safe_publish(
+                "system.state",
+                {
+                    "old": old_state.name,
+                    "new": new_state.name,
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                },
+            )
+
+    async def _safe_publish(self, topic: str, payload: Any) -> bool:
+        """Publish safely to the shared intelligence bus if available and valid."""
+        if self.bus is None:
+            logger.debug(f"Bus unavailable, dropping publish: {topic}")
+            return False
+
+        publish_method = getattr(self.bus, "publish", None)
+        if publish_method is None or not callable(publish_method):
+            logger.warning(
+                f"Invalid bus.publish callable for topic '{topic}'. "
+                f"Bus type: {type(self.bus).__name__}"
+            )
+            return False
+
+        try:
+            await publish_method(topic, payload)
+            return True
+        except Exception as exc:
+            logger.warning(f"Safe publish failed for topic '{topic}': {exc}", exc_info=True)
+            return False
 
     def __init__(
         self,
@@ -516,6 +536,12 @@ class TradingBrain:
         self.dms = dms
         # SharedIntelligenceBus — the nervous system connecting all agents
         self.bus: SharedIntelligenceBus | None = bus
+        if self.bus is not None and not isinstance(self.bus, SharedIntelligenceBus):
+            logger.warning(
+                "TradingBrain: invalid bus injected (%s); disabling bus publishing.",
+                type(self.bus).__name__,
+            )
+            self.bus = None
         self.native_slm = native_slm
         self.dhatu_oracle = dhatu_oracle
         self.emergency_halted = False
@@ -2895,7 +2921,11 @@ class TradingBrain:
                 if not ibkr_reality:
                     logger.debug("⚖️ IBKR SYNC: Local cache is empty. Forcing real-time check...")
                     try:
-                        actual_pos = await asyncio.to_thread(self.ibkr_conn.ib.positions)
+                        positions_callable = getattr(self.ibkr_conn.ib, "positions", None)
+                        if positions_callable is None or not callable(positions_callable):
+                            raise AttributeError("IBKR client positions handler is unavailable or not callable")
+
+                        actual_pos = await asyncio.to_thread(positions_callable)
                         for p in actual_pos:
                             self.ibkr_conn._positions_cache[p.contract.symbol] = p.position
                         ibkr_reality = self.ibkr_conn._positions_cache
@@ -2994,7 +3024,7 @@ class TradingBrain:
                     await self._adopt_orphan(symbol, qty, "mt5")
 
         except Exception as e:
-            logger.error(f"Sovereign Reconciliation Failed: {e}")
+            logger.error(f"Sovereign Reconciliation Failed: {e}", exc_info=True)
 
     async def _adopt_orphan(self, symbol: str, qty: float, broker: str) -> None:
         """Absorb an unmanaged broker position into the Matrix."""
