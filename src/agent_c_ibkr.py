@@ -19,7 +19,10 @@ from datetime import datetime
 from typing import Any
 
 import pytz
-from ib_insync import IB  # Hyper-Sovereign Bridge
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from ib_insync import IB
 
 from config import STARTING_CAPITAL_CAD, USD_CAD_RATE
 from risk_invariants import ORDER_THROTTLER, RiskInvariants
@@ -62,7 +65,16 @@ class IBKRConnection:
     """
 
     def __init__(self, ib_client=None) -> None:
-        self.ib = ib_client if ib_client is not None else IB()
+        if ib_client is not None:
+            self.ib = ib_client
+        else:
+            try:
+                from ib_insync import IB
+
+                self.ib = IB()
+            except Exception as e:
+                logger.error(f"agent_c_ibkr: failed to initialize IB client: {e}")
+                self.ib = None
         self._last_heartbeat = datetime.now()
         self._last_trade_time = datetime.fromtimestamp(0)  # 15-Minute Discipline Lock
         self._positions_cache = {}
