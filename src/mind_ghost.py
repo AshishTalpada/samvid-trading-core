@@ -132,4 +132,42 @@ class GhostExecutionEnvironment:
             "status": "OPERATIONAL"
         }
 
+import socket
+import asyncio
+
+class GhostInfrastructureMonitor:
+    """
+    Agent J Extension: The Infrastructure Monitor.
+    Detects when a service (like IBKR) is 'Hanging' but hasn't 'Crashed'.
+    """
+    def __init__(self, bridge: Any) -> None:
+        self.bridge = bridge
+        self.is_running = False
+        self.last_api_heartbeat = time.time()
+        self.ghost_mirror: dict[str, Any] = {}
+        self.retry_counts: dict[str, int] = {}
+        self._probe_next_allowed: dict[str, float] = {}
+
+    async def start(self) -> None:
+        self.is_running = True
+        logger.info("[GHOST] Infrastructure Monitor active.")
+        asyncio.create_task(self._audit_loop())
+
+    async def _audit_loop(self) -> None:
+        while self.is_running:
+            try:
+                # Active socket probe for IBKR (7497)
+                if not await asyncio.to_thread(self._probe_port, 7497):
+                    logger.warning("[GHOST] IBKR Socket Probe FAILED. Service may be hanging.")
+                await asyncio.sleep(1.0)
+            except Exception as e:
+                logger.error(f"[GHOST] Audit Error: {e}")
+                await asyncio.sleep(5)
+
+    def _probe_port(self, port: int) -> bool:
+        try:
+            with socket.create_connection(("127.0.0.1", port), timeout=2.0):
+                return True
+        except: return False
+
 MindGhost = GhostExecutionEnvironment
