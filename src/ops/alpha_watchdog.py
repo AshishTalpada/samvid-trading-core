@@ -14,19 +14,20 @@ class AlphaDecayWatchdog:
     If a strategy's edge begins to statistically decay due to market regime changes or
     institutional crowding, this watchdog automatically quarantines the strategy.
     """
-    def __init__(self, history_window: int = 100):
+    def __init__(self, bridge: Any = None, history_window: int = 100):
+        self.bridge = bridge
         self.window = history_window
         self.trade_returns: Any = deque(maxlen=history_window)
         self.baseline_sharpe = 0.0
         self.is_quarantined = False
 
-    def ingest_trade(self, return_pct: float):
+    async def ingest_trade(self, return_pct: float):
         self.trade_returns.append(return_pct)
 
         if len(self.trade_returns) >= self.window // 2:
-            self._evaluate_decay()
+            await self._evaluate_decay()
 
-    def _evaluate_decay(self):
+    async def _evaluate_decay(self):
         data = np.array(self.trade_returns)
         mean_ret = np.mean(data)
         std_ret = np.std(data)
@@ -50,14 +51,18 @@ class AlphaDecayWatchdog:
             decay_pct = (self.baseline_sharpe - current_sharpe) / self.baseline_sharpe
             if decay_pct > 0.40 and current_sharpe < 1.0:
                 logger.critical(f"[WATCHDOG] SEVERE ALPHA DECAY DETECTED! Sharpe dropped from {self.baseline_sharpe:.2f} to {current_sharpe:.2f}.")
-                self._quarantine_strategy()
+                await self._quarantine_strategy()
         elif self.baseline_sharpe <= 0.5 and current_sharpe < -2.0:
             logger.critical(f"[WATCHDOG] STRATEGY COLLAPSE! Sharpe collapsed to {current_sharpe:.2f}.")
-            self._quarantine_strategy()
+            await self._quarantine_strategy()
 
-    def _quarantine_strategy(self):
+    async def _quarantine_strategy(self):
         self.is_quarantined = True
-
-        # PERSISTENCE: Alert the Evolution Mind to save this state to SQLite
         logger.critical("[WATCHDOG] STRATEGY QUARANTINED. All signal generation suspended.")
-        # Logic to call bridge.register_tool('quarantine_strategy') would go here
+
+        if self.bridge:
+            await self.bridge.broadcast(
+                "watchdog",
+                "CRITICAL: Strategy Quarantine Triggered due to Alpha Decay.",
+                {"type": "QUARANTINE", "state": True}
+            )
