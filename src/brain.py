@@ -1867,7 +1867,6 @@ class TradingBrain:
     async def _state_analyzing(self) -> None:
         """
         Phase-Based Veting Lifecycle (Agent M Coordinator).
-        Concurrent Task-Graph Orchestration (Pillar 3).
         Spawns parallel vetting tasks for all pending signals.
         """
         if not self.pending_signals:
@@ -2163,7 +2162,6 @@ class TradingBrain:
     # EXIT PROCESSING
 
     async def _process_exit(self, pos: Position, exit_type: str, exit_price: float) -> None:
-        """Standardized Exit Resolver (Pillar 5 Upgrade)."""
         try:
             symbol = pos.symbol
             now = datetime.now(timezone.utc)
@@ -3600,7 +3598,6 @@ class TradingBrain:
             except Exception as e:
                 logger.debug(f"Could not log trade exit: {e}")
 
-        # Trigger Pillar 4/6 (Wisdom & Skill Evolution)
         reasoning = f"Exit Type: {exit_type} | PnL: ${pnl:.2f} | R-Multiple: {r_multiple:.2f}x | Catalyst: {pos.catalyst_score:.1f}"
         self.wisdom.write_post_mortem(pos, exit_type, pnl, reasoning)
 
@@ -3795,7 +3792,6 @@ class TradingBrain:
             logger.error(f"SHIELD: Panic Liquidation Failed: {e}")
 
     async def get_system_stats(self) -> dict[str, Any]:
-        """PILLAR 6: System Telemetry Synthesis."""
         return {
             "session_pnl": self.session_pnl,
             "session_stats": self.session_stats,

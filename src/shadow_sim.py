@@ -16,7 +16,6 @@ class ShadowTrade:
 
 class GhostShadowSim:
     """
-    PILLAR 150: Ghost Shadow-Sim.
     Forks live ticks into a virtual PnL tracker.
     Used to measure signal quality without risking capital.
     """

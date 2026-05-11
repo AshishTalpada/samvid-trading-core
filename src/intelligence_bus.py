@@ -10,7 +10,6 @@ logger = logging.getLogger(__name__)
 
 class SharedIntelligenceBus:
     """
-    PILLAR 2: Ultra-low-latency async inter-process communication (IPC) backbone.
     Utilizes ZeroMQ (ZMQ) PUB/SUB sockets with asyncio integration.
     """
     def __init__(self, publish_port: int = 5555, subscribe_port: int = 5556):
@@ -37,7 +36,6 @@ class SharedIntelligenceBus:
     def subscribe(self, topic: str, maxsize: int = 100) -> asyncio.Queue:
         """
         Subscribe to a topic and return an asyncio.Queue.
-        PILLAR 2: Event-driven routing.
         """
         self.sub_socket.setsockopt_string(zmq.SUBSCRIBE, topic)
         q = asyncio.Queue(maxsize=maxsize)
