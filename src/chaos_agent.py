@@ -25,8 +25,10 @@ class ChaosAgent:
     def _load_shared_library(self):
         """Loads the C++ chaos metrics library for ultra-fast LLE calculation."""
         try:
-            # Look for the shared object in the root or build directory
-            lib_path = os.path.join(PROJECT_PATH, "libsovereign.so")
+            # Determine extension based on OS
+            ext = ".dll" if os.name == "nt" else ".so"
+            lib_path = os.path.join(PROJECT_PATH, f"libsovereign{ext}")
+
             if os.path.exists(lib_path):
                 self._lib = ctypes.CDLL(lib_path)
                 self._lib.compute_lyapunov_exponent.argtypes = [
@@ -36,9 +38,9 @@ class ChaosAgent:
                     ctypes.c_int
                 ]
                 self._lib.compute_lyapunov_exponent.restype = ctypes.c_double
-                logger.info("✅ Chaos Metrics C++ library loaded successfully.")
+                logger.info(f"✅ Chaos Metrics library ({ext}) loaded successfully.")
             else:
-                logger.warning("Chaos Metrics library (libsovereign.so) not found. Falling back to Python metrics (slow).")
+                logger.warning(f"Chaos Metrics library (libsovereign{ext}) not found. Falling back to Python metrics (slow).")
         except Exception as e:
             logger.error(f"Failed to load Chaos Metrics library: {e}")
 
@@ -64,21 +66,29 @@ class ChaosAgent:
             diffs = np.abs(np.diff(np.log(p)))
             # Very crude approximation: if volatility is structured, LLE is higher
             return float(np.mean(diffs) / np.std(diffs)) if np.std(diffs) > 0 else 0.0
-        except:
+        except Exception:
             return 0.0
 
     async def inject_shadow_fault(self, data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
-        """Injects artificial faults into shadow environment data streams."""
+        """Injects artificial faults into shadow environment data streams (Non-destructive)."""
+        import copy
         import random
+
         if random.random() < self.failure_prob:
             self.faults_injected += 1
             fault_type = random.choice(["DROP", "CORRUPT", "LATENCY"])
 
             if fault_type == "DROP":
                 return None
-            elif fault_type == "CORRUPT" and "price" in data:
-                data["price"] *= (1.0 + (random.random() - 0.5) * 0.1) # 5% corruption
+
+            # Deep copy to ensure live data is not mutated
+            faulty_data = copy.deepcopy(data)
+
+            if fault_type == "CORRUPT" and "price" in faulty_data:
+                faulty_data["price"] *= (1.0 + (random.random() - 0.5) * 0.1) # 5% corruption
+                return faulty_data
             elif fault_type == "LATENCY":
                 await asyncio.sleep(0.05) # 50ms artificial lag
+                return faulty_data
 
         return data
