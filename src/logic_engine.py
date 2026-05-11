@@ -1,6 +1,7 @@
 import json
 import logging
 import os
+import re
 from datetime import datetime, timezone
 from typing import Any, Dict
 
@@ -84,8 +85,6 @@ class SovereignLogicEngine:
         # This collapses redundant nodes (e.g., Hedge_Node_152, Hedge_Node_162) into one logic.
         node_name = node["name"]
         # Strip trailing ID suffixes like _152 or _Node_001
-        import re
-
         base_name = re.sub(r"(_Node)?(_\d+)?$", "", node_name).lower()
 
         _base_dispatch = {
@@ -179,13 +178,18 @@ class SovereignLogicEngine:
         return {"action": "CONTINUE"}
 
     def _logic_154_drawdown_breaker(self, ctx: Dict[str, Any]) -> Dict[str, Any]:
-        """Hard Equity Floor protection."""
+        """Hard Equity Floor protection — protect realized gains."""
         equity = ctx.get("account_value", 0)
-        floor = STARTING_CAPITAL_CAD * 0.90  # Soft 10% Drawdown Floor
+        peak = ctx.get("peak_equity", STARTING_CAPITAL_CAD)
+
+        # Hard floor at 10% below PEAK, not 10% below STARTING capital
+        floor = peak * 0.90
+
         if equity < floor:
             return {
                 "status": "HALT",
-                "reason": f"NAV ${equity:,.2f} below equity floor ${floor:,.2f}",
+                "action": "GLOBAL_HALT", # Signal for TradingStateManager
+                "reason": f"NAV ${equity:,.2f} below risk floor ${floor:,.2f} (Peak: ${peak:,.2f})",
             }
         return {"status": "SUCCESS"}
 
