@@ -17,6 +17,9 @@ class GhostExecutionEnvironment:
         self.ghost_ledger: Dict[str, dict] = {}
         self.active_ghost_positions: Dict[str, dict] = {}
         self.heartbeats: Dict[str, float] = {}
+        # Simulate institutional commission: $0.005 per share, min $1.00
+        self.commission_per_share = 0.005
+        self.min_commission = 1.00
 
     async def update_heartbeat(self, component: str):
         '''
@@ -29,6 +32,9 @@ class GhostExecutionEnvironment:
         '''Launch Agent J (Shadow Environment).'''
         logger.info("[GHOST] Ghost Protocol ENGAGED. Shadow execution environment online.")
 
+    def _calculate_commission(self, size: float) -> float:
+        return max(self.min_commission, size * self.commission_per_share)
+
     def route_shadow_trade(self, symbol: str, action: str, price: float, size: float, logic_signature: str) -> str:
         '''
         Ingests a trade intent and immediately fills it in the local shadow memory.
@@ -36,9 +42,10 @@ class GhostExecutionEnvironment:
         trade_id = f"GHOST-{uuid.uuid4().hex[:8]}"
 
         # Simulate slippage based on size (simplified linear impact)
-        # e.g., 0.1 bps of slippage per 100 shares
         simulated_slippage = (size / 100.0) * 0.0001
         fill_price = price * (1.0 + simulated_slippage) if action == "BUY" else price * (1.0 - simulated_slippage)
+        
+        commission = self._calculate_commission(size)
 
         position = {
             "symbol": symbol,
@@ -47,18 +54,17 @@ class GhostExecutionEnvironment:
             "size": size,
             "logic_signature": logic_signature,
             "timestamp": time.time(),
-            "unrealized_pnl": 0.0
+            "unrealized_pnl": -commission, # Start down by commission
+            "entry_commission": commission
         }
 
         self.active_ghost_positions[trade_id] = position
-        logger.info(f"[GHOST] Shadow trade {trade_id} executed on {symbol}. Fill: {fill_price:.2f}")
+        logger.info(f"[GHOST] Shadow trade {trade_id} executed on {symbol}. Fill: {fill_price:.2f} (Comm: ${commission:.2f})")
         return trade_id
 
     def update_ghost_pnl(self, current_market_prices: Dict[str, float]):
         '''
         Continuously mark-to-market the active shadow positions.
-        If a shadow position achieves extreme profitability, the MindArchitect can
-        promote the logic_signature to live execution.
         '''
         for trade_id, pos in self.active_ghost_positions.items():
             sym = pos["symbol"]
@@ -69,7 +75,8 @@ class GhostExecutionEnvironment:
                 else:
                     pnl = (pos["fill_price"] - current_price) * pos["size"]
 
-                pos["unrealized_pnl"] = pnl
+                # Account for entry commission
+                pos["unrealized_pnl"] = pnl - pos["entry_commission"]
 
     def close_shadow_trade(self, trade_id: str, current_price: float) -> float:
         '''Closes a ghost position and permanently logs its realized PnL.'''
@@ -81,23 +88,29 @@ class GhostExecutionEnvironment:
         # Simulate closing slippage
         simulated_slippage = (pos["size"] / 100.0) * 0.0001
         close_price = current_price * (1.0 - simulated_slippage) if pos["action"] == "BUY" else current_price * (1.0 + simulated_slippage)
+        
+        exit_commission = self._calculate_commission(pos["size"])
 
         if pos["action"] == "BUY":
-            realized_pnl = (close_price - pos["fill_price"]) * pos["size"]
+            gross_pnl = (close_price - pos["fill_price"]) * pos["size"]
         else:
-            realized_pnl = (pos["fill_price"] - close_price) * pos["size"]
+            gross_pnl = (pos["fill_price"] - close_price) * pos["size"]
 
+        realized_pnl = gross_pnl - pos["entry_commission"] - exit_commission
         pos["realized_pnl"] = realized_pnl
+        pos["exit_commission"] = exit_commission
         pos["close_time"] = time.time()
 
         self.ghost_ledger[trade_id] = pos
-        logger.info(f"[GHOST] Closed {trade_id}. Realized PnL: ${realized_pnl:.2f}")
+        logger.info(f"[GHOST] Closed {trade_id}. Realized Net PnL: ${realized_pnl:.2f}")
 
-        # Prune ledger to keep memory lean
+        # Prune ledger in batches when limit is reached
         if len(self.ghost_ledger) > 1000:
-            # Pop the oldest entry
-            oldest_id = next(iter(self.ghost_ledger))
-            self.ghost_ledger.pop(oldest_id)
+            # Remove oldest 100 entries
+            ids_to_prune = list(self.ghost_ledger.keys())[:100]
+            for pid in ids_to_prune:
+                self.ghost_ledger.pop(pid, None)
+            logger.debug(f"[GHOST] Pruned 100 entries from ledger. Current size: {len(self.ghost_ledger)}")
 
         return realized_pnl
 
