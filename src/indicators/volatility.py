@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 from collections import deque
 
 from indicators.averages import EMA, SMA
@@ -75,9 +76,9 @@ class BollingerBands:
             return None
 
         # Var = E[X^2] - (E[X])^2
+        # Note: Numerically stable for price data within float64 precision limits.
         mean_sq = self._sum_sq / len(self._buf)
         variance = max(0, mean_sq - mid**2)
-        import math
         std = math.sqrt(variance)
         self.initialized = True
         return mid + self.k * std, mid, mid - self.k * std
