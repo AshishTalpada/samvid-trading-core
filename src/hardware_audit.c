@@ -27,25 +27,30 @@ int verify_hardware_integrity() {
     unsigned int eax, ebx, ecx, edx;
 
     // 1. Check for AES-NI support (Required for Zero-Latency Encryption)
-    if (__get_cpuid(1, &eax, &ebx, &ecx, &edx)) {
-        if (!(ecx & (1 << 25))) {
-            fprintf(stderr, "[AUDIT] FATAL: AES-NI not detected. Secure hardware requirement failed.\n");
-            return 0;
-        }
+    if (__get_cpuid(1, &eax, &ebx, &ecx, &edx) == 0) {
+        fprintf(stderr, "[AUDIT] CPUID not supported.\n");
+        return 0;
+    }
+    
+    if (!(ecx & (1 << 25))) {
+        fprintf(stderr, "[AUDIT] FATAL: AES-NI not detected. Secure hardware requirement failed.\n");
+        return 0;
     }
 
     // 2. Check for RDRAND support (Required for high-quality entropy)
-    if (__get_cpuid(1, &eax, &ebx, &ecx, &edx)) {
-        if (!(ecx & (1 << 30))) {
-            fprintf(stderr, "[AUDIT] WARNING: RDRAND not detected. Entropy quality degraded.\n");
-        }
+    if (!(ecx & (1 << 30))) {
+        fprintf(stderr, "[AUDIT] WARNING: RDRAND not detected. Entropy quality degraded.\n");
     }
 
     // 3. Verify CPU Vendor (Expect GenuineIntel or AuthenticAMD)
-    __get_cpuid(0, &eax, &ebx, &ecx, &edx);
+    if (__get_cpuid(0, &eax, &ebx, &ecx, &edx) == 0) {
+        fprintf(stderr, "[AUDIT] CPUID vendor check failed.\n");
+        return 0;
+    }
+    
     if (!(ebx == 0x756e6547 && edx == 0x49656e69 && ecx == 0x6c65746e) && // GenuineIntel
         !(ebx == 0x68747541 && edx == 0x69746e65 && ecx == 0x444d4163)) { // AuthenticAMD
-        fprintf(stderr, "[AUDIT] FATAL: Unknown or emulated CPU detected. supply chain trust broken.\n");
+        fprintf(stderr, "[AUDIT] FATAL: Unknown or emulated CPU detected. Supply chain trust broken.\n");
         return 0;
     }
     #endif

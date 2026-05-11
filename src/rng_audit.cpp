@@ -10,7 +10,8 @@
  */
 
 extern "C" double compute_shannon_entropy(const uint8_t* data, size_t size) {
-    if (size == 0) return 0.0;
+    if (data == NULL || size == 0) return 0.0;
+    if (size > 1000000000) return 0.0;  // Prevent integer overflow in counts
     
     uint64_t counts[256] = {0};
     for (size_t i = 0; i < size; ++i) {
@@ -29,6 +30,9 @@ extern "C" double compute_shannon_entropy(const uint8_t* data, size_t size) {
 }
 
 extern "C" bool verify_entropy_health(const uint8_t* samples, size_t count, double threshold) {
+    if (samples == NULL || count == 0 || threshold < 0.0 || threshold > 8.0) {
+        return false;
+    }
     double entropy = compute_shannon_entropy(samples, count);
     
     if (entropy < threshold) {

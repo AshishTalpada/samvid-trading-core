@@ -33,11 +33,16 @@ extern "C" {
 #endif
 
 int auto_fix_db_sector(const char* db_path, off_t sector_offset) {
+    if (db_path == NULL || sector_offset < 0) return -1;
+    
     int fd = open(db_path, O_RDWR | O_DIRECT);
     if (fd < 0) return -1;
 
-    void* buffer;
-    posix_memalign(&buffer, BLOCK_SIZE, BLOCK_SIZE);
+    void* buffer = NULL;
+    if (posix_memalign(&buffer, BLOCK_SIZE, BLOCK_SIZE) != 0) {
+        close(fd);
+        return -1;
+    }
     
     // 1. Attempt to read the corrupted sector
     ssize_t bytes_read = pread(fd, buffer, BLOCK_SIZE, sector_offset);
@@ -60,6 +65,17 @@ int auto_fix_db_sector(const char* db_path, off_t sector_offset) {
     close(fd);
     return 0; // Did not need repair or failed
 }
+
+#else
+
+// Windows platform fallback (minimal implementation)
+int auto_fix_db_sector(const char* db_path, off_t sector_offset) {
+    if (db_path == NULL || sector_offset < 0) return -1;
+    printf("[IO_REPAIR] Database sector repair not fully supported on Windows platform.\n");
+    return 0;
+}
+
+#endif
 
 #ifdef __cplusplus
 }

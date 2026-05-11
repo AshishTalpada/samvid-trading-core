@@ -31,6 +31,9 @@ bool is_global_halt_active() {
 }
 
 void report_native_telemetry(double latency, double slippage, int fills, bool fault) {
+    // Validate inputs
+    if (latency < 0.0 || slippage < 0.0 || fills < 0) return;
+    
     latest_telemetry.execution_latency_ms = latency;
     latest_telemetry.slippage_bps = slippage;
     latest_telemetry.fill_count = fills;
