@@ -15,7 +15,6 @@ class MindEvolution:
     """
     Agent D/E: The Self-Evolution Mind.
     Focuses on 'Strategic Learning' and 'Peak Equity Preservation'.
-    Inspired by Claude-Code's 'memory.ts' and 'learning.ts' logic.
     """
 
     def __init__(self, bridge: Any = None, **kwargs) -> None:
@@ -73,23 +72,19 @@ class MindEvolution:
         asyncio.create_task(self._autonomous_heuristic_refinement())
 
     async def _autonomous_heuristic_refinement(self) -> None:
-        """
-        The 'Self-Healing' cycle (SE-11 Architect).
-        Periodically audits the system configuration against discovered wisdom.
-        """
+        """Audits the system configuration against discovered wisdom."""
         while self.is_running:
             try:
                 db_path = os.path.join(PROJECT_PATH, "data", "trading.db")
-                conn = sqlite3.connect(db_path, timeout=60)
-                conn.execute("PRAGMA journal_mode=WAL;")
-                conn.execute("PRAGMA busy_timeout = 60000;")
-                conn.cursor()
+                with sqlite3.connect(db_path, timeout=60) as conn:
+                    conn.execute("PRAGMA journal_mode=WAL;")
+                    conn.execute("PRAGMA busy_timeout = 60000;")
+
                 wisdom_path = os.path.join(PROJECT_PATH, "data/wisdom.json")
                 if os.path.exists(wisdom_path):
                     with open(wisdom_path, "r") as f:
                         wisdom = json.load(f)
 
-                    # If entropy is high, force a threshold tightening
                     if wisdom.get("entropy_state") == "HIGH ENTROPY":
                         logger.warning(
                             "🚨 [Evolution]: High System Entropy detected. Tightening Catalysts."
