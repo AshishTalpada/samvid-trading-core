@@ -23,10 +23,15 @@ impl AegisProtocol {
         let max_ms = self.max_latency_ms;
         thread::spawn(move || {
             loop {
+                // Set the flag to true at the start of the cycle
+                SYSTEM_HANG.store(true, Ordering::SeqCst);
+                
+                // Wait for the main loop to ping and set it to false
                 thread::sleep(Duration::from_millis(max_ms));
+                
+                // If it's still true, the main loop is hung
                 if SYSTEM_HANG.load(Ordering::SeqCst) {
                     critical!("[AEGIS] Main loop hang detected (>{}ms)! Initiating emergency restore.", max_ms);
-                    // trigger_hard_reboot();
                     std::process::exit(99);
                 }
             }

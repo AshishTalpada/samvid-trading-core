@@ -64,6 +64,11 @@ class MetaTrader5Agent:
         Executes a direct market order.
         Action must be 'BUY' or 'SELL'.
         """
+        from trading_state import TradingStateManager
+        if not TradingStateManager.allow_order(True): # MT5 orders are usually new entries in this context
+            logger.warning(f"[MT5] SAFETY GATE: Market order for {symbol} REJECTED due to TradingState.")
+            return {"status": "error", "message": f"TradingState {TradingStateManager.state.value} blocks entries"}
+
         if not self.connected:
             return {"status": "error", "message": "MT5 Terminal not connected"}
 

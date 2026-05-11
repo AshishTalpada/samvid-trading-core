@@ -15,11 +15,11 @@ extern "C" {
 
         // 1. Phase Space Reconstruction via Takens' Theorem
         int num_vectors = n - (embedding_dimension - 1) * time_delay;
-        std::vector<std::vector<double>> phase_space(num_vectors, std::vector<double>(embedding_dimension));
+        std::vector<double> phase_space(num_vectors * embedding_dimension);
         
         for (int i = 0; i < num_vectors; ++i) {
             for (int j = 0; j < embedding_dimension; ++j) {
-                phase_space[i][j] = time_series[i + j * time_delay];
+                phase_space[i * embedding_dimension + j] = time_series[i + j * time_delay];
             }
         }
 
@@ -35,8 +35,10 @@ extern "C" {
                 // Theiler window: ignore temporally correlated points
                 if (std::abs(i - j) > time_delay) { 
                     double dist_sq = 0.0;
+                    int base_i = i * embedding_dimension;
+                    int base_j = j * embedding_dimension;
                     for (int d = 0; d < embedding_dimension; ++d) {
-                        double diff = phase_space[i][d] - phase_space[j][d];
+                        double diff = phase_space[base_i + d] - phase_space[base_j + d];
                         dist_sq += diff * diff;
                     }
                     
@@ -52,8 +54,10 @@ extern "C" {
                 int evolution_time = 1; // Look forward 1 step
                 if (i + evolution_time < num_vectors && nearest_idx + evolution_time < num_vectors) {
                     double evolved_dist_sq = 0.0;
+                    int next_i = (i + evolution_time) * embedding_dimension;
+                    int next_j = (nearest_idx + evolution_time) * embedding_dimension;
                     for (int d = 0; d < embedding_dimension; ++d) {
-                        double diff = phase_space[i + evolution_time][d] - phase_space[nearest_idx + evolution_time][d];
+                        double diff = phase_space[next_i + d] - phase_space[next_j + d];
                         evolved_dist_sq += diff * diff;
                     }
                     

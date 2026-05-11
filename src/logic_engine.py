@@ -224,15 +224,22 @@ class SovereignLogicEngine:
         found_trigger = next((t for t in triggers if t in headline), None)
         if found_trigger:
             words = headline.split()
-            try:
-                idx = words.index(next(w for w in words if found_trigger in w))
-                if idx > 0 and words[idx - 1] in negations:
+            # Find the index of the first word that contains the trigger
+            trigger_idx = -1
+            for i, w in enumerate(words):
+                if found_trigger in w:
+                    trigger_idx = i
+                    break
+
+            if trigger_idx != -1:
+                # Check preceding 3 words for negations
+                start_window = max(0, trigger_idx - 3)
+                window = words[start_window:trigger_idx]
+                if any(neg in window for neg in negations):
                     logger.debug(
-                        f"Black-Swan: Negated trigger '{found_trigger}' detected — Veto suppressed."
+                        f"Black-Swan: Negated trigger '{found_trigger}' detected in window {window} — Veto suppressed."
                     )
                     return {"veto": False}
-            except Exception:
-                pass
 
             return {
                 "veto": True,
@@ -329,7 +336,22 @@ class SovereignLogicEngine:
                 "reason": "High exposure/volatility balance.",
             }
         return {"action": "NONE"}
-
+    def run_full_audit(self, context: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Runs a comprehensive risk sweep across critical nodes.
+        Returns a summary signal (SUCCESS, HALT, or VETO).
+        """
+        critical_nodes = ["151", "154", "163", "166"] # Kelly, Drawdown, Margin, BlackSwan
+        for node_id in critical_nodes:
+            result = self.execute_node(node_id, context)
+            if result.get("status") == "HALT" or result.get("action") == "GLOBAL_HALT" or result.get("veto"):
+                return {
+                    "status": "HALT",
+                    "action": "GLOBAL_HALT",
+                    "reason": result.get("reason", f"Audit failure at node {node_id}"),
+                    "node": node_id
+                }
+        return {"status": "SUCCESS"}
 
 _CORE_INSTANCE = None
 

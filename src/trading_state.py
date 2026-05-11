@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import logging
 from enum import Enum
+from typing import Any
 
 logger = logging.getLogger("TradingState")
 
@@ -85,6 +86,9 @@ class TradingStateManager:
             cls._state = TradingState.ACTIVE
             cls._reason = reason
 
+            from native_loader import NATIVE
+            NATIVE.set_halt(False)
+
     @classmethod
     def reduce_only(cls, reason: str) -> None:
         """
@@ -99,13 +103,34 @@ class TradingStateManager:
     @classmethod
     def halt(cls, reason: str) -> None:
         """
-        Full trading halt: zero orders transmitted until manually restored.
-        Triggered by: critical drawdown breach, broker disconnection, invariant violation.
+        EMERGENCY HALT: Blocks all order transmission immediately.
+        Must be followed by manual review or automated recovery cooldown.
         """
         if cls._state != TradingState.HALTED:
             logger.critical(f"🚨 TradingState: HALTED ← {cls._state.value} | Reason: {reason}")
             cls._state = TradingState.HALTED
             cls._reason = reason
+
+            # Propagate to native safety core for sub-microsecond halt in HFT hot-paths
+            try:
+                from native_loader import NATIVE
+                NATIVE.set_halt(True)
+            except Exception as e:
+                logger.error(f"Failed to propagate HALT to native core: {e}")
+
+    @classmethod
+    def process_logic_signal(cls, signal: dict[str, Any]) -> None:
+        """
+        Processes signals from the SovereignLogicEngine.
+        Handles GLOBAL_HALT, REDUCE_ONLY, etc.
+        """
+        action = signal.get("action")
+        reason = signal.get("reason", "Logic Engine Trigger")
+
+        if action == "GLOBAL_HALT":
+            cls.halt(reason)
+        elif action == "REDUCE_ONLY":
+            cls.reduce_only(reason)
 
     # ------------------------------------------------------------------ auto-triggers
 

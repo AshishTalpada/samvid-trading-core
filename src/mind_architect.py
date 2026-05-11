@@ -107,6 +107,41 @@ class MindArchitect:
 
         logger.debug(f"[ARCHITECT] Neural Topologies adjusted. New Reputations: {self.agent_reputations}")
 
+    async def process_native_telemetry(self):
+        '''
+        Bridges physical-layer telemetry (latency, hardware faults) to cognitive reputation.
+        If the native layer reports high slippage or hardware faults, the execution-heavy
+        agents (Agent_C, Agent_A) are penalized.
+        '''
+        try:
+            from native_loader import NATIVE
+            telemetry = NATIVE.get_telemetry()
+
+            if not telemetry:
+                return
+
+            # 1. Hardware Faults = Global Reputation Slashing
+            if telemetry.get("hardware_fault"):
+                logger.critical("[ARCHITECT] CRITICAL Hardware fault reported by native layer. Slashing reputations.")
+                for agent in self.agent_reputations:
+                    self.agent_reputations[agent] *= 0.5
+                return
+
+            # 2. High Latency (>5ms) = Penalty for Agent_C (the executor)
+            latency = telemetry.get("latency_ms", 0)
+            if latency > 5.0:
+                logger.warning(f"[ARCHITECT] High native latency detected ({latency:.2f}ms). Penalizing execution agents.")
+                self.agent_reputations["Agent_C"] = max(0.1, self.agent_reputations.get("Agent_C", 0.5) - self.learning_rate * 0.5)
+
+            # 3. High Slippage (>2 bps) = Penalty for Agent_A (the router)
+            slippage = telemetry.get("slippage_bps", 0)
+            if slippage > 2.0:
+                logger.warning(f"[ARCHITECT] High native slippage detected ({slippage:.2f} bps).")
+                self.agent_reputations["Agent_A"] = max(0.1, self.agent_reputations.get("Agent_A", 0.5) - self.learning_rate * 0.5)
+
+        except Exception as e:
+            logger.debug(f"MindArchitect telemetry bridge failed: {e}")
+
     async def _tool_check_syntax(self, file_path: str) -> Dict[str, Any]:
         """
         Uses the Python 'ast' module to check for syntax fractures before hot-reloading.

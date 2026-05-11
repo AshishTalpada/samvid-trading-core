@@ -592,6 +592,10 @@ class TradingBrain:
         self.session_pnl = 0.0
         self.session_stats = {"scanned": 0, "detected": 0, "approved": 0, "rejected": 0}
 
+        # --- Logic Engine (The 500 Abilities) ---
+        from logic_engine import SovereignLogicEngine
+        self.logic_engine = SovereignLogicEngine()
+
         # --- Agent A (Gatekeeper) ---
         self.budget_monitor = ContinuousBudgetMonitor()
         self.pattern_detector = PatternDetector()
@@ -1326,6 +1330,20 @@ class TradingBrain:
                         await self.bus.publish("system.state", state_payload)
                     except Exception as _ws_err:
                         logger.debug(f"BrainWatchdog: state publish skipped: {_ws_err}")
+
+                # --- SOVEREIGN COGNITIVE AUDIT (2s Fast Sweep) ---
+                try:
+                    audit_ctx = {
+                        "account_value": await self._get_account_value("ibkr"),
+                        "peak_equity": self.ibkr_drawdown.peak_equity,
+                        "recent_pnl": [getattr(p, "realized_pnl", 0) for p in list(self.closed_positions)[-5:]],
+                    }
+                    audit_result = self.logic_engine.run_full_audit(audit_ctx)
+                    if audit_result.get("action") == "GLOBAL_HALT":
+                        from trading_state import TradingStateManager
+                        TradingStateManager.process_logic_signal(audit_result)
+                except Exception as audit_e:
+                    logger.error(f"Cognitive Audit failed: {audit_e}")
 
                 await asyncio.sleep(2)
             except asyncio.CancelledError:
