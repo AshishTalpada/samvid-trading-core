@@ -25,6 +25,11 @@ class MindArchitect:
         }
         self.learning_rate = float(Vault.get("AGENT_LEARNING_RATE", 0.05))
 
+        # Register Tools
+        if self.bridge:
+            self.bridge.register_tool("check_syntax", self._tool_check_syntax)
+            self.bridge.register_tool("heal", self.evaluate_proposal) # Temporary mapping for evolution calls
+
     def request_quorum_decision(self, agent_votes: Dict[str, str], confidences: Dict[str, float]) -> Dict[str, Any]:
         '''
         Calculates a reputation-weighted consensus.
