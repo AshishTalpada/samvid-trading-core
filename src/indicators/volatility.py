@@ -58,26 +58,34 @@ class BollingerBands:
         self.k = k
         self._sma = SMA(period)
         self._buf: deque[float] = deque(maxlen=period)
+        self._sum_sq = 0.0
         self.initialized = False
 
     def update(self, price: float) -> tuple[float, float, float] | None:
         """Returns (upper, middle, lower) or None."""
+        if len(self._buf) == self.period:
+            old_price = self._buf[0]
+            self._sum_sq -= old_price**2
+
         self._buf.append(price)
+        self._sum_sq += price**2
+        
         mid = self._sma.update(price)
         if mid is None:
             return None
 
+        # Var = E[X^2] - (E[X])^2
+        mean_sq = self._sum_sq / len(self._buf)
+        variance = max(0, mean_sq - mid**2)
         import math
-
-        mean = mid
-        variance = sum((p - mean) ** 2 for p in self._buf) / self.period
         std = math.sqrt(variance)
         self.initialized = True
-        return mean + self.k * std, mean, mean - self.k * std
+        return mid + self.k * std, mid, mid - self.k * std
 
     def reset(self) -> None:
         self._sma.reset()
         self._buf.clear()
+        self._sum_sq = 0.0
         self.initialized = False
 
 
