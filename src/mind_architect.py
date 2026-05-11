@@ -90,7 +90,6 @@ class MindArchitect:
 
     async def _tool_check_syntax(self, file_path: str) -> Dict[str, Any]:
         """
-        PILLAR 69: Self-Healing Syntax Guard.
         Uses the Python 'ast' module to check for syntax fractures before hot-reloading.
         """
         import ast
