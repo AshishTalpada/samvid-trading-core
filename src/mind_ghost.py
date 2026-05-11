@@ -22,6 +22,11 @@ class GhostExecutionEnvironment:
         self.commission_per_share = 0.005
         self.min_commission = 1.00
 
+        if self.bridge:
+            self.bridge.register_tool("route_shadow_trade", self.route_shadow_trade)
+            self.bridge.register_tool("get_ghost_status", self._tool_get_ghost_status)
+            self.bridge.register_tool("close_shadow_trade", self.close_shadow_trade)
+
     async def update_heartbeat(self, component: str):
         '''
         Records a heartbeat for a specific ghost component.
@@ -48,13 +53,14 @@ class GhostExecutionEnvironment:
 
         commission = self._calculate_commission(size)
 
+        from time_sync import TimeSync
         position = {
             "symbol": symbol,
             "action": action,
             "fill_price": fill_price,
             "size": size,
             "logic_signature": logic_signature,
-            "timestamp": time.time(),
+            "timestamp": TimeSync.now().timestamp(),
             "unrealized_pnl": -commission, # Start down by commission
             "entry_commission": commission
         }
@@ -98,6 +104,7 @@ class GhostExecutionEnvironment:
             gross_pnl = (pos["fill_price"] - close_price) * pos["size"]
 
         realized_pnl = gross_pnl - pos["entry_commission"] - exit_commission
+
         pos["realized_pnl"] = realized_pnl
         pos["exit_commission"] = exit_commission
         pos["close_time"] = time.time()
@@ -114,5 +121,15 @@ class GhostExecutionEnvironment:
             logger.debug(f"[GHOST] Pruned 100 entries from ledger. Current size: {len(self.ghost_ledger)}")
 
         return realized_pnl
+
+    async def _tool_get_ghost_status(self) -> Dict[str, Any]:
+        """Provides the Brain with the current state of shadow execution."""
+        total_unrealized = sum(p["unrealized_pnl"] for p in self.active_ghost_positions.values())
+        return {
+            "active_count": len(self.active_ghost_positions),
+            "unrealized_pnl": total_unrealized,
+            "positions": self.active_ghost_positions,
+            "status": "OPERATIONAL"
+        }
 
 MindGhost = GhostExecutionEnvironment
