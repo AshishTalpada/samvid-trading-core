@@ -4,7 +4,6 @@ from typing import Final
 logger = logging.getLogger(__name__)
 
 # These are 'Hardcoded System Truths' that even the Masters Mind cannot bypass.
-# Inspired by src/shims/macro.ts and path hijacking protection.
 
 
 class MindMacros:
@@ -30,6 +29,7 @@ class MindMacros:
         "sovereign_flush",
         "get_account_status",
         "get_open_positions",
+        "run_system_command",
     }
 
     # These tools require a secondary 'justification' and 'DoubleHandshake' logic.

@@ -441,7 +441,10 @@ class TokenBucketRateLimiter:
                 if self.tokens >= 1.0:
                     self.tokens -= 1.0
                     return
-            await asyncio.sleep(0.01)
+
+                # Calculate wait time for the next token
+                wait_time = (1.0 - self.tokens) / self.rate
+            await asyncio.sleep(wait_time)
 
 
 # THE TRADING BRAIN

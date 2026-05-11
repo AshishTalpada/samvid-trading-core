@@ -44,6 +44,8 @@ class RSI:
             self._avg_loss = alpha * loss + (1.0 - alpha) * self._avg_loss  # type: ignore
 
         if self._avg_loss == 0:
+            if self._avg_gain == 0:
+                return 50.0  # Neutral if no price movement
             return 100.0
         rs = self._avg_gain / self._avg_loss
         return 100.0 - (100.0 / (1.0 + rs))

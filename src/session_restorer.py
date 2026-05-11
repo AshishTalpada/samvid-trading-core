@@ -15,7 +15,6 @@ logger = logging.getLogger(__name__)
 class SessionRestorer:
     """
     Quantum Session Restoration.
-    Inspired by Claude-Code's tmuxSocket.ts and terminalPanel.ts.
     Allows for 'State Freezing' and 'Thawing' of the cognitive process.
     """
 
@@ -75,7 +74,7 @@ class SessionRestorer:
         transcript_dir = os.path.join(PROJECT_PATH, "data", "transcripts")
         os.makedirs(transcript_dir, exist_ok=True)
 
-        timestamp = TimeSync.now().strftime("%Y%m%d_%H%M%S")
+        timestamp = TimeSync.now().strftime("%Y%m%d_%H%M%S_%f")
         transcript_path = os.path.join(transcript_dir, f"session_{timestamp}.json")
 
         try:

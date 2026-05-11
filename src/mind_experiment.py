@@ -36,12 +36,29 @@ class EvolutionaryNeuroExperiment:
             return
 
         for clone in self.population:
-            # Simplified proxy for neural network forward pass (Linear regression style)
-            predictions = np.dot(market_data, clone['weights'])
-            # Mean Squared Error as inverse fitness
-            mse = np.mean((predictions - target_labels)**2)
-            # Fitness is 1 / (1 + error)
-            clone['fitness'] = 1.0 / (1.0 + mse)
+            try:
+                # Shape validation
+                if market_data.shape[1] != clone["weights"].shape[0]:
+                    logger.error(f"[EVOLUTION] Shape mismatch: Data {market_data.shape} vs Weights {clone['weights'].shape}")
+                    clone["fitness"] = 0.0
+                    continue
+
+                # Simplified proxy for neural network forward pass (Linear regression style)
+                predictions = np.dot(market_data, clone["weights"])
+                
+                # Handle potential NaNs from np.dot
+                if np.any(np.isnan(predictions)):
+                    clone["fitness"] = 0.0
+                    continue
+
+                # Mean Squared Error as inverse fitness
+                mse = np.mean((predictions - target_labels) ** 2)
+                
+                # Fitness is 1 / (1 + error), with NaN protection
+                clone["fitness"] = 1.0 / (1.0 + mse) if not np.isnan(mse) else 0.0
+            except Exception as e:
+                logger.error(f"[EVOLUTION] Fitness calculation failed: {e}")
+                clone["fitness"] = 0.0
 
         # Sort population by fitness descending
         self.population.sort(key=lambda x: x['fitness'], reverse=True)
