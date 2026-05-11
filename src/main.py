@@ -284,6 +284,7 @@ class TradingSystem:
         self.native_slm: Any = None
         self.telegram_remote = get_remote()  # Remote Command Hub
         self.is_running = False
+        self._shutdown_complete = False  # Initialize shutdown state
         self._mt5_failure_count = 0  # Track sequential MT5 heartbeat failures
         self._last_freeze_time = 0.0  # Last time state was frozen
 
@@ -1590,7 +1591,7 @@ class TradingSystem:
             max_retries = 10
             base_delay = 5.0
 
-            while retries < max_retries:
+            while self.is_running and retries < max_retries:
                 try:
                     logger.info(f"Supervisor: Launching {name}...")
                     await coro_func()
