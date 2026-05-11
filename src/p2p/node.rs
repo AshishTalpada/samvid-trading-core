@@ -1,8 +1,7 @@
 use libp2p::{
-    gossipsub::{Gossipsub, GossipsubEvent, MessageAuthenticity},
-    mdns::{Mdns, MdnsEvent},
-    swarm::{NetworkBehaviourEventProcess, Swarm},
-    NetworkBehaviour, PeerId,
+    gossipsub,
+    mdns,
+    swarm::NetworkBehaviour,
 };
 use log::{info, warn};
 
@@ -11,35 +10,56 @@ use log::{info, warn};
 /// to share abstracted "Signal Vectors" globally without revealing raw code.
 
 #[derive(NetworkBehaviour)]
-#[behaviour(event_process = true)]
+#[behaviour(to_swarm = "SovereignBehaviourEvent")]
 pub struct SovereignBehaviour {
-    pub gossipsub: Gossipsub,
-    pub mdns: Mdns,
+    pub gossipsub: gossipsub::Behaviour,
+    pub mdns: mdns::tokio::Behaviour,
 }
 
-impl NetworkBehaviourEventProcess<MdnsEvent> for SovereignBehaviour {
-    fn inject_event(&mut self, event: MdnsEvent) {
-        match event {
-            MdnsEvent::Discovered(list) => {
-                for (peer, _) in list {
-                    info!("[P2P] Discovered trusted Sovereign Peer: {:?}", peer);
-                    self.gossipsub.add_explicit_peer(&peer);
-                }
-            }
-            MdnsEvent::Expired(list) => {
-                for (peer, _) in list {
-                    warn!("[P2P] Peer expired: {:?}", peer);
-                    self.gossipsub.remove_explicit_peer(&peer);
-                }
-            }
-        }
+#[derive(Debug)]
+pub enum SovereignBehaviourEvent {
+    Gossipsub(gossipsub::Event),
+    Mdns(mdns::Event),
+}
+
+impl From<gossipsub::Event> for SovereignBehaviourEvent {
+    fn from(event: gossipsub::Event) -> Self {
+        SovereignBehaviourEvent::Gossipsub(event)
     }
 }
 
-impl NetworkBehaviourEventProcess<GossipsubEvent> for SovereignBehaviour {
-    fn inject_event(&mut self, event: GossipsubEvent) {
-        if let GossipsubEvent::Message { propagation_source: peer, message, .. } = event {
-            info!("[P2P] Received Signal Vector from {:?}: {:?}", peer, String::from_utf8_lossy(&message.data));
+impl From<mdns::Event> for SovereignBehaviourEvent {
+    fn from(event: mdns::Event) -> Self {
+        SovereignBehaviourEvent::Mdns(event)
+    }
+}
+
+impl SovereignBehaviour {
+    /// Handles events coming from the sub-behaviours.
+    /// This should be called from the main Swarm event loop.
+    pub fn handle_event(&mut self, event: SovereignBehaviourEvent) {
+        match event {
+            SovereignBehaviourEvent::Mdns(mdns_event) => {
+                match mdns_event {
+                    mdns::Event::Discovered(list) => {
+                        for (peer, _) in list {
+                            info!("[P2P] Discovered trusted Sovereign Peer: {:?}", peer);
+                            self.gossipsub.add_explicit_peer(&peer);
+                        }
+                    }
+                    mdns::Event::Expired(list) => {
+                        for (peer, _) in list {
+                            warn!("[P2P] Peer expired: {:?}", peer);
+                            self.gossipsub.remove_explicit_peer(&peer);
+                        }
+                    }
+                }
+            }
+            SovereignBehaviourEvent::Gossipsub(gossip_event) => {
+                if let gossipsub::Event::Message { propagation_source: peer, message, .. } = gossip_event {
+                    info!("[P2P] Received Signal Vector from {:?}: {:?}", peer, String::from_utf8_lossy(&message.data));
+                }
+            }
         }
     }
 }

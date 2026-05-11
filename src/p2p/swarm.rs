@@ -1,6 +1,6 @@
 use libp2p::{
-    gossipsub::{Gossipsub, GossipsubConfigBuilder, MessageAuthenticity, IdentTopic as Topic, GossipsubEvent},
-    identity, PeerId, Swarm,
+    gossipsub::{Behaviour as Gossipsub, ConfigBuilder as GossipsubConfigBuilder, MessageAuthenticity, IdentTopic as Topic},
+    identity, PeerId,
 };
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
@@ -33,7 +33,7 @@ impl SovereignSwarm {
     /// Sets up the GossipSub behavior with strict anti-spam and validation routing
     pub fn build_gossipsub(&self, local_key: identity::Keypair) -> Gossipsub {
         // Custom message hashing to prevent duplicate floods
-        let message_id_fn = |message: &libp2p::gossipsub::GossipsubMessage| {
+        let message_id_fn = |message: &libp2p::gossipsub::Message| {
             let mut s = DefaultHasher::new();
             message.data.hash(&mut s);
             libp2p::gossipsub::MessageId::from(s.finish().to_string())

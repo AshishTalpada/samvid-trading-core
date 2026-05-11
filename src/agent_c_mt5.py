@@ -3,6 +3,7 @@ import logging
 import os
 from datetime import datetime, timedelta
 from datetime import time as dt_time
+from typing import Any, Dict, Optional
 
 import MetaTrader5 as mt5
 import numpy as np
@@ -11,6 +12,11 @@ logger = logging.getLogger(__name__)
 
 from config import FTMO_DAILY_LIMIT, FTMO_DRAWDOWN_LIMIT, MAX_TRADES_PER_DAY
 from vault import Vault
+
+# Aliases for Sovereign Compatibility
+mt5_raw: Any = None
+mt5: Any = mt5_raw
+MetaTrader5Agent = "MT5Connection" # Placeholder, will be aliased properly at the end
 
 
 class MT5Connection:
@@ -381,7 +387,6 @@ class DrawdownHysteresis:
         recovery_time_threshold = timedelta(hours=1)  # example threshold
         return current_dd < 0.05 and time_since_dd > recovery_time_threshold
 # ── LOCAL-ONLY MODULE CONSTANTS ─────────────────────────────────────────
-mt5: Any = mt5_raw
 MT5Connection = MetaTrader5Agent
 
 # ── LOCAL-ONLY SOVEREIGN EXTENSIONS ─────────────────────────────────────
@@ -579,4 +584,6 @@ class MetaTrader5Agent:
             logger.info("[MT5] Terminal connection cleanly severed.")
             self.connected = False
 
+# Final Sovereign Aliases
 MT5Connection = MetaTrader5Agent
+MetaTrader5Agent = MT5Connection # Bidirectional alias

@@ -1,7 +1,7 @@
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 use std::thread;
-use log::{info, critical};
+use log::{info, error};
 
 /// Aegis Protocol 3.0 / 4.0 Core
 /// Hardware-level auto-reboot and state restoration protocol.
@@ -31,7 +31,7 @@ impl AegisProtocol {
                 
                 // If it's still true, the main loop is hung
                 if SYSTEM_HANG.load(Ordering::SeqCst) {
-                    critical!("[AEGIS] Main loop hang detected (>{}ms)! Initiating emergency restore.", max_ms);
+                    error!("[AEGIS] Main loop hang detected (>{}ms)! Initiating emergency restore.", max_ms);
                     std::process::exit(99);
                 }
             }
