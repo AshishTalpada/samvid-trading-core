@@ -35,7 +35,6 @@ class SkepticAgent:
 
     def run_adversarial_debate(self, proposal: Dict[str, Any], opponents: list[str]) -> Dict[str, Any]:
         """
-        PILLAR 97/107: Adversarial Quorum & Debate Protocol.
         Forces the proposing agents to defend their thesis against the Skeptic's counter-points.
         """
         logger.info(f"Skeptic: Initiating ADVERSARIAL DEBATE against {opponents}")
