@@ -1,10 +1,9 @@
 import asyncio
-import inspect
 import logging
 import time
 import uuid
 from datetime import datetime, timezone
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, cast
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 import numpy as np
 import pandas as pd
@@ -22,14 +21,14 @@ from telegram_alerts import send_telegram_alert
 logger = logging.getLogger(__name__)
 
 CONCURRENCY_LIMIT = 3
+# NOTE: asyncio.Semaphore is created lazily inside the class to avoid
 # attaching to the wrong event loop when imported at module level.
-from config import COMMISSION_PER_ROUND_TRIP
 
 
 class TradingCoordinator:
     """
-    The Central Nexus of the Sovereign Quorum.
-    Orchestrates the vetting, execution, and post-mortem analysis of trade proposals.
+    Equipped with Concurrent Task-Graphing (Pillar 3), Adaptive Thinking (Pillar 5),
+    and Autonomy Skill Permissioning (Pillar 6).
     """
 
     _neural_semaphore_obj: asyncio.Semaphore | None = None
@@ -44,7 +43,7 @@ class TradingCoordinator:
     def __init__(self, bridge: "MindBridge", brain: "TradingBrain") -> None:
         self.bridge = bridge
         self.brain = brain
-        self._pending_vets: Any = set()
+        self._pending_vets = set()
         self.exoskeleton = ApexExoskeleton(brain)
         self._semaphore: asyncio.Semaphore | None = None  # Lazy-init to bind to running loop
 
@@ -72,13 +71,10 @@ class TradingCoordinator:
             if task:
                 task.log(f"PHASE_RR: Analyzing Risk/Reward for {symbol}. Pattern: {pattern.name}")
             balance = await self.brain.get_safe_buying_power("ibkr")
-            from config import USD_CAD_RATE
+            from config import COMMISSION_PER_ROUND_TRIP, USD_CAD_RATE
 
-            if balance is None or balance <= 0:
-                logger.warning(f"Coordinator [{symbol}] 🛑 CAPITAL VETO: Insufficient or unavailable buying power.")
-                return False
-
-            balance_usd = balance / USD_CAD_RATE
+            # Necessary for accurate sizing when trading US assets on a CAD-denominated account.
+            balance_usd = (balance or 500.0) / USD_CAD_RATE
 
             risk_amt = abs(pattern.entry - pattern.stop)
             reward_amt = abs(pattern.target - pattern.entry)
@@ -147,15 +143,15 @@ class TradingCoordinator:
             if cache and not is_probe:
                 if task:
                     task.log(f"CORTEX_HIT: Re-using cached consensus for {symbol}.")
-                res = await self._execute_decision(
+                return await self._execute_decision(
                     symbol,
                     cache["decision"],
                     proposal["pattern"],
                     cache["all_votes"],
                     is_probe,
+                    cache.get("shares", 0),
+                    task=task,
                 )
-                return res
-
 
             has_position = any(getattr(p, "symbol", None) == symbol for p in self.brain.positions)
             if has_position:
@@ -166,10 +162,11 @@ class TradingCoordinator:
             if self._semaphore is None:
                 self._semaphore = asyncio.Semaphore(CONCURRENCY_LIMIT)
             async with self._semaphore:
+
                 async def _poll_safe(name, func):
                     """Imperial Dispatcher (Sync -> Thread | Async -> Native)"""
                     try:
-                        if inspect.iscoroutinefunction(func):
+                        if asyncio.iscoroutinefunction(func):
                             return await func()
                         # Sync-safe bridge: run in thread pool to prevent blocking the event loop
                         res = await asyncio.to_thread(func)
@@ -208,6 +205,7 @@ class TradingCoordinator:
                         },
                     )
 
+                # -- PILLAR 6: SKILL TREE PERMISSIONING -------------------
                 if not self.brain.skill_tree.is_unlocked("vetting"):
                     logger.warning(
                         "Coordinator: Skill 'vetting' is LOCKED. Matrix is in Training Mode."
@@ -239,13 +237,86 @@ class TradingCoordinator:
                 # Sizing Calculation for Context
                 # For probes: skip the sizer entirely — it will return 0 shares with no live data.
                 # A probe is a wiring test, not a real order, so shares=1 is sufficient to pass guards.
+                if is_probe:
+                    shares = 1
+                    pos_value = pattern.entry * 1
+                else:
+                    ohlcv_for_sizing = (
+                        ohlcv_1m
+                        if (ohlcv_1m is not None and not isinstance(ohlcv_1m, str))
+                        else None
+                    )
+                    if self.brain.active_broker.upper() == "MT5":
+                        risk_per_trade = getattr(self.brain, "mt5_risk_per_trade", 10.0)
+                        shares = self.brain.mt5_sizer.calculate_lots(
+                            risk_per_trade, pattern.entry, pattern.stop, symbol
+                        ) or 0.0
+                        pos_value = shares * 100000.0  # Synthetic estimate for Forex tracking
+                    else:
+                        sizing = self.brain.ibkr_sizer.calculate(
+                            win_prob=alpha_val,
+                            r_r_ratio=pattern.r_r_ratio,
+                            balance=account_value,
+                            account_value=account_value,
+                            entry_price=pattern.entry,
+                            stop_price=pattern.stop,
+                            target_price=pattern.target,
+                            spread=spread_data["spread"],
+                            instrument=symbol,
+                            ohlcv_df=ohlcv_for_sizing,
+                            regime=self.brain.current_regime,
+                            regime_modifier=self.brain.regime_classifier.get_risk_modifier(
+                                self.brain.current_regime
+                            ),
+                            drawdown_modifier=self.brain.ibkr_drawdown.get_size_modifier(),
+                            loss_modifier=self.brain.loss_tracker.get_size_modifier(),
+                            is_probe=is_probe,
+                        )
+                        shares = int(sizing.get("step8_shares", 0))
+                        pos_value = sizing.get("position_value", 0.0)
 
-                # --- PHASE 1: DETERMINISTIC MATH VETO (Before Sizing) ---
-                # We audit the trade geometry before calculating shares to ensure we don't
-                # waste resources on mathematically unsound trades.
+                        total_mod = sizing.get("total_multiplier", 1.0)
+                        if total_mod < 0.9 and not is_probe:
+                            logger.warning(
+                                f"Coordinator [{proposal_id}]: Imperial Safety Protocol Active. "
+                                f"Size reduced to {total_mod:.1%} of theoretical max (DD/Loss/Regime Guard)."
+                            )
+
+                # Fix C: Zero-share veto
+                if shares <= 0 and not is_probe:
+                    logger.warning(
+                        f"Coordinator [{proposal_id}] ZERO-SHARE VETO: Position sizer returned shares=0 for {symbol}."
+                    )
+                    return False
+
+                shared_context = {
+                    "symbol": symbol,
+                    "timestamp": timestamp,
+                    "pattern": pattern,
+                    "regime": self.brain.current_regime,
+                    "account_value": account_value,
+                    "balance": account_value,  #
+                    "is_probe": is_probe,
+                    "shares": shares,
+                    "new_position_value": pos_value,
+                    "proposed_value": pos_value,  #
+                    "total_position_value": sum(
+                        getattr(p, "qty", 0)
+                        * getattr(p, "current_price", getattr(p, "entry_price", 0))
+                        for p in self.brain.positions
+                    ),
+                    "positions": self.brain.positions,
+                    "proposal_id": proposal_id,
+                    "is_long": pattern.entry > pattern.stop,
+                    "vix": await self.brain._get_vix(),
+                    "potential_profit": abs(pattern.target - pattern.entry),
+                    "commission": max(COMMISSION_PER_ROUND_TRIP, (shares or 1) * 0.01),
+                }
+
+                # Probes use synthetic geometry — skip data-quality vetoes for wiring tests
                 if not is_probe:
                     math_val = await self.brain.mind_math._tool_validate_geometry(
-                        direction=("LONG" if pattern.entry > pattern.stop else "SHORT"),
+                        direction=("LONG" if shared_context["is_long"] else "SHORT"),
                         entry_price=pattern.entry,
                         stop_price=pattern.stop,
                         target_price=pattern.target,
@@ -257,599 +328,509 @@ class TradingCoordinator:
                         )
                         return False
 
-                if is_probe:
-                    shares = 1
-                    pos_value = pattern.entry * 1
-                else:
-                    ohlcv_for_sizing = (
-                        ohlcv_1m
-                        if (ohlcv_1m is not None and not isinstance(ohlcv_1m, str))
-                        else None
-                    )
-                if self.brain.active_broker.upper() == "MT5":
-                    risk_per_trade = getattr(self.brain, "mt5_risk_per_trade", 10.0)
-                    shares = self.brain.mt5_sizer.calculate_lots(  # type: ignore
-                        risk_per_trade, pattern.entry, pattern.stop, symbol
-                    ) or 0.0
-                    pos_value = shares * 100000.0  # Synthetic estimate for Forex tracking
-                else:
-                    sizing = self.brain.ibkr_sizer.calculate(
-                        win_prob=float(alpha_val or 0.5),
-                        r_r_ratio=float(pattern.r_r_ratio),
-                        balance=account_value or 500.0,
-                        account_value=account_value or 500.0,
-                        entry_price=float(pattern.entry),
-                        stop_price=float(pattern.stop),
-                        target_price=float(pattern.target),
-                        spread=spread_data["spread"],
-                        instrument=symbol,
-                        ohlcv_df=ohlcv_for_sizing,
-                        regime=self.brain.current_regime,
-                        regime_modifier=self.brain.regime_classifier.get_risk_modifier(
-                            self.brain.current_regime
-                        ),
-                        drawdown_modifier=self.brain.ibkr_drawdown.get_size_modifier(),
-                        loss_tracker_modifier=self.brain.loss_tracker.get_size_modifier(),
-                        is_probe=is_probe,
-                    )
-                    shares = int(sizing.get("step8_shares", 0))
-                    pos_value = sizing.get("position_value", 0.0)
-
-                    total_mod = sizing.get("total_multiplier", 1.0)
-                    if total_mod < 0.9 and not is_probe:
-                        logger.warning(
-                            f"Coordinator [{proposal_id}]: Imperial Safety Protocol Active. "
-                            f"Size reduced to {total_mod:.1%} of theoretical max (DD/Loss/Regime Guard)."
-                        )
-
-                    # Fix C: Zero-share veto
-                    if shares <= 0 and not is_probe:
-                        logger.warning(
-                            f"Coordinator [{proposal_id}] ZERO-SHARE VETO: Position sizer returned shares=0 for {symbol}."
-                        )
-                        return False
-
-                    shared_context = {
-                        "symbol": symbol,
-                        "brain": self.brain,
-                        "timestamp": timestamp,
-                        "pattern": pattern,
-                        "regime": self.brain.current_regime,
-                        "account_value": account_value,
-                        "balance": account_value,  #
-                        "is_probe": is_probe,
-                        "shares": shares,
-                        "new_position_value": pos_value,
-                        "proposed_value": pos_value,  #
-                        "total_position_value": sum(
-                            getattr(p, "qty", 0)
-                            * getattr(p, "current_price", getattr(p, "entry_price", 0))
-                            for p in self.brain.positions
-                        ),
-                        "positions": self.brain.positions,
-                        "proposal_id": proposal_id,
-                        "is_long": pattern.entry > pattern.stop,
-                        "vix": await self.brain._get_vix(),
-                        "potential_profit": abs(float(pattern.target) - float(pattern.entry)),
-                        "commission": max(COMMISSION_PER_ROUND_TRIP, (shares or 1) * 0.01),
-                    }
-
-                    try:
-                        if not is_probe:
-                            ohlcv_data = await self.brain._fetch_ohlcv(symbol)
-                            if ohlcv_data is not None and not isinstance(ohlcv_data, str):
-                                q_prices = ohlcv_data["close"].to_numpy()
-                                q_volumes = ohlcv_data["volume"].to_numpy()
-                                q_side = "LONG" if shared_context["is_long"] else "SHORT"
-                                q_gate = await self.brain.quant_gate(
-                                    symbol,
-                                    q_side,
-                                    {
-                                        "prices": q_prices,
-                                        "volumes": q_volumes,
-                                        "vix": shared_context["vix"],
-                                    },
-                                )
-                                if not q_gate["approved"]:
-                                    logger.info(
-                                        f"Coordinator [{proposal_id}] 🛑 QUANT VETO: {q_gate['reason']}"
-                                    )
-                                    return False
-                    except Exception as qe:
-                        logger.warning(f"Coordinator: QuantGate logic error: {qe}")
-
-                    if self.brain.mode != "paper":
-                        try:
-                            cushion = await self.brain.get_ibkr_cushion()
-                            if cushion < 0.15:
-                                logger.critical(
-                                    f"Coordinator [{proposal_id}] 🛡️ MARGIN SHIELD VETO: Cushion is too low ({cushion:.2%}). Standing down."
+                try:
+                    if not is_probe:
+                        ohlcv_data = await self.brain._fetch_ohlcv(symbol)
+                        if ohlcv_data is not None and not isinstance(ohlcv_data, str):
+                            q_prices = ohlcv_data["close"].to_numpy()
+                            q_volumes = ohlcv_data["volume"].to_numpy()
+                            q_side = "LONG" if shared_context["is_long"] else "SHORT"
+                            q_gate = await self.brain.quant_gate(
+                                symbol,
+                                q_side,
+                                {
+                                    "prices": q_prices,
+                                    "volumes": q_volumes,
+                                    "vix": shared_context["vix"],
+                                },
+                            )
+                            if not q_gate["approved"]:
+                                logger.info(
+                                    f"Coordinator [{proposal_id}] 🛑 QUANT VETO: {q_gate['reason']}"
                                 )
                                 return False
-                        except Exception as me:
-                            logger.warning(
-                                f"Coordinator: Margin Shield offline, proceeding with caution: {me}"
+                except Exception as qe:
+                    logger.warning(f"Coordinator: QuantGate logic error: {qe}")
+
+                if self.brain.mode != "paper":
+                    try:
+                        cushion = await self.brain.get_ibkr_cushion()
+                        if cushion < 0.15:
+                            logger.critical(
+                                f"Coordinator [{proposal_id}] 🛡️ MARGIN SHIELD VETO: Cushion is too low ({cushion:.2%}). Standing down."
                             )
+                            return False
+                    except Exception as me:
+                        logger.warning(
+                            f"Coordinator: Margin Shield offline, proceeding with caution: {me}"
+                        )
 
-                    logger.info(f"Coordinator [{proposal_id}] polling 7-Agent Quorum...")
+                logger.info(f"Coordinator [{proposal_id}] polling 7-Agent Quorum...")
 
-                    # Mandatory gate: Every trade must pass through the Agent A defensive fortress.
-                    # Runs under Neural Semaphore as it performs 75Y Atlas matching and Neural Lambda calibration.
-                    async def poll_agent_a():
-                        try:
-                            # Probes test wiring, not trade quality. Agent A auto-approves.
-                            if is_probe:
-                                return {
-                                    "agent": "Agent_A",
-                                    "vote": "YES",
-                                    "confidence": 1.0,
-                                    "reason": "PROBE_AUTO_APPROVE: Wiring test bypass.",
-                                    "final_lambda": 99.0,
-                                    "signal_strength": 1.0,
-                                    "lambda": 1.0,
-                                    "risk_flag": False,
-                                    "regime": self.brain.current_regime,
-                                    "metadata": {
-                                        "pattern": pattern.name,
-                                        "entry": pattern.entry,
-                                        "stop": pattern.stop,
-                                        "target": pattern.target,
-                                    },
-                                }
+                # Mandatory gate: Every trade must pass through the Agent A defensive fortress.
+                # Runs under Neural Semaphore as it performs 75Y Atlas matching and Neural Lambda calibration.
+                async def poll_agent_a():
+                    try:
+                        # Probes test wiring, not trade quality. Agent A auto-approves.
+                        if is_probe:
+                            return {
+                                "agent": "Agent_A",
+                                "vote": "YES",
+                                "confidence": 1.0,
+                                "reason": "PROBE_AUTO_APPROVE: Wiring test bypass.",
+                                "final_lambda": 99.0,
+                                "signal_strength": 1.0,
+                                "lambda": 1.0,
+                                "risk_flag": False,
+                                "regime": self.brain.current_regime,
+                                "metadata": {
+                                    "pattern": pattern.name,
+                                    "entry": pattern.entry,
+                                    "stop": pattern.stop,
+                                    "target": pattern.target,
+                                },
+                            }
 
-                            # Guard: ensure ohlcv_1m is a real DataFrame before accessing columns
-                            if ohlcv_1m is None or isinstance(ohlcv_1m, str):
-                                return {
-                                    "agent": "Agent_A",
-                                    "vote": "NO",
-                                    "reason": "No OHLCV data available.",
-                                }
-
-                            # 1. DMS Heartbeat
-                            if self.brain.dms:
-                                self.brain.dms.record_heartbeat("AGENT_A")
-
-                            # 2. Derive context for Agent A
-                            tension = (
-                                self.brain.dhatu_oracle.calculate_spread_tension(
-                                    bid=float(cast(Any, ohlcv_1m["low"][-1])),
-                                    ask=float(cast(Any, ohlcv_1m["high"][-1])),
-                                    volume=float(cast(Any, ohlcv_1m["volume"][-1])),
-                                )
-                                if self.brain.dhatu_oracle
-                                else 0.0
-                            )
-
-                            # Calculate entropy using the brain's calc
-                            p_before = 0.5
-                            p_after = pattern.confidence / 100.0
-                            entropy_score = self.brain.entropy_calc.signal_entropy(p_before, p_after)
-
-                            closes = ohlcv_1m["close"].to_numpy()
-                            resistances = [float(np.percentile(cast(Any, closes), 90)), float(np.max(cast(Any, closes)))]
-                            timeframes = [("1m", ohlcv_1m)]
-
-                            # Trend 5d/1m
-                            trend_5d = "bull"
-                            trend_1m = "bull"
-                            try:
-                                df_h1 = await asyncio.to_thread(
-                                    pd.read_sql_query,
-                                    "SELECT close FROM ohlcv WHERE symbol=? AND timeframe='1h' ORDER BY timestamp DESC LIMIT 500",
-                                    self.brain.db_conn,
-                                    params=[symbol],
-                                )
-                                df_h1 = cast(pd.DataFrame, df_h1)
-                                if len(df_h1) >= 5:
-                                    trend_5d = (
-                                        "bull"
-                                        if df_h1["close"].iloc[0] > df_h1["close"].iloc[4]
-                                        else "bear"
-                                    )
-                                if len(df_h1) >= 20:
-                                    trend_1m = (
-                                        "bull"
-                                        if df_h1["close"].iloc[0] > df_h1["close"].iloc[19]
-                                        else "bear"
-                                    )
-                            except Exception:
-                                trend_5d = (
-                                    "bull" if ohlcv_1m["close"][-1] > ohlcv_1m["close"][-5] else "bear"
-                                )
-                                trend_1m = (
-                                    "bull" if ohlcv_1m["close"][-1] > ohlcv_1m["close"][-20] else "bear"
-                                )
-
-                            # 3. Dynamic ATR for sizing resonance
-                            high = ohlcv_1m["high"].to_numpy()
-                            low = ohlcv_1m["low"].to_numpy()
-                            close = ohlcv_1m["close"].to_numpy()
-                            prev_close = ohlcv_1m["close"].shift(1).to_numpy()
-
-                            tr = np.maximum(
-                                np.abs(high - low),
-                                np.maximum(
-                                    np.abs(high - prev_close),
-                                    np.abs(low - prev_close),
-                                ),
-                            )
-                            atr_20 = float(np.nanmean(tr[-20:]))
-
-                            # 4. EXPLICIT AGENT A VALIDATION (The Defensive Fortress)
-                            # Wrapped in to_thread because it's heavy math/neural logic.
-                            a_result = await asyncio.to_thread(
-                                agent_a_validate_trade,
-                                pattern=pattern,
-                                budget_monitor=self.brain.budget_monitor,
-                                entropy_calc=self.brain.entropy_calc,
-                                escape_classifier=self.brain.escape_classifier,
-                                mtf_aligner=self.brain.mtf_aligner,
-                                atlas=self.brain.sovereign_atlas,
-                                oracle=self.brain.dhatu_oracle,
-                                neural_engine=self.brain.neural_engine,
-                                regime_classifier=self.brain.regime_classifier_neural,
-                                ohlcv_df=ohlcv_1m,
-                                volume_surge=(
-                                    float(cast(Any, ohlcv_1m["volume"][-1])) > float(cast(Any, ohlcv_1m["volume"][-20:-1].mean())) * 2.0
-                                ),
-                                trend_5d=trend_5d,
-                                trend_1m=trend_1m,
-                                entropy_score=entropy_score,
-                                resistances=resistances,
-                                timeframes=timeframes,
-                                symbol=symbol,
-                                shares=shares,
-                                atr_20=atr_20,
-                                dd_level=self.brain.ibkr_drawdown.level.value,
-                                tension=tension,
-                            )
-
-                            return a_result
-                        except Exception as ae:
-                            logger.error(f"Coordinator: Agent A Fortress Check FAILED: {ae}")
+                        # Guard: ensure ohlcv_1m is a real DataFrame before accessing columns
+                        if ohlcv_1m is None or isinstance(ohlcv_1m, str):
                             return {
                                 "agent": "Agent_A",
                                 "vote": "NO",
-                                "reason": f"Neural Validation Error: {str(ae)[:50]}",
+                                "reason": "No OHLCV data available.",
                             }
 
-                    agent_a_out = await _poll_neural_safe("Agent_A", poll_agent_a)
+                        # 1. DMS Heartbeat
+                        if self.brain.dms:
+                            self.brain.dms.record_heartbeat("AGENT_A")
 
-                    if agent_a_out["vote"] == "NO":
-                        logger.info(
-                            f"Coordinator [{proposal_id}] 🛑 SOVEREIGN VETO: Agent A rejected proposal. {agent_a_out.get('reason')}"
-                        )
-                        if self.brain.bus:
-                            await self.brain.bus.publish(
-                                "consensus.update",
-                                {
-                                    "symbol": symbol,
-                                    "phase": "VETO",
-                                    "decision": "REJECT",
-                                    "reason": agent_a_out.get("reason"),
-                                    "votes": [agent_a_out],
-                                    "timestamp": time.time() * 1000,
-                                },
+                        # 2. Derive context for Agent A
+                        tension = (
+                            self.brain.dhatu_oracle.calculate_spread_tension(
+                                bid=float(ohlcv_1m["low"][-1]),
+                                ask=float(ohlcv_1m["high"][-1]),
+                                volume=float(ohlcv_1m["volume"][-1]),
                             )
-                        return False
+                            if self.brain.dhatu_oracle
+                            else 0.0
+                        )
 
-                    # --- LIVE QUORUM STREAM (Agent A Progress) ---
+                        # Calculate entropy using the brain's calc
+                        p_before = 0.5
+                        p_after = pattern.confidence / 100.0
+                        entropy_score = self.brain.entropy_calc.signal_entropy(p_before, p_after)
+
+                        closes = ohlcv_1m["close"].to_numpy()
+                        resistances = [float(np.percentile(closes, 90)), float(np.max(closes))]
+                        timeframes = [("1m", ohlcv_1m)]
+
+                        # Trend 5d/1m
+                        trend_5d = "bull"
+                        trend_1m = "bull"
+                        try:
+                            df_h1 = await asyncio.to_thread(
+                                pd.read_sql_query,
+                                "SELECT close FROM ohlcv WHERE symbol=? AND timeframe='1h' ORDER BY timestamp DESC LIMIT 500",
+                                self.brain.db_conn,
+                                params=[symbol],
+                            )
+                            if len(df_h1) >= 5:
+                                trend_5d = (
+                                    "bull"
+                                    if df_h1["close"].iloc[0] > df_h1["close"].iloc[4]
+                                    else "bear"
+                                )
+                            if len(df_h1) >= 20:
+                                trend_1m = (
+                                    "bull"
+                                    if df_h1["close"].iloc[0] > df_h1["close"].iloc[19]
+                                    else "bear"
+                                )
+                        except Exception:
+                            trend_5d = (
+                                "bull" if ohlcv_1m["close"][-1] > ohlcv_1m["close"][-5] else "bear"
+                            )
+                            trend_1m = (
+                                "bull" if ohlcv_1m["close"][-1] > ohlcv_1m["close"][-20] else "bear"
+                            )
+
+                        # 3. Dynamic ATR for sizing resonance
+                        tr = np.maximum(
+                            (ohlcv_1m["high"] - ohlcv_1m["low"]).abs(),
+                            np.maximum(
+                                (ohlcv_1m["high"] - ohlcv_1m["close"].shift(1)).abs(),
+                                (ohlcv_1m["low"] - ohlcv_1m["close"].shift(1)).abs(),
+                            ),
+                        )
+                        atr_20 = float(tr.tail(20).mean())
+
+                        # 4. EXPLICIT AGENT A VALIDATION (The Defensive Fortress)
+                        # Wrapped in to_thread because it's heavy math/neural logic.
+                        a_result = await asyncio.to_thread(
+                            agent_a_validate_trade,
+                            pattern=pattern,
+                            budget_monitor=self.brain.budget_monitor,
+                            entropy_calc=self.brain.entropy_calc,
+                            escape_classifier=self.brain.escape_classifier,
+                            mtf_aligner=self.brain.mtf_aligner,
+                            atlas=self.brain.sovereign_atlas,
+                            oracle=self.brain.dhatu_oracle,
+                            neural_engine=self.brain.neural_engine,
+                            regime_classifier=self.brain.regime_classifier_neural,
+                            ohlcv_df=ohlcv_1m,
+                            volume_surge=(
+                                ohlcv_1m["volume"][-1] > ohlcv_1m["volume"][-20:-1].mean() * 2.0
+                            ),
+                            trend_5d=trend_5d,
+                            trend_1m=trend_1m,
+                            entropy_score=entropy_score,
+                            resistances=resistances,
+                            timeframes=timeframes,
+                            symbol=symbol,
+                            shares=shares,
+                            atr_20=atr_20,
+                            dd_level=self.brain.ibkr_drawdown.level.value,
+                            tension=tension,
+                        )
+
+                        return a_result
+                    except Exception as ae:
+                        logger.error(f"Coordinator: Agent A Fortress Check FAILED: {ae}")
+                        return {
+                            "agent": "Agent_A",
+                            "vote": "NO",
+                            "reason": f"Neural Validation Error: {str(ae)[:50]}",
+                        }
+
+                agent_a_out = await _poll_neural_safe("Agent_A", poll_agent_a)
+
+                if agent_a_out["vote"] == "NO":
+                    logger.info(
+                        f"Coordinator [{proposal_id}] 🛑 SOVEREIGN VETO: Agent A rejected proposal. {agent_a_out.get('reason')}"
+                    )
                     if self.brain.bus:
                         await self.brain.bus.publish(
                             "consensus.update",
                             {
                                 "symbol": symbol,
-                                "phase": "AGENT_A_OK",
-                                "decision": "VOTING",
+                                "phase": "VETO",
+                                "decision": "REJECT",
+                                "reason": agent_a_out.get("reason"),
                                 "votes": [agent_a_out],
                                 "timestamp": time.time() * 1000,
                             },
                         )
+                    return False
 
-                    async def poll_agent_d():
-                        """Agent D: Historical Learning & Significance Mind."""
-                        try:
-                            learned = getattr(self.brain, "_learned_win_rates", {})
-                            regime_key = f"{pattern.name}:{self.brain.current_regime}"
-                            learned_wr = learned.get(regime_key) or learned.get(pattern.name)
+                # --- LIVE QUORUM STREAM (Agent A Progress) ---
+                if self.brain.bus:
+                    await self.brain.bus.publish(
+                        "consensus.update",
+                        {
+                            "symbol": symbol,
+                            "phase": "AGENT_A_OK",
+                            "decision": "VOTING",
+                            "votes": [agent_a_out],
+                            "timestamp": time.time() * 1000,
+                        },
+                    )
 
-                            # Direct call to standardized consensus (Alpha Brain Integration)
-                            agent_d_vote = self.brain.live_learner.evaluate_proposal(
-                                pattern.name, self.brain.current_regime
-                            )
-
-                            # --- IMPERIAL GUARD: Internal Stats VETO ---
-                            if (
-                                learned_wr is not None
-                                and isinstance(learned_wr, float)
-                                and learned_wr < 0.40
-                            ):
-                                agent_d_vote["vote"] = "NO"
-                                agent_d_vote["reason"] = (
-                                    f"🛑 IMPERIAL VETO: Internal WR too low ({learned_wr:.2%})"
-                                )
-
-                            return agent_d_vote
-                        except Exception as e:
-                            logger.error(f"Coordinator: Agent D poll failed: {e}")
-                            return {
-                                "agent": "Agent_D",
-                                "vote": "YES",
-                                "confidence": 0.5,
-                                "reason": f"Fallback: {str(e)[:50]}",
-                                "timestamp": timestamp,
-                            }
-
-                    async def poll_oracle():
-                        """Dhatu Oracle: (SOLUTION 5) Uses Background State with High-Fidelity Fallback."""
-                        state = self.brain.conviction_state.get("Dhatu_Oracle")
-                        if (
-                            state
-                            and (
-                                datetime.now(timezone.utc) - dtparser.parse(state["timestamp"])
-                            ).total_seconds()
-                            < 90
-                        ):
-                            return state
-
-                        try:
-                            if self.brain.dhatu_oracle is None:
-                                raise RuntimeError("DhatuOracle not configured")
-                            logger.info(
-                                "Coordinator: Background Oracle stale. Falling back to Live Synthesis..."
-                            )
-                            return await asyncio.to_thread(
-                                self.brain.dhatu_oracle.evaluate_proposal, shared_context
-                            )
-                        except Exception as e:
-                            logger.warning(f"Coordinator: Oracle Live Fallback failed: {e}")
-                            return {
-                                "agent": "Dhatu_Oracle",
-                                "vote": "YES",
-                                "confidence": 0.5,
-                                "reason": "Oracle Offline (Deferred to Quorum)",
-                                "timestamp": timestamp,
-                            }
-
-                    async def poll_swarm():
-                        """Swarm Predictor: (SOLUTION 5) Uses Background State with High-Fidelity Fallback."""
-                        state = self.brain.conviction_state.get("Swarm_Predictor")
-                        if (
-                            state
-                            and (
-                                datetime.now(timezone.utc) - dtparser.parse(state["timestamp"])
-                            ).total_seconds()
-                            < 90
-                        ):
-                            return state
-
-                        try:
-                            if self.brain.swarm_predictor is None:
-                                raise RuntimeError("SwarmPredictor not configured")
-                            logger.info(
-                                "Coordinator: Background Swarm stale. Falling back to Live Collective Intelligence..."
-                            )
-                            return await self.brain.swarm_predictor.evaluate_proposal(shared_context)
-                        except Exception as e:
-                            logger.warning(f"Coordinator: Swarm Live Fallback failed: {e}")
-                            return {
-                                "agent": "Swarm_Predictor",
-                                "vote": "YES",
-                                "confidence": 0.5,
-                                "reason": "Swarm Offline (Deferred to Quorum)",
-                                "timestamp": timestamp,
-                            }
-
-                    # -- QUORUM ASSEMBLY (STRICT UNIQUENESS) --
-                    vote_registry: Dict[str, Dict[str, Any]] = {}
-
+                async def poll_agent_d():
+                    """Agent D: Historical Learning & Significance Mind."""
                     try:
-                        tier1_results = await self.exoskeleton.run_parallel_tier(shared_context)
-                        for res in tier1_results:
-                            if res and "agent" in res:
-                                vote_registry[cast(str, res["agent"])] = res
+                        learned = getattr(self.brain, "_learned_win_rates", {})
+                        regime_key = f"{pattern.name}:{self.brain.current_regime}"
+                        learned_wr = learned.get(regime_key) or learned.get(pattern.name)
 
-                        dummy_tail = self.exoskeleton.evaluate_dictatorship(tier1_results, timestamp)
-                        if dummy_tail:
-                            for res in dummy_tail:
-                                vote_registry[cast(str, res["agent"])] = res
-                    except Exception as exo_err:
-                        logger.error(
-                            f"Coordinator: Apex Exoskeleton failure, reverting to Imperial Core: {exo_err}"
+                        # Direct call to standardized consensus (Alpha Brain Integration)
+                        agent_d_vote = self.brain.live_learner.evaluate_proposal(
+                            pattern.name, self.brain.current_regime
                         )
-                        tier1_agents = {
-                            "Agent_B": lambda: self.brain.belief_tracker.evaluate_proposal(
-                                shared_context
-                            ),
-                            "Agent_C": lambda: (
-                                self.brain.dms.record_heartbeat("AGENT_C") if self.brain.dms else None,
-                                self.brain.portfolio_guard.evaluate_proposal(shared_context, "Agent_C"),
-                            )[1],
-                            "Risk_Guard": lambda: self.brain.correlation_guard.evaluate_proposal(
-                                shared_context, "Risk_Guard"
-                            ),
-                            "Agent_D": poll_agent_d,
-                            "Agent_E": lambda: self.brain.correlation_guard.evaluate_proposal(
-                                shared_context, "Agent_E"
-                            ),
-                            "Agent_F": lambda: self.brain.vix_protocol.evaluate_proposal(
-                                shared_context, "Agent_F"
-                            ),
-                            "Agent_G": lambda: self.brain.mind_architect.evaluate_proposal(
-                                shared_context
-                            ),
+
+                        # --- IMPERIAL GUARD: Internal Stats VETO ---
+                        if (
+                            learned_wr is not None
+                            and isinstance(learned_wr, float)
+                            and learned_wr < 0.40
+                        ):
+                            agent_d_vote["vote"] = "NO"
+                            agent_d_vote["reason"] = (
+                                f"🛑 IMPERIAL VETO: Internal WR too low ({learned_wr:.2%})"
+                            )
+
+                        return agent_d_vote
+                    except Exception as e:
+                        logger.error(f"Coordinator: Agent D poll failed: {e}")
+                        return {
+                            "agent": "Agent_D",
+                            "vote": "YES",
+                            "confidence": 0.5,
+                            "reason": f"Fallback: {str(e)[:50]}",
+                            "timestamp": timestamp,
                         }
 
-                        tier1_results = []
-                        for name, func in tier1_agents.items():
-                            res = await _poll_safe(name, func)
-                            vote_registry[name] = res
-                            tier1_results.append(res)
-                        dummy_tail = None
+                async def poll_oracle():
+                    """Dhatu Oracle: (SOLUTION 5) Uses Background State with High-Fidelity Fallback."""
+                    state = self.brain.conviction_state.get("Dhatu_Oracle")
+                    if (
+                        state
+                        and (
+                            datetime.now(timezone.utc) - dtparser.parse(state["timestamp"])
+                        ).total_seconds()
+                        < 90
+                    ):
+                        return state
 
-                    # Agent A is mandatory and always unique
-                    vote_registry["Agent_A"] = agent_a_out
-
-                    if not dummy_tail:
-                        deterministic_deny = any(
-                            v["vote"] == "NO"
-                            for v in vote_registry.values()
-                            if v.get("agent") in ["Agent_B", "Agent_C", "Risk_Guard", "Agent_E", "Agent_F", "Agent_G"]
-                        )
-                        if deterministic_deny and not is_probe:
-                            logger.warning(
-                                f"Coordinator [{proposal_id}] 🛑 EARLY EXIT: Tier 1 agents rejected. Standing down."
-                            )
-                            dummy_tail = [
-                                {"agent": "Dhatu_Oracle", "vote": "NO", "confidence": 0.0, "reason": "Skipped", "timestamp": timestamp},
-                                {"agent": "Swarm_Predictor", "vote": "NO", "confidence": 0.0, "reason": "Skipped", "timestamp": timestamp},
-                                {"agent": "Mind_Ultrathink", "vote": "NO", "confidence": 0.0, "reason": "Skipped", "timestamp": timestamp},
-                            ]
-                            for res in dummy_tail:
-                                vote_registry[str(res["agent"])] = res
-
-                    # --- STAGE 1 TELEMETRY ---
-                    if self.brain.bus:
-                        await self.brain.bus.publish(
-                            "consensus.update",
-                            {
-                                "symbol": symbol,
-                                "phase": "STAGE_1_OK",
-                                "decision": "VOTING",
-                                "votes": list(vote_registry.values()),
-                                "timestamp": time.time() * 1000,
-                            },
-                        )
-
-                    if not dummy_tail:
+                    try:
+                        if self.brain.dhatu_oracle is None:
+                            raise RuntimeError("DhatuOracle not configured")
                         logger.info(
-                            f"Coordinator [{proposal_id}]: Stage 1 Clear. Entering Neural Gate for Gated agents..."
+                            "Coordinator: Background Oracle stale. Falling back to Live Synthesis..."
                         )
-                        gated_agents = []
-                        try:
-                            gated_agents = [
-                                ("Dhatu_Oracle", poll_oracle),
-                                ("Swarm_Predictor", poll_swarm),
-                                (
-                                    "Mind_Ultrathink",
-                                    lambda: self.brain.mind_ultrathink.evaluate_proposal(
-                                        shared_context
-                                    ),
+                        return await asyncio.to_thread(
+                            self.brain.dhatu_oracle.evaluate_proposal, shared_context
+                        )
+                    except Exception as e:
+                        logger.warning(f"Coordinator: Oracle Live Fallback failed: {e}")
+                        return {
+                            "agent": "Dhatu_Oracle",
+                            "vote": "YES",
+                            "confidence": 0.5,
+                            "reason": "Oracle Offline (Deferred to Quorum)",
+                            "timestamp": timestamp,
+                        }
+
+                async def poll_swarm():
+                    """Swarm Predictor: (SOLUTION 5) Uses Background State with High-Fidelity Fallback."""
+                    state = self.brain.conviction_state.get("Swarm_Predictor")
+                    if (
+                        state
+                        and (
+                            datetime.now(timezone.utc) - dtparser.parse(state["timestamp"])
+                        ).total_seconds()
+                        < 90
+                    ):
+                        return state
+
+                    try:
+                        if self.brain.swarm_predictor is None:
+                            raise RuntimeError("SwarmPredictor not configured")
+                        logger.info(
+                            "Coordinator: Background Swarm stale. Falling back to Live Collective Intelligence..."
+                        )
+                        return await self.brain.swarm_predictor.evaluate_proposal(shared_context)
+                    except Exception as e:
+                        logger.warning(f"Coordinator: Swarm Live Fallback failed: {e}")
+                        return {
+                            "agent": "Swarm_Predictor",
+                            "vote": "YES",
+                            "confidence": 0.5,
+                            "reason": "Swarm Offline (Deferred to Quorum)",
+                            "timestamp": timestamp,
+                        }
+
+                # -- QUORUM ASSEMBLY (STRICT UNIQUENESS) --
+                vote_registry: Dict[str, Dict[str, Any]] = {}
+
+                try:
+                    tier1_results = await self.exoskeleton.run_parallel_tier(shared_context)
+                    for res in tier1_results:
+                        if res and "agent" in res:
+                            vote_registry[res["agent"]] = res
+
+                    dummy_tail = self.exoskeleton.evaluate_dictatorship(tier1_results, timestamp)
+                    if dummy_tail:
+                        for res in dummy_tail:
+                            vote_registry[res["agent"]] = res
+                except Exception as exo_err:
+                    logger.error(
+                        f"Coordinator: Apex Exoskeleton failure, reverting to Imperial Core: {exo_err}"
+                    )
+                    tier1_agents = {
+                        "Agent_B": lambda: self.brain.belief_tracker.evaluate_proposal(
+                            shared_context
+                        ),
+                        "Agent_C": lambda: (
+                            self.brain.dms.record_heartbeat("AGENT_C") if self.brain.dms else None,
+                            self.brain.portfolio_guard.evaluate_proposal(shared_context, "Agent_C"),
+                        )[1],
+                        "Risk_Guard": lambda: self.brain.correlation_guard.evaluate_proposal(
+                            shared_context, "Risk_Guard"
+                        ),
+                        "Agent_D": poll_agent_d,
+                        "Agent_E": lambda: self.brain.correlation_guard.evaluate_proposal(
+                            shared_context, "Agent_E"
+                        ),
+                        "Agent_F": lambda: self.brain.vix_protocol.evaluate_proposal(
+                            shared_context, "Agent_F"
+                        ),
+                        "Agent_G": lambda: self.brain.mind_architect.evaluate_proposal(
+                            shared_context
+                        ),
+                    }
+
+                    tier1_results = []
+                    for name, func in tier1_agents.items():
+                        res = await _poll_safe(name, func)
+                        vote_registry[name] = res
+                        tier1_results.append(res)
+                    dummy_tail = None
+
+                # Agent A is mandatory and always unique
+                vote_registry["Agent_A"] = agent_a_out
+
+                if not dummy_tail:
+                    deterministic_deny = any(
+                        v["vote"] == "NO"
+                        for v in vote_registry.values()
+                        if v.get("agent") in ["Agent_B", "Agent_C", "Risk_Guard", "Agent_E", "Agent_F", "Agent_G"]
+                    )
+                    if deterministic_deny and not is_probe:
+                        logger.warning(
+                            f"Coordinator [{proposal_id}] 🛑 EARLY EXIT: Tier 1 agents rejected. Standing down."
+                        )
+                        dummy_tail = [
+                            {"agent": "Dhatu_Oracle", "vote": "NO", "confidence": 0.0, "reason": "Skipped", "timestamp": timestamp},
+                            {"agent": "Swarm_Predictor", "vote": "NO", "confidence": 0.0, "reason": "Skipped", "timestamp": timestamp},
+                            {"agent": "Mind_Ultrathink", "vote": "NO", "confidence": 0.0, "reason": "Skipped", "timestamp": timestamp},
+                        ]
+                        for res in dummy_tail:
+                            vote_registry[res["agent"]] = res
+
+                # --- STAGE 1 TELEMETRY ---
+                if self.brain.bus:
+                    await self.brain.bus.publish(
+                        "consensus.update",
+                        {
+                            "symbol": symbol,
+                            "phase": "STAGE_1_OK",
+                            "decision": "VOTING",
+                            "votes": list(vote_registry.values()),
+                            "timestamp": time.time() * 1000,
+                        },
+                    )
+
+                if not dummy_tail:
+                    logger.info(
+                        f"Coordinator [{proposal_id}]: Stage 1 Clear. Entering Neural Gate for Gated agents..."
+                    )
+                    try:
+                        gated_agents = [
+                            ("Dhatu_Oracle", poll_oracle),
+                            ("Swarm_Predictor", poll_swarm),
+                            (
+                                "Mind_Ultrathink",
+                                lambda: self.brain.mind_ultrathink.evaluate_proposal(
+                                    shared_context
                                 ),
-                            ]
+                            ),
+                        ]
 
-                            if self.brain.native_slm and self.brain.native_slm.is_available:
-                                gated_agents.append(
-                                    (
-                                        "Native_SLM",
-                                        lambda: self.brain.native_slm.evaluate_proposal(shared_context),
+                        if self.brain.native_slm and self.brain.native_slm.is_available:
+                            gated_agents.append(
+                                (
+                                    "Native_SLM",
+                                    lambda: self.brain.native_slm.evaluate_proposal(shared_context),
+                                )
+                            )
+
+                        vram_pct = 0  # LLM purged — no VRAM contention
+
+                        gated_votes = []
+                        background_success = True
+                        for name, _ in gated_agents:
+                            state = self.brain.conviction_state.get(name)
+                            state_ts = state.get("timestamp") if state else None
+                            if (
+                                not state
+                                or not state_ts
+                                or (
+                                    datetime.now(timezone.utc) - dtparser.parse(state_ts)
+                                ).total_seconds()
+                                > 90
+                            ):
+                                background_success = False
+                                break
+                            state["timestamp"] = timestamp
+                            gated_votes.append(state)
+
+                        if not background_success:
+                            logger.warning(
+                                "Coordinator: Background Conviction Stale/Missing. Reverting to Parallel Neural Gate..."
+                            )
+
+                            # Uses _poll_neural_safe to manage VRAM contention serialy but gathered in parallel.
+                            names = [n for n, _ in gated_agents]
+                            funcs = [f for _, f in gated_agents]
+
+                            results = await asyncio.gather(
+                                *[
+                                    asyncio.wait_for(_poll_neural_safe(name, func), timeout=25.0)
+                                    for name, func in zip(names, funcs, strict=False)
+                                ],
+                                return_exceptions=True,
+                            )
+
+                            for name, res in zip(names, results, strict=False):
+                                if isinstance(res, (Exception, asyncio.TimeoutError)):
+                                    logger.error(f"Neural Gate: {name} Failed or Timed Out: {res}")
+                                    gated_votes.append(
+                                        {
+                                            "agent": name,
+                                            "vote": "YES",
+                                            "confidence": 0.4,
+                                            "reason": "Latency/Error Fallback",
+                                        }
                                     )
-                                )
+                                else:
+                                    gated_votes.append(res)
 
-                            vram_pct = 0  # LLM purged — no VRAM contention
+                        for res in gated_votes:
+                            if res and "agent" in res:
+                                vote_registry[res["agent"]] = res
+                                # Update Conviction State for caching
+                                if res.get("confidence", 0) > 0:
+                                    self.brain.conviction_state[res["agent"]] = res
+                    except Exception as gated_e:
+                        logger.error(f"Coordinator: Gated Intelligence failure: {gated_e}")
+                        for name, _ in gated_agents:
+                            err_vote = {
+                                "agent": name,
+                                "vote": "YES",
+                                "confidence": 0.5,
+                                "reason": "Neural Error Fallback",
+                                "timestamp": timestamp,
+                            }
+                            vote_registry[name] = err_vote
 
-                            gated_votes = []
-                            background_success = True
-                            for name, _ in gated_agents:
-                                state = self.brain.conviction_state.get(name)
-                                state_ts = state.get("timestamp") if state else None
-                                if (
-                                    not state
-                                    or not state_ts
-                                    or (
-                                        datetime.now(timezone.utc) - dtparser.parse(state_ts)
-                                    ).total_seconds()
-                                    > 90
-                                ):
-                                    background_success = False
-                                    break
-                                state["timestamp"] = timestamp
-                                gated_votes.append(state)
-
-                            if not background_success:
-                                logger.warning(
-                                    "Coordinator: Background Conviction Stale/Missing. Reverting to Parallel Neural Gate..."
-                                )
-
-                                # Uses _poll_neural_safe to manage VRAM contention serialy but gathered in parallel.
-                                names = [n for n, _ in gated_agents]
-                                funcs = [f for _, f in gated_agents]
-
-                                results = await asyncio.gather(
-                                    *[
-                                        asyncio.wait_for(_poll_neural_safe(name, func), timeout=25.0)
-                                        for name, func in zip(names, funcs, strict=False)
-                                    ],
-                                    return_exceptions=True,
-                                )
-
-                                for name, res in zip(names, results, strict=False):
-                                    if isinstance(res, (Exception, asyncio.TimeoutError)):
-                                        logger.error(f"Neural Gate: {name} Failed or Timed Out: {res}")
-                                        gated_votes.append(
-                                            {
-                                                "agent": name,
-                                                "vote": "YES",
-                                                "confidence": 0.4,
-                                                "reason": "Latency/Error Fallback",
-                                            }
-                                        )
-                                    else:
-                                        gated_votes.append(res)
-
-                            for res in gated_votes:
-                                if res and "agent" in res:
-                                    vote_registry[cast(str, res["agent"])] = res
-                                    # Update Conviction State for caching
-                                    if res.get("confidence", 0) > 0:
-                                        self.brain.conviction_state[res["agent"]] = res
-                        except Exception as gated_e:
-                            logger.error(f"Coordinator: Gated Intelligence failure: {gated_e}")
-                            for name, _ in gated_agents:
-                                err_vote = {
-                                    "agent": name,
-                                    "vote": "YES",
-                                    "confidence": 0.5,
-                                    "timestamp": timestamp,
-                                }
-                                vote_registry[cast(str, name)] = err_vote  # type: ignore
-
-                    # --- STAGE 2 TELEMETRY ---
-                    if self.brain.bus:
-                        await self.brain.bus.publish(
-                            "consensus.update",
-                            {
-                                "symbol": symbol,
-                                "phase": "STAGE_2_OK",
-                                "decision": "VOTING",
-                                "votes": list(vote_registry.values()),
-                                "timestamp": time.time() * 1000,
-                            },
-                        )
-
-                    # Final List Conversion (Guarantees no duplicates)
-                    all_votes = list(vote_registry.values())
-
-                    # Force the Skeptic Mind to challenge the consensus before final engine evaluation.
-                    skeptic_audit = self.brain.skeptic.run_adversarial_debate(
-                        proposal=agent_a_out, # Challenge the primary signal generator
-                        opponents=[v["agent"] for v in all_votes if v["vote"] == "YES"]
+                # --- STAGE 2 TELEMETRY ---
+                if self.brain.bus:
+                    await self.brain.bus.publish(
+                        "consensus.update",
+                        {
+                            "symbol": symbol,
+                            "phase": "STAGE_2_OK",
+                            "decision": "VOTING",
+                            "votes": list(vote_registry.values()),
+                            "timestamp": time.time() * 1000,
+                        },
                     )
-                    all_votes.append(skeptic_audit)
 
-                    decision = await self.brain.decision_engine.evaluate(shared_context, all_votes)
+                # Final List Conversion (Guarantees no duplicates)
+                all_votes = list(vote_registry.values())
 
-                    if not is_probe:
-                        self.exoskeleton.store_cortex_cache(
-                            symbol, pattern.entry, decision, all_votes, shares
-                        )
+                decision = await self.brain.decision_engine.evaluate(shared_context, all_votes)
 
-                    if task is None and not is_probe:
-                        task = self.brain.task_manager.spawn_trade(symbol, pattern.to_dict())
-
-                    return await self._execute_decision(
-                        symbol, decision, pattern, all_votes, is_probe, shares, task
+                if not is_probe:
+                    self.exoskeleton.store_cortex_cache(
+                        symbol, pattern.entry, decision, all_votes, shares
                     )
+
+                if task is None and not is_probe:
+                    task = self.brain.task_manager.spawn_trade(symbol, pattern.to_dict())
+
+                return await self._execute_decision(
+                    symbol, decision, pattern, all_votes, is_probe, shares, task
+                )
 
         except Exception as e:
             logger.error(
@@ -1010,12 +991,6 @@ class TradingCoordinator:
                 )
 
                 # Log the rejected proposal as a 'Shadow Trade' for post-mortem calibration.
-                self.brain.shadow_sim.fork_signal(
-                    symbol=symbol,
-                    price=pattern.entry,
-                    side=("BUY" if pattern.entry > pattern.stop else "SELL")
-                )
-
                 try:
                     from system_types import Position
 

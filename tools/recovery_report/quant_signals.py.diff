@@ -1,0 +1,32 @@
+--- LOCAL/quant_signals.py
++++ D-DRIVE/quant_signals.py
+@@ -190,10 +190,7 @@
+             if any(isinstance(v, dict) for v in self.weights.values()):
+                 w_map = self.weights.get(regime, self.weights.get("DEFAULT", self.weights))
+ 
+-            if w_map is None:
+-                w_map = self.weights if not any(isinstance(v, dict) for v in self.weights.values()) else self.weights.get("DEFAULT", {})
+-
+-            score = float(sum(w_map.get(k, 0) * v for k, v in factors.items()))
++            score = float(sum(w_map[k] * v for k, v in factors.items()))
+             confidence = min(0.95, 0.5 + abs(score) * 0.5)
+ 
+             return SignalResult(
+@@ -240,7 +237,7 @@
+         state["x"] = state["x"] + K * (price - state["x"])
+         state["P"] = (1 - K) * P_pred
+         state["last_price"] = price
+-        return state["x"]  # type: ignore
++        return state["x"]
+ 
+     def compute(self, symbol: str, prices: np.ndarray) -> SignalResult:
+         """
+@@ -388,7 +385,7 @@
+                         f"QuantConsensus: Sourcing weights from {p} (Version: {version}, Trained: {trained_at})"
+                     )
+ 
+-                    return data.get("factor_weights")  # type: ignore
++                    return data.get("factor_weights")
+                 except Exception:
+                     pass
+         return None

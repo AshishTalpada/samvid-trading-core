@@ -1,7 +1,6 @@
 import json
 import logging
 import os
-import re
 from datetime import datetime, timezone
 from typing import Any, Dict
 
@@ -42,7 +41,7 @@ class SovereignLogicEngine:
                             "layer": layer,
                             "active": True,
                             "prowess": 1.0,
-                            "last_sync": datetime.now(timezone.utc).isoformat(),
+                            "last_sync": datetime.now().isoformat(),
                         }
             logger.info("SovereignLogicEngine: 500 Abilities synchronized and active.")
         except Exception as e:
@@ -85,6 +84,8 @@ class SovereignLogicEngine:
         # This collapses redundant nodes (e.g., Hedge_Node_152, Hedge_Node_162) into one logic.
         node_name = node["name"]
         # Strip trailing ID suffixes like _152 or _Node_001
+        import re
+
         base_name = re.sub(r"(_Node)?(_\d+)?$", "", node_name).lower()
 
         _base_dispatch = {
@@ -121,16 +122,11 @@ class SovereignLogicEngine:
         win_prob = ctx.get("win_prob", 0.5)
         rr = ctx.get("r_r_ratio", 2.0)
         # BUG #20 FIX: Dynamically read commission from Vault
-        commission = float(Vault.get("COMMISSION_PER_ROUND_TRIP", str(COMMISSION_PER_ROUND_TRIP)) or str(COMMISSION_PER_ROUND_TRIP))
+        commission = float(Vault.get("COMMISSION_PER_ROUND_TRIP", str(COMMISSION_PER_ROUND_TRIP)))
         account_value = ctx.get("account_value", STARTING_CAPITAL_CAD)
-
-        # Numerical Guard: prevent ZeroDivisionError if R:R is 0 (or somehow negative)
-        if rr <= 0:
-            return {"decision": "SKIP", "reason": f"Invalid R:R ratio ({rr}) for Kelly."}
 
         q = 1.0 - win_prob
         kelly_f = (win_prob * rr - q) / rr
-        # Standard Half-Kelly (0.5) or Fractional (0.2) to mitigate volatility
         final_sizing = max(0, kelly_f * 0.2)
         fee_drag = commission / account_value
         if final_sizing < fee_drag:
@@ -178,18 +174,13 @@ class SovereignLogicEngine:
         return {"action": "CONTINUE"}
 
     def _logic_154_drawdown_breaker(self, ctx: Dict[str, Any]) -> Dict[str, Any]:
-        """Hard Equity Floor protection — protect realized gains."""
+        """Hard Equity Floor protection."""
         equity = ctx.get("account_value", 0)
-        peak = ctx.get("peak_equity", STARTING_CAPITAL_CAD)
-
-        # Hard floor at 10% below PEAK, not 10% below STARTING capital
-        floor = peak * 0.90
-
+        floor = STARTING_CAPITAL_CAD * 0.90  # Soft 10% Drawdown Floor
         if equity < floor:
             return {
                 "status": "HALT",
-                "action": "GLOBAL_HALT", # Signal for TradingStateManager
-                "reason": f"NAV ${equity:,.2f} below risk floor ${floor:,.2f} (Peak: ${peak:,.2f})",
+                "reason": f"NAV ${equity:,.2f} below equity floor ${floor:,.2f}",
             }
         return {"status": "SUCCESS"}
 
@@ -224,22 +215,15 @@ class SovereignLogicEngine:
         found_trigger = next((t for t in triggers if t in headline), None)
         if found_trigger:
             words = headline.split()
-            # Find the index of the first word that contains the trigger
-            trigger_idx = -1
-            for i, w in enumerate(words):
-                if found_trigger in w:
-                    trigger_idx = i
-                    break
-
-            if trigger_idx != -1:
-                # Check preceding 3 words for negations
-                start_window = max(0, trigger_idx - 3)
-                window = words[start_window:trigger_idx]
-                if any(neg in window for neg in negations):
+            try:
+                idx = words.index(next(w for w in words if found_trigger in w))
+                if idx > 0 and words[idx - 1] in negations:
                     logger.debug(
-                        f"Black-Swan: Negated trigger '{found_trigger}' detected in window {window} — Veto suppressed."
+                        f"Black-Swan: Negated trigger '{found_trigger}' detected — Veto suppressed."
                     )
                     return {"veto": False}
+            except Exception:
+                pass
 
             return {
                 "veto": True,
@@ -336,22 +320,7 @@ class SovereignLogicEngine:
                 "reason": "High exposure/volatility balance.",
             }
         return {"action": "NONE"}
-    def run_full_audit(self, context: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        Runs a comprehensive risk sweep across critical nodes.
-        Returns a summary signal (SUCCESS, HALT, or VETO).
-        """
-        critical_nodes = ["151", "154", "163", "166"] # Kelly, Drawdown, Margin, BlackSwan
-        for node_id in critical_nodes:
-            result = self.execute_node(node_id, context)
-            if result.get("status") == "HALT" or result.get("action") == "GLOBAL_HALT" or result.get("veto"):
-                return {
-                    "status": "HALT",
-                    "action": "GLOBAL_HALT",
-                    "reason": result.get("reason", f"Audit failure at node {node_id}"),
-                    "node": node_id
-                }
-        return {"status": "SUCCESS"}
+
 
 _CORE_INSTANCE = None
 
@@ -364,5 +333,5 @@ def get_sovereign_logic():
     return _CORE_INSTANCE
 
 
-# Compatibility alias - triggers load on first access via get_sovereign_logic
-SOVEREIGN_CORE = get_sovereign_logic()
+# Compatibility alias - will trigger load on first access
+SOVEREIGN_CORE = None  # Replaced by get_sovereign_logic in dependent files

@@ -101,7 +101,7 @@ class CorrelationGuard:
                 self.sector_map[s] = sector
                 self._save_map()
                 logger.info(f"CORRELATION: Discovered {s} as {sector}")
-                return sector  # type: ignore
+                return sector
         except Exception as e:
             logger.debug(f"Dynamic sector discovery failed for {s}: {e}")
 
@@ -145,11 +145,10 @@ class CorrelationGuard:
 
             pos_qty = pos.get("qty", 0) if isinstance(pos, dict) else getattr(pos, "qty", 0)
             if (await self.get_sector(pos_symbol)) == target_sector:
-                sector_value += float(pos_price) * float(pos_qty)
-
+                sector_value += float(pos_price) * float(pos_qty)  # type: ignore
 
         # Resulting exposure IF WE ADDED the new position
-        exposure_pct = (sector_value + new_position_value) / account_value
+        exposure_pct = float(sector_value + new_position_value) / float(account_value)
 
         limit = min(self.max_sector_exposure, 0.30)
         if exposure_pct >= limit:
@@ -167,7 +166,7 @@ class CorrelationGuard:
         if account_value <= 0:
             return {}
 
-        exposures: Any = {}
+        exposures = {}
         for pos in current_positions:
             pos_symbol = (
                 pos.get("symbol", "") if isinstance(pos, dict) else getattr(pos, "symbol", "")

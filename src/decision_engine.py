@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 
 
 class DecisionEngine:
-    def __init__(self, required_agents: Optional[List[str]] = None, bus: Optional[Any] = None):
+    def __init__(self, required_agents: List[str] = None, bus: Optional[Any] = None):
         self.required_agents = required_agents or [
             "Agent_A",
             "Agent_B",
@@ -38,7 +38,7 @@ class DecisionEngine:
         self.last_cycle_timestamp = None
         self.bus = bus
         self._lock = asyncio.Lock()  # EXECUTION LOCK
-        self._active_symbols: Any = set()  # Track symbols currently being processed
+        self._active_symbols = set()  # Track symbols currently being processed
 
     async def evaluate(
         self, context: Dict[str, Any], agent_outputs: List[Dict[str, Any]]
@@ -129,7 +129,7 @@ class DecisionEngine:
 
             # Processing Vote
             if vote == "YES":
-                yes_votes += 1.5 if agent == "Agent_D" else 1  # type: ignore
+                yes_votes += 1.5 if agent == "Agent_D" else 1
             elif vote == "NO":
                 no_votes += 1
             else:

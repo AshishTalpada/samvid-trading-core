@@ -3,12 +3,10 @@ import concurrent.futures
 import logging
 import socket
 import time
-from datetime import datetime, timezone
 from typing import Any, Optional
 
 try:
     import pandas as pd
-    import polars as pl
     import psycopg2
     from psycopg2 import pool
 
@@ -41,7 +39,7 @@ class QuestDBAdapter:
         self.user = user
         self.password = password
         self.enabled = enabled
-        self._connect_timeout_sec = max(0.5, connect_timeout_sec)
+        self._connect_timeout_sec = max(0.5, float(connect_timeout_sec))
         self._sock: socket.socket | None = None
         self._queue: asyncio.Queue = asyncio.Queue(maxsize=10000)
         self._worker_task: asyncio.Task | None = None
@@ -54,7 +52,7 @@ class QuestDBAdapter:
         self._retry_delay: float = 5.0
 
         # We fence QuestDB's blocking I/O into a private pool to prevent engine starvation.
-        self._executor: Optional[concurrent.futures.ThreadPoolExecutor] = concurrent.futures.ThreadPoolExecutor(
+        self._executor = concurrent.futures.ThreadPoolExecutor(
             max_workers=10, thread_name_prefix="QuestDB_IO"
         )
         self._pg_pool: pool.SimpleConnectionPool | None = None
@@ -84,7 +82,12 @@ class QuestDBAdapter:
         """Background worker to drain the queue and send to QuestDB."""
         while self.enabled:
             try:
-                if self.is_simulated and time.monotonic() > getattr(
+                # Batch processing
+                batch = []
+                # --- Fix 13: Periodic reconnect from SIMULATED mode ---
+                import time as _time
+
+                if self.is_simulated and _time.monotonic() > getattr(
                     self, "_next_reconnect_attempt", 0
                 ):
                     await self._connect()
@@ -92,7 +95,7 @@ class QuestDBAdapter:
                         self.is_simulated = False
                         logger.info("QuestDB: Reconnected from SIMULATED to LIVE mode.")
                     else:
-                        self._next_reconnect_attempt = time.monotonic() + 60.0
+                        self._next_reconnect_attempt = _time.monotonic() + 60.0
 
                 # Batch processing
                 batch = []
@@ -117,7 +120,7 @@ class QuestDBAdapter:
                     try:
                         payload = "\n".join(batch) + "\n"
                         loop = asyncio.get_running_loop()
-                        await loop.run_in_executor(self._executor, lambda: sock.sendall(payload.encode()))
+                        await loop.run_in_executor(self._executor, sock.sendall, payload.encode())
 
                         # Reset backoff on success
                         if self._retry_count > 0:
@@ -157,7 +160,7 @@ class QuestDBAdapter:
                         "QuestDB: Persistent connection failure. Switching to SIMULATED mode."
                     )
                     self.is_simulated = True
-                    self._next_reconnect_attempt = time.monotonic() + 300.0  # Try again in 5 mins
+                    self._next_reconnect_attempt = _time.monotonic() + 300.0  # Try again in 5 mins
 
                 # Exponential backoff capped at 120s
                 self._retry_delay = min(self._retry_delay * 2, 120.0)
@@ -198,15 +201,17 @@ class QuestDBAdapter:
         if not self.enabled:
             return
 
+        from datetime import datetime, timezone
+
         ts = int(datetime.now(timezone.utc).timestamp() * 1e9)
 
         # Sanitize table name
-        safe_table = table.replace(",", "\\,").replace(" ", "\\ ").replace("=", "\\=")
+        safe_table = str(table).replace(",", "\\,").replace(" ", "\\ ").replace("=", "\\=")
 
         # Prepare fields (ILP format: key=value)
         fields = []
         for k, v in data.items():
-            safe_k = k.replace(",", "\\,").replace(" ", "\\ ").replace("=", "\\=")
+            safe_k = str(k).replace(",", "\\,").replace(" ", "\\ ").replace("=", "\\=")
             if isinstance(v, bool):
                 fields.append(f"{safe_k}={'true' if v else 'false'}")
             elif isinstance(v, (int, float)):
@@ -247,11 +252,12 @@ class QuestDBAdapter:
 
         # Prepare ILP string
         # table,tags fields timestamp
+        from datetime import datetime, timezone
 
         ts = int(datetime.now(timezone.utc).timestamp() * 1e9)
-        safe_symbol = symbol.replace(",", "\\,").replace(" ", "\\ ").replace("=", "\\=")
-        safe_agent = agent_id.replace(",", "\\,").replace(" ", "\\ ").replace("=", "\\=")
-        safe_type = signal_type.replace(",", "\\,").replace(" ", "\\ ").replace("=", "\\=")
+        safe_symbol = str(symbol).replace(",", "\\,").replace(" ", "\\ ").replace("=", "\\=")
+        safe_agent = str(agent_id).replace(",", "\\,").replace(" ", "\\ ").replace("=", "\\=")
+        safe_type = str(signal_type).replace(",", "\\,").replace(" ", "\\ ").replace("=", "\\=")
         line = f"signals,agent={safe_agent},symbol={safe_symbol},type={safe_type} confidence={confidence}f {ts}"
 
         try:
@@ -267,9 +273,9 @@ class QuestDBAdapter:
             return
 
         ts = int(time.time() * 1e9)
-        safe_symbol = symbol.replace(",", "\\,").replace(" ", "\\ ").replace("=", "\\=")
-        safe_side = side.replace(",", "\\,").replace(" ", "\\ ").replace("=", "\\=")
-        safe_strategy = strategy.replace(",", "\\,").replace(" ", "\\ ").replace("=", "\\=")
+        safe_symbol = str(symbol).replace(",", "\\,").replace(" ", "\\ ").replace("=", "\\=")
+        safe_side = str(side).replace(",", "\\,").replace(" ", "\\ ").replace("=", "\\=")
+        safe_strategy = str(strategy).replace(",", "\\,").replace(" ", "\\ ").replace("=", "\\=")
         line = f"trades,symbol={safe_symbol},side={safe_side},strategy={safe_strategy} price={price},quantity={quantity} {ts}"
         try:
             self._queue.put_nowait(line)
@@ -281,8 +287,10 @@ class QuestDBAdapter:
         if not self.enabled:
             return
 
+        from datetime import datetime, timezone
+
         ts = int(datetime.now(timezone.utc).timestamp() * 1e9)
-        safe_symbol = symbol.replace(",", "\\,").replace(" ", "\\ ").replace("=", "\\=")
+        safe_symbol = str(symbol).replace(",", "\\,").replace(" ", "\\ ").replace("=", "\\=")
 
         # ILP Format: table,tags fields timestamp
         line = f"ticks,symbol={safe_symbol} price={price},size={size} {ts}"
@@ -309,11 +317,13 @@ class QuestDBAdapter:
             return
 
         try:
-            safe_symbol = symbol.replace(",", "\\,").replace(" ", "\\ ").replace("=", "\\=")
-            safe_tf = timeframe.replace(",", "\\,").replace(" ", "\\ ").replace("=", "\\=")
+            safe_symbol = str(symbol).replace(",", "\\,").replace(" ", "\\ ").replace("=", "\\=")
+            safe_tf = str(timeframe).replace(",", "\\,").replace(" ", "\\ ").replace("=", "\\=")
 
             # Polars implementation (Ultra-Fast)
             if hasattr(df, "with_columns"):
+                import polars as pl
+
                 # Vectorize the string construction in Polars C++ core
                 ilp_df = df.with_columns(
                     [
@@ -351,7 +361,7 @@ class QuestDBAdapter:
                     if hasattr(ts_val, "timestamp"):
                         ts_ns = int(ts_val.timestamp() * 1e9)
                     else:
-                        ts_ns = int(ts_val) if ts_val is not None else 0  # Assume already ns or unix
+                        ts_ns = int(ts_val)  # Assume already ns or unix
 
                     def _get_f(name):
                         v = getattr(row, name, getattr(row, name.lower(), 0.0))
@@ -380,7 +390,7 @@ class QuestDBAdapter:
                 )
             return None
 
-        safe_limit = max(1, min(limit, 5000))
+        safe_limit = max(1, min(int(limit), 5000))
 
         def _sync_fetch():
             conn = None
@@ -399,14 +409,13 @@ class QuestDBAdapter:
                     ORDER BY timestamp DESC
                     LIMIT %s
                 """
-                cursor = conn.cursor() if conn else None
-                if cursor:
-                    cursor.execute(query, (symbol, timeframe, safe_limit))
-                    rows = cursor.fetchall()
-                    if rows and cursor.description:
-                        col_names = [desc[0] for desc in cursor.description]
-                        df = pd.DataFrame(rows, columns=col_names)
-                        return df.sort_values("timestamp").reset_index(drop=True)
+                cursor = conn.cursor()
+                cursor.execute(query, (symbol, timeframe, safe_limit))
+                rows = cursor.fetchall()
+                if rows:
+                    col_names = [desc[0] for desc in cursor.description]
+                    df = pd.DataFrame(rows, columns=col_names)
+                    return df.sort_values("timestamp").reset_index(drop=True)
                 return None
             except Exception as e:
                 logger.debug(f"QuestDB native fetch failed for {symbol}: {e}")
@@ -436,12 +445,11 @@ class QuestDBAdapter:
                     conn = psycopg2.connect(conn_str)
 
                 # Use LATEST ON for performance in QuestDB
-                cursor = conn.cursor() if conn else None
-                if cursor:
-                    query = "SELECT price FROM ticks WHERE symbol = %s ORDER BY timestamp DESC LIMIT 1"
-                    cursor.execute(query, (symbol,))
-                    row = cursor.fetchone()
-                    return float(row[0]) if row else None
+                query = "SELECT price FROM ticks WHERE symbol = %s LATEST ON timestamp"
+                cursor = conn.cursor()
+                cursor.execute(query, (symbol,))
+                row = cursor.fetchone()
+                return float(row[0]) if row else None
             except Exception:
                 return None
             finally:
@@ -470,9 +478,7 @@ class QuestDBAdapter:
                 else:
                     conn_str = f"host={self.host} port={self.pg_port} user={self.user} password={self.password} dbname=qdb"
                     conn = psycopg2.connect(conn_str)
-                cursor = conn.cursor() if conn else None
-                if cursor is None:
-                    return
+                cursor = conn.cursor()
 
                 # In QuestDB, we can drop partitions string-formatted as 'YYYY-MM-DD'
                 # Generate a list of dates older than `days_to_keep`
@@ -546,12 +552,11 @@ class QuestDBAdapter:
             finally:
                 self._pg_pool = None
 
-        if self._executor is not None:
+        if self._executor:
             try:
                 self._executor.shutdown(wait=False)
             except Exception:
                 pass
             self._executor = None
-
 
         self.is_active = False

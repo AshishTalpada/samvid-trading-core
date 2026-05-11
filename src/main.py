@@ -6,18 +6,15 @@ from pathlib import Path
 from vault import Vault
 
 try:
-    import zstandard
-
+    import zstandard  # type: ignore
 except ImportError:
-    zstandard = None  # type: ignore
+    zstandard = None
 
 # Force UTF-8 encoding for Windows terminals to support emojis/special characters
 if sys.platform == "win32":
     try:
-        if hasattr(sys.stdout, "reconfigure"):
-            sys.stdout.reconfigure(encoding="utf-8")
-        if hasattr(sys.stderr, "reconfigure"):
-            sys.stderr.reconfigure(encoding="utf-8")
+        sys.stdout.reconfigure(encoding="utf-8")
+        sys.stderr.reconfigure(encoding="utf-8")
     except (AttributeError, io.UnsupportedOperation):
         pass
 
@@ -36,14 +33,13 @@ if _src not in sys.path:
 
 import asyncio
 import asyncio.subprocess
-import gc
 import logging
 import sqlite3
 import time
 from collections.abc import Callable, Coroutine
 from datetime import datetime, timezone
 from logging.handlers import RotatingFileHandler
-from typing import TYPE_CHECKING, Any, Optional, Pattern, cast
+from typing import TYPE_CHECKING, Any
 
 import aiohttp
 
@@ -89,12 +85,11 @@ class SovereignFormatter(logging.Formatter):
         super().__init__(fmt, datefmt)
         self._secrets = secrets or []
         import re
-        self._re = re
 
-        # Escape secrets to prevent regex injection, filter out None/non-strings
-        escaped_secrets = [re.escape(str(s)) for s in self._secrets if s and len(str(s)) > 3]
+        # Escape secrets to prevent regex injection
+        escaped_secrets = [re.escape(s) for s in self._secrets if len(s) > 3]
         if escaped_secrets:
-            self._pattern: Optional[Pattern[str]] = re.compile("|".join(escaped_secrets))
+            self._pattern = re.compile("|".join(escaped_secrets))
         else:
             self._pattern = None
 
@@ -185,7 +180,7 @@ class StartupProfiler:
     """Institutional-grade startup profiling."""
 
     def __init__(self) -> None:
-        self._marks: Any = {}
+        self._marks = {}
         self._start = time.perf_counter()
 
     def mark(self, name: str) -> None:
@@ -227,7 +222,7 @@ class TradingSystem:
             self.mode = "paper"
             logger.warning("FORCED_PAPER_MODE is active - real trading is disabled.")
         else:
-            self.mode = Vault.get("TRADING_MODE", TRADING_MODE) or TRADING_MODE
+            self.mode = Vault.get("TRADING_MODE", TRADING_MODE)
             logger.info(f"Trading mode: {self.mode}")
 
         self.db_path = Path("data/trading.db")
@@ -235,9 +230,9 @@ class TradingSystem:
         self.start_time = datetime.now(timezone.utc)
 
         # Configuration (from Vault)
-        self.ibkr_host = Vault.get("IBKR_HOST", "localhost") or "localhost"
-        self.ibkr_port = int(Vault.get("IBKR_PORT", "7497") or "7497")
-        self.ibkr_client_id = int(Vault.get("IBKR_CLIENT_ID", "500") or "500")
+        self.ibkr_host = Vault.get("IBKR_HOST", "localhost")
+        self.ibkr_port = int(Vault.get("IBKR_PORT", "7497"))
+        self.ibkr_client_id = int(Vault.get("IBKR_CLIENT_ID", "500"))
 
         self.mt5_login = Vault.get("MT5_LOGIN")
         self.mt5_password = Vault.get("MT5_PASSWORD")
@@ -246,7 +241,6 @@ class TradingSystem:
 
         self.telegram_token = Vault.get("TELEGRAM_BOT_TOKEN")
         self.telegram_chat_id = Vault.get("TELEGRAM_CHAT_ID")
-        self._telegram_session: Optional[aiohttp.ClientSession] = None
 
         # Ensure we have write permissions in the project root before starting.
         try:
@@ -278,15 +272,12 @@ class TradingSystem:
         self.questdb: QuestDBAdapter | None = None
         self.api_server: APIServer | None = None
         self.hft_streamer: IBKRStreamer | None = None
-        self.candle_writer: Any = None
         self.restorer = SessionRestorer()
         self._openbb_provider: Any = None
         self.native_slm: Any = None
         self.telegram_remote = get_remote()  # Remote Command Hub
         self.is_running = False
-        self._shutdown_complete = False  # Initialize shutdown state
         self._mt5_failure_count = 0  # Track sequential MT5 heartbeat failures
-        self._last_freeze_time = 0.0  # Last time state was frozen
 
         self.background_tasks: dict[str, asyncio.Task[None]] = {}
         self.db_lock = asyncio.Lock()
@@ -344,13 +335,14 @@ class TradingSystem:
             logger.error(f"Failed to verify single instance or write PID: {e}")
 
     async def async_init(self) -> None:
-        """
+        """PILLAR 6: Progressive Orchestration (9.99 Upgrade)
         Parallelizes the cognitive matrix for sub-100ms startup.
         """
         self.profiler.mark("ASYNC_INIT_START")
 
+        # 1. Sovereign Scent Detection (Pillar 9.99)
         self.mind_system = MindSystem(self.bridge)
-        logger.info("MindSystem: Scanning for software scents and verifying environment...")
+        logger.info("MindSystem: Scanning for software scients and verifying environment...")
         executable_found = await self.mind_system._tool_find_executable("ibkr")
         if not executable_found:
             logger.error(
@@ -372,18 +364,6 @@ class TradingSystem:
             logger.warning(f"JIT warmup skipped (non-fatal): {_e}")
 
         await self._verify_watchdog()
-
-        from quant_math import HAS_NUMBA
-        if "GraalVM" in sys.version or hasattr(sys, "graalvm_home"):
-            logger.info("🚀 HIGH-PERFORMANCE RUNTIME: GraalPy detected. Loop latencies minimized.")
-        elif HAS_NUMBA:
-            logger.info("🚀 OPTIMIZED RUNTIME: Numba JIT detected. Math kernels accelerated.")
-        else:
-            logger.warning("STANDARD RUNTIME: No JIT detected (GraalPy/Numba). Latency may be affected.")
-
-        # Disable automatic GC to prevent pauses during tick ingestion
-        gc.disable()
-        logger.info("GC: Automatic collection DISABLED for sub-millisecond tick ingestion.")
 
         # Pre-subscribe to the HFT pulse before launching the streamer to capture start events.
         self._hft_pulse_queue = self.bus.subscribe("tick.hft", maxsize=100)
@@ -423,12 +403,12 @@ class TradingSystem:
     async def _init_questdb(self) -> None:
         _qdb_timeout = Vault.get("QUESTDB_CONNECT_TIMEOUT_SEC", str(QUESTDB_CONNECT_TIMEOUT_SEC))
         self.questdb = QuestDBAdapter(
-            host=Vault.get("QUESTDB_HOST", QUESTDB_HOST) or QUESTDB_HOST,
-            ilp_port=int(Vault.get("QUESTDB_PORT", str(QUESTDB_PORT)) or str(QUESTDB_PORT)),
-            pg_port=int(Vault.get("QUESTDB_PG_PORT", str(QUESTDB_PG_PORT)) or str(QUESTDB_PG_PORT)),
+            host=Vault.get("QUESTDB_HOST", QUESTDB_HOST),
+            ilp_port=int(Vault.get("QUESTDB_PORT", str(QUESTDB_PORT))),
+            pg_port=int(Vault.get("QUESTDB_PG_PORT", str(QUESTDB_PG_PORT))),
             user=Vault.get("QUESTDB_USER", QUESTDB_USER) or "admin",
             password=Vault.get("QUESTDB_PASSWORD", QUESTDB_PASSWORD) or "quest",
-            enabled=((Vault.get("QUESTDB_ENABLED", str(QUESTDB_ENABLED)) or str(QUESTDB_ENABLED)).lower() == "true"),
+            enabled=(Vault.get("QUESTDB_ENABLED", str(QUESTDB_ENABLED)).lower() == "true"),
             connect_timeout_sec=float(_qdb_timeout)
             if _qdb_timeout
             else QUESTDB_CONNECT_TIMEOUT_SEC,
@@ -496,8 +476,8 @@ class TradingSystem:
             host=self.ibkr_host,
             port=self.ibkr_port,
             client_id=self.ibkr_client_id + 10,
-            qdb_host=Vault.get("QUESTDB_HOST", QUESTDB_HOST) or QUESTDB_HOST,
-            qdb_ilp_port=int(Vault.get("QUESTDB_PORT", str(QUESTDB_PORT)) or str(QUESTDB_PORT)),
+            qdb_host=Vault.get("QUESTDB_HOST", QUESTDB_HOST),
+            qdb_ilp_port=int(Vault.get("QUESTDB_PORT", str(QUESTDB_PORT))),
             bus=self.bus,
             qdb_adapter=self.questdb,
         )
@@ -547,7 +527,7 @@ class TradingSystem:
                     return conn
 
                 self.db_conn = await asyncio.to_thread(_sync_init)
-                self.db_conn.row_factory = sqlite3.Row  # type: ignore
+                self.db_conn.row_factory = sqlite3.Row
 
                 # Read and execute schema
                 if self.schema_path.exists():
@@ -556,7 +536,7 @@ class TradingSystem:
                         schema_sql = f.read()
 
                     # Execute schema (may contain multiple statements)
-                    cursor = self.db_conn.cursor()  # type: ignore
+                    cursor = self.db_conn.cursor()
                     cursor.executescript(schema_sql)
                     cursor.close()
 
@@ -567,7 +547,7 @@ class TradingSystem:
                     self._create_basic_schema()
 
                 # Verify tables exist
-                cursor = self.db_conn.cursor()  # type: ignore
+                cursor = self.db_conn.cursor()
                 cursor.execute("SELECT name FROM sqlite_master WHERE type='table'")
                 tables = [row[0] for row in cursor.fetchall()]
 
@@ -701,6 +681,7 @@ class TradingSystem:
         """Sovereign Shield: Checks if IBKR software is already running to avoid redundant launches."""
         for target in ["tws.exe", "ibgateway.exe"]:
             try:
+                # Use Windows tasklist (Pillar 6 optimized)
                 cmd = f'tasklist /FI "IMAGENAME eq {target}" /NH'
                 proc = await asyncio.create_subprocess_shell(
                     cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
@@ -731,7 +712,7 @@ class TradingSystem:
                     ibc_path = None
 
                 default_tws = "C:\\Jts" if os.name == "nt" else "/opt/ibgateway"
-                tws_path = os.environ.get("TWS_PATH") or Vault.get("TWS_PATH", default_tws) or default_tws
+                tws_path = os.environ.get("TWS_PATH") or Vault.get("TWS_PATH", default_tws)
                 ibkr_user = Vault.get("IBKR_PAPER_USERNAME")
                 ibkr_pass = Vault.get("IBKR_PAPER_PASSWORD")
 
@@ -747,7 +728,7 @@ class TradingSystem:
                         folders = [
                             int(f)
                             for root in roots_to_check
-                            if root and os.path.exists(root)
+                            if os.path.exists(root)
                             for f in os.listdir(root)
                             if f.isdigit()
                         ]
@@ -756,9 +737,9 @@ class TradingSystem:
                     except Exception:
                         pass
 
-                    ibkr_interface = (Vault.get("IBKR_INTERFACE", "gateway") or "gateway").lower()
+                    ibkr_interface = Vault.get("IBKR_INTERFACE", "gateway").lower()
                     effective_tws_path = tws_path
-                    if ibkr_interface == "gateway" and tws_path and os.path.exists(
+                    if ibkr_interface == "gateway" and os.path.exists(
                         os.path.join(tws_path, "ibgateway")
                     ):
                         effective_tws_path = os.path.join(tws_path, "ibgateway")
@@ -846,7 +827,6 @@ class TradingSystem:
 
         try:
             import MetaTrader5 as mt5
-            mt5 = cast(Any, mt5)
 
             # Step 1: Initialize MT5 terminal
             # First try bare initialize (attach to running terminal)
@@ -856,7 +836,7 @@ class TradingSystem:
             # First try bare initialize (attach to running terminal or auto-start default)
             init_kwargs = {}
             if self.mt5_path:
-                effective_path = self.mt5_path
+                effective_path = str(self.mt5_path)
                 if os.path.isdir(effective_path):
                     potential_exe = os.path.join(effective_path, "terminal64.exe")
                     if os.path.exists(potential_exe):
@@ -939,7 +919,7 @@ class TradingSystem:
                 ):
                     try:
                         self.trading_brain.mt5_conn.sync_state(
-                            int(self.mt5_login), self.mt5_password or "", self.mt5_server or ""
+                            int(self.mt5_login), self.mt5_password, self.mt5_server
                         )
                     except Exception as e:
                         logger.debug(f"MT5: Brain state sync failed: {e}")
@@ -1020,7 +1000,7 @@ class TradingSystem:
             ):
                 try:
                     self.trading_brain.mt5_conn.sync_state(
-                        int(self.mt5_login), self.mt5_password or "", self.mt5_server or ""
+                        int(self.mt5_login), self.mt5_password, self.mt5_server
                     )
                 except Exception as e:
                     logger.debug(f"MT5: Brain state sync failed: {e}")
@@ -1053,10 +1033,11 @@ class TradingSystem:
             # Import DataPipeline component
             from data_pipeline import DataPipeline
 
+            # PILLAR 9.99: Explicit Type-Safety Cast for Handover
             _f_key = Vault.get("FINNHUB_API_KEY", "")
             self.data_pipeline = DataPipeline(
                 db_path=str(self.db_path),
-                finnhub_key=_f_key or "",
+                finnhub_key=str(_f_key) if _f_key else "",
                 qdb=self.questdb,
                 openbb_provider=self._openbb_provider,
                 bus=self.bus,
@@ -1088,8 +1069,8 @@ class TradingSystem:
             from dms import DMSMonitor
 
             self.dms = DMSMonitor(
-                bot_token=self.telegram_token or "",
-                chat_id=self.telegram_chat_id or "",
+                bot_token=self.telegram_token,
+                chat_id=self.telegram_chat_id,
                 timeout=300,
                 ibkr_client=self.ibkr_client,
                 mt5_client=self.mt5_client,
@@ -1156,8 +1137,8 @@ class TradingSystem:
             from dhatu_oracle import DhatuOracle
 
             oracle = DhatuOracle(
-                google_api_key=Vault.get("GOOGLE_API_KEY", "") or "",
-                anthropic_api_key=Vault.get("ANTHROPIC_API_KEY", "") or "",
+                google_api_key=Vault.get("GOOGLE_API_KEY", ""),
+                anthropic_api_key=Vault.get("ANTHROPIC_API_KEY", ""),
                 gemini_model=Vault.get("GEMINI_MODEL", "gemini-2.0-flash") or "gemini-2.0-flash",
                 bus=self.bus,
             )
@@ -1215,7 +1196,7 @@ class TradingSystem:
         try:
             url = f"https://api.telegram.org/bot{self.telegram_token}/sendMessage"
             payload = {
-                "chat_id": self.telegram_chat_id.strip() if self.telegram_chat_id else "",
+                "chat_id": str(self.telegram_chat_id).strip(),
                 "text": redacted_message,
                 "parse_mode": "HTML",
             }
@@ -1253,17 +1234,21 @@ class TradingSystem:
         else:
             logger.info("\n[7/9] QuestDB Adapter disabled or not configured.")
 
-        # Dhatu Oracle is now launched as a cognitive prerequisite in startup()
+        # Start Dhatu Oracle
+        if Vault.get("GOOGLE_API_KEY") or Vault.get("ANTHROPIC_API_KEY"):
+            logger.info("\n[8/9] Starting Dhatu Oracle...")
+            await self._start_dhatu_oracle()
+        else:
+            logger.info("\n[8/9] Dhatu Oracle disabled or not configured.")
 
         # Start API Server
-        if self.api_server:
-            _p = self.api_server.port
-            logger.info(f"\n[9/9] Starting Institutional API Server (Port {_p})...")
-            started = await self.api_server.start()
-            if started:
-                logger.info("✅ API Server active")
-            else:
-                logger.info(f"API Server skipped (already active on port {_p})")
+        _p = self.api_server.port
+        logger.info(f"\n[9/9] Starting Institutional API Server (Port {_p})...")
+        started = await self.api_server.start()
+        if started:
+            logger.info("✅ API Server active")
+        else:
+            logger.info(f"API Server skipped (already active on port {_p})")
 
     async def startup(self) -> None:
         """Main startup sequence: parallel initialization of all system components."""
@@ -1293,6 +1278,7 @@ class TradingSystem:
             # Step 3: Database Status (Already init via async_init)
             logger.info("\n[3/10] SQLite Engine Sync Check...")
 
+            # PILLAR 6 & 9.99: MISSION PARALLELIZATION (Harvested from Leaked Goldmine)
             # 1. Instantiate Core Objects first so the Brain has valid references
             from ib_insync import IB
 
@@ -1311,8 +1297,8 @@ class TradingSystem:
             _mt5_authorized = False
             if hasattr(self, "mt5_login") and self.mt5_login:
                 if (
-                    "YOUR_MT5" not in self.mt5_login.upper()
-                    and self.mt5_login.lower() != "none"
+                    "YOUR_MT5" not in str(self.mt5_login).upper()
+                    and str(self.mt5_login).lower() != "none"
                 ):
                     _mt5_authorized = True
 
@@ -1328,12 +1314,7 @@ class TradingSystem:
                     f"MT5 Kill Switch ACTIVE: Skipping MetaTrader. Missing from Vault: {', '.join(missing)}"
                 )
 
-            # Step 4: Initialize Cognitive Infrastructure (Oracle)
-            if Vault.get("GOOGLE_API_KEY") or Vault.get("ANTHROPIC_API_KEY"):
-                logger.info("\n[4/10] Starting Dhatu Oracle...")
-                await self._start_dhatu_oracle()
-
-            logger.info("\n[5/10] Starting Trading Brain (Standby Mode)...")
+            logger.info("\n[4/10] Starting Trading Brain (Standby Mode)...")
             await self.start_trading_brain()
 
             # Start the Remote Command Listener IMMEDIATELY
@@ -1344,7 +1325,6 @@ class TradingSystem:
             # Start the data pipeline in the background
             await self.start_data_pipeline()
 
-            # Start Remaining Background Tasks
             await self._start_background_tasks()
 
             logger.info("\n[9/10] Validating Native SLM Readiness...")
@@ -1369,8 +1349,7 @@ class TradingSystem:
             # Always start HFT streamer — falls back to Bus-only if QuestDB offline
             logger.info("\n[9/10] Starting HFT Streamer (10ms updates)...")
             # watchlist is already defined in step 8.5
-            if self.hft_streamer:
-                self._start_supervised_task("hft_streamer", lambda: self.hft_streamer.run(watchlist))  # type: ignore
+            self._start_supervised_task("hft_streamer", lambda: self.hft_streamer.run(watchlist))
 
             # Step 10: Send startup notification
             logger.info("\n[10/10] Sending startup notification...")
@@ -1403,7 +1382,7 @@ class TradingSystem:
 
                 async def _awaken():
                     await asyncio.sleep(5)
-                    await self.trading_brain.bus.publish(  # type: ignore
+                    await self.trading_brain.bus.publish(
                         "mind.dialogue",
                         {
                             "sender": "architect",
@@ -1412,7 +1391,7 @@ class TradingSystem:
                         },
                     )
                     await asyncio.sleep(3)
-                    await self.trading_brain.bus.publish(  # type: ignore
+                    await self.trading_brain.bus.publish(
                         "mind.dialogue",
                         {
                             "sender": "evolution",
@@ -1529,21 +1508,20 @@ class TradingSystem:
                     try:
                         from session_manager import SovereignSession
 
-                        if self.trading_brain:
-                            stats = await self.trading_brain.get_system_stats()
-                            payload = {
-                                "system_id": Vault.get("SYSTEM_ID", "SOVEREIGN_V9"),
-                                "timestamp": datetime.now(timezone.utc).isoformat(),
-                                "stats": stats,
-                                "active_broker": self.trading_brain.active_broker,
-                                "uptime": time.time() - self._start_time
-                                if hasattr(self, "_start_time")
-                                else 0,
-                            }
-                            session = await SovereignSession.get_session()
-                            async with session.post(tele_url, json=payload, timeout=aiohttp.ClientTimeout(total=5)) as resp:
-                                if resp.status == 200:
-                                    logger.debug("Telemetry: Phone Home successful.")
+                        stats = await self.trading_brain.get_system_stats()
+                        payload = {
+                            "system_id": Vault.get("SYSTEM_ID", "SOVEREIGN_V9"),
+                            "timestamp": datetime.now(timezone.utc).isoformat(),
+                            "stats": stats,
+                            "active_broker": self.trading_brain.active_broker,
+                            "uptime": time.time() - self._start_time
+                            if hasattr(self, "_start_time")
+                            else 0,
+                        }
+                        session = await SovereignSession.get_session()
+                        async with session.post(tele_url, json=payload, timeout=5) as resp:
+                            if resp.status == 200:
+                                logger.debug("Telemetry: Phone Home successful.")
                     except Exception as e:
                         logger.debug(f"Telemetry: Phone Home failed (non-fatal): {e}")
 
@@ -1555,6 +1533,8 @@ class TradingSystem:
                         )
 
                 # Checkpoint every 5 minutes (300s) to protect against local crashes
+                if not hasattr(self, "_last_freeze_time"):
+                    self._last_freeze_time = 0
                 now = time.time()
                 if now - self._last_freeze_time >= 300:
                     if hasattr(self, "trading_brain") and self.trading_brain is not None:
@@ -1591,7 +1571,7 @@ class TradingSystem:
             max_retries = 10
             base_delay = 5.0
 
-            while self.is_running and retries < max_retries:
+            while retries < max_retries:
                 try:
                     logger.info(f"Supervisor: Launching {name}...")
                     await coro_func()
@@ -1630,7 +1610,7 @@ class TradingSystem:
 
     async def shutdown(self) -> None:
         """Graceful shutdown sequence: Step-by-Step Institutional Guard."""
-        if not self.is_running and hasattr(self, "_shutdown_complete") and self._shutdown_complete:  # type: ignore
+        if not self.is_running and hasattr(self, "_shutdown_complete") and self._shutdown_complete:
             return
 
         self.is_running = False
@@ -1773,8 +1753,7 @@ class TradingSystem:
             if hasattr(self, "mt5_client") and self.mt5_client:
                 try:
                     logger.info(" -> Disconnecting MT5...")
-                    import MetaTrader5 as MT5
-                    mt5: Any = MT5
+                    import MetaTrader5 as mt5
                     await asyncio.to_thread(mt5.shutdown)
                 except Exception as e:
                     logger.debug(f"MT5 shutdown error: {e}")
@@ -1911,7 +1890,7 @@ class TradingSystem:
                 await self._on_hft_pulse(data)
                 self._hft_pulse_queue.task_done()
             except asyncio.CancelledError:
-                raise
+                break
             except Exception as e:
                 logger.error(f"Main: HFT Worker Error: {e}")
                 await asyncio.sleep(0.1)
@@ -1938,9 +1917,8 @@ class TradingSystem:
                 await asyncio.sleep(900)  # 15 Minutes
                 cpu = psutil.cpu_percent()
                 ram = psutil.virtual_memory().percent
-                brain_state = self.trading_brain.state.name if self.trading_brain else "INIT"
                 logger.info(
-                    f"📈 METRICS: CPU: {cpu}% | RAM: {ram}% | State: {brain_state}"
+                    f"📈 METRICS: CPU: {cpu}% | RAM: {ram}% | State: {self.trading_brain.state.name if hasattr(self, 'trading_brain') else 'INIT'}"
                 )
 
                 # Log to QuestDB if available
@@ -2086,18 +2064,13 @@ async def main(s: TradingSystem) -> None:
 
         await s.startup()
 
+        # PILLAR 10: PERSISTENCE - Keep the system alive indefinitely
         # This prevents main() from finishing and hitting the 'finally' shutdown block.
         logger.info("✅ Matrix fully synchronized. System operational.")
-        _gc_counter = 0
         while True:
             # Frequent wakeups are required on Windows to process KeyboardInterrupts
             # Increased frequency to 0.2s for higher responsiveness to Ctrl+C.
             await asyncio.sleep(0.2)
-
-            _gc_counter += 1
-            if _gc_counter >= 100: # Every 20 seconds
-                gc.collect()
-                _gc_counter = 0
 
     except (KeyboardInterrupt, asyncio.CancelledError):
         logger.info("\nShutdown signal received (Sovereign Request)")
@@ -2193,50 +2166,40 @@ if __name__ == "__main__":
     except Exception as e:
         print(f"\n[SOVEREIGN] Fatal Error: {e}")
     finally:
-        # --- SOVEREIGN RESILIENT SHUTDOWN ---
-        # We use a robust shutdown sequence that guards against secondary interrupts (double Ctrl+C).
         try:
             # Step 1: Sequential Shutdown of the Sovereign Engine
             try:
-                # Use a slightly more generous timeout for the primary shutdown
-                loop.run_until_complete(asyncio.wait_for(s.shutdown(), timeout=60.0))
-            except (KeyboardInterrupt, asyncio.CancelledError):
-                print("\n[SOVEREIGN] Shutdown interrupted by user. Escalating to emergency cleanup...")
+                loop.run_until_complete(asyncio.wait_for(s.shutdown(), timeout=45.0))
             except Exception as e:
-                print(f"\n[SOVEREIGN] Shutdown sequence encountered an error: {e}")
+                print(f"[SOVEREIGN] Primary Shutdown Exception: {e}")
 
             # Step 2: Clean up remaining loose tasks
-            try:
-                pending = [t for t in asyncio.all_tasks(loop) if not t.done()]
-                if pending:
-                    logger.info(f"Shutting down {len(pending)} active tasks...")
-                    for task in pending:
-                        task.cancel()
+            pending = [t for t in asyncio.all_tasks(loop) if not t.done()]
 
-                    # Drain the loop with a 10s hard timeout
+            if pending:
+                logger.info(f"Shutting down {len(pending)} active tasks...")
+                for task in pending:
+                    task.cancel()
+
+                # Drain the loop with a 10s hard timeout
+                try:
                     loop.run_until_complete(asyncio.wait(pending, timeout=10.0))
-            except (KeyboardInterrupt, asyncio.TimeoutError):
-                logger.warning("Shutdown: Timeout or secondary interrupt. Skipping task drain.")
-            except Exception as e:
-                logger.debug(f"Shutdown: Loop drain exception: {e}")
+                except (KeyboardInterrupt, asyncio.TimeoutError):
+                    logger.warning(
+                        "Shutdown: Timeout or double Ctrl+C detected. Force closing loop."
+                    )
+                except Exception as e:
+                    logger.debug(f"Shutdown: Loop drain exception: {e}")
 
-            # Step 3: Final Loop Teardown
+            # Ensure all handles are closed before loop.close() to prevent UVHandle warnings
             try:
                 loop.run_until_complete(loop.shutdown_asyncgens())
-            except BaseException:
+            except Exception:
                 pass
 
-            if not loop.is_closed():
-                loop.close()
-
-            print("\n[SOVEREIGN] System Offline. All cognitive nodes disengaged.")
-
-        except BaseException as fatal_shutdown_err:
-            print(f"\n[SOVEREIGN] CRITICAL: Shutdown protocol failed: {fatal_shutdown_err}")
-            # Ensure loop is at least closed if possible
-            if 'loop' in locals() and not loop.is_closed():
-                try: loop.close()
-                except: pass
+            loop.close()
+        except Exception as e:
+            print(f"Shutdown Error: {e}")
 
         print("[SOVEREIGN] Shutdown Complete.")
         sys.exit(0)
