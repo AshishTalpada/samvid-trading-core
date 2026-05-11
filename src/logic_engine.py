@@ -125,8 +125,13 @@ class SovereignLogicEngine:
         commission = float(Vault.get("COMMISSION_PER_ROUND_TRIP", str(COMMISSION_PER_ROUND_TRIP)) or str(COMMISSION_PER_ROUND_TRIP))
         account_value = ctx.get("account_value", STARTING_CAPITAL_CAD)
 
+        # Numerical Guard: prevent ZeroDivisionError if R:R is 0 (or somehow negative)
+        if rr <= 0:
+            return {"decision": "SKIP", "reason": f"Invalid R:R ratio ({rr}) for Kelly."}
+
         q = 1.0 - win_prob
         kelly_f = (win_prob * rr - q) / rr
+        # Standard Half-Kelly (0.5) or Fractional (0.2) to mitigate volatility
         final_sizing = max(0, kelly_f * 0.2)
         fee_drag = commission / account_value
         if final_sizing < fee_drag:
