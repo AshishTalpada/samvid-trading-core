@@ -2904,7 +2904,10 @@ class TradingBrain:
 
             mt5_reality = {}
             if self.mt5_conn and await self.mt5_conn.is_connected():
-                mt5_reality = await asyncio.to_thread(self.mt5_conn.get_all_positions)
+                if hasattr(self.mt5_conn, 'get_all_positions') and callable(getattr(self.mt5_conn, 'get_all_positions', None)):
+                    mt5_reality = await asyncio.to_thread(self.mt5_conn.get_all_positions)
+                else:
+                    logger.warning("MT5 get_all_positions not callable, skipping MT5 reconciliation")
 
             # 2. Sanitize Memory
             self._sanitize_positions()
@@ -3071,7 +3074,7 @@ class TradingBrain:
 
             logger.info(f"✅ ADOPTED: {symbol} in {broker.upper()} absorbed @ {price:.2f}")
 
-            if self.bus:
+            if self.bus and hasattr(self.bus, 'publish') and callable(getattr(self.bus, 'publish', None)):
                 await self.bus.publish(
                     "notification.telegram",
                     {

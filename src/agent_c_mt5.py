@@ -213,6 +213,8 @@ class MT5Connection:
 
     def get_all_positions(self) -> dict[str, float]:
         """Return a symbol-to-quantity map of all open positions."""
+        if not mt5 or not hasattr(mt5, 'positions_get') or not callable(mt5.positions_get):
+            return {}
         positions = mt5.positions_get()
         if not positions:
             return {}
