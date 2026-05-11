@@ -13,7 +13,8 @@ class MindMath:
 
     def __init__(self, bridge: Any = None, **kwargs) -> None:
         self.bridge = bridge
-        self.bridge.register_tool("validate_geometry", self._tool_validate_geometry)
+        if self.bridge:
+            self.bridge.register_tool("validate_geometry", self._tool_validate_geometry)
 
     async def _tool_validate_geometry(
         self,
@@ -73,10 +74,10 @@ class MindMath:
                 }
 
             rr_ratio = reward / risk
-            if rr_ratio < Decimal("0.2"):
+            if rr_ratio < Decimal("1.5"):
                 return {
                     "valid": False,
-                    "reason": f"Deterministic VETO: R:R ratio {float(rr_ratio):.2f} below 0.2 Sovereign Floor.",
+                    "reason": f"Deterministic VETO: R:R ratio {float(rr_ratio):.2f} below 1.5 Sovereign Floor.",
                 }
 
             # 4. ATR Validity Check
