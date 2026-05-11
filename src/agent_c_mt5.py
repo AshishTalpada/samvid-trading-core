@@ -5,7 +5,6 @@ from datetime import datetime, timedelta
 from datetime import time as dt_time
 from typing import Any, Dict, Optional
 
-import MetaTrader5 as mt5
 import numpy as np
 
 logger = logging.getLogger(__name__)
@@ -16,7 +15,19 @@ from vault import Vault
 # Aliases for Sovereign Compatibility
 mt5_raw: Any = None
 mt5: Any = mt5_raw
-MetaTrader5Agent = "MT5Connection" # Placeholder, will be aliased properly at the end
+MetaTrader5Agent = "MT5Connection"  # Placeholder, will be aliased properly at the end
+
+
+def _get_mt5_module() -> Any:
+    global mt5
+    if mt5 is None:
+        try:
+            import MetaTrader5 as mt5_mod
+        except Exception as e:
+            logger.error(f"MT5: failed to import MetaTrader5: {e}")
+            raise
+        mt5 = mt5_mod
+    return mt5
 
 
 class MT5Connection:
@@ -32,6 +43,7 @@ class MT5Connection:
         """Check if terminal is connected and authorized."""
         import asyncio as _asyncio
 
+        mt5 = _get_mt5_module()
         info = await _asyncio.to_thread(mt5.terminal_info)
         if info is None:
             # Check if we should attempt re-initialization (>30s since last attempt)
@@ -51,6 +63,8 @@ class MT5Connection:
         """Connect to MT5 trading server with login credentials."""
         import asyncio as _asyncio
         import time as _time
+
+        mt5 = _get_mt5_module()
 
         self._login = login
         self._pw = pw
@@ -92,6 +106,7 @@ class MT5Connection:
 
     def get_account_info(self) -> dict:
         """Retrieve account information such as balance and equity."""
+        mt5 = _get_mt5_module()
         account_info = mt5.account_info()
         return account_info._asdict() if account_info else {}
 
@@ -133,6 +148,7 @@ class MT5Connection:
             )
             return 0
         d = dir.lower()
+        mt5 = _get_mt5_module()
         order_type = mt5.ORDER_TYPE_BUY if d == "buy" else mt5.ORDER_TYPE_SELL
 
         # Bug 34 FIX: Dynamic Slippage (Volatility-Adjusted)
@@ -183,6 +199,7 @@ class MT5Connection:
 
     def close_position(self, ticket: int) -> bool:
         """Close an open position by ticket number."""
+        mt5 = _get_mt5_module()
         position = mt5.positions_get(ticket=ticket)
         if not position:
             return False
@@ -208,11 +225,13 @@ class MT5Connection:
 
     def get_open_positions(self) -> list[int]:
         """Return a list of all open position ticket numbers."""
+        mt5 = _get_mt5_module()
         positions = mt5.positions_get()
         return [pos.ticket for pos in positions] if positions else []
 
     def get_all_positions(self) -> dict[str, float]:
         """Return a symbol-to-quantity map of all open positions."""
+        mt5 = _get_mt5_module()
         if not mt5 or not hasattr(mt5, 'positions_get') or not callable(mt5.positions_get):
             return {}
         positions = mt5.positions_get()
@@ -288,6 +307,7 @@ class MT5PositionSizer:
         # 1. Resolve Risk Amount (Default 1% of account if not provided)
         # In brain.py _state_scanning, it doesn't pass risk_amount directly,
         # so we fetch balance here.
+        mt5 = _get_mt5_module()
         account = (
             self._conn.get_account_info()
             if hasattr(self, "_conn")
@@ -340,6 +360,7 @@ class MT5PositionSizer:
             )
             return 0.0
 
+        mt5 = _get_mt5_module()
         tick_info = mt5.symbol_info(symbol)
         if tick_info is None:
             logger.warning(f"Sizer: Could not fetch symbol info for {symbol}")
@@ -415,6 +436,7 @@ class MetaTrader5Agent:
 
     def connect(self) -> bool:
         """Initializes the MT5 terminal and logs into the trading server."""
+        mt5 = _get_mt5_module()
         if not mt5.initialize():
             logger.critical(f"[MT5] Initialization failed. Error code: {mt5.last_error()}")
             return False
@@ -434,6 +456,7 @@ class MetaTrader5Agent:
         if not self.connected:
             return None
 
+        mt5 = _get_mt5_module()
         tick = mt5.symbol_info_tick(symbol)
         if tick is None:
             logger.error(f"[MT5] Failed to fetch tick for {symbol}")
@@ -486,6 +509,7 @@ class MetaTrader5Agent:
         if not self.connected:
             return {"status": "error", "message": "MT5 Terminal not connected"}
 
+        mt5 = _get_mt5_module()
         if not mt5.symbol_select(symbol, True):
             logger.error(f"[MT5] Failed to select symbol {symbol}")
             return {"status": "error", "message": "Symbol selection failed"}
@@ -553,6 +577,7 @@ class MetaTrader5Agent:
         if not self.connected:
             return
 
+        mt5 = _get_mt5_module()
         positions = mt5.positions_get(symbol=symbol) if symbol else mt5.positions_get()
         if positions is None or len(positions) == 0:
             return
@@ -568,6 +593,7 @@ class MetaTrader5Agent:
         if not self.connected:
             return {}
 
+        mt5 = _get_mt5_module()
         positions = mt5.positions_get()
         if positions is None:
             return {}
@@ -582,6 +608,7 @@ class MetaTrader5Agent:
 
     def shutdown(self):
         if self.connected:
+            mt5 = _get_mt5_module()
             mt5.shutdown()
             logger.info("[MT5] Terminal connection cleanly severed.")
             self.connected = False
