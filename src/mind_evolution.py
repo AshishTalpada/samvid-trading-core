@@ -87,7 +87,7 @@ class MindEvolution:
                     conn.execute("PRAGMA journal_mode=WAL;")
                     conn.execute("PRAGMA busy_timeout = 60000;")
 
-                wisdom_path = os.path.join(PROJECT_PATH, "data/wisdom.json")
+                wisdom_path = os.path.join(PROJECT_PATH, "data", "wisdom.json")
                 if os.path.exists(wisdom_path):
                     with open(wisdom_path, "r") as f:
                         wisdom = json.load(f)
