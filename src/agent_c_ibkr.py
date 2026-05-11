@@ -11,6 +11,7 @@ Handles:
 import asyncio
 import hashlib
 import hmac
+import json
 import logging
 import os
 import sqlite3
@@ -79,6 +80,7 @@ class IBKRConnection:
         )
         self.brain: Any = None
         self.bus: Any = bridge  # Correctly bind the bridge/bus for alerts
+        self._lock = asyncio.Lock()  # Initialize the execution lock
         self._setup_callbacks()
 
         self._recovered_orders: set[int] = set()
@@ -738,8 +740,6 @@ class IBKRConnection:
         """Write a persistent execution log entry for audit trail and manual recovery."""
         try:
             log_file = "data/execution_persistence.json"
-            import json
-            import os
 
             os.makedirs("data", exist_ok=True)
             entry = {
