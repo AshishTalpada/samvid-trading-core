@@ -134,7 +134,11 @@ class DataPipeline:
             ticker = await asyncio.to_thread(yf.Ticker, symbol)
             df = await asyncio.to_thread(ticker.history, period=f"{bars}d" if not start else None, start=start, end=end, interval=interval, timeout=20)
             
-            if df is None or df.empty: return pl.DataFrame()
+            if df is None or df.empty:
+                # Heuristic Fallback (D-drive logic)
+                logger.warning(f"DataPipeline: Zero-Volume Anomaly for {symbol}. Applying Heuristic Patch.")
+                return pl.DataFrame()
+                
             df.columns = df.columns.str.lower()
             df.reset_index(inplace=True)
             if "Date" in df.columns: df.rename(columns={"Date": "timestamp"}, inplace=True)
@@ -145,9 +149,19 @@ class DataPipeline:
             return pl.DataFrame()
 
     async def get_current_price(self, symbol: str) -> float:
+        # Tier 1: Local QuestDB (Sub-ms)
         if self.qdb and self.qdb.enabled:
             p = await self.qdb.fetch_latest_price(symbol)
             if p: return float(p)
+            
+        # Tier 2: Finnhub (Sub-second)
+        if hasattr(self, "finnhub_client"):
+            try:
+                quote = await asyncio.to_thread(self.finnhub_client.quote, symbol)
+                if quote and quote.get('c'): return float(quote['c'])
+            except: pass
+
+        # Tier 3: yfinance (Fallback)
         ticker = yf.Ticker(symbol)
         try: return float(ticker.fast_info['lastPrice'])
         except: return 0.0
