@@ -159,7 +159,7 @@ class TradingCoordinator:
                 if task:
                     task.log(f"REDUNDANCY_VETO: Position already active for {symbol}.")
                 return False
-    
+
             if self._semaphore is None:
                 self._semaphore = asyncio.Semaphore(CONCURRENCY_LIMIT)
             async with self._semaphore:
@@ -181,18 +181,18 @@ class TradingCoordinator:
                             "confidence": 0.5,
                             "reason": "Fallback",
                         }
-    
+
                 async def _poll_neural_safe(name, func):
                     """Gated Neural Dispatcher with Class-Level Semaphore (Selective VRAM Gating)."""
                     if name == "Native_SLM":
                         async with self.get_neural_semaphore():
                             return await _poll_safe(name, func)
                     return await _poll_safe(name, func)
-    
+
                 proposal_id = str(uuid.uuid4())[:8]
                 if task:
                     task.log(f"QUORUM_INIT: Starting 7-Agent Sovereign Audit for {symbol}.")
-    
+
                 if self.brain.bus:
                     await self.brain.bus.publish(
                         "consensus.update",
@@ -204,22 +204,22 @@ class TradingCoordinator:
                             "timestamp": time.time() * 1000,
                         },
                     )
-    
+
                 if not self.brain.skill_tree.is_unlocked("vetting"):
                     logger.warning(
                         "Coordinator: Skill 'vetting' is LOCKED. Matrix is in Training Mode."
                     )
                     return False
-    
+
                 if self.brain.dms:
                     self.brain.dms.record_heartbeat("COORDINATOR")
-    
+
                 timestamp = datetime.now(timezone.utc).isoformat()
                 account_value = await self.brain.get_safe_buying_power(self.brain.active_broker.lower())
                 pattern = proposal["pattern"]
-    
+
                 alpha_val = proposal.get("lambda", pattern.confidence / 100.0)
-    
+
                 # Fetch OHLCV early to support Impact Oracle and Agent A
                 ohlcv_1m = await self.brain._fetch_ohlcv(symbol)
                 if (
@@ -229,10 +229,10 @@ class TradingCoordinator:
                         f"Coordinator [{proposal_id}] 🛑 DATA VETO: Insufficient OHLCV for {symbol}."
                     )
                     return False
-    
+
                 # Fetch spread for sizing
                 spread_data = await self.brain.get_current_spread(symbol)
-    
+
                 # Sizing Calculation for Context
                 # For probes: skip the sizer entirely — it will return 0 shares with no live data.
                 # A probe is a wiring test, not a real order, so shares=1 is sufficient to pass guards.
@@ -273,21 +273,21 @@ class TradingCoordinator:
                     )
                     shares = int(sizing.get("step8_shares", 0))
                     pos_value = sizing.get("position_value", 0.0)
-    
+
                     total_mod = sizing.get("total_multiplier", 1.0)
                     if total_mod < 0.9 and not is_probe:
                         logger.warning(
                             f"Coordinator [{proposal_id}]: Imperial Safety Protocol Active. "
                             f"Size reduced to {total_mod:.1%} of theoretical max (DD/Loss/Regime Guard)."
                         )
-    
+
                     # Fix C: Zero-share veto
                     if shares <= 0 and not is_probe:
                         logger.warning(
                             f"Coordinator [{proposal_id}] ZERO-SHARE VETO: Position sizer returned shares=0 for {symbol}."
                         )
                         return False
-    
+
                     shared_context = {
                         "symbol": symbol,
                         "timestamp": timestamp,
@@ -311,7 +311,7 @@ class TradingCoordinator:
                         "potential_profit": abs(float(pattern.target) - float(pattern.entry)),
                         "commission": max(COMMISSION_PER_ROUND_TRIP, (shares or 1) * 0.01),
                     }
-    
+
                     # Probes use synthetic geometry — skip data-quality vetoes for wiring tests
                     if not is_probe:
                         math_val = await self.brain.mind_math._tool_validate_geometry(
@@ -326,7 +326,7 @@ class TradingCoordinator:
                                 f"Coordinator [{proposal_id}] 🛑 MATH VETO: {math_val['reason']}"
                             )
                             return False
-    
+
                     try:
                         if not is_probe:
                             ohlcv_data = await self.brain._fetch_ohlcv(symbol)
@@ -350,7 +350,7 @@ class TradingCoordinator:
                                     return False
                     except Exception as qe:
                         logger.warning(f"Coordinator: QuantGate logic error: {qe}")
-    
+
                     if self.brain.mode != "paper":
                         try:
                             cushion = await self.brain.get_ibkr_cushion()
@@ -363,9 +363,9 @@ class TradingCoordinator:
                             logger.warning(
                                 f"Coordinator: Margin Shield offline, proceeding with caution: {me}"
                             )
-    
+
                     logger.info(f"Coordinator [{proposal_id}] polling 7-Agent Quorum...")
-    
+
                     # Mandatory gate: Every trade must pass through the Agent A defensive fortress.
                     # Runs under Neural Semaphore as it performs 75Y Atlas matching and Neural Lambda calibration.
                     async def poll_agent_a():
@@ -389,7 +389,7 @@ class TradingCoordinator:
                                         "target": pattern.target,
                                     },
                                 }
-    
+
                             # Guard: ensure ohlcv_1m is a real DataFrame before accessing columns
                             if ohlcv_1m is None or isinstance(ohlcv_1m, str):
                                 return {
@@ -397,11 +397,11 @@ class TradingCoordinator:
                                     "vote": "NO",
                                     "reason": "No OHLCV data available.",
                                 }
-    
+
                             # 1. DMS Heartbeat
                             if self.brain.dms:
                                 self.brain.dms.record_heartbeat("AGENT_A")
-    
+
                             # 2. Derive context for Agent A
                             tension = (
                                 self.brain.dhatu_oracle.calculate_spread_tension(
@@ -412,16 +412,16 @@ class TradingCoordinator:
                                 if self.brain.dhatu_oracle
                                 else 0.0
                             )
-    
+
                             # Calculate entropy using the brain's calc
                             p_before = 0.5
                             p_after = pattern.confidence / 100.0
                             entropy_score = self.brain.entropy_calc.signal_entropy(p_before, p_after)
-    
+
                             closes = ohlcv_1m["close"].to_numpy()
                             resistances = [float(np.percentile(cast(Any, closes), 90)), float(np.max(cast(Any, closes)))]
                             timeframes = [("1m", ohlcv_1m)]
-    
+
                             # Trend 5d/1m
                             trend_5d = "bull"
                             trend_1m = "bull"
@@ -452,13 +452,13 @@ class TradingCoordinator:
                                 trend_1m = (
                                     "bull" if ohlcv_1m["close"][-1] > ohlcv_1m["close"][-20] else "bear"
                                 )
-    
+
                             # 3. Dynamic ATR for sizing resonance
                             high = ohlcv_1m["high"].to_numpy()
                             low = ohlcv_1m["low"].to_numpy()
                             close = ohlcv_1m["close"].to_numpy()
                             prev_close = ohlcv_1m["close"].shift(1).to_numpy()
-    
+
                             tr = np.maximum(
                                 np.abs(high - low),
                                 np.maximum(
@@ -467,7 +467,7 @@ class TradingCoordinator:
                                 ),
                             )
                             atr_20 = float(np.nanmean(tr[-20:]))
-    
+
                             # 4. EXPLICIT AGENT A VALIDATION (The Defensive Fortress)
                             # Wrapped in to_thread because it's heavy math/neural logic.
                             a_result = await asyncio.to_thread(
@@ -496,7 +496,7 @@ class TradingCoordinator:
                                 dd_level=self.brain.ibkr_drawdown.level.value,
                                 tension=tension,
                             )
-    
+
                             return a_result
                         except Exception as ae:
                             logger.error(f"Coordinator: Agent A Fortress Check FAILED: {ae}")
@@ -505,9 +505,9 @@ class TradingCoordinator:
                                 "vote": "NO",
                                 "reason": f"Neural Validation Error: {str(ae)[:50]}",
                             }
-    
+
                     agent_a_out = await _poll_neural_safe("Agent_A", poll_agent_a)
-    
+
                     if agent_a_out["vote"] == "NO":
                         logger.info(
                             f"Coordinator [{proposal_id}] 🛑 SOVEREIGN VETO: Agent A rejected proposal. {agent_a_out.get('reason')}"
@@ -525,7 +525,7 @@ class TradingCoordinator:
                                 },
                             )
                         return False
-    
+
                     # --- LIVE QUORUM STREAM (Agent A Progress) ---
                     if self.brain.bus:
                         await self.brain.bus.publish(
@@ -538,19 +538,19 @@ class TradingCoordinator:
                                 "timestamp": time.time() * 1000,
                             },
                         )
-    
+
                     async def poll_agent_d():
                         """Agent D: Historical Learning & Significance Mind."""
                         try:
                             learned = getattr(self.brain, "_learned_win_rates", {})
                             regime_key = f"{pattern.name}:{self.brain.current_regime}"
                             learned_wr = learned.get(regime_key) or learned.get(pattern.name)
-    
+
                             # Direct call to standardized consensus (Alpha Brain Integration)
                             agent_d_vote = self.brain.live_learner.evaluate_proposal(
                                 pattern.name, self.brain.current_regime
                             )
-    
+
                             # --- IMPERIAL GUARD: Internal Stats VETO ---
                             if (
                                 learned_wr is not None
@@ -561,7 +561,7 @@ class TradingCoordinator:
                                 agent_d_vote["reason"] = (
                                     f"🛑 IMPERIAL VETO: Internal WR too low ({learned_wr:.2%})"
                                 )
-    
+
                             return agent_d_vote
                         except Exception as e:
                             logger.error(f"Coordinator: Agent D poll failed: {e}")
@@ -572,7 +572,7 @@ class TradingCoordinator:
                                 "reason": f"Fallback: {str(e)[:50]}",
                                 "timestamp": timestamp,
                             }
-    
+
                     async def poll_oracle():
                         """Dhatu Oracle: (SOLUTION 5) Uses Background State with High-Fidelity Fallback."""
                         state = self.brain.conviction_state.get("Dhatu_Oracle")
@@ -584,7 +584,7 @@ class TradingCoordinator:
                             < 90
                         ):
                             return state
-    
+
                         try:
                             if self.brain.dhatu_oracle is None:
                                 raise RuntimeError("DhatuOracle not configured")
@@ -603,7 +603,7 @@ class TradingCoordinator:
                                 "reason": "Oracle Offline (Deferred to Quorum)",
                                 "timestamp": timestamp,
                             }
-    
+
                     async def poll_swarm():
                         """Swarm Predictor: (SOLUTION 5) Uses Background State with High-Fidelity Fallback."""
                         state = self.brain.conviction_state.get("Swarm_Predictor")
@@ -615,7 +615,7 @@ class TradingCoordinator:
                             < 90
                         ):
                             return state
-    
+
                         try:
                             if self.brain.swarm_predictor is None:
                                 raise RuntimeError("SwarmPredictor not configured")
@@ -632,16 +632,16 @@ class TradingCoordinator:
                                 "reason": "Swarm Offline (Deferred to Quorum)",
                                 "timestamp": timestamp,
                             }
-    
+
                     # -- QUORUM ASSEMBLY (STRICT UNIQUENESS) --
                     vote_registry: Dict[str, Dict[str, Any]] = {}
-    
+
                     try:
                         tier1_results = await self.exoskeleton.run_parallel_tier(shared_context)
                         for res in tier1_results:
                             if res and "agent" in res:
                                 vote_registry[cast(str, res["agent"])] = res
-    
+
                         dummy_tail = self.exoskeleton.evaluate_dictatorship(tier1_results, timestamp)
                         if dummy_tail:
                             for res in dummy_tail:
@@ -672,17 +672,17 @@ class TradingCoordinator:
                                 shared_context
                             ),
                         }
-    
+
                         tier1_results = []
                         for name, func in tier1_agents.items():
                             res = await _poll_safe(name, func)
                             vote_registry[name] = res
                             tier1_results.append(res)
                         dummy_tail = None
-    
+
                     # Agent A is mandatory and always unique
                     vote_registry["Agent_A"] = agent_a_out
-    
+
                     if not dummy_tail:
                         deterministic_deny = any(
                             v["vote"] == "NO"
@@ -700,7 +700,7 @@ class TradingCoordinator:
                             ]
                             for res in dummy_tail:
                                 vote_registry[str(res["agent"])] = res
-    
+
                     # --- STAGE 1 TELEMETRY ---
                     if self.brain.bus:
                         await self.brain.bus.publish(
@@ -713,7 +713,7 @@ class TradingCoordinator:
                                 "timestamp": time.time() * 1000,
                             },
                         )
-    
+
                     if not dummy_tail:
                         logger.info(
                             f"Coordinator [{proposal_id}]: Stage 1 Clear. Entering Neural Gate for Gated agents..."
@@ -730,7 +730,7 @@ class TradingCoordinator:
                                     ),
                                 ),
                             ]
-    
+
                             if self.brain.native_slm and self.brain.native_slm.is_available:
                                 gated_agents.append(
                                     (
@@ -738,9 +738,9 @@ class TradingCoordinator:
                                         lambda: self.brain.native_slm.evaluate_proposal(shared_context),
                                     )
                                 )
-    
+
                             vram_pct = 0  # LLM purged — no VRAM contention
-    
+
                             gated_votes = []
                             background_success = True
                             for name, _ in gated_agents:
@@ -758,16 +758,16 @@ class TradingCoordinator:
                                     break
                                 state["timestamp"] = timestamp
                                 gated_votes.append(state)
-    
+
                             if not background_success:
                                 logger.warning(
                                     "Coordinator: Background Conviction Stale/Missing. Reverting to Parallel Neural Gate..."
                                 )
-    
+
                                 # Uses _poll_neural_safe to manage VRAM contention serialy but gathered in parallel.
                                 names = [n for n, _ in gated_agents]
                                 funcs = [f for _, f in gated_agents]
-    
+
                                 results = await asyncio.gather(
                                     *[
                                         asyncio.wait_for(_poll_neural_safe(name, func), timeout=25.0)
@@ -775,7 +775,7 @@ class TradingCoordinator:
                                     ],
                                     return_exceptions=True,
                                 )
-    
+
                                 for name, res in zip(names, results, strict=False):
                                     if isinstance(res, (Exception, asyncio.TimeoutError)):
                                         logger.error(f"Neural Gate: {name} Failed or Timed Out: {res}")
@@ -789,7 +789,7 @@ class TradingCoordinator:
                                         )
                                     else:
                                         gated_votes.append(res)
-    
+
                             for res in gated_votes:
                                 if res and "agent" in res:
                                     vote_registry[cast(str, res["agent"])] = res
@@ -806,7 +806,7 @@ class TradingCoordinator:
                                     "timestamp": timestamp,
                                 }
                                 vote_registry[cast(str, name)] = err_vote  # type: ignore
-    
+
                     # --- STAGE 2 TELEMETRY ---
                     if self.brain.bus:
                         await self.brain.bus.publish(
@@ -819,31 +819,31 @@ class TradingCoordinator:
                                 "timestamp": time.time() * 1000,
                             },
                         )
-    
+
                     # Final List Conversion (Guarantees no duplicates)
                     all_votes = list(vote_registry.values())
-    
+
                     # Force the Skeptic Mind to challenge the consensus before final engine evaluation.
                     skeptic_audit = self.brain.skeptic.run_adversarial_debate(
                         proposal=agent_a_out, # Challenge the primary signal generator
                         opponents=[v["agent"] for v in all_votes if v["vote"] == "YES"]
                     )
                     all_votes.append(skeptic_audit)
-    
+
                     decision = await self.brain.decision_engine.evaluate(shared_context, all_votes)
-    
+
                     if not is_probe:
                         self.exoskeleton.store_cortex_cache(
                             symbol, pattern.entry, decision, all_votes, shares
                         )
-    
+
                     if task is None and not is_probe:
                         task = self.brain.task_manager.spawn_trade(symbol, pattern.to_dict())
-    
+
                     return await self._execute_decision(
                         symbol, decision, pattern, all_votes, is_probe, shares, task
                     )
-    
+
         except Exception as e:
             logger.error(
                 f"Coordinator Error inside Sovereign Lifecycle for {symbol}: {e}", exc_info=True
