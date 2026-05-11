@@ -493,8 +493,8 @@ class SwarmPredictor:
                         "confidence": confidence,
                     }
                 )
-            except Exception:
-                pass
+            except Exception as _sw_err:
+                logger.debug(f"Swarm: Non-critical advisor weight error: {_sw_err}")
 
         return consensus
 
