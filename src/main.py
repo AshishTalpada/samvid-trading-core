@@ -1252,12 +1252,7 @@ class TradingSystem:
         else:
             logger.info("\n[7/9] QuestDB Adapter disabled or not configured.")
 
-        # Start Dhatu Oracle
-        if Vault.get("GOOGLE_API_KEY") or Vault.get("ANTHROPIC_API_KEY"):
-            logger.info("\n[8/9] Starting Dhatu Oracle...")
-            await self._start_dhatu_oracle()
-        else:
-            logger.info("\n[8/9] Dhatu Oracle disabled or not configured.")
+        # Dhatu Oracle is now launched as a cognitive prerequisite in startup()
 
         # Start API Server
         if self.api_server:
@@ -1332,7 +1327,12 @@ class TradingSystem:
                     f"MT5 Kill Switch ACTIVE: Skipping MetaTrader. Missing from Vault: {', '.join(missing)}"
                 )
 
-            logger.info("\n[4/10] Starting Trading Brain (Standby Mode)...")
+            # Step 4: Initialize Cognitive Infrastructure (Oracle)
+            if Vault.get("GOOGLE_API_KEY") or Vault.get("ANTHROPIC_API_KEY"):
+                logger.info("\n[4/10] Starting Dhatu Oracle...")
+                await self._start_dhatu_oracle()
+
+            logger.info("\n[5/10] Starting Trading Brain (Standby Mode)...")
             await self.start_trading_brain()
 
             # Start the Remote Command Listener IMMEDIATELY
@@ -1343,6 +1343,7 @@ class TradingSystem:
             # Start the data pipeline in the background
             await self.start_data_pipeline()
 
+            # Start Remaining Background Tasks
             await self._start_background_tasks()
 
             logger.info("\n[9/10] Validating Native SLM Readiness...")
