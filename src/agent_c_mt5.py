@@ -1,8 +1,10 @@
 import logging
 import time
+from datetime import datetime, timedelta
 from typing import Any, Dict, Optional
 
 import MetaTrader5 as mt5_raw
+import numpy as np
 
 mt5: Any = mt5_raw
 
@@ -61,13 +63,41 @@ class MetaTrader5Agent:
 
     def execute_market_order(self, symbol: str, action: str, lot_size: float, slippage_pts: int = 10) -> Dict[str, Any]:
         """
-        Executes a direct market order.
+        Executes a direct market order with Sovereign Security Guards.
         Action must be 'BUY' or 'SELL'.
         """
+        import inspect
         from trading_state import TradingStateManager
         if not TradingStateManager.allow_order(True): # MT5 orders are usually new entries in this context
             logger.warning(f"[MT5] SAFETY GATE: Market order for {symbol} REJECTED due to TradingState.")
             return {"status": "error", "message": f"TradingState {TradingStateManager.state.value} blocks entries"}
+
+        # 1. WHITELIST SIGNATURE GUARD (Ported from D: drive logic)
+        AUTHORIZED_CALLERS = {
+            "sovereign_decision_engine",
+            "_place_mt5_order",
+            "initiate_trade_lifecycle",
+            "flat_all_positions",
+            "_emergency_flatten",
+            "repair_state",
+            "_tool_trigger_logic",
+            "run",
+        }
+        caller_frame = inspect.currentframe().f_back
+        caller_name = caller_frame.f_code.co_name if caller_frame else "unknown"
+        if caller_name not in AUTHORIZED_CALLERS:
+            # Try one more level up if it's an async wrapper
+            caller_frame = caller_frame.f_back if caller_frame else None
+            caller_name = caller_frame.f_code.co_name if caller_frame else "unknown"
+
+        caller_module = caller_frame.f_globals.get("__name__", "unknown")
+        AUTHORIZED_MODULES = {"brain", "sovereign_decision_engine", "trading_system", "agent_c_ibkr"}
+
+        if caller_name not in AUTHORIZED_CALLERS or (
+            caller_module not in AUTHORIZED_MODULES and not caller_module.startswith("src.")
+        ):
+            logger.critical(f"UNAUTHORIZED EXECUTION ATTEMPT! Caller '{caller_module}.{caller_name}' bypassed Sovereign Engine! REJECTING ORDER.")
+            return {"status": "error", "message": "Unauthorized execution caller."}
 
         if not self.connected:
             return {"status": "error", "message": "MT5 Terminal not connected"}
@@ -80,6 +110,23 @@ class MetaTrader5Agent:
         if not tick:
             return {"status": "error", "message": "Pricing unavailable"}
 
+        # 2. DYNAMIC SLIPPAGE (Volatility-Adjusted)
+        deviation = slippage_pts
+        try:
+            # We use a 5-bar ATR buffer (if available) or 0.1% of price.
+            rates = mt5.copy_rates_from_pos(symbol, mt5.TIMEFRAME_M1, 0, 5)
+            if rates is not None and len(rates) > 0:
+                atr_5 = np.mean([abs(r["high"] - r["low"]) for r in rates])
+                info = mt5.symbol_info(symbol)
+                if info and info.point > 0:
+                    deviation = max(slippage_pts, int(atr_5 * 1.5 / info.point))
+        except Exception:
+            deviation = slippage_pts
+
+        # 3. MAGIC ID COLLISION GUARD
+        import uuid as _uuid
+        magic_id = _uuid.uuid4().int % 2147483647
+
         # Define MT5 Request Dictionary
         order_type = mt5.ORDER_TYPE_BUY if action == "BUY" else mt5.ORDER_TYPE_SELL
         price = tick["ask"] if action == "BUY" else tick["bid"]
@@ -90,21 +137,23 @@ class MetaTrader5Agent:
             "volume": float(lot_size),
             "type": order_type,
             "price": price,
-            "deviation": slippage_pts,
-            "magic": self.magic_number,
-            "comment": "Sovereign AI Exec",
+            "deviation": int(deviation),
+            "magic": magic_id,
+            "comment": "SETO_V8_AUTONOMY",
             "type_time": mt5.ORDER_TIME_GTC,
             "type_filling": mt5.ORDER_FILLING_IOC,
         }
 
         # Send the order to the server
-        logger.info(f"[MT5] Sending {action} {lot_size} lots on {symbol} at {price}")
+        logger.info(f"[MT5] Sending {action} {lot_size} lots on {symbol} at {price} (Dev: {deviation})")
         result = mt5.order_send(request)
 
-        if result.retcode != mt5.TRADE_RETCODE_DONE:
-            error_msg = f"Order failed, retcode={result.retcode}"
+        if result is None or result.retcode != mt5.TRADE_RETCODE_DONE:
+            rc = result.retcode if result else -1
+            msg = result.comment if result else "No result from mt5.order_send"
+            error_msg = f"Order failed, retcode={rc} | {msg}"
             logger.error(f"[MT5] {error_msg}")
-            return {"status": "rejected", "message": error_msg, "retcode": result.retcode}
+            return {"status": "rejected", "message": error_msg, "retcode": rc}
 
         logger.info(f"[MT5] Order successfully filled! Ticket: {result.order}")
         return {
@@ -157,31 +206,84 @@ MT5Connection = MetaTrader5Agent
 
 class MT5PositionSizer:
     """Institutional Position Sizer for MetaTrader 5."""
-    def __init__(self, risk_per_trade: float = 0.01):
+    def __init__(self, conn: Optional[MetaTrader5Agent] = None, risk_per_trade: float = 0.01):
+        self._conn = conn
         self.risk_per_trade = risk_per_trade
 
     def calculate_lots(self, balance: float, stop_loss_pips: float, symbol: str) -> float:
-        """Calculates lot size based on risk and stop loss."""
-        if stop_loss_pips <= 0:
+        """Calculates lot size based on risk and stop loss. Institutional Single Order Routing."""
+        import inspect
+        AUTHORIZED_CALLERS = {"_place_mt5_order", "sovereign_decision_engine", "initiate_trade_lifecycle", "flat_all_positions", "repair_state", "run"}
+        caller_frame = inspect.currentframe().f_back
+        caller_name = caller_frame.f_code.co_name if caller_frame else "unknown"
+        if caller_name not in AUTHORIZED_CALLERS:
+            # Try one more level up if it's an async wrapper
+            caller_frame = caller_frame.f_back if caller_frame else None
+            caller_name = caller_frame.f_code.co_name if caller_frame else "unknown"
+
+        if caller_name not in AUTHORIZED_CALLERS:
+            logger.critical(f"UNAUTHORIZED SIZING ATTEMPT! Caller '{caller_name}' bypassed Sovereign Engine! REJECTING SIZING.")
+            return 0.0
+
+        tick_info = mt5.symbol_info(symbol)
+        if tick_info is None:
+            logger.warning(f"Sizer: Could not fetch symbol info for {symbol}")
+            return 0.01 # Safe fallback
+
+        # Risk Amount calculation
+        risk_amount = balance * self.risk_per_trade
+
+        # Convert pips to points/value
+        # Note: In MT5, TickValue is the value of 1 Lot for 1 Tick movement in Account Currency.
+        tick_size = tick_info.trade_tick_size if tick_info.trade_tick_size > 0 else tick_info.point
+        tick_val = tick_info.trade_tick_value if tick_info.trade_tick_value > 0 else 1.0
+
+        # Simple proxy: if stop_loss_pips is in actual price distance
+        dist = stop_loss_pips
+        if dist < tick_info.point:
             return 0.01
 
-        # Simple lot calculation (1.0 lot = $10 per pip for EURUSD)
-        # In a real system, we would use symbol_info to get tick_value
-        risk_amount = balance * self.risk_per_trade
-        lots = risk_amount / (stop_loss_pips * 10.0)
-        return round(max(0.01, lots), 2)
+        risk_per_lot = (dist / tick_size) * tick_val
+        if risk_per_lot <= 0: return 0.01
+
+        lots = risk_amount / risk_per_lot
+
+        # Respect Broker Constraints
+        min_lot = tick_info.volume_min
+        max_lot = tick_info.volume_max
+        step_lot = tick_info.volume_step
+
+        lots = round(lots / step_lot) * step_lot
+        lots = max(min_lot, min(max_lot, lots))
+
+        return round(float(lots), 2)
 
 class FTMOComplianceLayer:
-    """Enforces FTMO-specific risk boundaries."""
-    def __init__(self, daily_loss_limit_pct: float = 0.05, total_loss_limit_pct: float = 0.10):
-        self.daily_limit = daily_loss_limit_pct
-        self.total_limit = total_loss_limit_pct
+    """Enforces FTMO-specific risk boundaries with Prague-based time synchronization."""
+    def __init__(self, daily_limit: float = 0.05, total_limit: float = 0.10, max_trades: int = 20):
+        self.daily_limit = daily_limit
+        self.total_limit = total_limit
+        self.max_trades = max_trades
 
-    def validate_trade(self, current_balance: float, current_equity: float, trade_size: float) -> bool:
-        """Checks if a trade would violate FTMO drawdown rules."""
-        # Simple check: if equity is below limits, block trade
-        drawdown = (current_balance - current_equity) / current_balance
-        if drawdown > self.daily_limit:
-            logger.critical(f"[FTMO] Daily loss limit exceeded! Current Drawdown: {drawdown*100:.2f}%")
-            return False
-        return True
+    def check_daily_loss(self, balance: float, pnl: float) -> bool:
+        return pnl >= -(self.daily_limit * balance)
+
+    def best_day_rule(self, today_pnl: float, history: list[float]) -> bool:
+        """Sovereign Alpha Rule: No single day should exceed 2/3 of total profit (Consistency)."""
+        if not history: return True
+        return today_pnl <= (0.66 * sum(history))
+
+    def prague_midnight_reset(self) -> bool:
+        """Handle daily reset according to Prague timezone (FTMO Standard)."""
+        import pytz
+        prague_tz = pytz.timezone("Europe/Prague")
+        now_prague = datetime.now(prague_tz)
+        return now_prague.hour == 0 and now_prague.minute < 5
+
+    def is_trading_allowed(self, account: dict, trade_count: int = 0) -> tuple[bool, str]:
+        pnl = account.get("equity", 0) - account.get("balance", 0)
+        if not self.check_daily_loss(account.get("balance", 100000), pnl):
+            return (False, "Daily loss limit exceeded (FTMO Violation Risk).")
+        if trade_count >= self.max_trades:
+            return (False, "Overtrading detected: Max daily trades reached.")
+        return (True, "Compliance OK.")

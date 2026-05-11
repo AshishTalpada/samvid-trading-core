@@ -1,6 +1,6 @@
 import uuid
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Optional
 
 # Deep Dive: Extreme Static Typing & Schema Definition
@@ -26,36 +26,52 @@ class MarketTick:
 
 @dataclass
 class Position:
+    """
+    Sovereign Position-State Entity.
+    Decoupled from Brain/Coordinator to prevent circular imports.
+    """
     symbol: str
     qty: float
     entry_price: float
     entry_time: datetime
-    pattern: str
-    initial_belief: float
-    current_belief: float
-    initial_stop: float
-    stop_loss: float
-    take_profit: float
-    account_type: str
-    trade_id: str
-    task_id: str = "NONE"
-    catalyst_score: float = 0.5
+    pattern: str = ""
+    initial_belief: float = 0.5
+    current_belief: float = 0.5
+    initial_stop: float = 0.0
+    stop_loss: float = 0.0
+    take_profit: float = 0.0
+    target_exit_time: datetime = field(default_factory=lambda: datetime.now(timezone.utc) + timedelta(days=5))
+    trade_id: str = ""
+    account_type: str = "ibkr"
+    account_id: str = "UNKNOWN"
+    catalyst_score: float = 0.0
+    dhatu_state: str = "UNKNOWN"
     regime_at_entry: str = "UNKNOWN"
+    r_r_ratio: float = 2.0
+    sl_pct: float = 0.01
+    tp_pct: float = 0.02
+    shares_remaining: float = 0.0
     commission_cost: float = 0.0
     slippage_cost: float = 0.0
+    gross_pnl: float = 0.0
+    net_pnl: float = 0.0
     mfe: float = 0.0
     mae: float = 0.0
+    runner_active: bool = False
     unrealized_pnl: float = 0.0
     current_price: float = 0.0
+    db_id: int = 0
     status: str = "OPEN"
+    task_id: str = "N/A"
     meta: Dict = field(default_factory=dict)
-    target_exit_time: Optional[datetime] = None
-    account_id: str = "UNKNOWN"
-    dhatu_state: str = "UNKNOWN"
-    r_r_ratio: float = 2.0
+
+    def __post_init__(self):
+        # If the position is live (qty != 0) but tracking is 0, sync them.
+        if self.shares_remaining == 0.0 and self.qty != 0.0:
+            self.shares_remaining = abs(self.qty)
 
     def to_dict(self):
-        return {k: v for k, v in self.__dict__.items()}
+        return {k: v for k, v in self.__dict__.items() if not k.startswith("_")}
 
 @dataclass
 class OrderIntent:
