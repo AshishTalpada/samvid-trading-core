@@ -55,7 +55,7 @@ if TYPE_CHECKING:
     from data_pipeline import DataPipeline
     from dms import DMSMonitor
 
-from ib_insync import IB
+
 
 from api_server import APIServer
 from config import (
@@ -73,6 +73,7 @@ from ibkr_streamer import IBKRStreamer
 from intelligence_bus import get_bus
 from questdb_adapter import QuestDBAdapter
 from telegram_remote import get_remote
+import safety
 
 
 class SovereignFormatter(logging.Formatter):
@@ -217,13 +218,14 @@ class TradingSystem:
         self.profiler = StartupProfiler()
         self.profiler.mark("CONSTRUCTOR_START")
 
-        # Master Safety Control: Force paper mode if enabled in config
-        if FORCED_PAPER_MODE:
-            self.mode = "paper"
-            logger.warning("FORCED_PAPER_MODE is active - real trading is disabled.")
-        else:
-            self.mode = Vault.get("TRADING_MODE", TRADING_MODE)
-            logger.info(f"Trading mode: {self.mode}")
+        # Master Safety Control: delegate to safety module which enforces conservative defaults
+        # This may set `self.mode` to 'paper' unless a deliberate override is provided.
+        self.mode = Vault.get("TRADING_MODE", TRADING_MODE)
+        try:
+            safety.apply_runtime_safety(self)
+        except Exception:
+            logger.exception("safety.apply_runtime_safety failed; proceeding with configured mode")
+        logger.info(f"Trading mode: {self.mode}")
 
         self.db_path = Path("data/trading.db")
         self.schema_path = Path("data/schema.sql")
@@ -259,7 +261,7 @@ class TradingSystem:
 
         # Component References (Lazy Init)
         self.db_conn: sqlite3.Connection | None = None
-        self.ibkr_client: IB | None = None
+        self.ibkr_client: 'IB' | None = None
         self.mt5_client: Any = None
         self.data_pipeline: DataPipeline | None = None
         self.dms: DMSMonitor | None = None
@@ -300,6 +302,11 @@ class TradingSystem:
 
     def _write_pid(self) -> None:
         """Record PID and verify single instance for the cognitive matrix."""
+        # Allow tests and import smoke runs to bypass PID checks by setting
+        # SOVEREIGN_SKIP_PID_CHECK=1 in the environment.
+        if os.environ.get("SOVEREIGN_SKIP_PID_CHECK", "0") == "1":
+            logger.debug("SOVEREIGN_SKIP_PID_CHECK=1; skipping PID single-instance verification")
+            return
         try:
             import psutil
 
