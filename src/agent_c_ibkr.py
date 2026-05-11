@@ -72,7 +72,6 @@ class IBKRConnection:
         # Financial Advisor (FA) support
         self.managed_accounts: Any = []
         self.current_account_id = None
-        self._lock = asyncio.Lock()  # PILLAR 3: Concurrency Safety for Parallel Vetting
         self._qualified_contracts: dict[str, Any] = {}
         self._warm_slots: dict[str, Any] = {}  # Hyper-Sovereign Warm Path
         self._exec_secret = (
