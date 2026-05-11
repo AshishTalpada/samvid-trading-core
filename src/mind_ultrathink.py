@@ -40,10 +40,9 @@ class MindUltrathink:
         steps = 60
         dt = 1.0 / steps
 
-        # Vectorized Monte Carlo Path Generation
-        # dS = mu*S*dt + sigma*S*dW
-        np.random.seed(int(time.time()))
-        Z = np.random.standard_normal((self.simulation_depth, steps))
+        # Use a localized generator to prevent seeding collisions with other agents
+        rng = np.random.default_rng(int(time.time_ns() % 2**32))
+        Z = rng.standard_normal((self.simulation_depth, steps))
 
         paths = np.zeros((self.simulation_depth, steps + 1))
         paths[:, 0] = current_price
@@ -99,8 +98,14 @@ class MindUltrathink:
 
     async def evaluate_proposal(self, global_ctx: Dict[str, Any]) -> Dict[str, Any]:
         """Evaluates a system-wide evolution proposal."""
-        logger.info("[ULTRATHINK] Evaluating evolution proposal...")
-        return {"approved": True, "confidence": 0.85}
+        vix = global_ctx.get("vix", 20.0)
+        # Ultrathink Veto: Never approve risky evolutions during high-volatility regimes
+        if vix > 30.0:
+            logger.warning("[ULTRATHINK] Evolution proposal REJECTED due to extreme volatility (VIX > 30).")
+            return {"approved": False, "confidence": 0.0, "reason": "High-Volatility Regime Veto"}
+
+        logger.info("[ULTRATHINK] Evaluating evolution proposal: Logic Nominal.")
+        return {"approved": True, "confidence": 0.85, "reason": "System within safety parameters"}
 
 class LatencyWatchdog:
     """A context manager to monitor and log latency of code blocks."""
@@ -110,11 +115,11 @@ class LatencyWatchdog:
         self.start_time = 0.0
 
     def __enter__(self):
-        self.start_time = time.time()
+        self.start_time = time.perf_counter()
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        elapsed_ms = (time.time() - self.start_time) * 1000.0
+        elapsed_ms = (time.perf_counter() - self.start_time) * 1000.0
         if elapsed_ms > self.threshold_ms:
             logger.warning(f"[LATENCY] {self.name} took {elapsed_ms:.2f}ms (Threshold: {self.threshold_ms}ms)")
         return False
