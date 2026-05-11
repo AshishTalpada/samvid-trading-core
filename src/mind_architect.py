@@ -95,10 +95,10 @@ class MindArchitect:
         """
         import ast
         import os
-        
+
         if not os.path.exists(file_path):
             return {"valid": False, "summary": "File not found"}
-            
+
         try:
             with open(file_path, "r", encoding="utf-8") as f:
                 source = f.read()

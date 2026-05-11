@@ -17,10 +17,10 @@ class SharedIntelligenceBus:
         self.context = zmq.asyncio.Context()
         self.publish_port = publish_port
         self.subscribe_port = subscribe_port
-        
+
         self.pub_socket = self.context.socket(zmq.PUB)
         self.sub_socket = self.context.socket(zmq.SUB)
-        
+
         self.queues: Dict[str, List[asyncio.Queue]] = {}
         self.running = False
         self._listen_task: Optional[asyncio.Task] = None
@@ -29,7 +29,7 @@ class SharedIntelligenceBus:
         """Starts the async listener loop."""
         self.pub_socket.bind(f"tcp://127.0.0.1:{self.publish_port}")
         self.sub_socket.connect(f"tcp://127.0.0.1:{self.subscribe_port}")
-        
+
         self.running = True
         self._listen_task = asyncio.create_task(self._listen_loop())
         logger.info(f"[BUS] Async ZeroMQ Intelligence Bus Online (Pub:{self.publish_port}, Sub:{self.subscribe_port})")
@@ -83,10 +83,10 @@ class SharedIntelligenceBus:
                 parts = message.split(" ", 1)
                 if len(parts) < 2:
                     continue
-                
+
                 topic, json_data = parts
                 data = json.loads(json_data)
-                
+
                 if topic in self.queues:
                     for q in self.queues[topic]:
                         if q.full():
@@ -111,7 +111,7 @@ class SharedIntelligenceBus:
                 await self._listen_task
             except asyncio.CancelledError:
                 pass
-        
+
         self.pub_socket.close()
         self.sub_socket.close()
         self.context.term()

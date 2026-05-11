@@ -36,10 +36,10 @@ if _src not in sys.path:
 
 import asyncio
 import asyncio.subprocess
+import gc
 import logging
 import sqlite3
 import time
-import gc
 from collections.abc import Callable, Coroutine
 from datetime import datetime, timezone
 from logging.handlers import RotatingFileHandler
@@ -2097,7 +2097,7 @@ async def main(s: TradingSystem) -> None:
             # Frequent wakeups are required on Windows to process KeyboardInterrupts
             # Increased frequency to 0.2s for higher responsiveness to Ctrl+C.
             await asyncio.sleep(0.2)
-            
+
             # --- PILLAR 40: Sub-Millisecond GC Hardening (Idle Trigger) ---
             _gc_counter += 1
             if _gc_counter >= 100: # Every 20 seconds
@@ -2233,7 +2233,7 @@ if __name__ == "__main__":
 
             if not loop.is_closed():
                 loop.close()
-            
+
             print("\n[SOVEREIGN] System Offline. All cognitive nodes disengaged.")
 
         except BaseException as fatal_shutdown_err:
