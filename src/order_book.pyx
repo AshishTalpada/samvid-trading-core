@@ -41,6 +41,19 @@ cdef class L3OrderBook:
         self.best_bid = 0.0
         self.best_ask = 999999999.0
 
+    def __dealloc__(self):
+        """Free all remaining OrderNodes in the book."""
+        cdef OrderNode* curr
+        cdef OrderNode* next_ptr
+        
+        for side, price, ptr_val in self.order_map.values():
+            curr = <OrderNode*>ptr_val
+            free(curr)
+        
+        self.order_map.clear()
+        self.price_levels_bid.clear()
+        self.price_levels_ask.clear()
+
     cpdef bint add_order(self, long long order_id, int side, double price, double quantity, long long timestamp_ns):
         '''
         Side: 0 for BID, 1 for ASK

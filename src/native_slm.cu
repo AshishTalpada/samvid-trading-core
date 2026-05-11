@@ -60,19 +60,19 @@ extern "C" void lock_vram_weights(void* ptr, size_t size) {
     mlock(ptr, size);
     
     // 2. Advise CUDA that these weights are read-only to optimize caching on L2
-#ifdef __NVCC__
+#ifdef __CUDACC__
     cudaMemAdvise(ptr, size, cudaMemAdviseSetReadMostly, 0);
 #endif
 }
 
 extern "C" void run_slm_inference(float* d_input, float* d_weights, float* d_bias, float* d_output, int in_dim, int out_dim) {
-    dim3 block; block.x = 256; block.y = 1; block.z = 1;
-    dim3 grid; grid.x = (out_dim + block.x - 1) / block.x; grid.y = 1; grid.z = 1;
+    dim3 block = {256, 1, 1};
+    dim3 grid = {(out_dim + block.x - 1) / block.x, 1, 1};
     KERNEL_LAUNCH(slm_linear_silu_kernel, grid, block, d_input, d_weights, d_bias, d_output, in_dim, out_dim);
 }
 
 extern "C" void run_slm_sampling(float* d_logits, int* d_token_id, int vocab_size) {
-    dim3 block; block.x = 1; block.y = 1; block.z = 1;
-    dim3 grid; grid.x = 1; grid.y = 1; grid.z = 1;
+    dim3 block = {1, 1, 1};
+    dim3 grid = {1, 1, 1};
     KERNEL_LAUNCH(slm_argmax_kernel, grid, block, d_logits, d_token_id, vocab_size);
 }

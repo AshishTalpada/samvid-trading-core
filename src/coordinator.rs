@@ -1,6 +1,10 @@
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::cell::UnsafeCell;
 
+extern "C" {
+    fn is_global_halt_active() -> bool;
+}
+
 const QUEUE_SIZE: usize = 1024 * 1024; // 1M events
 
 /// Wait-free, zero-copy SPSC (Single Producer, Single Consumer) Ring Buffer
@@ -24,6 +28,10 @@ impl ZeroCopyQueue {
 
     #[inline(always)]
     pub fn push(&self, data: &[u8]) -> Result<(), &str> {
+        if unsafe { is_global_halt_active() } {
+            return Err("System Halted");
+        }
+        
         let current_tail = self.tail.load(Ordering::Relaxed);
         let current_head = self.head.load(Ordering::Acquire);
         

@@ -14,7 +14,11 @@ typedef struct {
     int gate_status; // 0: Closed, 1: Open
 } PhotonicGate;
 
-extern "C" void configure_photonic_gate(PhotonicGate* gate, float target_phase_shift) {
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+void configure_photonic_gate(PhotonicGate* gate, float target_phase_shift) {
     // Physics-based calculation: Phase shift is a function of voltage and temperature
     // Refractive index change dn = k * V
     float k = 0.000145f;
@@ -34,3 +38,7 @@ extern "C" void configure_photonic_gate(PhotonicGate* gate, float target_phase_s
         printf("[PHOTONIC] Gate CLOSED. Optical isolation active.\n");
     }
 }
+
+#ifdef __cplusplus
+}
+#endif
