@@ -350,12 +350,15 @@ class TradingSystem:
         # 1. Sovereign Scent Detection (Pillar 9.99)
         self.mind_system = MindSystem(self.bridge)
         logger.info("MindSystem: Scanning for software scients and verifying environment...")
-        executable_found = await self.mind_system._tool_find_executable("ibkr")
-        if not executable_found:
-            logger.error(
-                "🛑 CRITICAL: IBKR/TWS Executable not found. Environment is NON-COMPLIANT. Stopping."
-            )
-            raise RuntimeError("Sovereign Initialization Failed: Missing Institutional Software")
+        if self.mode != "paper":
+            executable_found = await self.mind_system._tool_find_executable("ibkr")
+            if not executable_found:
+                logger.error(
+                    "🛑 CRITICAL: IBKR/TWS Executable not found. Environment is NON-COMPLIANT. Stopping."
+                )
+                raise RuntimeError("Sovereign Initialization Failed: Missing Institutional Software")
+        else:
+            logger.info("Paper mode detected — skipping IBKR executable verification.")
         self.profiler.mark("SYSTEM_SCENT_CAPTURED")
 
         # 1.1 Synchronize Clock
