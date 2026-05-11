@@ -10,8 +10,9 @@ class MindArchitect:
     experimental signals to the Ghost Environment, and tie-breakers to the Ultrathink engine.
     It actively alters the weights of sub-agents based on their historical accuracy.
     '''
-    def __init__(self, **kwargs):
+    def __init__(self, bridge: Any = None, **kwargs):
         from vault import Vault
+        self.bridge = bridge
 
         # Default reputation score of neural sub-agents (0.0 to 1.0)
         # We attempt to fetch from Vault first for dynamic tuning.
