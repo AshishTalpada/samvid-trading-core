@@ -627,6 +627,8 @@ class TradingBrain:
             db_path=_db_path, bus=bus, evolution_engine=self.recursive_evolution, dms=self.dms
         )
 
+        self.current_regime = "BULL"  # Default regime; updated via Dhatu/Classifier
+
         # --- HFT HARDENING ---
         self._qdb_circuit_broken = False
         self._qdb_last_failure_time = 0.0
