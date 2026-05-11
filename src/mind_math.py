@@ -28,16 +28,16 @@ class MindMath:
         Deterministic verification of trade geometry.
         Vetoes trades with inverted stops, zero R:R, or ATR violations.
         """
-        from decimal import Decimal, getcontext
-
-        getcontext().prec = 28
+        from decimal import Decimal, localcontext
 
         try:
-            # 1. Convert to Decimal to prevent floating point drift
-            d_entry = Decimal(str(entry_price))
-            d_stop = Decimal(str(stop_price))
-            d_target = Decimal(str(target_price))
-            d_atr = Decimal(str(atr)) if atr is not None else None
+            with localcontext() as ctx:
+                ctx.prec = 28
+                # 1. Convert to Decimal to prevent floating point drift
+                d_entry = Decimal(str(entry_price))
+                d_stop = Decimal(str(stop_price))
+                d_target = Decimal(str(target_price))
+                d_atr = Decimal(str(atr)) if atr is not None else None
 
             # 2. Directional Integrity Check
             if direction.upper() == "LONG":
