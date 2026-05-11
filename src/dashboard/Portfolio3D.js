@@ -38,6 +38,13 @@ export class Portfolio3D {
 
     updateData(positions) {
         // positions: [{symbol: 'BTC', value: 1000, pnl: 0.05}, ...]
+        const currentSymbols = new Set(positions.map(p => p.symbol));
+        Object.keys(this.bars).forEach(symbol => {
+            if (!currentSymbols.has(symbol)) {
+                this.scene.remove(this.bars[symbol]);
+                delete this.bars[symbol];
+            }
+        });
         positions.forEach((pos, index) => {
             if (!this.bars[pos.symbol]) {
                 const geometry = new THREE.BoxGeometry(1, 1, 1);
