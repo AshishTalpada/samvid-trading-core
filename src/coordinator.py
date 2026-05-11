@@ -74,8 +74,11 @@ class TradingCoordinator:
             balance = await self.brain.get_safe_buying_power("ibkr")
             from config import USD_CAD_RATE
 
-            # Necessary for accurate sizing when trading US assets on a CAD-denominated account.
-            balance_usd = (balance or 500.0) / USD_CAD_RATE
+            if balance is None or balance <= 0:
+                logger.warning(f"Coordinator [{symbol}] 🛑 CAPITAL VETO: Insufficient or unavailable buying power.")
+                return False
+
+            balance_usd = balance / USD_CAD_RATE
 
             risk_amt = abs(pattern.entry - pattern.stop)
             reward_amt = abs(pattern.target - pattern.entry)
