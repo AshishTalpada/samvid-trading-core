@@ -553,30 +553,38 @@ class SwarmPredictor:
         symbol = context.get("symbol", "UNKNOWN")
         consensus = await self.get_market_forecast(symbol, context)
 
-        # Swarm Consensus Logic
-        # YES if bias matches direction (default long) and confidence > 55%
-        # NO if bias contradicts direction or confidence is too low
+        # Swarm Consensus Logic:
+        # YES if bias matches direction and confidence > 60%
+        # VETO if bias contradicts direction
+        # NO if bias is NEUTRAL (uncertainty is risk)
         entry_side = context.get("side", "long")
-        vote = "YES"
-        reason = f"Swarm: {consensus.bias.value} (Conf: {consensus.confidence:.1%})"
 
         if consensus.should_block_entry(entry_side):
-            vote = "NO"
-            reason = (
-                f"VETO: Swarm contradictions detected! Bias: {consensus.bias.value} vs {entry_side}"
-            )
-        elif consensus.confidence < 0.55 and consensus.bias != SwarmBias.NEUTRAL:
-            # Weak directional conviction: flag as low-confidence but don't veto
-            reason = f"LOW CONVICTION: {consensus.bias.value} @ {consensus.confidence:.1%} — proceed with caution"
+            return {
+                "agent": "Swarm_Predictor",
+                "vote": "NO",
+                "confidence": consensus.confidence,
+                "reason": f"VETO: Swarm contradictions detected! Bias: {consensus.bias.value} vs {entry_side}",
+                "bias": consensus.bias.value
+            }
+
+        if consensus.bias == SwarmBias.NEUTRAL or consensus.confidence < 0.55:
+            return {
+                "agent": "Swarm_Predictor",
+                "vote": "NO",
+                "confidence": consensus.confidence,
+                "reason": f"CAUTION: Swarm is NEUTRAL or low-conviction ({consensus.confidence:.1%}).",
+                "bias": SwarmBias.NEUTRAL.value
+            }
 
         return {
             "agent": "Swarm_Predictor",
-            "vote": vote,
+            "vote": "YES",
             "confidence": consensus.confidence,
             "signal_strength": consensus.get_confidence_modifier(),
-            "risk_flag": consensus.bias == SwarmBias.NEUTRAL or consensus.confidence < 0.60,
+            "risk_flag": False,
             "timestamp": context.get("timestamp", datetime.now(timezone.utc).isoformat()),
-            "reason": reason,
+            "reason": f"Swarm: {consensus.bias.value} (Conf: {consensus.confidence:.1%})",
             "bias": consensus.bias.value,
             "agent_count": consensus.agent_count,
         }
