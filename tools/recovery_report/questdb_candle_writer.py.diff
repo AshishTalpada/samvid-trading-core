@@ -1,0 +1,11 @@
+--- LOCAL/questdb_candle_writer.py
++++ D-DRIVE/questdb_candle_writer.py
+@@ -96,7 +96,7 @@
+     # ── bus wiring ────────────────────────────────────────────────────────────
+ 
+     async def start(self, bus: "SharedIntelligenceBus") -> None:
+-        bus.on("tick.batch", self._on_batch)
++        bus.subscribe("tick.batch", self._on_batch)
+         logger.info(f"CandleWriter: Active | timeframes={self._timeframes}")
+ 
+     async def _on_batch(self, data: dict) -> None:

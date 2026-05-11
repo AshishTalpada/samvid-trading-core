@@ -1,0 +1,27 @@
+--- LOCAL/mind_macros.py
++++ D-DRIVE/mind_macros.py
+@@ -4,6 +4,7 @@
+ logger = logging.getLogger(__name__)
+ 
+ # These are 'Hardcoded System Truths' that even the Masters Mind cannot bypass.
++# Inspired by src/shims/macro.ts and path hijacking protection.
+ 
+ 
+ class MindMacros:
+@@ -29,7 +30,6 @@
+         "sovereign_flush",
+         "get_account_status",
+         "get_open_positions",
+-        "run_system_command",
+     }
+ 
+     # These tools require a secondary 'justification' and 'DoubleHandshake' logic.
+@@ -46,7 +46,7 @@
+         """Verifies if a tool invocation is within the certified safety envelope."""
+         if tool_name not in MindMacros.CERTIFIED_TOOLS:
+             logger.error(
+-                f"SECURITY BREACH: Mind attempted to call UNCERTIFIED tool '{tool_name}' — BLOCKED."
++                f"SECURITY BREACH: Mind attempted to call SIGNED tool '{tool_name}' — BLOCKED."
+             )
+             return False
+         return True

@@ -1,0 +1,20 @@
+--- LOCAL/risk_invariants.py
++++ D-DRIVE/risk_invariants.py
+@@ -1,7 +1,7 @@
+ import logging
+ from collections import deque
+ from dataclasses import dataclass
+-from datetime import datetime, timedelta, timezone
++from datetime import datetime, timedelta
+ 
+ logger = logging.getLogger(__name__)
+ 
+@@ -21,7 +21,7 @@
+ 
+     def can_submit(self) -> bool:
+         """Return True if an order may be submitted, False if throttled."""
+-        now = datetime.now(timezone.utc)
++        now = datetime.utcnow()
+         # Evict timestamps outside the sliding window
+         while self._timestamps and (now - self._timestamps[0]) > self._window:
+             self._timestamps.popleft()

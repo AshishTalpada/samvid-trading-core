@@ -1,0 +1,24 @@
+--- LOCAL/memdir.py
++++ D-DRIVE/memdir.py
+@@ -1,6 +1,5 @@
+ import logging
+ import os
+-from pathlib import Path
+ 
+ from config import PROJECT_PATH
+ 
+@@ -9,11 +8,12 @@
+ 
+ class MemoryManager:
+     """
++    Inspired by Claude-Code's 'memdir' and 'CLAUDE.md' patterns.
+     Provides persistent 'Trading Directives' and 'Session Memory' for the Twin-Minds.
+     """
+ 
+-    def __init__(self, root_path: str | Path = PROJECT_PATH) -> None:
+-        self.root_path = str(root_path)
++    def __init__(self, root_path: str = PROJECT_PATH) -> None:
++        self.root_path = root_path
+         self.prime_directive_path = os.path.join(root_path, "TRADING.md")
+         self.session_memory_path = os.path.join(root_path, ".trading.md")
+ 

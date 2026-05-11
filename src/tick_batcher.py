@@ -154,7 +154,7 @@ class TickBatcher:
             total = sum(b.count for b in snapshot.values())
             logger.debug(f"TickBatcher: flushed {len(snapshot)} symbols | {total} ticks/min")
 
-    async def run(self, bus: Any = None) -> None:
+    async def run(self, bus: "SharedIntelligenceBus | None" = None) -> None:
         """
         Main flush loop. Run as a background asyncio task.
         Stops cleanly when the task is cancelled.
