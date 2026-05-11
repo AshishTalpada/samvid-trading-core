@@ -16,19 +16,26 @@ class VWAP:
 
     def update(self, price: float, volume: float) -> float | None:
         if volume <= 0:
-            return None
-        self._cum_pv += price * volume
-        self._cum_v += volume
+            return self.value
+
+        # Optimization: use local variables for hot-path arithmetic
+        new_v = self._cum_v + volume
+        new_pv = self._cum_pv + (price * volume)
+
+        self._cum_pv = new_pv
+        self._cum_v = new_v
+
         if self._cum_v > 0:
             self.initialized = True
-            return self._cum_pv / self._cum_v
+            self._cached_value = self._cum_pv / self._cum_v
+            return self._cached_value
         return None
 
     @property
     def value(self) -> float | None:
-        if not self.initialized or self._cum_v == 0:
+        if not self.initialized:
             return None
-        return self._cum_pv / self._cum_v
+        return getattr(self, "_cached_value", None)
 
     def reset(self) -> None:
         """Call at market open each day."""
