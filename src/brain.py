@@ -796,8 +796,10 @@ class TradingBrain:
 
         # Check if we have a persisted state to recover from after a crash
         # Dispatched as a background task to prevent blocking the boot dashboard
-        asyncio.create_task(self._thaw_session_async())
-
+        self._bg_tasks = set()
+        task = asyncio.create_task(self._thaw_session_async())
+        self._bg_tasks.add(task)
+        task.add_done_callback(self._bg_tasks.discard)
     async def _thaw_session_async(self) -> None:
         """Restores the brain's state via background thread to prevent startup hangs."""
         try:
@@ -3379,9 +3381,13 @@ class TradingBrain:
                     "session_stats": self.session_stats,
                 }
                 # Use to_thread to avoid blocking the event loop on Windows file I/O
-                asyncio.create_task(
+                task = asyncio.create_task(
                     asyncio.to_thread(self.session_restorer.freeze_state, state_to_freeze)
                 )
+                if not hasattr(self, "_bg_tasks"):
+                    self._bg_tasks = set()
+                self._bg_tasks.add(task)
+                task.add_done_callback(self._bg_tasks.discard)
 
         mt5_equity = await self._get_account_value("mt5")
         self.prop_drawdown.update(mt5_equity)
