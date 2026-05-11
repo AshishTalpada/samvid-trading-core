@@ -1,6 +1,5 @@
-use ed25519_dalek::{Keypair, Signer, Verifier, Signature, PublicKey, SecretKey};
+use ed25519_dalek::{SigningKey, Signer, Verifier, Signature};
 use std::env;
-use std::sync::Arc;
 use tokio::sync::Mutex;
 use sha2::{Sha512, Digest};
 
@@ -8,7 +7,7 @@ use sha2::{Sha512, Digest};
 /// Guarantees that every outbound order payload is cryptographically authenticated
 /// using an air-gapped or securely provisioned Ed25519 keypair before hitting the exchange.
 pub struct SignedBus {
-    keypair: Keypair,
+    keypair: SigningKey,
     sequence_id: Mutex<u64>,
 }
 
@@ -35,9 +34,7 @@ impl SignedBus {
             }
         };
 
-        let secret = SecretKey::from_bytes(&seed_bytes).expect("Invalid ED25519 secret seed");
-        let public: PublicKey = (&secret).into();
-        let keypair = Keypair { secret, public };
+        let keypair = SigningKey::from_bytes(&seed_bytes);
 
         SignedBus {
             keypair,
@@ -66,17 +63,18 @@ impl SignedBus {
             return false;
         }
 
-        let signature = match Signature::from_bytes(signature_bytes) {
-            Ok(sig) => sig,
+        let array: [u8; 64] = match signature_bytes.try_into() {
+            Ok(arr) => arr,
             Err(_) => return false,
         };
+        let signature = Signature::from_bytes(&array);
 
-        self.keypair.public.verify(payload, &signature).is_ok()
+        self.keypair.verifying_key().verify(payload, &signature).is_ok()
     }
 
     /// Gets the public key hex for registration with the exchange/broker API
     pub fn get_public_key_hex(&self) -> String {
-        hex::encode(self.keypair.public.as_bytes())
+        hex::encode(self.keypair.verifying_key().to_bytes())
     }
 }
 

@@ -1,23 +1,37 @@
 import asyncio
+import copy
 import logging
 from typing import Any
+
+import numpy as np
 
 from mind_bridge import MindBridge
 
 logger = logging.getLogger(__name__)
 
 
+# Global mt5_raw reference (placeholder for actual MT5 terminal object)
+mt5_raw: Any = None 
+
 class MindExperiment:
     """
     Agent E: The Experiment Mind (A/B Gating).
     Inspired by Claude-Code's 'GrowthBook' and 'A/B Testing' logic.
     Runs 'Shadow Experiments' to find the optimal trading parameters.
+    Also handles Autonomous Neuro-Evolution.
     """
 
     def __init__(self, bridge: MindBridge) -> None:
         self.bridge = bridge
         self.is_running = False
         self.active_experiments: dict[str, Any] = {}
+        self.mt5: Any = mt5_raw
+
+        # Evolution specific attributes
+        self.pop_size = 20
+        self.mutation_rate = 0.15
+        self.population: Any = []
+        self.generation = 1
 
         # Register Experimenting Tools
         self.bridge.register_tool("run_shadow_test", self._tool_run_shadow_test)
@@ -27,7 +41,7 @@ class MindExperiment:
     async def start(self) -> None:
         """Launch the Experiment Mind."""
         self.is_running = True
-        logger.info("MindExperiment (Agent E): A/B Gating engine active.")
+        logger.info("MindExperiment (Agent E): A/B Gating and Evolution engine active.")
         asyncio.create_task(self._monitor_shadow_tests())
 
     async def _monitor_shadow_tests(self) -> None:
@@ -125,26 +139,8 @@ class MindExperiment:
             f"MindExperiment: GATING PASSED. Enabling feature {feature_name} in production."
         )
         return {"success": True, "evidence_verified": True}
-# ── LOCAL-ONLY MODULE CONSTANTS ─────────────────────────────────────────
-MindExperiment = EvolutionaryNeuroExperiment
 
-# ── LOCAL-ONLY SOVEREIGN EXTENSIONS ─────────────────────────────────────
-
-
-class EvolutionaryNeuroExperiment:
-    '''
-    Autonomous Neuro-Evolution Engine.
-    When Sovereign detects alpha decay in a specific neural agent, this module
-    spawns N mutated clones of the failing agent, tweaks their hyperparameters
-    (simulated via genetic algorithms), and runs them in a shadow (paper) environment
-    to "breed" a stronger, adapted successor model.
-    '''
-    def __init__(self, bridge: Any = None, population_size: int = 20, mutation_rate: float = 0.15, **kwargs):
-        self.bridge = bridge
-        self.pop_size = population_size
-        self.mutation_rate = mutation_rate
-        self.population: Any = []
-        self.generation = 1
+    # --- EVOLUTION LOGIC ---
 
     def init_population(self, base_weights: np.ndarray):
         '''Creates the initial mutated swarm of clones.'''
@@ -235,4 +231,5 @@ class EvolutionaryNeuroExperiment:
         """Initializes the evolutionary neuro-experiment suite."""
         logger.info("MindExperiment: Evolutionary simulation environment online.")
 
-MindExperiment = EvolutionaryNeuroExperiment
+# Aliases for Sovereign Compatibility
+EvolutionaryNeuroExperiment = MindExperiment

@@ -1,5 +1,4 @@
-use rand::Rng;
-use rand_distr::{Poisson, Distribution, Laplace};
+use rand_distr::{Poisson, Normal, Distribution};
 use log::info;
 
 /// High-Performance Rust Stealth Slicer
@@ -22,8 +21,8 @@ impl RustStealthSlicer {
         let poi = Poisson::new(self.base_delay_ms as f64).unwrap();
         let base = poi.sample(&mut rng) as f64;
         
-        let lap = Laplace::new(0.0, self.noise_scale).unwrap();
-        let noise = lap.sample(&mut rng);
+        let normal = Normal::new(0.0, self.noise_scale).unwrap();
+        let noise = normal.sample(&mut rng);
         
         let final_delay = (base + noise).max(5.0) as u64;
         info!("[SLICER-RS] Generated stealth interval: {}ms", final_delay);
