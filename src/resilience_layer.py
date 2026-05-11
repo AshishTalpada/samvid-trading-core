@@ -165,7 +165,9 @@ class ApexExoskeleton:
             return None
 
         cache = self._cortex_cache[symbol]
-        price_delta = abs(current_price - cache["price"]) / cache["price"]
+        # Prevent ZeroDivisionError in the Cortex Bypass
+        denom = cache["price"] if cache["price"] > 0 else 1.0
+        price_delta = abs(current_price - cache["price"]) / denom
         age = (datetime.now() - cache["timestamp"]).total_seconds()
 
         if price_delta < 0.0005 and age < 60:
