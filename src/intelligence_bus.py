@@ -467,8 +467,8 @@ class SharedIntelligenceBus:
                 except Exception as e:
                     logger.warning(f"BUS: Relay serialization error: {e}")
                     continue
-        except Exception:
-            pass
+        except Exception as _relay_err:
+            logger.debug(f"BUS: Relay loop ended with error (non-critical): {_relay_err}")
         finally:
             if q in self._relay_queues:
                 self._relay_queues.remove(q)

@@ -654,8 +654,8 @@ class TVNewsScent:
                     pass
 
                 ptr = end_json
-        except Exception:
-            pass
+        except Exception as _dh_err:
+            logger.debug(f"DhatuOracle: JSON parse error in stream (non-critical): {_dh_err}")
         return results
 
     async def run(self) -> None:

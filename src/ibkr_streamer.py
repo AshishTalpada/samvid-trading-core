@@ -286,8 +286,8 @@ class IBKRStreamer:
                     now_ns = int(datetime.now(timezone.utc).timestamp() * 1e9)
                     line = f"ticks,symbol={safe_symbol} price={target_price},size={last_size or 0} {now_ns}\n"
                     self._qdb_writer.write(line.encode())
-                except Exception:
-                    pass
+                except Exception as _qdb_err:
+                    logger.debug(f"IBKRStreamer: QuestDB write skipped: {_qdb_err}")
 
             if self.bus is not None:
                 try:
@@ -377,7 +377,7 @@ class IBKRStreamer:
                 try:
                     self.ib.pendingTickersEvent.disconnect(self.on_tick)
                 except Exception:
-                    pass
+                    pass  # Expected if not previously connected
                 self.ib.pendingTickersEvent.connect(self.on_tick)
                 self._last_tick_time = datetime.now(timezone.utc)
                 logger.info("IBKRStreamer: Event listeners active.")
@@ -431,13 +431,13 @@ class IBKRStreamer:
                 try:
                     self.ib.pendingTickersEvent.disconnect(self.on_tick)
                 except Exception:
-                    pass
+                    pass  # Expected if not connected
                 if self.ib.isConnected():
                     logger.info("IBKRStreamer: Cleaning up IBKR connection...")
                     try:
                         await asyncio.to_thread(self.ib.disconnect)
-                    except Exception:
-                        pass
+                    except Exception as _disc_err:
+                        logger.debug(f"IBKRStreamer: Non-critical disconnect error: {_disc_err}")
 
     async def stop(self) -> None:
         """Stop the streamer."""

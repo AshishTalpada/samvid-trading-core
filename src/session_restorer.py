@@ -332,8 +332,8 @@ class SessionRestorer:
                                 f"⏳ Reconciler: Skipping Ghost Veto for {symbol} (Age < 60s, potential race)."
                             )
                             continue
-                    except Exception:
-                        pass
+                    except Exception as _ghost_err:
+                        logger.debug(f"Reconciler: Ghost age check error (non-critical): {_ghost_err}")
 
                     logger.info(
                         f"👻 Reconciler: GHOST DETECTED [{symbol}]. Closing record (Terminal discrepancy)."
@@ -348,5 +348,4 @@ class SessionRestorer:
 
         except Exception as e:
             logger.error(f"Reconciler: Recovery Loop Failed: {e}")
-            return []
             return []
