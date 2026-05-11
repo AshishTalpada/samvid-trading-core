@@ -43,13 +43,14 @@ class AlphaDecayWatchdog:
             return
 
         # Check for structural decay
-        if self.baseline_sharpe > 0:
+        if self.baseline_sharpe > 0.1:
             decay_pct = (self.baseline_sharpe - current_sharpe) / self.baseline_sharpe
-
-            # If the strategy has lost 40% of its predictive power relative to history, it's decaying
             if decay_pct > 0.40 and current_sharpe < 1.0:
                 logger.critical(f"[WATCHDOG] SEVERE ALPHA DECAY DETECTED! Sharpe dropped from {self.baseline_sharpe:.2f} to {current_sharpe:.2f}.")
                 self._quarantine_strategy()
+        elif self.baseline_sharpe <= 0.1 and current_sharpe < -2.0:
+            logger.critical(f"[WATCHDOG] STRATEGY COLLAPSE! Sharpe collapsed to {current_sharpe:.2f}.")
+            self._quarantine_strategy()
 
     def _quarantine_strategy(self):
         self.is_quarantined = True

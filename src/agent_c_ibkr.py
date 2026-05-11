@@ -830,9 +830,15 @@ class IBKRConnection:
 
                 # --- HYPER-SOVEREIGN BREAKTHROUGH: WARM-PATH MODIFICATION ---
                 # Attempt to modify an existing dormant order for sub-ms priority
-                warm_id = await self._execute_via_warm_slot(symbol, direction, shares, limit_price)
-                if warm_id:
-                    return warm_id
+                warm_trade = await self._execute_via_warm_slot(symbol, direction, shares, limit_price)
+                if warm_trade:
+                    # Register audit watchdog even for warm slots
+                    if not hasattr(self, "_bg_tasks"):
+                        self._bg_tasks = set()
+                    task = asyncio.create_task(self._audit_execution(warm_trade, symbol, shares))
+                    self._bg_tasks.add(task)
+                    task.add_done_callback(self._bg_tasks.discard)
+                    return warm_trade.order.orderId
 
                 from config import IBKR_ACCOUNT_ID
 
@@ -925,7 +931,7 @@ class IBKRConnection:
 
     async def _execute_via_warm_slot(
         self, symbol: str, direction: str, shares: int, price: float
-    ) -> int | None:
+    ) -> Any | None:
         """Executes a trade by MODIFYING an existing dormant order (The Hyper-Sovereign Leap)."""
         if symbol not in self._warm_slots:
             return None
@@ -948,7 +954,7 @@ class IBKRConnection:
 
         # Remove from warm-slots so a new one can be pre-loaded
         del self._warm_slots[symbol]
-        return trade.order.orderId  # type: ignore
+        return trade
 
     async def _audit_execution(self, trade: Any, symbol: str, shares: int) -> None:
         """
@@ -1093,10 +1099,9 @@ class PositionSizingChain:
         stop = kwargs.get("stop_price", price * 0.99)
         spread = kwargs.get("spread", 0.0)
 
-        # Real risk per share must include the spread we cross to enter.
-        # For long: Entry is ASK, Stop is BID. Diff = (Ask - Bid) + (Bid - Stop) = Ask - Stop.
-        # But we also factor in a 'Slippage Buffer' (0.5 ticks) for fast markets.
-        risk_per_share = abs(price - stop) + (spread)
+        # Real risk per share: Entry (Price) - Stop.
+        # If Price is Ask and Stop is Bid, the spread is already included in the difference.
+        risk_per_share = abs(price - stop)
 
         # REAL R:R (Friction-Aware)
         target = kwargs.get("target_price", price * 1.01)

@@ -51,6 +51,7 @@ class DeadLetterQueue:
         price: float,
         reason: str = "",
         task_id: str = "",
+        attempt: int = 0,
     ) -> None:
         """Add a failed order to the retry queue."""
         order = FailedOrder(
@@ -60,6 +61,7 @@ class DeadLetterQueue:
             price=price,
             reason=reason,
             task_id=task_id,
+            attempt=attempt,
             max_attempts=self._max_attempts,
         )
         try:
@@ -74,15 +76,12 @@ class DeadLetterQueue:
 
     async def run(self, retry_fn: Callable) -> None:
         """
-        Background worker. retry_fn should match signature:
-            async def retry_fn(symbol, direction, shares, price) -> bool
-        Returns True on success, False on failure.
+        Background worker. Handles concurrent retries to prevent Head-of-Line blocking.
         """
-        logger.info("DLQ: Retry worker started.")
-        while True:
-            order = await self._queue.get()
+        logger.info("DLQ: Concurrent retry worker started.")
+        
+        async def _process_retry(order: FailedOrder):
             order.attempt += 1
-
             # Exponential back-off: 1s, 2s, 4s
             delay = 2 ** (order.attempt - 1)
             await asyncio.sleep(delay)
@@ -103,13 +102,18 @@ class DeadLetterQueue:
                 self._escalate(order, f"Max retries ({order.max_attempts}) exhausted.")
             else:
                 # Re-queue for another attempt
-                await self._queue.put(order)
-                logger.warning(
-                    f"DLQ: Retry #{order.attempt} failed for {order.symbol}. "
-                    f"Re-queuing (attempt {order.attempt + 1}/{order.max_attempts})."
+                self.enqueue(
+                    order.symbol, order.direction, order.shares, order.price, 
+                    reason=f"Retry {order.attempt} failed", task_id=order.task_id,
+                    attempt=order.attempt
                 )
-
+            
             self._queue.task_done()
+
+        while True:
+            order = await self._queue.get()
+            # Spawn a concurrent task for this specific order retry
+            asyncio.create_task(_process_retry(order))
 
     def _escalate(self, order: FailedOrder, reason: str) -> None:
         """Final escalation: halt trading and log critical alert."""
