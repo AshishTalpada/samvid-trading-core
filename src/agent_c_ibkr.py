@@ -61,7 +61,7 @@ class IBKRConnection:
         Handles Fault-Tolerant Broker Handshakes and FA-Routing.
     """
 
-    def __init__(self, ib_client=None) -> None:
+    def __init__(self, ib_client=None, bridge: Any = None) -> None:
         self.ib = ib_client if ib_client is not None else IB()
         self._last_heartbeat = datetime.now()
         self._last_trade_time = datetime.fromtimestamp(0)  # 15-Minute Discipline Lock
@@ -78,9 +78,12 @@ class IBKRConnection:
             Vault.get("EXEC_SECRET", "SETO_SOVEREIGN_EXEC_V22") or "SETO_SOVEREIGN_EXEC_V22"
         )
         self.brain: Any = None
+        self.bus: Any = bridge  # Correctly bind the bridge/bus for alerts
         self._setup_callbacks()
 
         self._recovered_orders: set[int] = set()
+        self.db_path = os.path.join("data", "trading.db")
+        os.makedirs("data", exist_ok=True)
 
     def generate_exec_token(self, symbol: str) -> str:
         """Generate a time-limited HMAC token for order authorization."""
@@ -225,7 +228,7 @@ class IBKRConnection:
 
     def _on_disconnect(self) -> None:
         logger.warning("IBKR: Matrix Connection Severed. Initiating Recovery...")
-        if hasattr(self, "bus") and self.bus:
+        if self.bus:
             try:
                 self.bus.publish_sync(
                     "system.alert",
@@ -235,8 +238,8 @@ class IBKRConnection:
                         "message": "IBKR Connection Severed. Please check TWS/Gateway login.",
                     },
                 )
-            except Exception:
-                pass
+            except Exception as e:
+                logger.error(f"IBKR: Failed to publish disconnect alert: {e}")
 
     def _on_position(self, pos) -> None:
         self._positions_cache[pos.contract.symbol] = pos.position
@@ -253,13 +256,9 @@ class IBKRConnection:
             if not hasattr(self, "_order_persistence"):
                 self._order_persistence = {}
 
-            # Bug 31 FIX: Persistent Order Tracking (SQLite Bridge)
             def _persist_order_status():
                 try:
-                    db_path = os.path.join("data", "trading.db")
-                    if not os.path.exists("data"):
-                        os.makedirs("data")
-                    conn = sqlite3.connect(db_path, timeout=60.0)
+                    conn = sqlite3.connect(self.db_path, timeout=60.0)
                     conn.execute("PRAGMA journal_mode=WAL;")
                     conn.execute("PRAGMA busy_timeout = 60000;")
                     conn.execute(
@@ -273,7 +272,7 @@ class IBKRConnection:
                             status,
                             trade.orderStatus.filled,
                             trade.orderStatus.remaining,
-                            datetime.now().isoformat(),
+                            datetime.now(pytz.UTC).isoformat(),
                         ),
                     )
                     conn.commit()
@@ -281,8 +280,7 @@ class IBKRConnection:
                 except Exception as e:
                     logger.error(f"🚨 ORDER PERSISTENCE FAILURE: {e}")
 
-            import asyncio as _asyncio
-            _asyncio.get_event_loop().run_in_executor(None, _persist_order_status)
+            asyncio.get_event_loop().run_in_executor(None, _persist_order_status)
 
             self._order_persistence[trade.order.orderId] = {
                 "symbol": symbol,
@@ -306,16 +304,10 @@ class IBKRConnection:
 
                 # Autonomous Post-Mortem (Zero-Sync background write)
                 reason = str(trade.log[-1].message) if trade.log else "UNKNOWN REASON"
-
                 def _write_post_mortem():
                     try:
-                        import os
                         import sqlite3
-
-                        db_path = os.path.join("data", "trading.db")
-                        if not os.path.exists("data"):
-                            os.makedirs("data")
-                        conn = sqlite3.connect(db_path, timeout=60.0)
+                        conn = sqlite3.connect(self.db_path, timeout=60.0)
                         conn.execute("PRAGMA journal_mode=WAL;")
                         conn.execute("PRAGMA busy_timeout = 60000;")
                         conn.execute(
@@ -324,7 +316,7 @@ class IBKRConnection:
                         conn.execute(
                             "INSERT INTO failure_post_mortem (timestamp, symbol, action, status, reason) VALUES (?, ?, ?, ?, ?)",
                             (
-                                datetime.now().isoformat(),
+                                datetime.now(pytz.UTC).isoformat(),
                                 symbol,
                                 trade.order.action,
                                 status,
