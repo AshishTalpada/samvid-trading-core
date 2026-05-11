@@ -77,22 +77,33 @@ class MindEvolution:
             t.add_done_callback(self._background_tasks.discard)
 
     async def _autonomous_heuristic_refinement(self) -> None:
-        """Audits the system configuration against discovered wisdom and performance."""
+        """Audits the system configuration against discovered wisdom and REAL performance."""
+        from decision_ledger import LEDGER
+
         while self.is_running:
             try:
-                # Optimized: No need to open a connection if we aren't querying trades yet
+                # 1. Fetch real-world performance metrics from the Ledger
+                stats = LEDGER.summary_stats()
+                win_rate = (
+                    stats["wins"] / (stats["wins"] + stats["losses"])
+                    if (stats["wins"] + stats["losses"]) > 0
+                    else 0.5
+                )
 
+                # 2. Audit against Strategic Wisdom
                 wisdom_path = os.path.join(PROJECT_PATH, "data", "wisdom.json")
                 if os.path.exists(wisdom_path):
                     with open(wisdom_path, "r") as f:
                         wisdom = json.load(f)
 
-                    if wisdom.get("entropy_state") == "HIGH ENTROPY":
+                    # Trigger EVOLUTION if performance is lagging OR entropy is high
+                    if wisdom.get("entropy_state") == "HIGH ENTROPY" or win_rate < 0.45:
                         logger.warning(
-                            "🚨 [Evolution]: High System Entropy detected. Tightening Catalysts."
+                            f"🚨 [Evolution]: Strategic Lag Detected (WR: {win_rate:.2%}). Tightening DNA."
                         )
                         await self._tool_evolve_strategy(
-                            "config_tightening", {"expected_profit_factor": 2.5}
+                            "performance_tightening",
+                            {"expected_profit_factor": 2.5, "min_win_rate": 0.55},
                         )
 
                 await asyncio.sleep(3600 * 4)  # Audit every 4 hours
