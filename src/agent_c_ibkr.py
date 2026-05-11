@@ -415,7 +415,11 @@ class IBKRConnection:
             return False
 
         if self.is_connected and not self._recovered_orders:
-            asyncio.create_task(self.recover_orphaned_orders())
+            if not hasattr(self, "_bg_tasks"):
+                self._bg_tasks = set()
+            task = asyncio.create_task(self.recover_orphaned_orders())
+            self._bg_tasks.add(task)
+            task.add_done_callback(self._bg_tasks.discard)
 
         return True
 
@@ -883,7 +887,12 @@ class IBKRConnection:
                     trade = self.ib.placeOrder(contract, o)
                     if i == 0:
                         primary_id = trade.order.orderId
-                        asyncio.create_task(self._audit_execution(trade, symbol, shares))
+            # Prevent premature GC
+            if not hasattr(self, "_bg_tasks"):
+                self._bg_tasks = set()
+            task = asyncio.create_task(self._audit_execution(trade, symbol, shares))
+            self._bg_tasks.add(task)
+            task.add_done_callback(self._bg_tasks.discard)
 
                 self._last_trade_time = datetime.now()  # Update Discipline Lock
                 return primary_id
