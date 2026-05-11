@@ -3,10 +3,13 @@ import json
 import logging
 import os
 import sqlite3
+import sys
+from datetime import timezone
 from typing import Any
 
 from config import PROJECT_PATH
 from mind_bridge import MindBridge
+from time_sync import TimeSync
 
 logger = logging.getLogger(__name__)
 
@@ -27,8 +30,6 @@ class MindEvolution:
         self.db_path = os.path.join(PROJECT_PATH, "data", "trading.db")
         os.makedirs(os.path.dirname(self.db_path), exist_ok=True)
 
-        from time_sync import TimeSync
-
         self._last_peak_save = TimeSync.now().timestamp()
 
         try:
@@ -47,10 +48,7 @@ class MindEvolution:
                 self.peak_equity = float(row[0])
                 logger.info(f"MindEvolution: Restored High Water Mark: ${self.peak_equity:.2f}")
         except Exception as e:
-            import sys
-
-            print(f"CRITICAL: MindEvolution DB Recovery Failed: {e}", file=sys.stderr)
-            logger.debug(f"MindEvolution: Could not load peak_equity on startup: {e}")
+            logger.error(f"MindEvolution: Could not load peak_equity on startup: {e}")
 
         # Register Strategic Tools with the Bridge
         self.bridge.register_tool("optimize_thresholds", self._tool_optimize_thresholds)
@@ -79,13 +77,10 @@ class MindEvolution:
             t.add_done_callback(self._background_tasks.discard)
 
     async def _autonomous_heuristic_refinement(self) -> None:
-        """Audits the system configuration against discovered wisdom."""
+        """Audits the system configuration against discovered wisdom and performance."""
         while self.is_running:
             try:
-                db_path = os.path.join(PROJECT_PATH, "data", "trading.db")
-                with sqlite3.connect(db_path, timeout=60) as conn:
-                    conn.execute("PRAGMA journal_mode=WAL;")
-                    conn.execute("PRAGMA busy_timeout = 60000;")
+                # Optimized: No need to open a connection if we aren't querying trades yet
 
                 wisdom_path = os.path.join(PROJECT_PATH, "data", "wisdom.json")
                 if os.path.exists(wisdom_path):
@@ -166,8 +161,6 @@ class MindEvolution:
         return {"success": False, "error": mutation_result.get("error", "Unknown mutation error")}
 
     async def _tool_report_peak(self) -> dict[str, Any]:
-        from time_sync import TimeSync
-
         return {"peak": self.peak_equity, "at_time": TimeSync.now().isoformat()}
 
     async def _fetch_current_equity(self) -> float:
@@ -216,10 +209,13 @@ class MindEvolution:
     async def _tool_update_knowledge(self, knowledge_item: str, source: str) -> dict[str, Any]:
         """Synchronizes session-level 'Learnings' across all minds via Team Context."""
         logger.info(f"MindEvolution: Knowledge Update from '{source}': {knowledge_item[:50]}...")
-        from time_sync import TimeSync
 
         self.historical_memory.append(
             {"item": knowledge_item, "source": source, "timestamp": TimeSync.now().isoformat()}
         )
+        # Cap memory to 200 items to prevent memory leaks
+        if len(self.historical_memory) > 200:
+            self.historical_memory.pop(0)
+
         return {"status": "SYNCED", "memory_depth": len(self.historical_memory)}
 
