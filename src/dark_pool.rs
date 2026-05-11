@@ -33,6 +33,10 @@ impl DarkPoolDetector {
             self.lit_total_volume += print.volume;
         }
 
+        // True block trade condition:
+        // Single dark print > 50,000 shares
+        let is_large_block = is_dark && print.volume > 50_000;
+
         self.recent_tape.push_back(print);
         if self.recent_tape.len() > 10000 {
             if let Some(old) = self.recent_tape.pop_front() {
@@ -44,10 +48,7 @@ impl DarkPoolDetector {
             }
         }
 
-        // True block trade condition:
-        // Single dark print > 50,000 shares OR
-        // Dark pool volume in the last 10,000 prints exceeds 60% of total volume
-        if is_dark && print.volume > 50_000 {
+        if is_large_block {
             return true;
         }
         

@@ -1,7 +1,7 @@
 use std::process::{Command, Stdio};
 use std::time::{Instant, Duration};
 use std::fs::File;
-use std::io::{Read, Write};
+use std::io::Read;
 
 /// Aegis Protocol 4.0: Hardware-level Sub-second System Recovery
 pub struct AegisDaemon {
@@ -25,9 +25,7 @@ impl AegisDaemon {
             let mut buf = [0u8; 8];
             if let Ok(mut f) = File::open("/dev/shm/sovereign_heartbeat") {
                 if f.read_exact(&mut buf).is_ok() {
-                    let ts = u64::from_le_bytes(buf);
-                    // Conversion logic...
-                    self.last_heartbeat = Instant::now();
+                        let _ts = u64::from_le_bytes(buf);
                 }
             }
 

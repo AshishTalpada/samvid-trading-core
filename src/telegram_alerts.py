@@ -1,5 +1,9 @@
 import asyncio
 import logging
+import hashlib
+import random
+import time
+from typing import Optional
 
 import aiohttp
 
@@ -52,7 +56,6 @@ async def send_telegram_alert(message: str) -> None:
         logger.debug(f"Sterilization: Suppressing non-essential signal: {message[:50]}...")
         return
 
-    import hashlib
 
     msg_hash = hashlib.md5(message.encode()).hexdigest()  # nosec B324
     async with _alert_lock:
@@ -87,7 +90,6 @@ async def send_telegram_alert(message: str) -> None:
     if not token or not chat_id:
         return
 
-    import random
 
     agents = [
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
@@ -114,7 +116,7 @@ async def send_telegram_alert(message: str) -> None:
     try:
         global _shared_session
         if _shared_session is None or _shared_session.closed:
-            _shared_session = aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=10.0))
+            _shared_session = aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=30.0))
 
         session = _shared_session
         for attempt in range(max_retries):
@@ -133,9 +135,6 @@ async def send_telegram_alert(message: str) -> None:
                     await asyncio.sleep(base_delay * (attempt + 1))
     except Exception as e:
         logger.error(f"Telegram session management failed: {e}")
-# ── LOCAL-ONLY MODULE CONSTANTS ─────────────────────────────────────────
-_shared_session: Optional[aiohttp.ClientSession] = None
-
 # ── LOCAL-ONLY SOVEREIGN EXTENSIONS ─────────────────────────────────────
 
 
@@ -200,7 +199,7 @@ class SovereignTelegramBot:
         try:
             global _shared_session
             if _shared_session is None or _shared_session.closed:
-                _shared_session = aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=10.0))
+                _shared_session = aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=30.0))
             
             async with _shared_session.post(self.url, json=payload, proxy=proxy, headers=headers) as resp:
                 if resp.status == 200:

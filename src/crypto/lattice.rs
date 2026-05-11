@@ -1,5 +1,4 @@
 use rand::{thread_rng, Rng};
-use std::fmt;
 
 /// Deep Dive: Post-Quantum Lattice Cryptography (Module Learning With Errors / Kyber-style)
 /// This module ensures that all stored Alpha weights and historical trades are
@@ -10,6 +9,7 @@ const N: usize = 256; // Polynomial degree
 const Q: i32 = 3329;  // Prime modulus
 const K: usize = 2;   // Module dimension
 
+#[derive(Clone)]
 pub struct Poly {
     pub coeffs: [i32; N],
 }

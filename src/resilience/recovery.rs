@@ -1,4 +1,7 @@
+#[cfg(target_os = "linux")]
 use std::fs::OpenOptions;
+
+#[cfg(target_os = "linux")]
 use std::os::unix::io::AsRawFd;
 
 /// Aegis Protocol 2.0: Instantaneous sub-millisecond memory-mapped recovery

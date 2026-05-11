@@ -2,28 +2,33 @@
 name = "sovereign_core"
 version = "0.1.0"
 edition = "2021"
-description = "Sovereign Trading System High-Performance Native Core"
 
 [lib]
 name = "sovereign_core"
-crate-type = ["cdylib", "rlib"]
+crate-type = ["cdylib"]
 
 [dependencies]
-pyo3 = { version = "0.20", features = ["extension-module", "abi3-py37"] }
-tokio = { version = "1.0", features = ["full"] }
-crossbeam = "0.8"
+pyo3 = { version = "0.20", features = ["extension-module", "abi3-py310"] }
+tokio = { version = "1.36", features = ["full"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 log = "0.4"
 env_logger = "0.10"
 anyhow = "1.0"
+thiserror = "1.0"
 futures = "0.3"
 async-trait = "0.1"
 chrono = { version = "0.4", features = ["serde"] }
-libp2p = { version = "0.52", features = ["tcp", "dns", "websocket", "noise", "yamux", "mplex", "kad", "identify", "ping", "macros", "tokio"] }
+libp2p = { version = "0.52", features = ["tcp", "noise", "yamux", "kad", "identify", "ping", "macros", "tokio", "gossipsub", "mdns"] }
+rand = "0.8"
+rand_distr = "0.4"
+ed25519-dalek = { version = "2.1", features = ["rand_core"] }
+sha2 = "0.10"
+pqcrypto-kyber = "0.8"
+pqcrypto-traits = "0.3"
+hex = "0.4"
 
 [profile.release]
 opt-level = 3
 lto = true
 codegen-units = 1
-panic = "abort"
