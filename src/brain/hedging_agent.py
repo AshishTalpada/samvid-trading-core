@@ -7,8 +7,9 @@ class HedgingAgent:
     """
     Auto-buys Puts when the SLM or tail-risk model senses a crash coming.
     """
-    def __init__(self, hedge_ratio: float = 0.05):
+    def __init__(self, bridge: Any = None, hedge_ratio: float = 0.05):
         # Default: spend 5% of portfolio value on hedges during high risk
+        self.bridge = bridge
         self.hedge_ratio = hedge_ratio
 
     def evaluate_hedge_requirements(self, portfolio_value: float, vix_level: float,
