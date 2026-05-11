@@ -19,11 +19,14 @@ TWS_PATH = Vault.get("TWS_PATH", str(DEFAULT_IBKR_PATH))
 # Do NOT modify FTMO limits without compliance review.
 
 # Forced Paper Mode (Master Switch)
-FORCED_PAPER_MODE = False
+FORCED_PAPER_MODE = Vault.get("FORCED_PAPER_MODE", "0").strip() == "1"
 
 # Trading Mode Master Selection
-TRADING_MODE = "ibkr_paper"
-
+VALID_TRADING_MODES = {"paper", "ibkr_paper", "live"}
+DEFAULT_TRADING_MODE = "paper"
+TRADING_MODE = Vault.get("TRADING_MODE", "ibkr_paper").strip().lower()
+if TRADING_MODE not in VALID_TRADING_MODES:
+    TRADING_MODE = DEFAULT_TRADING_MODE
 
 # Risk Management
 SYSTEM_MAX_RISK = 0.04
@@ -118,7 +121,6 @@ STARTING_CAPITAL_CAD = float(Vault.get("TOTAL_CAPITAL", "500.0"))
 IBKR_ALLOCATION_CAD = STARTING_CAPITAL_CAD * 0.40  # Reduced to 40% for safer margin
 FTMO_ALLOCATION_CAD = STARTING_CAPITAL_CAD * 0.49
 RISK_PER_TRADE_PCT = 0.005  # 0.5% - Institutional fractional form
-COMMISSION_PER_ROUND_TRIP = 1.0  # Standard IBKR minimum
 
 # USD -> CAD conversion rate for cross-border asset execution.
 USD_CAD_RATE = float(Vault.get("USD_CAD_RATE", "1.35"))
