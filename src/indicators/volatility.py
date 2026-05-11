@@ -75,12 +75,13 @@ class BollingerBands:
         if mid is None:
             return None
 
-        # Numerical guard: Var = E[X^2] - (E[X])^2
-        # Note: mid is the mean (E[X])
-        mean_sq = self._sum_sq / len(self._buf)
+        # Stabilized variance calculation: Var = (Sum_Sq / N) - (Mean^2)
         # Using a guard against precision-loss producing tiny negative values
-        variance = max(0.0, mean_sq - (mid**2))
+        mean = mid
+        mean_sq = self._sum_sq / len(self._buf)
+        variance = max(0.0, mean_sq - (mean**2))
         std = math.sqrt(variance)
+
         self.initialized = True
         return mid + self.k * std, mid, mid - self.k * std
 
