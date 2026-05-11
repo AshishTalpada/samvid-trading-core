@@ -647,16 +647,13 @@ class TradingBrain:
         self.swarm_predictor = swarm_predictor
         self.bus = bus
 
-        # --- PILLAR 1 & 6: SOVEREIGN WISDOM & SKILLS ---
         self.wisdom = WisdomRepository()
         self.skill_tree = SkillTreeManager()
         self.wisdom_context = "SYSTEM_WARMUP: Wisdom hydration in progress..."
 
-        # --- PILLAR 150: Ghost Shadow-Sim ---
         self.shadow_sim = GhostShadowSim()
         self.skeptic = SkepticAgent()
 
-        # --- MATRIX INFRASTRUCTURE (Pillar 2) ---
         self.session_restorer = SessionRestorer()
         self.macros = MindMacros()
         self.mission_manager = WorkloadManager()  # Unified Mission Board
@@ -806,7 +803,6 @@ class TradingBrain:
         try:
             state = await asyncio.to_thread(self.session_restorer.thaw_state)
             if state:
-                # Restore positions with FORCE HYDRATION (Pillar 2 Hardening)
                 thawed_pos = state.get("positions", [])
                 self.positions = []
                 for p_data in thawed_pos:
@@ -1500,7 +1496,6 @@ class TradingBrain:
         # 1. Update Real-time Matrix Memory
         self.last_tick_prices[symbol] = float(price)
 
-        # 1.1 Update Ghost Shadow-Sim (PILLAR 150)
         self.shadow_sim.update(symbol, float(price))
 
         bid_val = data.get("bid")
@@ -1881,7 +1876,6 @@ class TradingBrain:
             f"TradingBrain: Spawning {len(self.pending_signals)} Parallel Vetting Tasks (Agent M)..."
         )
 
-        # Pillar 3: Spawning concurrent coordinator tasks
         def _task_done(t):
             try:
                 t.result()
@@ -3604,7 +3598,6 @@ class TradingBrain:
         reasoning = f"Exit Type: {exit_type} | PnL: ${pnl:.2f} | R-Multiple: {r_multiple:.2f}x | Catalyst: {pos.catalyst_score:.1f}"
         self.wisdom.write_post_mortem(pos, exit_type, pnl, reasoning)
 
-        # PILLAR 6: EVOLVE SKILL TREE
         if pnl > 0:
             self.skill_tree.skills["pnl_to_next"] -= pnl
             if self.skill_tree.skills["pnl_to_next"] <= 0:
