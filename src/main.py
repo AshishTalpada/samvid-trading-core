@@ -1127,7 +1127,7 @@ class TradingSystem:
             logger.info("Trading Brain will be implemented in src/brain.py")
             return False
         except Exception as e:
-            logger.error(f"Failed to start Trading Brain: {e}")
+            logger.error(f"Failed to start Trading Brain: {e}", exc_info=True)
             return False
 
     async def _start_dhatu_oracle(self) -> bool:
@@ -1207,7 +1207,7 @@ class TradingSystem:
                 or self._telegram_session.closed
             ):
                 self._telegram_session = aiohttp.ClientSession(
-                    timeout=aiohttp.ClientTimeout(total=10.0)
+                    timeout=aiohttp.ClientTimeout(total=30.0)
                 )
 
             async with self._telegram_session.post(url, json=payload) as resp:
@@ -1218,7 +1218,7 @@ class TradingSystem:
                     logger.warning(f"❌ Telegram notification failed with status {resp.status}. Message: {redacted_message[:50]}...")
                     return False
         except Exception as e:
-            logger.error(f"❌ Telegram notification error: {e}")
+            logger.error(f"❌ Telegram notification error: {e}", exc_info=True)
             return False
 
     async def _start_background_tasks(self) -> None:

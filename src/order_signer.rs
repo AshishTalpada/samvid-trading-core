@@ -1,4 +1,4 @@
-use ed25519_dalek::{Keypair, Signer, Signature};
+use ed25519_dalek::{SigningKey, Signer, Signature};
 use rand::rngs::OsRng;
 use log::info;
 
@@ -8,19 +8,19 @@ use log::info;
 /// (Hardware Security Module) that signs the order blob.
 
 pub struct HardwareSigner {
-    keypair: Keypair,
+    signing_key: SigningKey,
 }
 
 impl HardwareSigner {
     pub fn new() -> Self {
-        let mut csprng = OsRng{};
-        let keypair = Keypair::generate(&mut csprng);
+        let mut csprng = OsRng;
+        let signing_key = SigningKey::generate(&mut csprng);
         info!("[SIGNER] Generated Ed25519 air-gapped signing keys.");
-        HardwareSigner { keypair }
+        HardwareSigner { signing_key }
     }
 
     pub fn sign_order(&self, order_blob: &[u8]) -> Signature {
-        let signature = self.keypair.sign(order_blob);
+        let signature = self.signing_key.sign(order_blob);
         info!("[SIGNER] Order cryptographically signed.");
         signature
     }

@@ -1,5 +1,4 @@
-use libp2p::{PeerId, Multiaddr, Swarm};
-use libp2p::gossipsub::{Gossipsub, GossipsubEvent, MessageAuthenticity};
+use libp2p::PeerId;
 
 /// Sovereign Network: Distributed Hedge Fund network of trusted nodes.
 pub struct SovereignP2P {

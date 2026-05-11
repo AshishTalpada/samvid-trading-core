@@ -2,7 +2,10 @@ import asyncio
 import logging
 import socket
 import time
-from typing import Any
+import uuid
+from typing import Any, Dict
+import socket
+import asyncio
 
 from mind_bridge import MindBridge
 
@@ -209,7 +212,6 @@ class MindGhost:
             logger.debug(f"MindGhost: Probe error on port {port}: {e}")
             return False
 # ── LOCAL-ONLY MODULE CONSTANTS ─────────────────────────────────────────
-MindGhost = GhostExecutionEnvironment
 
 # ── LOCAL-ONLY SOVEREIGN EXTENSIONS ─────────────────────────────────────
 
@@ -341,8 +343,7 @@ class GhostExecutionEnvironment:
             "status": "OPERATIONAL"
         }
 
-import socket
-import asyncio
+
 
 
 class GhostInfrastructureMonitor:
@@ -379,5 +380,3 @@ class GhostInfrastructureMonitor:
             with socket.create_connection(("127.0.0.1", port), timeout=2.0):
                 return True
         except: return False
-
-MindGhost = GhostExecutionEnvironment

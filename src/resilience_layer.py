@@ -3,6 +3,8 @@ import logging
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Callable, Dict, List, Optional
+from collections import deque
+import numpy as np
 
 logger = logging.getLogger(__name__)
 
@@ -359,7 +361,6 @@ class CorrelationWatchdog:
         self._history: Dict[str, deque] = {}  # symbol -> deque of (price, sector_price)
 
     def record(self, symbol: str, price: float, sector_price: float):
-        from collections import deque
 
         if symbol not in self._history:
             self._history[symbol] = deque(maxlen=50)
@@ -367,7 +368,6 @@ class CorrelationWatchdog:
 
     def evaluate(self, symbol: str) -> bool:
         """Returns True if correlation is healthy, False if decayed."""
-        import numpy as np
 
         hist = self._history.get(symbol)
         if not hist or len(hist) < 20:

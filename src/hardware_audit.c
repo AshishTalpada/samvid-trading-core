@@ -1,7 +1,18 @@
 #include <stdint.h>
 #include <stdio.h>
 
-#if defined(__x86_64__) || defined(_M_X64)
+#if defined(_MSC_VER)
+#include <intrin.h>
+static int __get_cpuid(unsigned int leaf, unsigned int* eax, unsigned int* ebx, unsigned int* ecx, unsigned int* edx) {
+    int cpu_info[4];
+    __cpuid(cpu_info, leaf);
+    *eax = cpu_info[0];
+    *ebx = cpu_info[1];
+    *ecx = cpu_info[2];
+    *edx = cpu_info[3];
+    return 1;
+}
+#elif defined(__x86_64__) || defined(_M_X64)
 #include <cpuid.h>
 #endif
 

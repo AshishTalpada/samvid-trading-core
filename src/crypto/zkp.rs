@@ -12,7 +12,7 @@ pub struct ZkProofState {
 impl ZkProofState {
     /// Generates a Zero Knowledge Proof that a trade's expected profit 
     /// meets a threshold, WITHOUT revealing the underlying strategy weights.
-    pub fn generate_profit_proof(strategy_weights: &[f64], secret_alpha: f64) -> Self {
+    pub fn generate_profit_proof(_strategy_weights: &[f64], secret_alpha: f64) -> Self {
         let mut rng = thread_rng();
         let blinding_factor: u64 = rng.gen();
         
