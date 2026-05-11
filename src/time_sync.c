@@ -3,10 +3,18 @@
 #include <stdint.h>
 
 #ifdef _WIN32
+#include <windows.h>
 #define CLOCK_REALTIME 0
 static inline int clock_gettime(int clk_id, struct timespec* ts) {
-    ts->tv_sec = (time_t)0;
-    ts->tv_nsec = 0;
+    FILETIME ft;
+    GetSystemTimePreciseAsFileTime(&ft);
+    
+    // Convert FILETIME (100ns intervals since 1601) to timespec (seconds and nanoseconds since 1970)
+    uint64_t ns100 = (((uint64_t)ft.dwHighDateTime) << 32) | ft.dwLowDateTime;
+    uint64_t unix_ns = (ns100 - 116444736000000000ULL) * 100;
+    
+    ts->tv_sec = (time_t)(unix_ns / 1000000000ULL);
+    ts->tv_nsec = (long)(unix_ns % 1000000000ULL);
     return 0;
 }
 #endif

@@ -1,4 +1,7 @@
 use std::cmp::Ordering;
+extern "C" {
+    fn is_global_halt_active() -> bool;
+}
 
 /// Order Book State for a specific instrument
 pub struct InstrumentBook {
@@ -26,6 +29,11 @@ impl MicroVolArb {
     /// High-Frequency Market Making / Micro-Vol Arb logic
     /// Profits from the micro-shivers between bid and ask while earning maker rebates.
     pub fn execute_micro_arb(&mut self, book: &InstrumentBook) -> Option<(f64, f64)> {
+        // SAFETY: Check global atomic halt signal before any calculation
+        if unsafe { is_global_halt_active() } {
+            return None; 
+        }
+
         let spread = book.best_ask - book.best_bid;
         
         // Net spread must cover maker fees (often negative, meaning we get paid)

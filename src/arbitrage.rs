@@ -51,9 +51,10 @@ impl ArbGraph {
             for e in &self.edges {
                 let u_dist = *distances.get(&e.from_asset).unwrap_or(&std::f64::INFINITY);
                 let net_rate = e.rate * (1.0 - e.fee);
+                if net_rate <= 0.0 { continue; } // Avoid log of 0 or negative
                 let weight = -net_rate.ln(); // Negative log weight
                 
-                if u_dist != std::f64::INFINITY && u_dist + weight < *distances.get(&e.to_asset).unwrap() {
+                if u_dist != std::f64::INFINITY && u_dist + weight < *distances.get(&e.to_asset).unwrap_or(&std::f64::INFINITY) {
                     distances.insert(e.to_asset.clone(), u_dist + weight);
                     predecessors.insert(e.to_asset.clone(), e.clone());
                 }
@@ -64,9 +65,10 @@ impl ArbGraph {
         for e in &self.edges {
             let u_dist = *distances.get(&e.from_asset).unwrap_or(&std::f64::INFINITY);
             let net_rate = e.rate * (1.0 - e.fee);
+            if net_rate <= 0.0 { continue; }
             let weight = -net_rate.ln();
             
-            if u_dist != std::f64::INFINITY && u_dist + weight < *distances.get(&e.to_asset).unwrap() {
+            if u_dist != std::f64::INFINITY && u_dist + weight < *distances.get(&e.to_asset).unwrap_or(&std::f64::INFINITY) {
                 // Negative cycle found. Trace back to get the cycle path.
                 let mut cycle = Vec::new();
                 let mut curr = e.from_asset.clone();
