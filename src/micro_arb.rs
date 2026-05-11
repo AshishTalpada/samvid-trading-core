@@ -1,4 +1,3 @@
-use std::cmp::Ordering;
 extern "C" {
     fn is_global_halt_active() -> bool;
 }

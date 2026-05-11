@@ -2,6 +2,7 @@ import json
 import logging
 import os
 import time
+from dataclasses import dataclass
 
 _LAST_LATENCY_SPIKE = 0.0
 
@@ -643,7 +644,6 @@ class MindUltrathink:
     async def _tool_simulate_outcome(self, patch: str, ctx: dict | None = None) -> dict[str, Any]:
         return {"status": "SUCCESS", "predicted_impact": 0.05}
 # ── LOCAL-ONLY MODULE CONSTANTS ─────────────────────────────────────────
-@dataclass
 
 # ── LOCAL-ONLY SOVEREIGN EXTENSIONS ─────────────────────────────────────
 
