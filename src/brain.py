@@ -56,8 +56,6 @@ from agent_c_ibkr import (
     VIXProtocol,
 )
 
-from system_types import Position
-
 # --- MT5 Cognitive Decoupling ---
 # Imports are now lazy-loaded inside initialize_mt5_agents() to prevent unwanted terminal boot.
 from agent_d import (

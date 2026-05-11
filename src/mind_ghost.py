@@ -44,7 +44,7 @@ class GhostExecutionEnvironment:
         # Simulate slippage based on size (simplified linear impact)
         simulated_slippage = (size / 100.0) * 0.0001
         fill_price = price * (1.0 + simulated_slippage) if action == "BUY" else price * (1.0 - simulated_slippage)
-        
+
         commission = self._calculate_commission(size)
 
         position = {
@@ -88,7 +88,7 @@ class GhostExecutionEnvironment:
         # Simulate closing slippage
         simulated_slippage = (pos["size"] / 100.0) * 0.0001
         close_price = current_price * (1.0 - simulated_slippage) if pos["action"] == "BUY" else current_price * (1.0 + simulated_slippage)
-        
+
         exit_commission = self._calculate_commission(pos["size"])
 
         if pos["action"] == "BUY":

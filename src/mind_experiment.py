@@ -45,7 +45,7 @@ class EvolutionaryNeuroExperiment:
 
                 # Simplified proxy for neural network forward pass (Linear regression style)
                 predictions = np.dot(market_data, clone["weights"])
-                
+
                 # Handle potential NaNs from np.dot
                 if np.any(np.isnan(predictions)):
                     clone["fitness"] = 0.0
@@ -53,7 +53,7 @@ class EvolutionaryNeuroExperiment:
 
                 # Mean Squared Error as inverse fitness
                 mse = np.mean((predictions - target_labels) ** 2)
-                
+
                 # Fitness is 1 / (1 + error), with NaN protection
                 clone["fitness"] = 1.0 / (1.0 + mse) if not np.isnan(mse) else 0.0
             except Exception as e:

@@ -79,7 +79,7 @@ class DeadLetterQueue:
         Background worker. Handles concurrent retries to prevent Head-of-Line blocking.
         """
         logger.info("DLQ: Concurrent retry worker started.")
-        
+
         async def _process_retry(order: FailedOrder):
             order.attempt += 1
             # Exponential back-off: 1s, 2s, 4s
@@ -103,11 +103,11 @@ class DeadLetterQueue:
             else:
                 # Re-queue for another attempt
                 self.enqueue(
-                    order.symbol, order.direction, order.shares, order.price, 
+                    order.symbol, order.direction, order.shares, order.price,
                     reason=f"Retry {order.attempt} failed", task_id=order.task_id,
                     attempt=order.attempt
                 )
-            
+
             self._queue.task_done()
 
         while True:
