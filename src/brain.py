@@ -56,6 +56,8 @@ from agent_c_ibkr import (
     VIXProtocol,
 )
 
+from system_types import Position
+
 # --- MT5 Cognitive Decoupling ---
 # Imports are now lazy-loaded inside initialize_mt5_agents() to prevent unwanted terminal boot.
 from agent_d import (
@@ -662,6 +664,7 @@ class TradingBrain:
         self.mission_manager = WorkloadManager()  # Unified Mission Board
         self.memory_manager = MemoryManager()
         self.mind_prompts = MindPrompts(memory=self.memory_manager)
+        self._quant_lock = asyncio.Lock()
 
         # SEED WITH PLACEHOLDER (Will be updated via async update_wisdom_context)
         initial_context = f"""
@@ -859,10 +862,12 @@ class TradingBrain:
         if len(prices) < 30:
             return {"approved": True, "reason": "insufficient_data_for_quant", "consensus": {}}
 
-        # Fit on first call
+        # Fit on first call (Thread-safe)
         if not self._quant_fitted and len(prices) >= 200:
-            self._quant_consensus.fit(prices)
-            self._quant_fitted = True
+            async with self._quant_lock:
+                if not self._quant_fitted:
+                    self._quant_consensus.fit(prices)
+                    self._quant_fitted = True
 
         closed = list(self.closed_positions)
         win_rate = 0.5
