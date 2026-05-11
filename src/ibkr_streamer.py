@@ -13,7 +13,8 @@ from typing import TYPE_CHECKING, Any, Optional
 if TYPE_CHECKING:
     from intelligence_bus import SharedIntelligenceBus
 
-from ib_insync import IB, Stock
+# Defer importing `ib_insync` until runtime to avoid creating an event loop
+# at module import time in testing/static-analysis environments.
 
 from tick_batcher import TICK_BATCHER
 
@@ -105,7 +106,9 @@ class IBKRStreamer:
         bus: Optional["SharedIntelligenceBus"] = None,
         qdb_adapter: Optional[Any] = None,
     ) -> None:
-        self.ib = IB()
+        # IB instance is created lazily during `connect()` to avoid import-time
+        # side-effects (some ib_insync dependencies create an event loop on import).
+        self.ib = None
         self.host = host
         self.port = port
         self.client_id = client_id
@@ -129,6 +132,15 @@ class IBKRStreamer:
 
     async def connect(self) -> None:
         """Connect to IBKR TWS/Gateway and QuestDB ILP."""
+        # Lazily import and create IB instance here to avoid import-time event loop issues
+        if self.ib is None:
+            try:
+                from ib_insync import IB
+
+                self.ib = IB()
+            except Exception as e:
+                logger.error(f"IBKRStreamer: ib_insync import/create failed: {e}")
+                return
         # 1. Connect to QuestDB (Persistent ILP Session)
         from config import QUESTDB_ENABLED
 
