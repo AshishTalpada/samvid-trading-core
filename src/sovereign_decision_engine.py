@@ -125,11 +125,19 @@ class SovereignDecisionEngine:
                 except Exception:
                     pass
 
+            # --- NEURAL WEIGHTING ---
+            # Every agent has a dynamic reputation score managed by MindArchitect.
+            # We fetch it live to ensure the quorum respects historical accuracy.
+            reputation = 1.0
+            if context.get("brain") and hasattr(context["brain"], "mind_architect"):
+                reputation = context["brain"].mind_architect.agent_reputations.get(agent, 0.5)
+
             # Processing Vote
             if vote == "YES":
                 # Agent_D is the Historical Learning engine — it knows your REAL edge.
                 # Weight it 2x: it is the only agent whose vote is grounded in live P&L data.
-                yes_votes += 2.0 if agent == "Agent_D" else 1  # type: ignore
+                weight = 2.0 if agent == "Agent_D" else 1.0
+                yes_votes += (weight * reputation)
             elif vote == "NO":
                 no_votes += 1
             else:
