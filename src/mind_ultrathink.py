@@ -105,7 +105,7 @@ class SovereignBrain:
             try:
                 with open(self.weights_path, "r") as f:
                     return json.load(f)
-            except:
+            except Exception:
                 pass
 
         # Initial Global Knowledge (Baseline Intelligence)
@@ -284,7 +284,7 @@ class MindUltrathink:
             if os.path.exists(path):
                 with open(path, "r") as f:
                     wisdom_text = f.read()
-        except:
+        except Exception:
             pass
         return wisdom_text
 
@@ -295,7 +295,7 @@ class MindUltrathink:
                 with open(self.memory_path, encoding="utf-8") as f:
                     self.reasoning_history = json.load(f)
                 self._distill_wisdom_index()  # Run a Dream cycle on startup
-            except:
+            except Exception:
                 pass
 
     def _save_memory(self, entry: str) -> None:
@@ -312,7 +312,7 @@ class MindUltrathink:
             # Every 10 entries, 'Dream' and distill
             if len(self.reasoning_history) % 10 == 0:
                 self._distill_wisdom_index()
-        except:
+        except Exception:
             pass
 
     async def start(self) -> None:
@@ -367,7 +367,7 @@ class MindUltrathink:
                 end = cleaned.rfind("}")
                 if start != -1 and end != -1:
                     return json.loads(cleaned[start : end + 1])
-            except:
+            except Exception:
                 pass
             return {}
 
