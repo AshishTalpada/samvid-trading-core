@@ -220,6 +220,47 @@ class MindSystem:
             "msg": f"Scent Lost: Could not locate '{name}' in standard Windows roots.",
         }
 
+    async def _tool_run_system_command(self, command_alias: str, **kwargs) -> dict[str, Any]:
+        """Sovereign Execution: Runs a pre-signed system command alias."""
+        async with self.lock:
+            if command_alias not in self.CERTIFIED_COMMANDS:
+                logger.error(
+                    f"MindSystem: Execution failed — command alias '{command_alias}' NOT in Signed Allowlist."
+                )
+                return {"error": "Command alias not certified"}
+
+            commands = self.CERTIFIED_COMMANDS[command_alias]
+            outputs = []
+            success = True
+
+            for cmd in commands:
+                try:
+                    logger.info(f"MindSystem: Executing certified command: {cmd}")
+                    proc = await asyncio.create_subprocess_shell(
+                        cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
+                    )
+                    stdout, stderr = await proc.communicate()
+
+                    cmd_success = (proc.returncode == 0)
+                    if not cmd_success:
+                        success = False
+
+                    outputs.append({
+                        "command": cmd,
+                        "success": cmd_success,
+                        "stdout": stdout.decode(errors="replace")[:500],
+                        "stderr": stderr.decode(errors="replace")[:500]
+                    })
+                except Exception as e:
+                    success = False
+                    outputs.append({"command": cmd, "error": str(e)})
+
+            return {
+                "alias": command_alias,
+                "success": success,
+                "results": outputs
+            }
+
     async def _tool_get_system_metrics(self) -> dict[str, Any]:
         """Provides the Ghost Mind (Agent J) with the hardware telemetry."""
         import psutil
