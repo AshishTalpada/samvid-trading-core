@@ -69,11 +69,11 @@ class MindEvolution:
         """Launch the Evolution Mind process."""
         self.is_running = True
         logger.info("MindEvolution: Strategic improvement layer active.")
-        
+
         t1 = asyncio.create_task(self._monitor_equity_peaks())
         t2 = asyncio.create_task(self._process_strategic_dialogue())
         t3 = asyncio.create_task(self._autonomous_heuristic_refinement())
-        
+
         for t in [t1, t2, t3]:
             self._background_tasks.add(t)
             t.add_done_callback(self._background_tasks.discard)
