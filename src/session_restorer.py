@@ -67,6 +67,7 @@ class SessionRestorer:
             return False
 
     def record_transcript(self, messages: list[dict[str, Any]]) -> bool:
+        """
         Saves a full conversation transcript for resumable sessions.
         """
         from time_sync import TimeSync
@@ -87,6 +88,7 @@ class SessionRestorer:
             return False
 
     def make_file_snapshot(self, filepath: str) -> str:
+        """
         Creates a versioned backup before surgical system edits.
         """
         from time_sync import TimeSync
