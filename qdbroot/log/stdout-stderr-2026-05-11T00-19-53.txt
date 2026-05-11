@@ -1,0 +1,2 @@
+Reading log configuration from C:\Users\talpa\Desktop\System_Beta\TradingSystem\qdbroot\conf\log.conf
+2026-05-11T04:20:00.254997Z A http-min-server listening on 0.0.0.0:9003 [fd=12766790287564 backlog=64]
