@@ -151,7 +151,8 @@ class ImpactOracle:
             volatility = np.std(returns) if len(returns) > 0 else 0.001
 
             # 2. Daily Volume Approximation (Assuming 1m scale, 390 mins/day)
-            _avg_vol = df["volume"][-21:-1].mean()
+            # Use .tail() for robust slicing in Polars regardless of dataframe length
+            _avg_vol = df["volume"].tail(20).mean()
             avg_volume_1m = float(cast(Any, _avg_vol)) if _avg_vol is not None else 1.0
             estimated_day_volume = avg_volume_1m * 390
 
