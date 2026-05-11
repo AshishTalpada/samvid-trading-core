@@ -154,7 +154,7 @@ class SessionRestorer:
         from time_sync import TimeSync
 
         try:
-            capsule_path = "data/cognitive_capsule.json"
+            capsule_path = os.path.join(PROJECT_PATH, "data", "cognitive_capsule.json")
             os.makedirs(os.path.dirname(capsule_path), exist_ok=True)
             with open(capsule_path, "w") as f:
                 json.dump({"timestamp": TimeSync.now().isoformat(), "payload": state}, f, indent=4)
