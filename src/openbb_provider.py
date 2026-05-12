@@ -127,7 +127,9 @@ class OpenBBProvider:
                 # OpenBB takes ~15-30s to load on first use, increased timeout accordingly.
                 # We allow 60s for the initial ingestion to avoid yfinance fallback.
                 logger.info("OpenBB: SDK ingestion initiated (60s speed-gate active)...")
-                loaded = await asyncio.wait_for(asyncio.to_thread(_try_load_openbb), timeout=60.0)
+                # Run in main thread to avoid signal handling issues in thread pools
+                # Run synchronously to avoid signal handling issues in thread pools
+                loaded = _try_load_openbb()
                 if not loaded:
                     logger.warning("OpenBB SDK not available — falling back to yfinance.")
                     return False
