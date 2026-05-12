@@ -215,7 +215,7 @@ class TradingCoordinator:
                 if self.brain.dms:
                     self.brain.dms.record_heartbeat("COORDINATOR")
 
-                timestamp = datetime.now(timezone.utc).isoformat()
+                timestamp = time.time_ns()
                 account_value = await self.brain.get_safe_buying_power(self.brain.active_broker.lower())
                 pattern = proposal["pattern"]
 

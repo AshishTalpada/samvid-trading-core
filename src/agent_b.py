@@ -483,7 +483,7 @@ class BayesianBeliefTracker:
                     "vote": vote,
                     "confidence": belief,
                     "reason": f"Dhatu: {state.name} | Belief: {belief:.2f} | ABHAVA: {is_abhava}",
-                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                    "timestamp": time.time_ns(),
                 }
             except Exception as e:
                 # Fallback on calculation error
@@ -494,7 +494,7 @@ class BayesianBeliefTracker:
                     "vote": vote,
                     "confidence": belief,
                     "reason": f"Agent B Fallback (Error: {str(e)[:30]})",
-                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                    "timestamp": time.time_ns(),
                 }
 
         # Original fallback logic
@@ -506,7 +506,7 @@ class BayesianBeliefTracker:
             "vote": vote,
             "confidence": belief,
             "reason": f"Bayesian Belief (Default): {belief:.2f}",
-            "timestamp": context.get("timestamp", datetime.now(timezone.utc).isoformat()),
+            "timestamp": context.get("timestamp", time.time_ns()),
         }
 
 

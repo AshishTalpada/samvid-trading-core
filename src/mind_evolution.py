@@ -1,3 +1,4 @@
+import time
 import asyncio
 import json
 import logging
@@ -166,7 +167,7 @@ class MindEvolution:
     async def _tool_report_peak(self) -> dict[str, Any]:
         from time_sync import TimeSync
 
-        return {"peak": self.peak_equity, "at_time": TimeSync.now().isoformat()}
+        return {"peak": self.peak_equity, "at_time": time.time_ns()}
 
     async def _fetch_current_equity(self) -> float:
         """
@@ -217,6 +218,6 @@ class MindEvolution:
         from time_sync import TimeSync
 
         self.historical_memory.append(
-            {"item": knowledge_item, "source": source, "timestamp": TimeSync.now().isoformat()}
+            {"item": knowledge_item, "source": source, "timestamp": time.time_ns()}
         )
         return {"status": "SYNCED", "memory_depth": len(self.historical_memory)}

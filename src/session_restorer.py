@@ -1,3 +1,4 @@
+import time
 import hashlib
 import json
 import logging
@@ -158,7 +159,7 @@ class SessionRestorer:
             capsule_path = "data/cognitive_capsule.json"
             os.makedirs(os.path.dirname(capsule_path), exist_ok=True)
             with open(capsule_path, "w") as f:
-                json.dump({"timestamp": TimeSync.now().isoformat(), "payload": state}, f, indent=4)
+                json.dump({"timestamp": time.time_ns(), "payload": state}, f, indent=4)
         except Exception as e:
             logger.error(f"SessionRestorer: Failed to save capsule: {e}")
 
@@ -279,7 +280,7 @@ class SessionRestorer:
                         if direction == "LONG"
                         else price - target_dist,
                         shares_remaining=broker_qty,
-                        meta={"adoption_ts": datetime.now(timezone.utc).isoformat()},
+                        meta={"adoption_ts": time.time_ns()},
                     )
 
                     # Persist Adoption to DB
@@ -340,7 +341,7 @@ class SessionRestorer:
                     )
                     cursor.execute(
                         "UPDATE trades SET status = 'CLOSED', exit_reason = 'GHOST_SYNCHRONIZED', exit_time = ? WHERE id = ?",
-                        (datetime.now(timezone.utc).isoformat(), t["id"]),
+                        (time.time_ns(), t["id"]),
                     )
 
             db_conn.commit()

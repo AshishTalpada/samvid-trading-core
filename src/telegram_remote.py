@@ -1,3 +1,4 @@
+import time
 import asyncio
 import logging
 from datetime import datetime
@@ -181,7 +182,7 @@ class TelegramRemote:
     async def _send_status(self, chat_id: str):
         """Ask the bus for current telemetry and reply."""
         await self.bus.publish(
-            "command.remote", {"cmd": "status", "ts": datetime.now().isoformat()}
+            "command.remote", {"cmd": "status", "ts": time.time_ns()}
         )
         await asyncio.sleep(0.5)
 
@@ -208,7 +209,7 @@ class TelegramRemote:
         await self._send_message(
             "⚠️ <b>PANIC INITIATED</b>: Broadcasting Emergency Liquidation Command...", chat_id
         )
-        await self.bus.publish("command.remote", {"cmd": "panic", "ts": datetime.now().isoformat()})
+        await self.bus.publish("command.remote", {"cmd": "panic", "ts": time.time_ns()})
 
     async def _execute_dhatu_override(self, args, chat_id: str):
         """Force a Dhatu state (e.g., /dhatu ABHAVA)."""

@@ -207,7 +207,7 @@ async def llm_call_with_fallback(
             triggered_by="llm_circuit_breaker",
             meta={
                 "breaker_stats": breaker.stats,
-                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "timestamp": time.time_ns(),
             },
         )
 
