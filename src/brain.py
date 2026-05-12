@@ -1677,8 +1677,10 @@ class TradingBrain:
             watchlist = await self._get_watchlist()
 
             broker_online = False
-            if self.mode in ("paper", "ibkr_paper"):
+            if self.mode == "paper":
                 broker_online = True
+            elif self.mode == "ibkr_paper":
+                broker_online = hasattr(self.ibkr_conn, "is_connected") and self.ibkr_conn.is_connected
             elif self.active_broker == "IBKR":
                 broker_online = (
                     hasattr(self.ibkr_conn, "is_connected") and self.ibkr_conn.is_connected
