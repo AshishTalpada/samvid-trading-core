@@ -1,3 +1,4 @@
+import time
 import ast
 import asyncio
 import logging
@@ -126,7 +127,7 @@ class MindArchitect:
             "reason": "Sovereign structural integrity verified."
             if valid
             else f"🛑 STRUCTURAL VETO: Syntax/Diagnostic failure in core logic! {result.get('summary')}",
-            "timestamp": datetime.now().isoformat(),
+            "timestamp": time.time_ns(),
         }
 
     async def _tool_check_syntax(self, file_path: str) -> dict[str, Any]:

@@ -285,7 +285,7 @@ class IBKRConnection:
                             status,
                             trade.orderStatus.filled,
                             trade.orderStatus.remaining,
-                            datetime.now().isoformat(),
+                            time.time_ns(),
                         ),
                     )
                     conn.commit()
@@ -337,7 +337,7 @@ class IBKRConnection:
                         conn.execute(
                             "INSERT INTO failure_post_mortem (timestamp, symbol, action, status, reason) VALUES (?, ?, ?, ?, ?)",
                             (
-                                datetime.now().isoformat(),
+                                time.time_ns(),
                                 symbol,
                                 trade.order.action,
                                 status,
@@ -759,7 +759,7 @@ class IBKRConnection:
 
             os.makedirs("data", exist_ok=True)
             entry = {
-                "timestamp": datetime.now().isoformat(),
+                "timestamp": time.time_ns(),
                 "symbol": symbol,
                 "type": order_type,
                 "details": details,
@@ -1301,5 +1301,5 @@ class PortfolioGuard:
             "reason": "Portfolio complies with Cash Reserve"
             if is_compliant
             else f"CASH_RESERVE_VETO: Total exposure would exceed 85% NAV (${(total_p_val + proposed_val):.2f} > ${(balance * 0.85):.2f})",
-            "timestamp": datetime.now().isoformat(),
+            "timestamp": time.time_ns(),
         }

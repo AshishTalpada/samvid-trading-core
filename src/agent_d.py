@@ -1572,7 +1572,7 @@ class LiveLearningEngine:
 
             # 2. CONSOLIDATE WISDOM
             wisdom = {
-                "timestamp": datetime.now().isoformat(),
+                "timestamp": time.time_ns(),
                 "n_trades": self._n_trades,
                 "win_rate": self._n_wins / self._n_trades if self._n_trades > 0 else 0,
                 "entropy_state": entropy,
