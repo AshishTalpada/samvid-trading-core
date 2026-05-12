@@ -1,3 +1,10 @@
+// =========================================================================
+// DEPRECATION WARNING: Phase 2 De-bloat
+// Using pqcrypto_kyber for internal application channels adds unnecessary 
+// CPU overhead. Use standard Unix Domain Sockets or TLS 1.3.
+// =========================================================================
+#![cfg(feature = "experimental_crypto")]
+
 use pqcrypto_kyber::kyber1024;
 use pqcrypto_kyber::kyber1024::{Ciphertext, PublicKey, SecretKey, SharedSecret};
 use log::info;
