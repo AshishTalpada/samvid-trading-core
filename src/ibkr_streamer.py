@@ -355,14 +355,14 @@ class IBKRStreamer:
 
         while self.is_running:
             try:
-                if not self.ib.isConnected():
+                if not self.ib or not self.ib.isConnected():
                     logger.info("IBKRStreamer: Connection required. Starting handshake...")
                     if self._qdb_writer:
                         self._qdb_writer.close()
                         self._qdb_writer = None
                     await self.connect()
 
-                    if not self.ib.isConnected():
+                    if not self.ib or not self.ib.isConnected():
                         logger.warning("IBKRStreamer: Handshake failed. Retrying in 10s...")
                         await asyncio.sleep(10)
                         continue
@@ -441,10 +441,11 @@ class IBKRStreamer:
                 if hasattr(self, "_batcher_task") and self._batcher_task:
                     self._batcher_task.cancel()
                 try:
-                    self.ib.pendingTickersEvent.disconnect(self.on_tick)
+                    if self.ib:
+                        self.ib.pendingTickersEvent.disconnect(self.on_tick)
                 except Exception:
                     pass  # Expected if not connected
-                if self.ib.isConnected():
+                if self.ib and self.ib.isConnected():
                     logger.info("IBKRStreamer: Cleaning up IBKR connection...")
                     try:
                         await asyncio.to_thread(self.ib.disconnect)
