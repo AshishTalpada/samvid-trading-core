@@ -25,7 +25,9 @@
     "outputs",
     "**/node_modules",
     "**/__pycache__",
-    "**/.*"
+    "**/.*",
+    "**/.git",
+    "**/.vscode"
   ],
   "typeCheckingMode": "off",
   "reportMissingImports": "none",

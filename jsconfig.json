@@ -4,7 +4,7 @@
     "allowJs": true
   },
   "exclude": [
-    "frontend/dist",
+    "frontend/dist/**",
     "dist",
     "node_modules",
     "venv",
