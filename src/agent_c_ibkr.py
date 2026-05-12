@@ -22,14 +22,17 @@ import pytz
 from typing import TYPE_CHECKING
 
 # Ensure a current event loop exists before any ib_insync imports or IB client creation.
+# This is more aggressive to handle supervised task contexts
 try:
-    _event_loop = asyncio.get_event_loop()
-    if _event_loop.is_closed():
-        _event_loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(_event_loop)
+    asyncio.get_running_loop()
 except RuntimeError:
-    _event_loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(_event_loop)
+    # No running loop, ensure we have one
+    try:
+        loop = asyncio.get_event_loop()
+        if loop.is_closed():
+            asyncio.set_event_loop(asyncio.new_event_loop())
+    except RuntimeError:
+        asyncio.set_event_loop(asyncio.new_event_loop())
 
 if TYPE_CHECKING:
     from ib_insync import IB
@@ -78,12 +81,8 @@ class IBKRConnection:
         if ib_client is not None:
             self.ib = ib_client
         else:
-            try:
-                from ib_insync import IB
-                self.ib = IB()
-            except Exception as e:
-                logger.error(f"agent_c_ibkr: failed to initialize IB client: {e}")
-                self.ib = None
+            # Defer IB client creation until needed to avoid event loop issues at import time
+            self.ib = None
         self._last_heartbeat = datetime.now()
         self._last_trade_time = datetime.fromtimestamp(0)  # 15-Minute Discipline Lock
         self._positions_cache = {}
@@ -210,9 +209,35 @@ class IBKRConnection:
         except Exception as e:
             return False, f"PRE_FLIGHT_CRASH: {e}"
 
+    def _ensure_ib_client(self) -> bool:
+        """Lazily create IB client with proper event loop setup."""
+        if self.ib is not None:
+            return True
+        
+        try:
+            # Aggressive event loop setup for supervised task contexts
+            try:
+                asyncio.get_running_loop()
+            except RuntimeError:
+                # No running loop, ensure we have one
+                try:
+                    loop = asyncio.get_event_loop()
+                    if loop.is_closed():
+                        asyncio.set_event_loop(asyncio.new_event_loop())
+                except RuntimeError:
+                    asyncio.set_event_loop(asyncio.new_event_loop())
+            
+            from ib_insync import IB
+            self.ib = IB()
+            return True
+        except Exception as e:
+            logger.error(f"agent_c_ibkr: failed to initialize IB client: {e}")
+            self.ib = None
+            return False
+
     def _setup_callbacks(self) -> None:
         """Bind IBKR Real-time Events (Safely)."""
-        if not self.ib:
+        if not self._ensure_ib_client():
             return
 
         events = [
@@ -236,7 +261,9 @@ class IBKRConnection:
 
     @property
     def is_connected(self) -> bool:
-        return self.ib is not None and self.ib.isConnected()
+        if not self._ensure_ib_client():
+            return False
+        return self.ib.isConnected()
 
     def _on_error(self, reqId: int, errorCode: int, errorString: str, contract: Any) -> None:
         if BrokerErrorProtocol.is_critical(errorCode):
