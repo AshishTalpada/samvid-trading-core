@@ -1687,7 +1687,7 @@ class TradingBrain:
                 )
             elif self.active_broker == "MT5":
                 broker_online = (
-                    hasattr(self.mt5_conn, "is_connected") and await self.mt5_conn.is_connected()
+                    hasattr(self.mt5_conn, "is_connected") and self.mt5_conn.is_connected
                 )
 
             if not broker_online:
@@ -2208,7 +2208,7 @@ class TradingBrain:
                 )
             elif pos.account_type == "mt5":
                 broker_online = (
-                    hasattr(self.mt5_conn, "is_connected") and await self.mt5_conn.is_connected()
+                    hasattr(self.mt5_conn, "is_connected") and self.mt5_conn.is_connected
                 )
 
             if not broker_online:
@@ -2935,7 +2935,7 @@ class TradingBrain:
                         logger.warning(f"⚖️ IBKR SYNC: Direct poll failed: {sync_e}")
 
             mt5_reality = {}
-            if self.mt5_conn and await self.mt5_conn.is_connected():
+            if self.mt5_conn and self.mt5_conn.is_connected:
                 if hasattr(self.mt5_conn, 'get_all_positions') and callable(getattr(self.mt5_conn, 'get_all_positions', None)):
                     mt5_reality = await asyncio.to_thread(self.mt5_conn.get_all_positions)
                 else:
@@ -2992,7 +2992,7 @@ class TradingBrain:
             for sym in sorted(all_symbols):
                 for b in ["ibkr", "mt5"]:
                     reality_map = ibkr_reality if b == "ibkr" else mt5_reality
-                    if b == "mt5" and not (self.mt5_conn and await self.mt5_conn.is_connected()):
+                    if b == "mt5" and not (self.mt5_conn and self.mt5_conn.is_connected):
                         continue
 
                     m_pos = next(
