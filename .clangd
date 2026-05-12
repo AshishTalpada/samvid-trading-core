@@ -26,3 +26,9 @@ If:
   PathMatch: .*\.(cpp|c|h|hpp)
 CompileFlags:
   Remove: [-xcuda]
+
+---
+If:
+  PathMatch: .*\.venv/.*
+Diagnostics:
+  Suppress: "*"
