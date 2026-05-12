@@ -69,6 +69,19 @@ class IBKRConnection:
             self.ib = ib_client
         else:
             try:
+                # Ensure event loop exists before importing ib_insync
+                import asyncio
+                try:
+                    asyncio.get_running_loop()
+                except RuntimeError:
+                    try:
+                        loop = asyncio.get_event_loop()
+                        if loop.is_closed():
+                            raise RuntimeError("Event loop is closed")
+                    except RuntimeError:
+                        loop = asyncio.new_event_loop()
+                        asyncio.set_event_loop(loop)
+                
                 from ib_insync import IB
 
                 self.ib = IB()
