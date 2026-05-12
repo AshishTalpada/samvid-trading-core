@@ -310,7 +310,7 @@ class IBKRStreamer:
                             "bid": bid if bid > 0 else target_price,
                             "ask": ask if ask > 0 else target_price,
                             "size": last_size,
-                            "ts": datetime.now(timezone.utc).isoformat(),
+                            "ts": time.time_ns(),
                         }
                     )
                 except asyncio.QueueFull:

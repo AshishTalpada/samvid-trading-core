@@ -1,3 +1,4 @@
+import time
 import asyncio
 import copy
 import logging
@@ -66,7 +67,7 @@ class MindExperiment:
         self.active_experiments[feature_name] = {
             "variant": variant_id,
             "logic": logic,
-            "start_time": TimeSync.now().isoformat(),
+            "start_time": time.time_ns(),
             "performance_history": [],
         }
         logger.info(f"MindExperiment: LAUNCHED SHADOW TEST: {feature_name} (Variant: {variant_id})")

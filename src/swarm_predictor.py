@@ -1,3 +1,4 @@
+import time
 import os
 
 # MUST BE SET BEFORE ANY IMPORTS THAT MIGHT TRIGGER CHROMA/POSTHOG
@@ -226,7 +227,7 @@ class ChromaDeepMemory:
                         "symbol": symbol,
                         "bias": bias_str,
                         "confidence": confidence,
-                        "timestamp": datetime.now(timezone.utc).isoformat(),
+                        "timestamp": time.time_ns(),
                     }
                 ],
                 ids=[doc_id],
@@ -572,7 +573,7 @@ class SwarmPredictor:
             "confidence": consensus.confidence,
             "signal_strength": consensus.get_confidence_modifier(),
             "risk_flag": consensus.bias == SwarmBias.NEUTRAL or consensus.confidence < 0.60,
-            "timestamp": context.get("timestamp", datetime.now(timezone.utc).isoformat()),
+            "timestamp": context.get("timestamp", time.time_ns()),
             "reason": reason,
             "bias": consensus.bias.value,
             "agent_count": consensus.agent_count,

@@ -583,7 +583,7 @@ class NewsHarvester:
                                                 "summary": s_text,
                                                 "impact": distilled["impact"],
                                                 "sentiment": distilled["sentiment"],
-                                                "timestamp": datetime.now(timezone.utc).isoformat(),
+                                                "timestamp": time.time_ns(),
                                             },
                                         )
 
@@ -1003,7 +1003,7 @@ class DhatuOracle:
             "reason": reason,
             "dhatu_state": dhatu_state,
             "risk_modifier": modifier,
-            "timestamp": context.get("timestamp", datetime.now(timezone.utc).isoformat()),
+            "timestamp": context.get("timestamp", time.time_ns()),
         }
 
     def get_dhatu_state(self) -> str:
@@ -1244,7 +1244,7 @@ class DhatuOracle:
 
         return {
             "signals": signals,
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": time.time_ns(),
             "count": len(signals),
         }
 
