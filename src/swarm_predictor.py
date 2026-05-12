@@ -19,6 +19,7 @@ trading system can continue operating without it.
 import asyncio
 import logging
 import os
+import platform
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from enum import Enum
@@ -117,12 +118,27 @@ class ChromaDeepMemory:
 
         if ChromaDeepMemory._client_instance is None:
             try:
-                ChromaDeepMemory._client_instance = chromadb.PersistentClient(
-                    path=db_dir, settings=Settings(allow_reset=True, anonymized_telemetry=False)
-                )
-                logger.info(f"✓ Chroma Persistence Online at {db_dir}")
+                if platform.system() == "Windows":
+                    logger.warning(
+                        "Windows detected: using Ephemeral Chroma client to avoid sqlite backend instability."
+                    )
+                    ChromaDeepMemory._client_instance = chromadb.EphemeralClient(
+                        settings=Settings(allow_reset=True, anonymized_telemetry=False)
+                    )
+                else:
+                    ChromaDeepMemory._client_instance = chromadb.PersistentClient(
+                        path=db_dir,
+                        settings=Settings(
+                            allow_reset=True,
+                            anonymized_telemetry=False,
+                            persist_directory=db_dir,
+                        ),
+                    )
+                    logger.info(f"✓ Chroma Persistence Online at {db_dir}")
             except Exception as e:
-                logger.warning(f"Chroma: PersistentClient failed ({e}). Falling back to Ephemeral.")
+                logger.warning(
+                    f"Chroma: PersistentClient failed ({e}). Falling back to Ephemeral."
+                )
                 ChromaDeepMemory._client_instance = chromadb.EphemeralClient(
                     settings=Settings(allow_reset=True, anonymized_telemetry=False)
                 )
