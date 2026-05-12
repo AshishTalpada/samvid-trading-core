@@ -32,6 +32,21 @@ static inline ssize_t pwrite(int fd, const void* buf, size_t count, off_t offset
 extern "C" {
 #endif
 
+// =========================================================================
+// DEPRECATION WARNING: Phase 2 De-bloat
+// Manual NVMe SSD sector mapping should NOT be handled at the application layer.
+// This is now disabled by default. Let the OS handle storage failures.
+// =========================================================================
+#ifndef ENABLE_EXPERIMENTAL_NVME_REPAIR
+
+int auto_fix_db_sector(const char* db_path, off_t sector_offset) {
+    printf("[IO_REPAIR_DEPRECATED] Manual NVMe remaps disabled. Relying on OS/Hardware.\n");
+    return 0;
+}
+
+#else
+
+#ifndef _WIN32
 int auto_fix_db_sector(const char* db_path, off_t sector_offset) {
     if (db_path == NULL || sector_offset < 0) return -1;
     
@@ -75,7 +90,8 @@ int auto_fix_db_sector(const char* db_path, off_t sector_offset) {
     return 0;
 }
 
-#endif
+#endif // _WIN32
+#endif // ENABLE_EXPERIMENTAL_NVME_REPAIR
 
 #ifdef __cplusplus
 }
