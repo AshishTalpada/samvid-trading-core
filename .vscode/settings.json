@@ -1,6 +1,23 @@
 {
+    "python.analysis.extraPaths": [
+        ".",
+        "src"
+    ],
+    "python.analysis.typeCheckingMode": "off",
+    "python.analysis.exclude": [
+        "venv",
+        ".venv",
+        "data",
+        "logs",
+        "outputs",
+        "**/node_modules",
+        "**/__pycache__",
+        "**/.*"
+    ],
+    "python.analysis.autoImportCompletions": true,
     "python.autoComplete.extraPaths": [
-        "."
+        ".",
+        "src"
     ],
     "python.envFile": "${workspaceFolder}/.env",
     "files.exclude": {
