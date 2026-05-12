@@ -1,33 +1,4 @@
 {
-    "python.analysis.extraPaths": [
-        ".",
-        "src"
-    ],
-    "python.analysis.typeCheckingMode": "off",
-    "python.analysis.exclude": [
-        "venv",
-        ".venv",
-        ".venv_clean",
-        "data",
-        "logs",
-        "outputs",
-        "build",
-        "tmp",
-        "scratch",
-        "models",
-        "qdbroot",
-        "questdb",
-        "**/node_modules",
-        "**/__pycache__",
-        "**/.*"
-    ],
-    "python.analysis.reportMissingImports": "none",
-    "python.analysis.reportMissingModuleSource": "none",
-    "python.analysis.autoImportCompletions": true,
-    "python.autoComplete.extraPaths": [
-        ".",
-        "src"
-    ],
     "python.envFile": "${workspaceFolder}/.env",
     "files.exclude": {
         "**/logs/**": true,
