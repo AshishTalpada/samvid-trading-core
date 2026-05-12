@@ -3,16 +3,6 @@
     "checkJs": false,
     "allowJs": true
   },
-  "include": [
-    "src/**",
-    "tests/**",
-    "scripts/**",
-    "tools/**",
-    "docs/**",
-    "specs/**",
-    "contracts/**",
-    "frontend/src/**"
-  ],
   "exclude": [
     "frontend/dist/**",
     "dist",
