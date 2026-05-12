@@ -92,7 +92,7 @@ class APIServer:
 
             return {
                 "status": status,
-                "timestamp": datetime.now().isoformat(),
+                "timestamp": time.time_ns(),
                 "components": components,
                 "version": "Sovereign-1.0",
             }
@@ -121,7 +121,7 @@ class APIServer:
             return
         msg = {
             "type": "news.hft",
-            "timestamp": datetime.now().isoformat(),
+            "timestamp": time.time_ns(),
             "data": payload,
             "meta": {"nodes": ["news_harvester", "intel_bus"]},
         }
@@ -136,7 +136,7 @@ class APIServer:
             return
         msg = {
             "type": "candle.batch",
-            "timestamp": datetime.now().isoformat(),
+            "timestamp": time.time_ns(),
             "data": payload,
             "meta": {"nodes": ["pipeline", "sqlite", "intel_bus"]},
         }
@@ -152,7 +152,7 @@ class APIServer:
             return
         msg = {
             "type": "apex.telemetry",
-            "timestamp": datetime.now().isoformat(),
+            "timestamp": time.time_ns(),
             "data": payload,
             "meta": {"nodes": ["apex_overlay", "intel_bus"]},
         }
@@ -168,7 +168,7 @@ class APIServer:
             return
         msg = {
             "type": "system.pulse",
-            "timestamp": datetime.now().isoformat(),
+            "timestamp": time.time_ns(),
             "data": payload,
             "meta": {"nodes": ["brain", "intel_bus"]},
         }
@@ -183,7 +183,7 @@ class APIServer:
             return
         msg = {
             "type": "system.state",
-            "timestamp": datetime.now().isoformat(),
+            "timestamp": time.time_ns(),
             "data": payload,
             "meta": {"nodes": payload.get("nodes", ["intel_bus", "brain"])},
         }
@@ -218,7 +218,7 @@ class APIServer:
         self._last_tick_broadcast[symbol] = now
         msg = {
             "type": "tick.hft",
-            "timestamp": datetime.now().isoformat(),
+            "timestamp": time.time_ns(),
             "data": payload,
             "meta": {"nodes": ["ibkr", "questdb", "pipeline", "intel_bus"]},
         }
@@ -234,7 +234,7 @@ class APIServer:
         logger.debug(f"API: Broadcasting oracle state: {payload.get('dhatu')}")
         msg = {
             "type": "oracle.state",
-            "timestamp": datetime.now().isoformat(),
+            "timestamp": time.time_ns(),
             "data": payload,
             "meta": {"nodes": ["oracle", "intel_bus", "swarm", "consensus"]},
         }
@@ -249,7 +249,7 @@ class APIServer:
             return
         msg = {
             "type": "calibration.update",
-            "timestamp": datetime.now().isoformat(),
+            "timestamp": time.time_ns(),
             "data": payload,
             "meta": {"nodes": ["agent_d", "pipeline", "sqlite", "intel_bus"]},
         }
@@ -271,7 +271,7 @@ class APIServer:
         )
         msg = {
             "type": "mind.dialogue",
-            "timestamp": datetime.now().isoformat(),
+            "timestamp": time.time_ns(),
             "data": payload,
             "meta": {"nodes": [node_id, "intel_bus"]},
         }
@@ -287,7 +287,7 @@ class APIServer:
         logger.debug("API: Broadcasting consensus update")
         msg = {
             "type": "consensus.update",
-            "timestamp": datetime.now().isoformat(),
+            "timestamp": time.time_ns(),
             "data": payload,
             "meta": {"nodes": ["consensus", "intel_bus"] + payload.get("nodes", [])},
         }
@@ -791,7 +791,7 @@ class APIServer:
             }
 
             return {
-                "timestamp": datetime.now().isoformat(),
+                "timestamp": time.time_ns(),
                 "oracle": oracle_data,
                 "market": market_data,
                 "brain": brain_data,

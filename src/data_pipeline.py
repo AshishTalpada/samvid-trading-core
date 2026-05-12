@@ -642,7 +642,7 @@ class DataPipeline:
                         INSERT OR REPLACE INTO vix_data (timestamp, value)
                         VALUES (?, ?)
                     """,
-                        (datetime.now(timezone.utc).isoformat(), vix_value),
+                        (time.time_ns(), vix_value),
                     )
                     conn.commit()
                 finally:
@@ -1163,7 +1163,7 @@ class DataPipeline:
                         {
                             "symbols": self.INSTRUMENTS,
                             "count": len(self.INSTRUMENTS),
-                            "timestamp": datetime.now(timezone.utc).isoformat(),
+                            "timestamp": time.time_ns(),
                             "market_open": is_open,
                             "staleness_veto": stale_detect,
                         },

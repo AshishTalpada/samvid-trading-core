@@ -1,3 +1,4 @@
+import time
 import asyncio
 import logging
 from datetime import datetime, timezone
@@ -93,7 +94,7 @@ class NativeSLM:
                 "confidence": 0.85 if bias != "NEUTRAL" else 0.5, # Static conf since SLM is decisive
                 "signal_strength": 1.15 if vote == "YES" and bias != "NEUTRAL" else 1.0,
                 "risk_flag": bias == "NEUTRAL",
-                "timestamp": context.get("timestamp", datetime.now(timezone.utc).isoformat()),
+                "timestamp": context.get("timestamp", time.time_ns()),
                 "reason": reason,
                 "bias": bias,
                 "agent_count": 1 # It's a single brain, not a swarm
@@ -128,7 +129,7 @@ class NativeSLM:
             "confidence": 0.0,
             "signal_strength": 1.0,
             "risk_flag": True,
-            "timestamp": context.get("timestamp", datetime.now(timezone.utc).isoformat()),
+            "timestamp": context.get("timestamp", time.time_ns()),
             "reason": reason,
             "bias": "NEUTRAL",
             "agent_count": 0

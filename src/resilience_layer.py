@@ -1,3 +1,4 @@
+import time
 import asyncio
 import logging
 from dataclasses import dataclass, field
@@ -178,7 +179,7 @@ class ApexExoskeleton:
                         "symbol": symbol,
                         "price_delta": price_delta,
                         "age": age,
-                        "timestamp": datetime.now().isoformat(),
+                        "timestamp": time.time_ns(),
                     },
                 )
 
@@ -259,7 +260,7 @@ class ApexExoskeleton:
                     "reason": "Syntax Verified"
                     if is_valid
                     else f"🚨 SYNTAX ERROR: {res.get('summary', 'Unknown Fracture')}",
-                    "timestamp": datetime.now().isoformat(),
+                    "timestamp": time.time_ns(),
                 }
             except Exception as e:
                 return {"vote": "NO", "confidence": 0.0, "reason": f"Syntax Guard Failure: {e}"}
