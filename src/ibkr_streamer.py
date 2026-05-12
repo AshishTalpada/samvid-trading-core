@@ -135,13 +135,17 @@ class IBKRStreamer:
         # Lazily import and create IB instance here to avoid import-time event loop issues
         if self.ib is None:
             try:
-                # Ensure event loop is set for the current thread before importing ib_insync
-                import asyncio
+                # Aggressive event loop setup for supervised task contexts
                 try:
                     asyncio.get_running_loop()
                 except RuntimeError:
-                    loop = asyncio.new_event_loop()
-                    asyncio.set_event_loop(loop)
+                    # No running loop, ensure we have one
+                    try:
+                        loop = asyncio.get_event_loop()
+                        if loop.is_closed():
+                            asyncio.set_event_loop(asyncio.new_event_loop())
+                    except RuntimeError:
+                        asyncio.set_event_loop(asyncio.new_event_loop())
                 
                 from ib_insync import IB
 
