@@ -135,11 +135,20 @@ class IBKRStreamer:
         # Lazily import and create IB instance here to avoid import-time event loop issues
         if self.ib is None:
             try:
+                # Ensure event loop is set for the current thread before importing ib_insync
+                import asyncio
+                try:
+                    asyncio.get_running_loop()
+                except RuntimeError:
+                    loop = asyncio.new_event_loop()
+                    asyncio.set_event_loop(loop)
+                
                 from ib_insync import IB
 
                 self.ib = IB()
             except Exception as e:
                 logger.error(f"IBKRStreamer: ib_insync import/create failed: {e}")
+                self.ib = None
                 return
         # 1. Connect to QuestDB (Persistent ILP Session)
         from config import QUESTDB_ENABLED
