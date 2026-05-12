@@ -6,6 +6,7 @@ into QuestDB via the InfluxDB Line Protocol (ILP).
 
 import asyncio
 import logging
+import time
 from collections import defaultdict, deque
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any, Optional
@@ -197,7 +198,11 @@ class IBKRStreamer:
                     logger.debug(
                         f"IBKRStreamer: Attempt {attempt + 1}/{max_attempts} failed for {host}:{self.port}: {e}"
                     )
-                    self.ib.disconnect()
+                    if self.ib is not None:
+                        try:
+                            self.ib.disconnect()
+                        except Exception:
+                            pass
 
             wait_time = min(2**attempt, 30)  # Exponential backoff
             logger.warning(
@@ -407,6 +412,8 @@ class IBKRStreamer:
                 self._last_tick_time = datetime.now(timezone.utc)
                 logger.info("IBKRStreamer: Event listeners active.")
 
+                from ib_insync import Stock
+
                 contracts = [Stock(symbol=s, exchange="SMART", currency="USD") for s in symbols]
 
                 # 2. Subscribe to all symbols
@@ -468,11 +475,15 @@ class IBKRStreamer:
     async def stop(self) -> None:
         """Stop the streamer."""
         self.is_running = False
-        if self._publisher_task:
+        if hasattr(self, "_publisher_task") and self._publisher_task:
             self._publisher_task.cancel()
             try:
                 await self._publisher_task
             except asyncio.CancelledError:
                 pass
-        await asyncio.to_thread(self.ib.disconnect)
+        if self.ib is not None:
+            try:
+                await asyncio.to_thread(self.ib.disconnect)
+            except Exception as e:
+                logger.debug(f"IBKRStreamer: Stop disconnect error: {e}")
         logger.info("IBKRStreamer: Disconnected and stopped.")
