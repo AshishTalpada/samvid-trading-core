@@ -24,6 +24,8 @@ pub mod signed_bus;
 pub mod slicer;
 #[path = "execution/universal_bridge.rs"]
 pub mod universal_bridge;
+#[path = "execution/decision_engine.rs"]
+pub mod decision_engine;
 pub mod network_layer;
 
 #[path = "feeds/nasdaq.rs"]
@@ -59,6 +61,7 @@ pub mod lattice;
 #[pymodule]
 fn sovereign_core(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(ibkr_streamer::stream_ticks, m)?)?;
+    m.add_class::<decision_engine::FastDecisionEngine>()?;
     // Add other functions as needed
     Ok(())
 }
