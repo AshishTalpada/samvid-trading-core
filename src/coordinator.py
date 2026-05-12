@@ -571,14 +571,15 @@ class TradingCoordinator:
                 async def poll_oracle():
                     """Dhatu Oracle: (SOLUTION 5) Uses Background State with High-Fidelity Fallback."""
                     state = self.brain.conviction_state.get("Dhatu_Oracle")
-                    if (
-                        state
-                        and (
-                            datetime.now(timezone.utc) - dtparser.parse(state["timestamp"])
-                        ).total_seconds()
-                        < 90
-                    ):
-                        return state
+                    if state and "timestamp" in state:
+                        ts = state["timestamp"]
+                        # Handle both string and numeric timestamps
+                        if isinstance(ts, (int, float)):
+                            ts = datetime.fromtimestamp(ts, tz=timezone.utc)
+                        else:
+                            ts = dtparser.parse(ts)
+                        if (datetime.now(timezone.utc) - ts).total_seconds() < 90:
+                            return state
 
                     try:
                         if self.brain.dhatu_oracle is None:
@@ -602,14 +603,15 @@ class TradingCoordinator:
                 async def poll_swarm():
                     """Swarm Predictor: (SOLUTION 5) Uses Background State with High-Fidelity Fallback."""
                     state = self.brain.conviction_state.get("Swarm_Predictor")
-                    if (
-                        state
-                        and (
-                            datetime.now(timezone.utc) - dtparser.parse(state["timestamp"])
-                        ).total_seconds()
-                        < 90
-                    ):
-                        return state
+                    if state and "timestamp" in state:
+                        ts = state["timestamp"]
+                        # Handle both string and numeric timestamps
+                        if isinstance(ts, (int, float)):
+                            ts = datetime.fromtimestamp(ts, tz=timezone.utc)
+                        else:
+                            ts = dtparser.parse(ts)
+                        if (datetime.now(timezone.utc) - ts).total_seconds() < 90:
+                            return state
 
                     try:
                         if self.brain.swarm_predictor is None:
@@ -740,14 +742,15 @@ class TradingCoordinator:
                         for name, _ in gated_agents:
                             state = self.brain.conviction_state.get(name)
                             state_ts = state.get("timestamp") if state else None
-                            if (
-                                not state
-                                or not state_ts
-                                or (
-                                    datetime.now(timezone.utc) - dtparser.parse(state_ts)
-                                ).total_seconds()
-                                > 90
-                            ):
+                            should_call = not state or not state_ts
+                            if state_ts and not should_call:
+                                # Handle both string and numeric timestamps
+                                if isinstance(state_ts, (int, float)):
+                                    ts = datetime.fromtimestamp(state_ts, tz=timezone.utc)
+                                else:
+                                    ts = dtparser.parse(state_ts)
+                                should_call = (datetime.now(timezone.utc) - ts).total_seconds() > 90
+                            if should_call:
                                 background_success = False
                                 break
                             state["timestamp"] = timestamp
