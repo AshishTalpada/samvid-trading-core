@@ -1,7 +1,6 @@
 CompileFlags:
   Add: [
     -Isrc/cuda,
-    -IC:/Users/talpa/AppData/Local/Programs/Python/Python312/Include,
     -Wno-implicit-function-declaration
   ]
 
@@ -30,6 +29,8 @@ CompileFlags:
 
 ---
 If:
-  PathMatch: .*[\/\\]\.venv[\/\\].*
+  PathMatch: .*\.venv/.*
+CompileFlags:
+  Add: [-ferror-limit=0]
 Diagnostics:
-  Suppress: "*"
+  Suppress: ["*"]
