@@ -1,0 +1,21 @@
+{
+    "python.analysis.autoImportCompletions": true,
+    "python.autoComplete.extraPaths": [
+        "."
+    ],
+    "python.envFile": "${workspaceFolder}/.env",
+    "files.exclude": {
+        "**/logs/**": true,
+        "**/data/**": true,
+        "**/frontend/dist/**": true,
+        "**/*.pyc": true,
+        "**/__pycache__/**": true,
+        "**/.pytest_cache/**": true,
+        "**/.mypy_cache/**": true
+    },
+    "search.exclude": {
+        "**/logs/**": true,
+        "**/data/**": true,
+        "**/frontend/dist/**": true
+    }
+}

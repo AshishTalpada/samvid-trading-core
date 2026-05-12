@@ -1,0 +1,16 @@
+{
+  "compilerOptions": {
+    "checkJs": false,
+    "allowJs": true
+  },
+  "exclude": [
+    "frontend/dist",
+    "dist",
+    "node_modules",
+    "venv",
+    ".venv",
+    "**/__pycache__",
+    "**/.pytest_cache",
+    "**/.mypy_cache"
+  ]
+}
