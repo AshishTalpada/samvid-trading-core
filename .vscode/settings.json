@@ -7,9 +7,16 @@
     "python.analysis.exclude": [
         "venv",
         ".venv",
+        ".venv_clean",
         "data",
         "logs",
         "outputs",
+        "build",
+        "tmp",
+        "scratch",
+        "models",
+        "qdbroot",
+        "questdb",
         "**/node_modules",
         "**/__pycache__",
         "**/.*"
@@ -26,6 +33,7 @@
         "**/logs/**": true,
         "**/data/**": true,
         "**/frontend/dist/**": true,
+        "**/.venv_clean/**": true,
         "**/*.pyc": true,
         "**/__pycache__/**": true,
         "**/.pytest_cache/**": true,
@@ -34,6 +42,7 @@
     "search.exclude": {
         "**/logs/**": true,
         "**/data/**": true,
-        "**/frontend/dist/**": true
+        "**/frontend/dist/**": true,
+        "**/.venv_clean/**": true
     }
 }
