@@ -6,6 +6,7 @@ into QuestDB via the InfluxDB Line Protocol (ILP).
 
 import asyncio
 import logging
+import sys
 import time
 from collections import defaultdict, deque
 from datetime import datetime, timezone
@@ -13,6 +14,26 @@ from typing import TYPE_CHECKING, Any, Optional
 
 if TYPE_CHECKING:
     from intelligence_bus import SharedIntelligenceBus
+
+
+def _ensure_asyncio_loop() -> None:
+    """Ensure a current asyncio event loop exists for this thread."""
+    if sys.platform == "win32":
+        try:
+            asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+        except Exception:
+            pass
+
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        try:
+            loop = asyncio.get_event_loop()
+        except RuntimeError:
+            loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+    else:
+        asyncio.set_event_loop(loop)
 
 # Defer importing `ib_insync` until runtime to avoid creating an event loop
 # at module import time in testing/static-analysis environments.
@@ -136,18 +157,7 @@ class IBKRStreamer:
         # Lazily import and create IB instance here to avoid import-time event loop issues
         if self.ib is None:
             try:
-                # Aggressive event loop setup for supervised task contexts
-                try:
-                    asyncio.get_running_loop()
-                except RuntimeError:
-                    # No running loop, ensure we have one
-                    try:
-                        loop = asyncio.get_event_loop()
-                        if loop.is_closed():
-                            asyncio.set_event_loop(asyncio.new_event_loop())
-                    except RuntimeError:
-                        asyncio.set_event_loop(asyncio.new_event_loop())
-                
+                _ensure_asyncio_loop()
                 from ib_insync import IB
 
                 self.ib = IB()
