@@ -14,6 +14,8 @@
         "**/__pycache__",
         "**/.*"
     ],
+    "python.analysis.reportMissingImports": "none",
+    "python.analysis.reportMissingModuleSource": "none",
     "python.analysis.autoImportCompletions": true,
     "python.autoComplete.extraPaths": [
         ".",
