@@ -321,6 +321,7 @@ class TradingSystem:
             import psutil
 
             pid_file = "data/main.pid"
+            os.makedirs(os.path.dirname(pid_file), exist_ok=True)
             current_pid = os.getpid()
 
             if os.path.exists(pid_file):
@@ -330,7 +331,12 @@ class TradingSystem:
 
                     if old_pid != current_pid and psutil.pid_exists(old_pid):
                         proc = psutil.Process(old_pid)
-                        if "python" in proc.name().lower():
+                        proc_name = proc.name().lower()
+                        cmdline = proc.cmdline() or []
+                        cmdline_str = " ".join(cmdline).replace("\\", "/")
+                        same_app = "src/main.py" in cmdline_str or "main.py" in cmdline_str
+
+                        if same_app:
                             logger.critical(
                                 f"🛑 CRITICAL: Duplicate Sovereign Instance Detected (PID: {old_pid})."
                             )
@@ -340,8 +346,13 @@ class TradingSystem:
                             logger.critical(
                                 "Please kill the existing process before starting a new one."
                             )
-                            # In a hardened system, we might try to kill it, but for safety, we exit.
                             sys.exit(1)
+
+                        if "python" in proc_name:
+                            logger.warning(
+                                f"Stale PID file detected for PID {old_pid}. "
+                                "Process exists but does not appear to be the current Sovereign instance. Overwriting PID file."
+                            )
                 except (ValueError, psutil.NoSuchProcess, psutil.AccessDenied):
                     pass  # Stale or invalid PID file
 
