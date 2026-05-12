@@ -49,6 +49,15 @@ pub mod recovery;
 #[path = "wallets/cold_storage.rs"]
 pub mod cold_storage;
 
+#[path = "crypto/zkp.rs"]
+pub mod zkp;
+
+#[path = "crypto/q_safe.rs"]
+pub mod q_safe;
+
+#[path = "crypto/lattice.rs"]
+pub mod lattice;
+
 #[pymodule]
 fn sovereign_core(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(ibkr_streamer::stream_ticks, m)?)?;
