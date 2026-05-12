@@ -58,6 +58,24 @@ class SovereignDecisionEngine:
 
             self._active_symbols.add(symbol)
             try:
+                # --- PHASE 3: FAST BRAIN DELEGATION ---
+                # Attempt to use the native Rust implementation for zero-allocation speed
+                try:
+                    import sovereign_core
+                    engine = sovereign_core.FastDecisionEngine()
+                    rust_result = engine.evaluate(context, agent_outputs)
+                    # The Rust engine returns a dict like {"decision": ..., "confidence": ...}
+                    # We just need to wrap it in the final bus report
+                    return await self._final_report(
+                        decision=rust_result.get("decision", "REJECT"),
+                        confidence=rust_result.get("confidence", 0.0),
+                        reason=rust_result.get("reason", "Rust Engine Default Fallback"),
+                        votes=agent_outputs
+                    )
+                except ImportError:
+                    # Fallback to the slow Python brain if Rust module isn't built yet
+                    pass
+                
                 result = await self._evaluate_logic(context, agent_outputs)
                 return result
             finally:
@@ -109,20 +127,30 @@ class SovereignDecisionEngine:
                     f"Data Mismatch: Agent '{agent}' returned NULL confidence."
                 )
 
-            # --- TASK 4.2: SYNC TOLERANCE (±15 seconds) ---
+            # --- TASK 4.2: SYNC TOLERANCE (±60 seconds) ---
             # If an agent is too slow, we exclude its vote but allow the quorum to proceed.
             agent_ts = out.get("timestamp")
             if agent_ts and context_ts:
                 try:
-                    t_ctx = dtparser.parse(context_ts)
-                    t_agt = dtparser.parse(agent_ts)
-                    drift_sec = abs((t_agt - t_ctx).total_seconds())
+                    # Fast Path: Zero-allocation numeric comparison
+                    if isinstance(context_ts, (int, float)) and isinstance(agent_ts, (int, float)):
+                        # If nanoseconds (e.g. time.time_ns()), convert to seconds
+                        if context_ts > 1e15: context_ts /= 1e9
+                        if agent_ts > 1e15: agent_ts /= 1e9
+                        drift_sec = abs(agent_ts - context_ts)
+                    else:
+                        # Slow Path: Fallback for unmigrated agents (String parsing)
+                        t_ctx = dtparser.parse(str(context_ts))
+                        t_agt = dtparser.parse(str(agent_ts))
+                        drift_sec = abs((t_agt - t_ctx).total_seconds())
+                        
                     if drift_sec > 60.0:
                         logger.warning(
                             f"DecisionEngine: Agent '{agent}' too slow (drift={drift_sec:.2f}s). Excluding from quorum."
                         )
                         continue  # Skip this agent, don't reject the whole cycle
-                except Exception:
+                except Exception as e:
+                    logger.error(f"DecisionEngine: Timestamp parsing error: {e}")
                     pass
 
             # Processing Vote
