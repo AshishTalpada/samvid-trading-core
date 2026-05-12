@@ -1,3 +1,11 @@
+// =========================================================================
+// DEPRECATION WARNING: Phase 2 De-bloat
+// Custom cryptography (especially toy PQC implementations) should not be 
+// used in production systems. This is now disabled by default.
+// Use standard TLS/AES for data-in-transit or data-at-rest.
+// =========================================================================
+#![cfg(feature = "experimental_crypto")]
+
 use rand::{thread_rng, Rng};
 
 /// Deep Dive: Post-Quantum Lattice Cryptography (Module Learning With Errors / Kyber-style)
