@@ -13,7 +13,14 @@
     "src"
   ],
   "include": [
-    "."
+    "src",
+    "tests",
+    "scripts",
+    "tools",
+    "docs",
+    "specs",
+    "contracts",
+    "frontend/src"
   ],
   "exclude": [
     "**/node_modules",
