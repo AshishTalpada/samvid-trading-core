@@ -214,6 +214,16 @@ class TradingSystem:
             return "❌"
         return "⏳"
 
+    @property
+    def requires_ibkr_connection(self) -> bool:
+        """Return True for modes that require a real IBKR session."""
+        return self.mode in ("ibkr_paper", "live")
+
+    @property
+    def is_paper_only(self) -> bool:
+        """Return True when the system is running pure local simulation only."""
+        return self.mode == "paper"
+
     def __init__(self) -> None:
         self.profiler = StartupProfiler()
         self.profiler.mark("CONSTRUCTOR_START")
@@ -350,7 +360,7 @@ class TradingSystem:
         # 1. Sovereign Scent Detection (Pillar 9.99)
         self.mind_system = MindSystem(self.bridge)
         logger.info("MindSystem: Scanning for software scients and verifying environment...")
-        if self.mode != "paper":
+        if self.requires_ibkr_connection:
             executable_found = await self.mind_system._tool_find_executable("ibkr")
             if not executable_found:
                 logger.error(
@@ -1290,20 +1300,27 @@ class TradingSystem:
 
             # PILLAR 6 & 9.99: MISSION PARALLELIZATION (Harvested from Leaked Goldmine)
             # 1. Instantiate Core Objects first so the Brain has valid references
-            from ib_insync import IB
+            if self.requires_ibkr_connection:
+                from ib_insync import IB
 
-            if not hasattr(self, "ibkr_client") or self.ibkr_client is None:
-                self.ibkr_client = IB()
-            elif self.ibkr_client.isConnected():
-                logger.info("🏛️ Sovereign: IBKR client already connected. Skipping re-init.")
+                if not hasattr(self, "ibkr_client") or self.ibkr_client is None:
+                    self.ibkr_client = IB()
+                elif self.ibkr_client.isConnected():
+                    logger.info("🏛️ Sovereign: IBKR client already connected. Skipping re-init.")
+                else:
+                    logger.info("🏛️ Sovereign: Re-initializing existing IBKR client instance.")
             else:
-                logger.info("🏛️ Sovereign: Re-initializing existing IBKR client instance.")
+                logger.info("Paper mode active — skipping IBKR client instantiation.")
 
             # 2. Start Critical Infrastructure synchronously/awaited
             await self.start_dms()
 
             # 3. Broker Matrix Probing (Serialized for stability)
-            await self.connect_ibkr()
+            if self.requires_ibkr_connection:
+                await self.connect_ibkr()
+            else:
+                logger.info("Paper mode active — skipping IBKR connection.")
+
             _mt5_authorized = False
             if hasattr(self, "mt5_login") and self.mt5_login:
                 if (
@@ -1312,8 +1329,10 @@ class TradingSystem:
                 ):
                     _mt5_authorized = True
 
-            if _mt5_authorized:
+            if self.mode != "paper" and _mt5_authorized:
                 await self.connect_mt5()
+            elif _mt5_authorized:
+                logger.info("Paper mode active — skipping MT5 connection.")
             else:
                 missing = []
                 if not self.mt5_login:
