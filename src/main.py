@@ -1440,7 +1440,7 @@ class TradingSystem:
                             cursor = db.cursor()
                             cursor.execute(
                                 "INSERT OR REPLACE INTO system_state (key, value) VALUES (?, ?)",
-                                ("last_startup", datetime.now(timezone.utc).isoformat()),
+                                ("last_startup", time.time_ns()),
                             )
                             cursor.execute(
                                 "INSERT OR REPLACE INTO system_state (key, value) VALUES (?, ?)",
@@ -1519,7 +1519,7 @@ class TradingSystem:
                         cursor = db.cursor()
                         cursor.execute(
                             "INSERT OR REPLACE INTO system_state (key, value) VALUES (?, ?)",
-                            ("last_heartbeat", datetime.now(timezone.utc).isoformat()),
+                            ("last_heartbeat", time.time_ns()),
                         )
                         db.commit()
                         cursor.close()
@@ -1540,7 +1540,7 @@ class TradingSystem:
                         stats = await self.trading_brain.get_system_stats()
                         payload = {
                             "system_id": Vault.get("SYSTEM_ID", "SOVEREIGN_V9"),
-                            "timestamp": datetime.now(timezone.utc).isoformat(),
+                            "timestamp": time.time_ns(),
                             "stats": stats,
                             "active_broker": self.trading_brain.active_broker,
                             "uptime": time.time() - self._start_time
@@ -1798,7 +1798,7 @@ class TradingSystem:
                     )
                     cursor.execute(
                         "INSERT OR REPLACE INTO system_state (key, value) VALUES (?, ?)",
-                        ("last_shutdown", datetime.now(timezone.utc).isoformat()),
+                        ("last_shutdown", time.time_ns()),
                     )
                     self.db_conn.commit()
                     cursor.close()

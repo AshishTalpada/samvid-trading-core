@@ -5,6 +5,8 @@ This component enables the system to "learn" by:
 2. Mapping subsequent P&L back to those features.
 3. Dynamically adjusting Brain thresholds to optimize for win-rate and Sharpe.
 """
+import time
+
 
 import asyncio
 import json
@@ -103,7 +105,7 @@ class EvolutionManager:
             """,
                 (
                     symbol,
-                    datetime.now().isoformat(),
+                    time.time_ns(),
                     dhatu_state,
                     risk_modifier,
                     json.dumps(features),
@@ -428,7 +430,7 @@ class EvolutionManager:
                     INSERT OR REPLACE INTO brain_optimization (parameter_name, parameter_value, confidence, sharpe_ratio, last_updated)
                     VALUES (?, ?, ?, ?, ?)
                 """,
-                    (key, str(value), 1.0, sharpe, datetime.now().isoformat()),
+                    (key, str(value), 1.0, sharpe, time.time_ns()),
                 )
                 conn.commit()
                 conn.close()
