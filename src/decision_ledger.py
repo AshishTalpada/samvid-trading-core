@@ -13,6 +13,8 @@ Usage:
     # At position exit:
     LEDGER.record_exit(symbol, exit_type, pnl, r_multiple, triggered_by)
 """
+import time
+
 
 from __future__ import annotations
 
@@ -132,7 +134,7 @@ class DecisionLedger:
     ) -> None:
         """Record a new trade entry decision."""
         entry = LedgerEntry(
-            timestamp=datetime.now(timezone.utc).isoformat(),
+            timestamp=time.time_ns(),
             event_type="ENTRY",
             symbol=symbol,
             action="BUY",
@@ -164,7 +166,7 @@ class DecisionLedger:
         """Record a position exit decision."""
         action = "WIN" if pnl_usd >= 0 else "LOSS"
         entry = LedgerEntry(
-            timestamp=datetime.now(timezone.utc).isoformat(),
+            timestamp=time.time_ns(),
             event_type="EXIT",
             symbol=symbol,
             action=action,
@@ -191,7 +193,7 @@ class DecisionLedger:
     ) -> None:
         """Record a blocked/vetoed trade decision."""
         entry = LedgerEntry(
-            timestamp=datetime.now(timezone.utc).isoformat(),
+            timestamp=time.time_ns(),
             event_type="VETO",
             symbol=symbol,
             action="BLOCKED",

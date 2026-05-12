@@ -491,7 +491,7 @@ class TradingBrain:
                 {
                     "old": old_state.name,
                     "new": new_state.name,
-                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                    "timestamp": time.time_ns(),
                 },
             )
 
@@ -744,21 +744,21 @@ class TradingBrain:
                 "vote": "YES",
                 "confidence": 0.5,
                 "reason": "Initializing",
-                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "timestamp": time.time_ns(),
             },
             "Swarm_Predictor": {
                 "agent": "Swarm_Predictor",
                 "vote": "YES",
                 "confidence": 0.5,
                 "reason": "Initializing",
-                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "timestamp": time.time_ns(),
             },
             "Mind_Ultrathink": {
                 "agent": "Mind_Ultrathink",
                 "vote": "YES",
                 "confidence": 0.5,
                 "reason": "Initializing",
-                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "timestamp": time.time_ns(),
             },
         }
 
@@ -1086,7 +1086,7 @@ class TradingBrain:
 
         # Update session memory on start
         self.memory_manager.update_session_memory(
-            f"- INFINITY MATRIX ONLINE: {datetime.now(timezone.utc).isoformat()}\n", mode="a"
+            f"- INFINITY MATRIX ONLINE: {time.time_ns()}\n", mode="a"
         )
 
         self._mind_task = asyncio.create_task(self._run_trader_mind())
@@ -1251,7 +1251,7 @@ class TradingBrain:
                         "win_streak": self.loss_tracker.win_streak,
                         "last_loss_time": self.loss_tracker.last_loss_time.isoformat() if self.loss_tracker.last_loss_time else None,
                     },
-                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                    "timestamp": time.time_ns(),
                 }
                 await asyncio.to_thread(self.session_restorer.freeze_state, state)
             except Exception as e:
@@ -1339,7 +1339,7 @@ class TradingBrain:
                                 "agent_c",
                                 "agent_d",
                             ],
-                            "timestamp": datetime.now(timezone.utc).isoformat(),
+                            "timestamp": time.time_ns(),
                         }
                         await self.bus.publish("system.state", state_payload)
                     except Exception as _ws_err:
@@ -2078,7 +2078,7 @@ class TradingBrain:
                             {
                                 "symbol": pos.symbol,
                                 "reason": decision.reason,
-                                "timestamp": datetime.now(timezone.utc).isoformat(),
+                                "timestamp": time.time_ns(),
                             },
                         )
 
@@ -2542,7 +2542,7 @@ class TradingBrain:
                     "conviction_state": self.conviction_state,
                     "session_pnl": self.session_pnl,
                     "session_stats": self.session_stats,
-                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                    "timestamp": time.time_ns(),
                 }
             )
             return regime
@@ -3077,7 +3077,7 @@ class TradingBrain:
                 take_profit=target,
                 trade_id=f"ADOPTED-{broker.upper()}-{symbol}",
                 account_type=broker,
-                meta={"adoption_ts": datetime.now(timezone.utc).isoformat()},
+                meta={"adoption_ts": time.time_ns()},
             )
 
             self.positions.append(adopted)
@@ -3089,7 +3089,7 @@ class TradingBrain:
                     "INSERT INTO trades (timestamp, instrument, direction, quantity, entry_price, outcome, stop_price, target_price, broker, notes) "
                     "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                     (
-                        datetime.now(timezone.utc).isoformat(),
+                        time.time_ns(),
                         symbol,
                         direction,
                         qty,
@@ -3384,7 +3384,7 @@ class TradingBrain:
             cursor = self.db_conn.cursor()
             cursor.execute(
                 "INSERT OR REPLACE INTO system_state (key, value) VALUES (?, ?)",
-                ("last_heartbeat", datetime.now(timezone.utc).isoformat()),
+                ("last_heartbeat", time.time_ns()),
             )
             # Fix A: persist peak_equity so restore_peak_equity() can read it on restart
             cursor.execute(
@@ -3428,7 +3428,7 @@ class TradingBrain:
                         "INSERT INTO signals (timestamp, instrument, pattern, base_quality, catalyst_score, "
                         "action_taken, skip_reason) VALUES (?, ?, ?, ?, ?, ?, ?)",
                         (
-                            datetime.now(timezone.utc).isoformat(),
+                            time.time_ns(),
                             symbol,
                             pattern.name,
                             pattern.confidence,
@@ -3674,7 +3674,7 @@ class TradingBrain:
                             confirmed=True,
                             lambda_val=50,
                         ),
-                        "timestamp": datetime.now(timezone.utc).isoformat(),
+                        "timestamp": time.time_ns(),
                     }
                     # Run the probe (is_probe=True prevents actual execution)
                     success = await self.coordinator.initiate_trade_lifecycle(
@@ -3705,7 +3705,7 @@ class TradingBrain:
                 # Construct Global Context (No symbol-specifics)
                 global_ctx = {
                     "symbol": "GLOBAL",
-                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                    "timestamp": time.time_ns(),
                     "regime": self.current_regime,
                     "account_value": await self._get_account_value("ibkr"),
                     "vix": await self._get_vix(),
@@ -3715,7 +3715,7 @@ class TradingBrain:
                 # Stage 2: Gated Intelligence (Atomic Parallelization with Watchdogs)
                 from coordinator import TradingCoordinator
 
-                now_iso = datetime.now(timezone.utc).isoformat()
+                now_iso = time.time_ns()
                 new_convictions = {}
 
                 logger.debug(f"Brain: Starting Conviction Sync for {now_iso}...")

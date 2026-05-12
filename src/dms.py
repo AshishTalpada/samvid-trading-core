@@ -234,7 +234,7 @@ class DMSMonitor:
             fd = os.open(lock_file, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
             with os.fdopen(fd, "w") as f:
                 f.write(
-                    f"LATENCY_CRITICAL node={socket.gethostname()} ts={datetime.now(timezone.utc).isoformat()}"
+                    f"LATENCY_CRITICAL node={socket.gethostname()} ts={time.time_ns()}"
                 )
         except FileExistsError:
             # Check if the lock is stale (> 30 mins)
@@ -248,7 +248,7 @@ class DMSMonitor:
                 logger.warning("DMS: Stale lock detected (>30m). Force-assuming leadership.")
                 with open(lock_file, "w") as f:
                     f.write(
-                        f"LATENCY_CRITICAL node={socket.gethostname()} ts={datetime.now(timezone.utc).isoformat()} (FORCED)"
+                        f"LATENCY_CRITICAL node={socket.gethostname()} ts={time.time_ns()} (FORCED)"
                     )
         except Exception as e:
             logger.error(f"DMS: Failed to create concurrency lock: {e}")

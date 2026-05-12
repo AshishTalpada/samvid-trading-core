@@ -1,3 +1,4 @@
+import time
 import asyncio
 import logging
 import os
@@ -117,7 +118,7 @@ class KnowledgeIngestor:
         await bus.publish(
             "evolution.knowledge_shift",
             {
-                "timestamp": datetime.now().isoformat(),
+                "timestamp": time.time_ns(),
                 "new_fragments": self.ingested_count,
                 "theme": "Sovereign Intelligence Synthesis",
             },

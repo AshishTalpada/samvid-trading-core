@@ -1,3 +1,4 @@
+import time
 import json
 import logging
 import os
@@ -41,7 +42,7 @@ class SovereignLogicEngine:
                             "layer": layer,
                             "active": True,
                             "prowess": 1.0,
-                            "last_sync": datetime.now().isoformat(),
+                            "last_sync": time.time_ns(),
                         }
             logger.info("SovereignLogicEngine: 500 Abilities synchronized and active.")
         except Exception as e:

@@ -1911,7 +1911,7 @@ def agent_a_validate_trade(
             "agent": "Agent_A",
             "vote": "NO",
             "reason": "Data Integrity Failure: Stale Market.",
-            "ts": datetime.now(timezone.utc).isoformat(),
+            "ts": time.time_ns(),
         }
 
     # 3. INTERLEAVED THINKING (Beta Gate)
@@ -1946,7 +1946,7 @@ def agent_a_validate_trade(
                     task.transition(TaskStatus.FAILED)
                 return {
                     "agent": "Agent_A",
-                    "last_update": datetime.now(timezone.utc).isoformat(),
+                    "last_update": time.time_ns(),
                     "vote": "NO",
                     "confidence": state.confidence,
                     "reason": f"🏛️ Sovereign Chaos VETO: {state.dhatu_state}",
