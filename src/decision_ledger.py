@@ -129,13 +129,14 @@ class DecisionLedger:
         triggered_by: str = "agent_a",
         override: str = "",
         meta: dict | None = None,
+        event_type: str = "ENTRY",
     ) -> None:
-        """Record a new trade entry decision."""
+        """Record a new trade entry or execution decision."""
         entry = LedgerEntry(
             timestamp=time.time_ns(),
-            event_type="ENTRY",
+            event_type=event_type,
             symbol=symbol,
-            action="BUY",
+            action="BUY" if event_type in ["ENTRY", "EXECUTION"] else "BLOCKED",
             triggered_by=triggered_by,
             agent_votes=agent_votes,
             pattern=pattern,
