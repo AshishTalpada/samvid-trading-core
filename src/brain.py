@@ -1873,11 +1873,17 @@ class TradingBrain:
             # Guard: skip entropy check if no symbols were successfully scanned to avoid false flushes.
             scanned_count = stats["scanned"]
             signal_density = stats["detected"] / scanned_count if scanned_count > 0 else 0.0
+            
+            # Use a time-based cooldown (max 1 flush per 60 seconds) to prevent log spam
+            now = time.monotonic()
             if signal_density > 0.8:
-                logger.warning(
-                    f"SYSTEM ENTROPY CRITICAL (Density: {signal_density:.2f}): Performing Cognitive Flush..."
-                )
+                if not hasattr(self, '_last_entropy_flush') or now - getattr(self, '_last_entropy_flush', 0) > 60:
+                    logger.warning(
+                        f"SYSTEM ENTROPY CRITICAL (Density: {signal_density:.2f}): Performing Cognitive Flush..."
+                    )
+                    self._last_entropy_flush = now
                 self.pending_signals.clear()
+                discoveries.clear()  # Ensure we don't immediately refill pending_signals
                 # Also clear old closed positions to free memory
                 if len(self.closed_positions) > 100:
                     for _ in range(50):
