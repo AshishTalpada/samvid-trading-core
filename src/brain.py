@@ -1872,7 +1872,10 @@ class TradingBrain:
             # Prevent 'Information Overload' by clearing buffers when signal density is too high.
             # Guard: skip entropy check if no symbols were successfully scanned to avoid false flushes.
             scanned_count = stats["scanned"]
-            signal_density = stats["detected"] / scanned_count if scanned_count > 0 else 0.0
+            # Corrected: Density should reflect actual Task Registry occupancy (Volume), not Hit Rate.
+            # Hit rate is a measure of opportunity; Registry occupancy is a measure of memory load.
+            # We only flush if we are approaching the 1000-task hard limit.
+            signal_density = len(self.task_manager.tasks) / 1000.0 if self.task_manager else 0.0
 
             # Use a time-based cooldown (max 1 flush per 60 seconds) to prevent log spam
             now = time.monotonic()
