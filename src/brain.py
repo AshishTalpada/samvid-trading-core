@@ -3001,17 +3001,17 @@ class TradingBrain:
                 broker = p.account_type
                 reality = ibkr_reality if broker == "ibkr" else mt5_reality
                 polled = ibkr_polled if broker == "ibkr" else mt5_polled
-                
+
                 # SKEPTICAL HANDSHAKE: If symbol is missing from reality map, do NOT assume zero.
                 if p.symbol not in reality:
                     # ONLY assume 0.0 if we just did a fresh, successful poll of the broker.
                     # Otherwise, it might be a temporary event lag (Sync Lag).
                     if not polled:
                         continue
-                    
+
                     _p_entry = p.entry_time if p.entry_time.tzinfo else p.entry_time.replace(tzinfo=timezone.utc)
                     age_seconds = (now_ts - _p_entry).total_seconds()
-                    
+
                     # Even with a poll, give young trades 2 minutes of grace for fill reflection
                     if age_seconds < 120:
                         continue
