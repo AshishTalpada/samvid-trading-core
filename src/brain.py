@@ -2215,6 +2215,12 @@ class TradingBrain:
             symbol = pos.symbol
             now = datetime.now(timezone.utc)
 
+            # SOVEREIGN BYPASS: Always allow emergency exits (STOP, VETO, VIX, SAFETY)
+            # regardless of age or cooldown to prevent account damage during volatility.
+            is_emergency = any(
+                term in exit_type.upper() for term in ["STOP", "VIX", "VETO", "SAFETY"]
+            )
+
             # Skip exit processing if broker is currently offline.
             # This prevents 3-strike lockouts caused by temporary connection blips.
             broker_online = False
@@ -2244,8 +2250,10 @@ class TradingBrain:
                 return
 
             # Cooldown Dampener (10s)
-            last_attempt = self._exit_last_attempt.get(symbol, datetime(1970, 1, 1, tzinfo=timezone.utc))
-            if (now - last_attempt).total_seconds() < 10:
+            last_attempt = self._exit_last_attempt.get(
+                symbol, datetime(1970, 1, 1, tzinfo=timezone.utc)
+            )
+            if (now - last_attempt).total_seconds() < 10 and not is_emergency:
                 logger.warning(
                     f"DAMPENER ACTIVE: {symbol} exit attempt suppressed. Waiting for cooldown (Last try: {last_attempt.strftime('%H:%M:%S')})."
                 )
@@ -2259,9 +2267,7 @@ class TradingBrain:
                 entry_time = entry_time.replace(tzinfo=timezone.utc)
             age_seconds = (now - entry_time).total_seconds()
 
-            # SOVEREIGN BYPASS: Always allow emergency exits (STOP, VETO, VIX, SAFETY)
-            # regardless of age to prevent account damage during volatility.
-            is_emergency = any(term in exit_type.upper() for term in ["STOP", "VIX", "VETO", "SAFETY"])
+            # (Emergency bypass logic handled at top)
 
             if age_seconds < 100 and not is_emergency:
                 logger.warning(
