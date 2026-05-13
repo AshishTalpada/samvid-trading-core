@@ -37,21 +37,36 @@ class MindGhost:
         """Launch the Ghost Monitor."""
         self.is_running = True
         logger.info("MindGhost (Agent J): Ghost Monitoring active.")
-        
+
         # Start audit loop
-        asyncio.create_task(self._ghost_audit_loop())
-        
+        task = asyncio.create_task(self._ghost_audit_loop())
+
         # Start shutdown listener
         if self.bridge.bus:
             asyncio.create_task(self._shutdown_listener())
 
-        # (Existing callback logic omitted for brevity in replacement)
+        def _ghost_dead_callback(t: asyncio.Task) -> None:
+            if self.is_running:  # If it wasn't a clean stop
+                try:
+                    if t.cancelled():
+                        return
+                    err = t.exception()
+                    msg = f" <b>CRITICAL</b>: MindGhost (Agent J) has CRASHED! {err}"
+                except (asyncio.CancelledError, Exception) as e:
+                    if isinstance(e, asyncio.CancelledError):
+                        return
+                    msg = " <b>CRITICAL</b>: MindGhost (Agent J) has STOPPED UNEXPECTEDLY!"
+                logger.critical(msg)
+                asyncio.create_task(
+                    self.bridge.broadcast("ghost", msg, {"alert": "TELEGRAM", "urgency": "FATAL"})
+                )
+
+        task.add_done_callback(_ghost_dead_callback)
 
     async def _shutdown_listener(self) -> None:
         """Listens for the system shutdown signal to stand down."""
         if not self.bridge.bus:
             return
-            
         q = self.bridge.bus.subscribe("system.status")
         while self.is_running:
             try:
@@ -62,47 +77,19 @@ class MindGhost:
             except Exception:
                 await asyncio.sleep(1)
 
-        def _ghost_dead_callback(t: asyncio.Task) -> None:
-            if self.is_running:  # If it wasn't a clean stop
-                try:
-                    if t.cancelled():
-                        # Just a shutdown, no need to log as critical
-                        return
-
-                    err = t.exception()
-                    msg = f" <b>CRITICAL</b>: MindGhost (Agent J) has CRASHED! {err}"
-                except (asyncio.CancelledError, Exception) as e:
-                    # Catch CancelledError explicitly if raised by exception()
-                    if isinstance(e, asyncio.CancelledError):
-                        return
-                    msg = " <b>CRITICAL</b>: MindGhost (Agent J) has STOPPED UNEXPECTEDLY!"
-
-                logger.critical(msg)
-                asyncio.create_task(
-                    self.bridge.broadcast("ghost", msg, {"alert": "TELEGRAM", "urgency": "FATAL"})
-                )
-
-        task.add_done_callback(_ghost_dead_callback)
-
     async def _ghost_audit_loop(self) -> None:
         """The core audit loop that runs at sub-second frequency."""
         from time_sync import TimeSync
-
         while self.is_running:
             try:
                 if self._stand_down:
                     await asyncio.sleep(1)
                     continue
-
                 current_time = TimeSync.now().timestamp()
-
                 if current_time - self.startup_time < 120:
                     await asyncio.sleep(1.0)
                     continue
-
-                # If we're still waiting for a handshake, check if the system heartbeats are active
                 if self.last_api_heartbeat <= self.startup_time:
-                    # If we catch a bus event or a mirror update, sync the heartbeat
                     if (
                         self.ghost_mirror.get("IBKR") == "connected"
                         or self.ghost_mirror.get("MT5") == "connected"
@@ -111,7 +98,6 @@ class MindGhost:
                         logger.info(
                             "MindGhost: Handshake confirmed via Global Matrix. Audit mode ENGAGED."
                         )
-
                 if self.last_api_heartbeat > self.startup_time:
                     if current_time - self.last_api_heartbeat > 60.0:
                         logger.error(
@@ -119,27 +105,18 @@ class MindGhost:
                         )
                         await self._trigger_ghost_reset("IBKR")
                 else:
-                    # We haven't connected yet — just keep waiting quietly (Quieted to 15s reports)
                     if int(current_time) % 15 == 0:
                         logger.debug("MindGhost: Waiting for Sovereign Matrix Handshake...")
-
-                # 2. Latency Spikes Audit
-                # If Mind F (Executioner) reports high latency, we take action
-
-                # 3. ACTIVE SOCKET PROBE with exponential backoff (IBKR ONLY)
                 if int(current_time) % 30 == 0:
                     if getattr(self, "_last_probe_tick", 0) != int(current_time):
                         self._last_probe_tick = int(current_time)
-
                         for service, port in [("IBKR", 7497)]:
                             next_ok = self._probe_next_allowed.get(service, 0)
                             if current_time < next_ok:
-                                continue  # still in backoff window
-
+                                continue
                             if not await asyncio.to_thread(self._probe_port, port):
                                 fail_count = self.ghost_mirror.get(f"{service}_probe_fail", 0) + 1
                                 self.ghost_mirror[f"{service}_probe_fail"] = fail_count
-                                # Only log on first failure and each doubled interval
                                 backoff = min(
                                     self._probe_backoff_sec.get(service, 60.0)
                                     * (2 ** (fail_count - 1)),
