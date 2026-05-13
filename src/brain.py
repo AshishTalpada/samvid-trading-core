@@ -2256,8 +2256,8 @@ class TradingBrain:
             if entry_time.tzinfo is None:
                 entry_time = entry_time.replace(tzinfo=timezone.utc)
             age_seconds = (now - entry_time).total_seconds()
-            
-            # SOVEREIGN BYPASS: Always allow emergency exits (STOP, VETO, VIX, SAFETY) 
+
+            # SOVEREIGN BYPASS: Always allow emergency exits (STOP, VETO, VIX, SAFETY)
             # regardless of age to prevent account damage during volatility.
             is_emergency = any(term in exit_type.upper() for term in ["STOP", "VIX", "VETO", "SAFETY"])
 
