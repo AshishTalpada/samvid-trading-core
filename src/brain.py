@@ -1732,7 +1732,7 @@ class TradingBrain:
                         },
                     )
 
-                with LatencyWatchdog(f"Scan:{symbol}", threshold_ms=500.0):
+                with LatencyWatchdog(f"Scan:{symbol}", threshold_ms=2000.0):
                     try:
                         fetch_result = await self._fetch_ohlcv(symbol)
                         if fetch_result is None or isinstance(fetch_result, str):
