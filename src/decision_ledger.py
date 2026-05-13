@@ -232,10 +232,12 @@ class DecisionLedger:
                     SELECT
                         COUNT(*) as total_decisions,
                         SUM(CASE WHEN event_type='EXIT' AND pnl_usd >= 0 THEN 1 ELSE 0 END) as wins,
-                        SUM(CASE WHEN event_type='EXIT' AND pnl_usd < 0 THEN 1 ELSE 0 END) as losses,
+                        SUM(CASE WHEN event_type='EXIT' AND pnl_usd < 0 THEN 1 ELSE 0 END) 
+                        as losses,
                         SUM(CASE WHEN event_type='VETO' THEN 1 ELSE 0 END) as vetos,
                         ROUND(AVG(CASE WHEN event_type='EXIT' THEN r_multiple END), 3) as avg_r,
-                        ROUND(SUM(CASE WHEN event_type='EXIT' THEN pnl_usd ELSE 0 END), 2) as total_pnl
+                        ROUND(SUM(CASE WHEN event_type='EXIT' THEN pnl_usd ELSE 0 END), 2) 
+                        as total_pnl
                     FROM ledger
                 """).fetchone()
             return {
