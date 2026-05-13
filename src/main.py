@@ -2157,14 +2157,11 @@ def _purge_zombie_instances():
                 is_same_dir = p_cwd == cwd
 
                 if is_python and is_main and is_same_dir:
-                    print(f"[!] GHOST DETECTED: Terminating orphaned process PID {p_pid}...")
+                    print(f"[!] GHOST DETECTED: Purging orphaned PID {p_pid}...")
                     try:
-                        p_handle = psutil.Process(p_pid)
-                        p_handle.terminate()
-                        try:
-                            p_handle.wait(timeout=1)
-                        except psutil.TimeoutExpired:
-                            p_handle.kill()
+                        # Use OS-level forceful kill to avoid handle leaks and crashes
+                        import os as _os
+                        _os.system(f"taskkill /F /PID {p_pid} >nul 2>&1")
                         count += 1
                     except Exception:
                         pass
