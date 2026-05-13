@@ -1661,6 +1661,18 @@ class TradingSystem:
                 return
 
             self.is_running = False
+            
+            # PILLAR 14: SHUTDOWN BROADCAST
+            # Signals all autonomous minds (Ghost, Scent, Evolution) to stand down.
+            if hasattr(self, "bus") and self.bus:
+                try:
+                    await self.bus.publish(
+                        "system.status",
+                        {"state": "SHUTDOWN", "timestamp": time.time_ns()}
+                    )
+                except Exception:
+                    pass
+
             logger.info("\n" + "═" * 30)
             logger.info("SOVEREIGN: INITIATING SEQUENTIAL SHUTDOWN PROTOCOL")
             logger.info("═" * 30 + "\n")
@@ -1849,6 +1861,11 @@ class TradingSystem:
 
             logging.shutdown()
             self._shutdown_complete = True
+            
+            # PILLAR 13: FORCED TERMINATION
+            # Ensures dangling background threads (Dhatu, Watchdogs) cannot re-awaken the matrix.
+            import os
+            os._exit(0)
 
         except Exception as e:
             logger.error(f"FATAL ERROR DURING SHUTDOWN: {e}", exc_info=True)
