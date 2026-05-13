@@ -2256,7 +2256,12 @@ class TradingBrain:
             if entry_time.tzinfo is None:
                 entry_time = entry_time.replace(tzinfo=timezone.utc)
             age_seconds = (now - entry_time).total_seconds()
-            if age_seconds < 100 and "STOP" not in exit_type and "VIX" not in exit_type:
+            
+            # SOVEREIGN BYPASS: Always allow emergency exits (STOP, VETO, VIX, SAFETY) 
+            # regardless of age to prevent account damage during volatility.
+            is_emergency = any(term in exit_type.upper() for term in ["STOP", "VIX", "VETO", "SAFETY"])
+
+            if age_seconds < 100 and not is_emergency:
                 logger.warning(
                     f" EXIT IMMUNITY: Rejecting {exit_type} exit for {symbol}. "
                     f"Position is only {age_seconds:.0f}s old. Minimum hold: 100s."
