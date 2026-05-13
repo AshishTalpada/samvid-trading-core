@@ -408,10 +408,6 @@ class DrawdownHysteresis:
         time_since_dd = datetime.now(_timezone.utc) - last_dd_time
         recovery_time_threshold = timedelta(hours=1)  # example threshold
         return current_dd < 0.05 and time_since_dd > recovery_time_threshold
-# ── LOCAL-ONLY MODULE CONSTANTS ─────────────────────────────────────────
-
-# ── LOCAL-ONLY SOVEREIGN EXTENSIONS ─────────────────────────────────────
-
 
 class MetaTrader5Agent:
     """
