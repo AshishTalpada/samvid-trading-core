@@ -2960,20 +2960,22 @@ class TradingBrain:
             if self.ibkr_conn and self.ibkr_conn.is_connected:
                 ibkr_reality = self.ibkr_conn._positions_cache  # {symbol: qty}
 
-                # Always force a real-time check on the first reconciliation or if cache is empty
-                if not ibkr_reality:
-                    logger.debug(" IBKR SYNC: Local cache is empty. Forcing real-time check...")
+                # SOVEREIGN GUARD: Force real-time poll if cache is empty OR seems incomplete
+                # compared to our internal memory pool. This prevents 'Sync Lag' False Exits.
+                memory_ibkr_count = len([p for p in self.positions if p.account_type == "ibkr"])
+                if not ibkr_reality or len(ibkr_reality) < memory_ibkr_count:
+                    logger.debug(f" IBKR SYNC: Cache incomplete ({len(ibkr_reality)} vs {memory_ibkr_count}). Forcing reality poll...")
                     try:
                         positions_callable = getattr(self.ibkr_conn.ib, "positions", None)
-                        if positions_callable is None or not callable(positions_callable):
-                            raise AttributeError("IBKR client positions handler is unavailable or not callable")
-
-                        actual_pos = await asyncio.to_thread(positions_callable)
-                        for p in actual_pos:
-                            self.ibkr_conn._positions_cache[p.contract.symbol] = p.position
-                        ibkr_reality = self.ibkr_conn._positions_cache
+                        if positions_callable is not None and callable(positions_callable):
+                            actual_pos = await asyncio.to_thread(positions_callable)
+                            # Clear and rebuild cache to ensure absolute accuracy
+                            self.ibkr_conn._positions_cache.clear()
+                            for p in actual_pos:
+                                self.ibkr_conn._positions_cache[p.contract.symbol] = p.position
+                            ibkr_reality = self.ibkr_conn._positions_cache
                     except Exception as sync_e:
-                        logger.warning(f" IBKR SYNC: Direct poll failed: {sync_e}")
+                        logger.warning(f" IBKR SYNC: Reality poll failed: {sync_e}")
 
             mt5_reality = {}
             if self.mt5_conn and self.mt5_conn.is_connected:
@@ -2994,14 +2996,26 @@ class TradingBrain:
             for p in list(self.positions):
                 broker = p.account_type
                 reality = ibkr_reality if broker == "ibkr" else mt5_reality
-                broker_qty = reality.get(p.symbol, 0.0)
+                
+                # SKEPTICAL HANDSHAKE: If symbol is missing from reality map, do NOT assume zero.
+                if p.symbol not in reality:
+                    _p_entry = p.entry_time if p.entry_time.tzinfo else p.entry_time.replace(tzinfo=timezone.utc)
+                    age_seconds = (now_ts - _p_entry).total_seconds()
+                    
+                    # If the trade is very old (>1hr) and still missing, we consider it a purge candidate,
+                    # otherwise we assume sync lag and PROTECT the position from a false exit.
+                    if age_seconds < 3600:
+                        continue
+                    broker_qty = 0.0
+                else:
+                    broker_qty = reality[p.symbol]
 
                 _p_entry = p.entry_time if p.entry_time.tzinfo else p.entry_time.replace(tzinfo=timezone.utc)
                 age_seconds = (now_ts - _p_entry).total_seconds()
 
                 # A. The Zero-Sync Purge (Clean up phantom positions)
-                # ONLY purge if: Uptime > 300s, Age > 600s, and Reality is FLAT
-                if uptime > 300 and age_seconds > 600 and abs(broker_qty) < 0.1:
+                # ONLY purge if: Uptime > 300s, Age > 3600s, and Reality is confirmed FLAT
+                if uptime > 300 and age_seconds > 3600 and abs(broker_qty) < 0.1:
                     logger.warning(
                         f" SYNC PURGE [{broker.upper()}]: {p.symbol} is flat in reality. Removing from memory."
                     )
@@ -3011,7 +3025,8 @@ class TradingBrain:
                     continue
 
                 # B. Quantity & Polarity Sync
-                if abs(p.qty - broker_qty) > 0.00001:
+                # Only sync if the symbol was FOUND in the reality map to prevent zeroing-out during blips.
+                if p.symbol in reality and abs(p.qty - broker_qty) > 0.00001:
                     if age_seconds > 60:  # 60s grace for fill reflection
                         p.qty = float(broker_qty)
                         self._update_trade_volume(p.symbol, broker, p.qty)
