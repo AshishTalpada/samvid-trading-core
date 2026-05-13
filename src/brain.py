@@ -2110,6 +2110,8 @@ class TradingBrain:
 
         # Process exits
         for pos, exit_type, exit_price in exits_triggered:
+            # Flag as triggered immediately to block the next tick from spamming
+            pos.meta["exit_triggered"] = True
             await self._process_exit(pos, exit_type, exit_price)
 
         if not self.positions:
@@ -3322,7 +3324,7 @@ class TradingBrain:
     async def _get_daily_pnl(self, account_type: str) -> float:
         """Get today's P&L."""
 
-        def _sync_daily_pnl() -> float:
+        async def _sync_daily_pnl():
             try:
                 if self.db_conn:
                     cursor = self.db_conn.cursor()
@@ -3339,33 +3341,29 @@ class TradingBrain:
             except Exception:
                 return 0.0
 
-        return await asyncio.to_thread(_sync_daily_pnl)  # type: ignore
+        return await asyncio.to_thread(_sync_daily_pnl)
 
     async def _place_ibkr_order(
         self,
         symbol: str,
         direction: str,
-        shares: int,
-        urgency: str = "HIGH",
+        shares: float,
+        urgency: str = "LOW",
         limit_price: float = 0.0,
         stop_price: float = 0.0,
         target_price: float = 0.0,
-        **kwargs,  # Added for Ghost Expansion
+        **kwargs,
     ) -> str:
-        """
-        Place an order via IBKR (paper or live depending on mode).
-        Upgraded to SE-11 Sovereign Bracket Logic.
-        """
-        # "paper" mode = fully local simulation — never touches IBKR
-        if self.mode == "paper":
-            return f"PAPER-{uuid.uuid4().hex[:8]}"  # type: ignore
+        """Helper to route orders through Agent C (IBKR)."""
+        if not self.ibkr_conn:
+            return ""
 
-        # "ibkr_paper" or "live" — must have a connected IBKR client
-        if not self.ibkr_client:
-            logger.error(f"IBKR client not connected — cannot place {direction} {shares} {symbol}")
-            return None
+        # --- SOVEREIGN ORDER SHIELD (Pillar 12) ---
+        # Prevent redundant exits for symbols already pending on the book.
+        if await asyncio.to_thread(self.ibkr_conn.has_pending_order, symbol):
+            logger.info(f"Sovereign Shield: Suppressed redundant order for {symbol} (Order Pending).")
+            return "SHIELDED"
 
-        # Prevent "Wrong Way" orders and Force-Sync brain memory.
         try:
             # Live query — touches the broker directly to be 100% sure
             broker_positions = {
