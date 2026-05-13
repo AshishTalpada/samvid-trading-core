@@ -132,6 +132,7 @@ class TaskManager:
         self.registry_path = registry_path
         self.tasks: Dict[str, SovereignTask] = {}
         self._symbol_index: Dict[str, List[str]] = {}  # Symbol -> List of Task IDs
+        self._save_lock = asyncio.Lock()
         os.makedirs(os.path.dirname(self.registry_path), exist_ok=True)
         self.load_registry()
 
