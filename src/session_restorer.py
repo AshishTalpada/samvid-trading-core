@@ -82,7 +82,7 @@ class SessionRestorer:
         try:
             with open(transcript_path, "w", encoding="utf-8") as f:
                 json.dump(messages, f, indent=4, default=str)
-            logger.info(f"💾 Restorer: Transcript recorded -> session_{timestamp}.json")
+            logger.info(f" Restorer: Transcript recorded -> session_{timestamp}.json")
             return True
         except Exception as e:
             logger.error(f"Restorer: Failed to record transcript: {e}")
@@ -109,7 +109,7 @@ class SessionRestorer:
         try:
             shutil.copy2(filepath, snapshot_path)
             logger.info(
-                f"🛡 Restorer: Snapshot created for {filename} -> {os.path.basename(snapshot_path)}"
+                f" Restorer: Snapshot created for {filename} -> {os.path.basename(snapshot_path)}"
             )
             return snapshot_path
         except Exception as e:
@@ -216,7 +216,7 @@ class SessionRestorer:
         Synchronizes broker positions with the database and managed tasks.
         Returns a list of Position objects to be injected into the Brain.
         """
-        logger.info("🛡  Reconciler: Probing broker for state discrepancies...")
+        logger.info("  Reconciler: Probing broker for state discrepancies...")
         adopted_positions = []
 
         try:
@@ -240,7 +240,7 @@ class SessionRestorer:
                 broker_qty = abs(p.position)
                 if symbol not in db_map:
                     logger.warning(
-                        f"🧟 Reconciler: ORPHAN DETECTED [{symbol} | {broker_qty}]. Initiating Adoption Protocol."
+                        f" Reconciler: ORPHAN DETECTED [{symbol} | {broker_qty}]. Initiating Adoption Protocol."
                     )
 
                     price = p.avgCost
@@ -307,7 +307,7 @@ class SessionRestorer:
                     db_qty = db_trade["shares_remaining"]
                     if abs(db_qty - broker_qty) > 0.001:  # Use epsilon for float safety
                         logger.warning(
-                            f"⚖️ Reconciler: QUANTITY MISMATCH for {symbol}. DB: {db_qty} | Broker: {broker_qty}. Synchronizing to Broker."
+                            f" Reconciler: QUANTITY MISMATCH for {symbol}. DB: {db_qty} | Broker: {broker_qty}. Synchronizing to Broker."
                         )
                         cursor.execute(
                             "UPDATE trades SET shares_remaining = ?, quantity = ?, notes = notes || ? WHERE id = ?",
@@ -330,14 +330,14 @@ class SessionRestorer:
                         created_dt = datetime.fromisoformat(created_str.replace("Z", "+00:00"))
                         if (datetime.now(timezone.utc) - created_dt).total_seconds() < 60:
                             logger.info(
-                                f"⏳ Reconciler: Skipping Ghost Veto for {symbol} (Age < 60s, potential race)."
+                                f" Reconciler: Skipping Ghost Veto for {symbol} (Age < 60s, potential race)."
                             )
                             continue
                     except Exception as _ghost_err:
                         logger.debug(f"Reconciler: Ghost age check error (non-critical): {_ghost_err}")
 
                     logger.info(
-                        f"👻 Reconciler: GHOST DETECTED [{symbol}]. Closing record (Terminal discrepancy)."
+                        f" Reconciler: GHOST DETECTED [{symbol}]. Closing record (Terminal discrepancy)."
                     )
                     cursor.execute(
                         "UPDATE trades SET status = 'CLOSED', exit_reason = 'GHOST_SYNCHRONIZED', exit_time = ? WHERE id = ?",

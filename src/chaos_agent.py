@@ -38,7 +38,7 @@ class ChaosAgent:
                     ctypes.c_int
                 ]
                 self._lib.compute_lyapunov_exponent.restype = ctypes.c_double
-                logger.info(f"✅ Chaos Metrics library ({ext}) loaded successfully.")
+                logger.info(f" Chaos Metrics library ({ext}) loaded successfully.")
             else:
                 logger.warning(f"Chaos Metrics library (libsovereign{ext}) not found. Falling back to Python metrics (slow).")
         except Exception as e:

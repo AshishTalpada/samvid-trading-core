@@ -1720,7 +1720,7 @@ class InMemorySovereignAtlas:
         self.db_path = db_path
         self._cache = {}  # pattern_type -> matches (list)
         self._max_cache = 50
-        logger.info("🏛️ Atlas: Sovereign Intelligence online (On-Demand Mode).")
+        logger.info(" Atlas: Sovereign Intelligence online (On-Demand Mode).")
 
     _BULLISH_PATTERNS = {
         "bull flag",
@@ -1834,7 +1834,7 @@ class InMemorySovereignAtlas:
                 self._cache[final_key] = matches
 
             except Exception as e:
-                logger.error(f"🏛️ Atlas: Query failed: {e}")
+                logger.error(f" Atlas: Query failed: {e}")
                 return {"match": False, "reason": "Database error during resonance fetch."}
 
         if not matches:
@@ -1933,7 +1933,7 @@ def agent_a_validate_trade(
         return {
             "agent": "Agent_A",
             "vote": "NO",
-            "reason": f"🏛️ Sovereign Budget VETO: Risk limits reached for {account_type.upper()}.",
+            "reason": f" Sovereign Budget VETO: Risk limits reached for {account_type.upper()}.",
             "final_lambda": 0.0,
         }
 
@@ -1949,7 +1949,7 @@ def agent_a_validate_trade(
                     "last_update": time.time_ns(),
                     "vote": "NO",
                     "confidence": state.confidence,
-                    "reason": f"🏛️ Sovereign Chaos VETO: {state.dhatu_state}",
+                    "reason": f" Sovereign Chaos VETO: {state.dhatu_state}",
                     "final_lambda": 0.0,
                 }
         except Exception:

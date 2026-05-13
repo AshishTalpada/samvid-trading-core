@@ -69,7 +69,7 @@ def train():
         logger.error(f"Training data not found at {DATA_PATH}")
         return
 
-    logger.info("🚀 Starting SUPERCHARGED Sovereign SLM Training...")
+    logger.info(" Starting SUPERCHARGED Sovereign SLM Training...")
 
     tokenizer = AutoTokenizer.from_pretrained(MODEL_ID)
     tokenizer.pad_token = tokenizer.eos_token
@@ -137,17 +137,17 @@ def train():
         data_collator=DataCollatorForSeq2Seq(tokenizer, model=model),
     )
 
-    logger.info("🔥 Igniting the Sovereign Brain...")
+    logger.info(" Igniting the Sovereign Brain...")
     trainer.train()
 
     # Save and Merge
     model.save_pretrained(OUTPUT_DIR)
-    logger.info("✅ Adapter saved. Merging weights...")
+    logger.info(" Adapter saved. Merging weights...")
 
     merged_model = model.merge_and_unload()
     merged_model.save_pretrained(MERGED_PATH)
     tokenizer.save_pretrained(MERGED_PATH)
-    logger.info(f"🏆 MISSION COMPLETE: Supercharged brain ready at {MERGED_PATH}")
+    logger.info(f" MISSION COMPLETE: Supercharged brain ready at {MERGED_PATH}")
 
 
 if __name__ == "__main__":

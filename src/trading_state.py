@@ -103,7 +103,7 @@ class TradingStateManager:
         Triggered by: critical drawdown breach, broker disconnection, invariant violation.
         """
         if cls._state != TradingState.HALTED:
-            logger.critical(f"🚨 TradingState: HALTED ← {cls._state.value} | Reason: {reason}")
+            logger.critical(f" TradingState: HALTED ← {cls._state.value} | Reason: {reason}")
             cls._state = TradingState.HALTED
             cls._reason = reason
 

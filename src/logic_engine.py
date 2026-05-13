@@ -144,7 +144,7 @@ class SovereignLogicEngine:
 
         # BUG #19 FIX: Ensure Abhava crisis overrides any bullish bias
         if dhatu == "Abhava":
-            logger.warning("🏛️ Logic #104: ABHAVA Crisis Override — enforcing Defensive regime.")
+            logger.warning(" Logic #104: ABHAVA Crisis Override — enforcing Defensive regime.")
             return {"predicted_regime": "VOLATILE", "bias": "BEARISH", "confidence": 0.95}
 
         if regime == "BULLISH":

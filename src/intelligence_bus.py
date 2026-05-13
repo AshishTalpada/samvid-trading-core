@@ -293,9 +293,9 @@ class SharedIntelligenceBus:
         await asyncio.sleep(0)
 
         if priority <= 2:
-            logger.info(f"🚨 BUS PRIORITY [{priority}]: {topic}")
+            logger.info(f" BUS PRIORITY [{priority}]: {topic}")
         else:
-            logger.debug(f"📡 BUS EVENT: {topic} (P{priority})")
+            logger.debug(f" BUS EVENT: {topic} (P{priority})")
 
         # Periodic Pruning (every 1000 messages)
         if self._publish_count % 1000 == 0:

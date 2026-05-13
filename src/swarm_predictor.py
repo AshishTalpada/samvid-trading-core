@@ -187,11 +187,11 @@ class ChromaDeepMemory:
 
             compacted_truth = await self._compact_memories(docs, metas)
             if compacted_truth:
-                logger.info("🧠 [Memory]: Highly relevant Wisdom Token compacted.")
+                logger.info(" [Memory]: Highly relevant Wisdom Token compacted.")
                 # Broadcast the newly synthesized truth to other agents
                 from telegram_alerts import send_telegram_alert
 
-                await send_telegram_alert(f"🏛️ *WISDOM DISCOVERED*\n{compacted_truth[:100]}...")
+                await send_telegram_alert(f" *WISDOM DISCOVERED*\n{compacted_truth[:100]}...")
 
             memory_contexts = []
             max_conf = 0.0
@@ -447,7 +447,7 @@ class SwarmPredictor:
 
         if top_confidence > 0.90:
             logger.info(
-                f"⚡ FLASH-INFERENCE: High-Resonance Ghost detected ({top_confidence:.1%})."
+                f" FLASH-INFERENCE: High-Resonance Ghost detected ({top_confidence:.1%})."
             )
             bias = SwarmBias.BULLISH if "BULLISH" in deep_memory_str.upper() else SwarmBias.BEARISH
             consensus = SwarmConsensus(

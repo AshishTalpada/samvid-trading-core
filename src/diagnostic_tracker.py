@@ -121,7 +121,7 @@ class DiagnosticTracker:
 
         summary = []
         for d in diagnostics:
-            sym = "✖" if d.severity == "Error" else "⚠"
+            sym = "" if d.severity == "Error" else ""
             summary.append(f"  {sym} [Line {d.line}] {d.message} ({d.source})")
         return "\n".join(summary)
 # ── LOCAL-ONLY SOVEREIGN EXTENSIONS ─────────────────────────────────────

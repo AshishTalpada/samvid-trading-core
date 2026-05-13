@@ -200,7 +200,7 @@ class LivePortfolioAnalyzer:
     def log_summary(self) -> None:
         s = self.summary()
         logger.info(
-            f"📊 SESSION SUMMARY | Trades: {s['trades']} | P&L: {s['pnl_pct']} "
+            f" SESSION SUMMARY | Trades: {s['trades']} | P&L: {s['pnl_pct']} "
             f"(${s['pnl_usd']:+.2f}) | WR: {s['win_rate']} | Sharpe: {s['live_sharpe']} | "
             f"MaxDD: {s['max_drawdown']}"
         )
