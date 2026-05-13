@@ -1653,13 +1653,17 @@ class TradingSystem:
 
     async def shutdown(self) -> None:
         """Graceful shutdown sequence: Step-by-Step Institutional Guard."""
-        if not self.is_running and hasattr(self, "_shutdown_complete") and self._shutdown_complete:
-            return
+        if not hasattr(self, "_shutdown_lock"):
+            self._shutdown_lock = asyncio.Lock()
 
-        self.is_running = False
-        logger.info("\n" + "" * 30)
-        logger.info("SOVEREIGN: INITIATING SEQUENTIAL SHUTDOWN PROTOCOL")
-        logger.info("" * 30 + "\n")
+        async with self._shutdown_lock:
+            if not self.is_running and hasattr(self, "_shutdown_complete") and self._shutdown_complete:
+                return
+
+            self.is_running = False
+            logger.info("\n" + "═" * 30)
+            logger.info("SOVEREIGN: INITIATING SEQUENTIAL SHUTDOWN PROTOCOL")
+            logger.info("═" * 30 + "\n")
 
         try:
             # 1. COMPUTE DAILY PERFORMANCE
@@ -1816,10 +1820,9 @@ class TradingSystem:
                     )
                     self.db_conn.commit()
                     cursor.close()
-                    self.db_conn.close()
-                    logger.info("✓ Database closed.")
+                    logger.info("✓ System status flagged as STOPPED.")
                 except Exception as db_err:
-                    logger.error(f"Shutdown: DB persistence failed: {db_err}")
+                    logger.error(f"Shutdown: Final state flag failed: {db_err}")
 
             if hasattr(self, "task_manager") and self.task_manager:
                 try:
@@ -1827,6 +1830,16 @@ class TradingSystem:
                     logger.info("✓ Final Task Registry flushed.")
                 except Exception as e:
                     logger.error(f"Shutdown: Task Registry flush failed: {e}")
+
+            # 8. FINAL DB CLOSURE
+            logger.info("[SHUTDOWN STEP 8/8] Finalizing Persistence...")
+            if self.db_conn:
+                try:
+                    self.db_conn.close()
+                    self.db_conn = None
+                    logger.info("✓ Database connection terminated.")
+                except Exception as e:
+                    logger.error(f"Shutdown: DB closure error: {e}")
 
             # 8. EXIT
             logger.info("[SHUTDOWN STEP 8/8] Finalizing logs...")
