@@ -189,15 +189,19 @@ class TaskManager:
 
     async def save_registry(self, allow_empty: bool = False):
         """Atomically save task registry with Windows-safe retry logic (Async)."""
-        if not self.tasks and os.path.exists(self.registry_path) and not allow_empty:
-            logger.error(
-                "TaskManager: SAFETY VETO! Attempted to save empty registry over existing data. Standing down."
-            )
-            return
+        async with self._save_lock:
+            if not self.tasks and os.path.exists(self.registry_path) and not allow_empty:
+                logger.error(
+                    "TaskManager: SAFETY VETO! Attempted to save empty registry over existing data. Standing down."
+                )
+                return
 
-        def _sync_save():
-            try:
-                if os.path.exists(self.registry_path):
+            data = {tid: t.to_dict() for tid, t in self.tasks.items()}
+            temp_path = f"{self.registry_path}.tmp"
+            backup_path = f"{self.registry_path}.bak"
+
+            def _sync_save():
+                try:
                     import shutil
 
                     shutil.copy2(self.registry_path, f"{self.registry_path}.bak")
