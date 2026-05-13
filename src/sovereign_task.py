@@ -1,3 +1,4 @@
+import asyncio
 import json
 import logging
 import os
@@ -146,7 +147,7 @@ class TaskManager:
         if symbol not in self._symbol_index:
             self._symbol_index[symbol] = []
         self._symbol_index[symbol].append(task_id)
-        self.save_registry()
+        asyncio.create_task(self.save_registry())
         return task
 
     def get_task(self, task_id: str) -> SovereignTask | None:
@@ -185,45 +186,49 @@ class TaskManager:
         except Exception as e:
             logger.error(f"TaskManager: Registry load failed: {e}")
 
-    def save_registry(self, allow_empty: bool = False):
-        """Atomically save task registry with Windows-safe retry logic."""
-        try:
-            if not self.tasks and os.path.exists(self.registry_path) and not allow_empty:
-                logger.error(
-                    "TaskManager: SAFETY VETO! Attempted to save empty registry over existing data. Standing down."
-                )
-                return
+    async def save_registry(self, allow_empty: bool = False):
+        """Atomically save task registry with Windows-safe retry logic (Async)."""
+        if not self.tasks and os.path.exists(self.registry_path) and not allow_empty:
+            logger.error(
+                "TaskManager: SAFETY VETO! Attempted to save empty registry over existing data. Standing down."
+            )
+            return
 
-            if os.path.exists(self.registry_path):
-                import shutil
+        def _sync_save():
+            try:
+                if os.path.exists(self.registry_path):
+                    import shutil
 
-                shutil.copy2(self.registry_path, f"{self.registry_path}.bak")
+                    shutil.copy2(self.registry_path, f"{self.registry_path}.bak")
 
-            data = {tid: t.to_dict() for tid, t in self.tasks.items()}
-            temp_path = f"{self.registry_path}.tmp"
+                data = {tid: t.to_dict() for tid, t in self.tasks.items()}
+                temp_path = f"{self.registry_path}.tmp"
 
-            import time as _time
+                import time as _time
 
-            for attempt in range(5):
-                try:
-                    with open(temp_path, "w", encoding="utf-8") as f:
-                        json.dump(data, f, indent=2)
+                for attempt in range(5):
+                    try:
+                        with open(temp_path, "w", encoding="utf-8") as f:
+                            json.dump(data, f, indent=2)
 
-                    if os.path.exists(self.registry_path):
-                        try:
+                        if os.path.exists(self.registry_path):
+                            try:
+                                os.replace(temp_path, self.registry_path)
+                            except PermissionError:
+                                _time.sleep(0.1 * (attempt + 1))
+                                continue
+                        else:
                             os.replace(temp_path, self.registry_path)
-                        except PermissionError:
-                            _time.sleep(0.1 * (attempt + 1))
-                            continue
-                    else:
-                        os.replace(temp_path, self.registry_path)
-                    break
-                except Exception as e:
-                    if attempt == 4:
-                        raise e
-                    _time.sleep(0.1)
-        except Exception as e:
-            logger.error(f"TaskManager: Registry save failed: {e}")
+                        return True
+                    except Exception as e:
+                        if attempt == 4:
+                            raise e
+                        _time.sleep(0.1)
+            except Exception as e:
+                logger.error(f"TaskManager: Registry sync-save failed: {e}")
+                return False
+
+        await asyncio.to_thread(_sync_save)
 
     def purge_dormant_tasks(self, max_age_minutes: int = 15):
         """
@@ -247,7 +252,8 @@ class TaskManager:
 
         if to_remove:
             logger.info(f"TaskManager: Purged {len(to_remove)} dormant tasks.")
-            self.save_registry(allow_empty=True)
+            # Run background save
+            asyncio.create_task(self.save_registry(allow_empty=True))
 
     def purge_completed(self, max_age_days: int = 7):
         """Clear old finished and stale tasks to prevent memory leaks."""
@@ -272,7 +278,6 @@ class TaskManager:
             logger.info(f"TaskManager: Purged {len(to_remove)} stale/finished tasks from memory.")
 
         # 3. Hard Ceiling Purge — keep only the 500 newest if registry exceeds 1000 tasks.
-        # If we still have > 1000 tasks (e.g. from a massive backlog), keep only the 500 newest.
         if len(self.tasks) > 1000:
             logger.warning(
                 f"TaskManager: Registry overflow detected ({len(self.tasks)} tasks). Executing Hard Purge."
@@ -285,7 +290,7 @@ class TaskManager:
             logger.info(f"TaskManager: Hard Purge complete. Removed {purge_count} oldest tasks.")
 
         if to_remove or len(self.tasks) > 1000:
-            self.save_registry(allow_empty=True)
+            asyncio.create_task(self.save_registry(allow_empty=True))
 
     def _delete_task_reference(self, tid: str):
         """Internal helper to clean up all index references for a task ID."""
