@@ -1,7 +1,7 @@
-import time
 import asyncio
 import copy
 import logging
+import time
 from typing import Any
 
 import numpy as np
@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 
 
 # Global mt5_raw reference (placeholder for actual MT5 terminal object)
-mt5_raw: Any = None 
+mt5_raw: Any = None
 
 class MindExperiment:
     """
@@ -43,6 +43,7 @@ class MindExperiment:
         """Launch the Experiment Mind."""
         self.is_running = True
         logger.info("MindExperiment (Agent E): A/B Gating and Evolution engine active.")
+        logger.info("MindExperiment: Evolutionary simulation environment online.")
         asyncio.create_task(self._monitor_shadow_tests())
 
     async def _monitor_shadow_tests(self) -> None:
@@ -227,10 +228,6 @@ class MindExperiment:
         self.generation += 1
 
         return elites[0]['weights']  # type: ignore
-
-    async def start(self):
-        """Initializes the evolutionary neuro-experiment suite."""
-        logger.info("MindExperiment: Evolutionary simulation environment online.")
 
 # Aliases for Sovereign Compatibility
 EvolutionaryNeuroExperiment = MindExperiment
