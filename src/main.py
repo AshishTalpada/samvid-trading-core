@@ -2117,7 +2117,7 @@ async def main(s: TradingSystem) -> None:
         # PILLAR 10: PERSISTENCE - Keep the system alive indefinitely
         # This prevents main() from finishing and hitting the 'finally' shutdown block.
         logger.info(" Matrix fully synchronized. System operational.")
-        while True:
+        while not s._shutdown_event.is_set():
             # Frequent wakeups are required on Windows to process KeyboardInterrupts
             # Increased frequency to 0.2s for higher responsiveness to Ctrl+C.
             await asyncio.sleep(0.2)
@@ -2199,20 +2199,33 @@ if __name__ == "__main__":
 
     import signal
 
-    try:
-        # Force default INT handler to bypass winloop swallowing Ctrl+C
-        signal.signal(signal.SIGINT, signal.default_int_handler)
-    except Exception:
-        pass
-
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
 
     s = TradingSystem()
+
+    # SOVEREIGN SIGNAL BRIDGE:
+    # Ensure winloop/asyncio actually hears Ctrl+C on Windows.
+    def _handle_exit():
+        logger.info("\n[SOVEREIGN] Shutdown Signal Received. Initiating Graceful Exit...")
+        if not s._shutdown_event.is_set():
+            asyncio.create_task(s.shutdown())
+
+    for sig in (signal.SIGINT, signal.SIGTERM):
+        try:
+            # winloop supports add_signal_handler; default asyncio on Win does not.
+            loop.add_signal_handler(sig, _handle_exit)
+        except (NotImplementedError, AttributeError):
+            # Fallback to standard signal handler for compatibility
+            try:
+                signal.signal(sig, lambda sn, f: _handle_exit())
+            except Exception:
+                pass
+
     try:
         loop.run_until_complete(main(s))
     except (KeyboardInterrupt, SystemExit):
-        print("\n[SOVEREIGN] Force Terminated by User (Ctrl+C)")
+        print("\n[SOVEREIGN] Termination Signal Confirmed.")
     except Exception as e:
         print(f"\n[SOVEREIGN] Fatal Error: {e}")
     finally:
