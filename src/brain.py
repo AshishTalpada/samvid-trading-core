@@ -2430,33 +2430,50 @@ class TradingBrain:
                     },
                 )
 
-            # Telegram Alert (Enhanced for SE-12 Detail)
+            # Telegram Alert (Enhanced for Sovereign Elite v2)
             from telegram_alerts import send_telegram_alert
 
-            icon = "✅" if realized_net_pnl > 0 else "🛑" if realized_net_pnl < 0 else "⚪"
+            # Smart Metadata Recovery
+            icon = "💰" if realized_net_pnl > 0 else "📉" if realized_net_pnl < 0 else "🛡️"
+            intent = pos.meta.get("intent") or getattr(pos, "intent", "Sovereign")
+            pattern_name = pos.meta.get("pattern") or pos.pattern or "Sovereign Signal"
+            
+            # Account ID Sanitization
+            acc_id = pos.account_id
+            if acc_id == "UNKNOWN":
+                from config import IBKR_ACCOUNT_ID
+                acc_id = IBKR_ACCOUNT_ID or "Master Account"
 
-            intent = pos.meta.get("intent", "Sovereign")
-            pattern_name = pos.meta.get("pattern", "UNKNOWN")
+            # Reason Translation
+            reason = exit_type.replace("_", " ").title()
+            if "HEARTBEAT" in reason.upper():
+                reason = "Sovereign Safety Veto"
+
+            # Duration Formatting
+            duration_min = (now - (pos.entry_time if pos.entry_time.tzinfo else pos.entry_time.replace(tzinfo=timezone.utc))).total_seconds() / 60
+            duration_str = f"{duration_min:.1f}m" if duration_min < 60 else f"{duration_min/60:.1f}h"
 
             # Format detailed message
-            title = "PARTIAL EXIT" if exit_type == "PARTIAL" else "TRADE CLOSED"
+            title = "PARTIAL HARVEST" if exit_type == "PARTIAL" else "TRADE FINALIZED"
+            
             msg = (
-                f"{icon} *{title}: {pos.symbol}*\n"
-                f"Account: `{pos.account_id}` ({pos.account_type})\n"
-                f"-------------------\n"
-                f"Qty: {pos.qty:.2f}\n"
-                f"Entry: ${pos.entry_price:.2f}\n"
-                f"Exit:  ${pos.current_price:.2f}\n"
-                f"-------------------\n"
-                f"Intent: {intent}\n"
-                f"Pattern: {pattern_name}\n"
-                f"Exit Type: {exit_type}\n"
-                f"-------------------\n"
-                f"Trade PnL: *${realized_net_pnl:+.2f}*\n"
-                f"R-Multiple: {r_multiple:+.2f}x\n"
-                f"Hold Time: {(now - (pos.entry_time if pos.entry_time.tzinfo else pos.entry_time.replace(tzinfo=timezone.utc))).total_seconds() / 60:.1f}m\n"
-                f"-------------------\n"
-                f"SESSION TOTAL: *${self.session_pnl:+.2f}*"
+                f"{icon} <b>{title}: {pos.symbol}</b>\n"
+                f"<i>Account: {acc_id} ({pos.account_type.upper()})</i>\n"
+                f"───────────────────\n"
+                f"<b>Size:</b> {abs(pos.qty):.0f} units\n"
+                f"<b>Entry:</b> ${pos.entry_price:,.2f}\n"
+                f"<b>Exit:</b>  ${pos.current_price:,.2f}\n"
+                f"───────────────────\n"
+                f"<b>Strategy:</b> {intent}\n"
+                f"<b>Pattern:</b> {pattern_name}\n"
+                f"<b>Reason:</b> {reason}\n"
+                f"───────────────────\n"
+                f"<b>Outcome:</b> {'PROFIT' if realized_net_pnl > 0 else 'LOSS' if realized_net_pnl < 0 else 'BREAKEVEN'}\n"
+                f"<b>Net PnL:</b> <code>${realized_net_pnl:+.2f}</code>\n"
+                f"<b>Efficiency:</b> {r_multiple:+.2f}R\n"
+                f"<b>Duration:</b> {duration_str}\n"
+                f"───────────────────\n"
+                f"<b>SESSION P&L:</b> <code>${self.session_pnl:+.2f}</code>"
             )
             await send_telegram_alert(msg)
 
