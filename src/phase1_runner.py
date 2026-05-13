@@ -57,7 +57,7 @@ async def run_backtest(db_path: str = "trading.db", symbols: list[str] = None) -
 
         if not has_data:
             print(
-                f"\n⚠️  Insufficient data in DB ({count} bars). Running data pipeline to backfill {symbols}..."
+                f"\n  Insufficient data in DB ({count} bars). Running data pipeline to backfill {symbols}..."
             )
             pipeline = DataPipeline()
             for sym in symbols:
@@ -65,7 +65,7 @@ async def run_backtest(db_path: str = "trading.db", symbols: list[str] = None) -
                     await pipeline.backfill_gap(sym)
                 except Exception as _e:
                     logger.warning(f"Backfill {sym} failed: {_e}")
-            print("✅ Data backfill complete.")
+            print(" Data backfill complete.")
 
         success = await run_phase1_validation(
             db_path=db_path,
@@ -94,10 +94,10 @@ if __name__ == "__main__":
     if mode == "backtest":
         asyncio.run(run_backtest(db_path=db, symbols=symbols))
     elif mode == "live":
-        print("🚀 LIVE MODE: Quant-Consensus active (Phase 1).")
+        print(" LIVE MODE: Quant-Consensus active (Phase 1).")
         # In a real SE-11 deployment, this would launch the main engine with quant-only flags
         print("Note: Deployment of live quant-engine requires --quant-only flag in main.py.")
     else:
-        print(f"❌ ERROR: Unknown mode '{mode}'.")
+        print(f" ERROR: Unknown mode '{mode}'.")
         print("Available modes: backtest, live")
         sys.exit(1)

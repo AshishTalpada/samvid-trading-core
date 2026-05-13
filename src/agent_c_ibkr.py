@@ -184,7 +184,7 @@ class IBKRConnection:
             is_eth = self.is_extended_hours()
             if is_eth:
                 logger.info(
-                    f"🏛️ ETH MODE: Order for {symbol} detected Post-Market. outsideRth will be FORCED."
+                    f" ETH MODE: Order for {symbol} detected Post-Market. outsideRth will be FORCED."
                 )
 
             # 4. Margin cushion guard
@@ -330,7 +330,7 @@ class IBKRConnection:
                     conn.commit()
                     conn.close()
                 except Exception as e:
-                    logger.error(f"🚨 ORDER PERSISTENCE FAILURE: {e}")
+                    logger.error(f" ORDER PERSISTENCE FAILURE: {e}")
 
             import asyncio as _asyncio
 
@@ -353,7 +353,7 @@ class IBKRConnection:
                 current_fails = brain._exit_failure_counts.get(symbol, 0)
                 brain._exit_failure_counts[symbol] = current_fails + 1
                 logger.error(
-                    f"🛡️ SHIELD: Exit failure detected for {symbol}. Total Strikes: {current_fails + 1}"
+                    f" SHIELD: Exit failure detected for {symbol}. Total Strikes: {current_fails + 1}"
                 )
 
                 # Autonomous Post-Mortem (Zero-Sync background write)
@@ -386,11 +386,11 @@ class IBKRConnection:
                         conn.commit()
                         conn.close()
                     except Exception as e:
-                        logger.error(f"🚨 POST-MORTEM FAILURE: {e}")
+                        logger.error(f" POST-MORTEM FAILURE: {e}")
 
                 # Push to background thread to prevent event loop jitter
                 asyncio.get_event_loop().run_in_executor(None, _write_post_mortem)
-                logger.info(f"📉 POST-MORTEM: Signal {symbol} failure recorded: {reason}")
+                logger.info(f" POST-MORTEM: Signal {symbol} failure recorded: {reason}")
 
     def _on_exec_details(self, trade, fill) -> None:
         """Callback for execution details. Synchronizes actual fill price with Sovereign Mirror."""
@@ -402,7 +402,7 @@ class IBKRConnection:
         parent_id = str(trade.order.parentId)
 
         logger.info(
-            f"🏛️ IBKR EXECUTION: {symbol} {side} {qty} @ ${price:.2f} (Order: {order_id}, Parent: {parent_id})"
+            f" IBKR EXECUTION: {symbol} {side} {qty} @ ${price:.2f} (Order: {order_id}, Parent: {parent_id})"
         )
 
         if hasattr(self, "brain") and self.brain:
@@ -424,13 +424,13 @@ class IBKRConnection:
                         # Capture actual slippage
                         p.slippage_cost = abs(p.entry_price - old_price) * abs(p.qty)
                         logger.warning(
-                            f"⚖️ MIRROR ALIGN [{symbol}]: Entry price updated to actual fill ${price:.2f} (Slippage: ${p.slippage_cost:.2f})"
+                            f" MIRROR ALIGN [{symbol}]: Entry price updated to actual fill ${price:.2f} (Slippage: ${p.slippage_cost:.2f})"
                         )
                     else:
                         # This is likely an exit (Stop Loss or Take Profit)
                         # We don't update entry_price on exit, but we can log the exit slippage
                         logger.info(
-                            f"⚖️ MIRROR ALIGN [{symbol}]: Exit execution detected for {p.trade_id}."
+                            f" MIRROR ALIGN [{symbol}]: Exit execution detected for {p.trade_id}."
                         )
                     break
 
@@ -442,7 +442,7 @@ class IBKRConnection:
         parent_id = str(trade.order.parentId)
 
         logger.info(
-            f"🏛️ IBKR COMMISSION: {symbol} | ${comm:.2f} {report.currency} (Order: {order_id}, Parent: {parent_id})"
+            f" IBKR COMMISSION: {symbol} | ${comm:.2f} {report.currency} (Order: {order_id}, Parent: {parent_id})"
         )
 
         if hasattr(self, "brain") and self.brain:
@@ -455,7 +455,7 @@ class IBKRConnection:
                 ):
                     p.commission_cost += float(comm)
                     logger.debug(
-                        f"⚖️ COST ALIGN [{symbol}]: Accumulated commission: ${p.commission_cost:.2f}"
+                        f" COST ALIGN [{symbol}]: Accumulated commission: ${p.commission_cost:.2f}"
                     )
                     break
 
@@ -513,11 +513,11 @@ class IBKRConnection:
             for oid, sym, status in orphans:
                 if oid in broker_order_ids:
                     logger.warning(
-                        f"🏛️ RECOVERY: Found live orphan {oid} for {sym}. Re-binding to tracking."
+                        f" RECOVERY: Found live orphan {oid} for {sym}. Re-binding to tracking."
                     )
                 else:
                     logger.error(
-                        f"🚨 CRITICAL: Order {oid} ({sym}) lost from broker! Status was {status}. Manual audit required."
+                        f" CRITICAL: Order {oid} ({sym}) lost from broker! Status was {status}. Manual audit required."
                     )
                 self._recovered_orders.add(oid)
 
@@ -644,7 +644,7 @@ class IBKRConnection:
             new_shares = max(1, int(round(shares * size_mult)))
 
             logger.info(
-                f"🏛️ GHOST EXPANSION ACTIVE: Scaling {shares} -> {new_shares} | Expanding Stop: {stop_loss:.2f} -> {new_stop_loss:.2f}"
+                f" GHOST EXPANSION ACTIVE: Scaling {shares} -> {new_shares} | Expanding Stop: {stop_loss:.2f} -> {new_stop_loss:.2f}"
             )
             shares = new_shares
             stop_loss = new_stop_loss
@@ -661,13 +661,13 @@ class IBKRConnection:
         wait_seconds = (datetime.now() - self._last_trade_time).total_seconds()
         if wait_seconds < 1.0:
             logger.warning(
-                f"🏛️ DISCIPLINE THROTTLE: Trade for {symbol} suppressed. Only {wait_seconds:.1f}s elapsed."
+                f" DISCIPLINE THROTTLE: Trade for {symbol} suppressed. Only {wait_seconds:.1f}s elapsed."
             )
             return []
 
         if self.is_near_close():
             logger.warning(
-                f"🏛️ MARKET CLOSE GUARD: Order for {symbol} rejected (within 5m of close)."
+                f" MARKET CLOSE GUARD: Order for {symbol} rejected (within 5m of close)."
             )
             return []
 
@@ -841,7 +841,7 @@ class IBKRConnection:
 
         wait_seconds = (datetime.now() - self._last_trade_time).total_seconds()
         if wait_seconds < 1.0:
-            logger.warning(f"🏛️ DISCIPLINE THROTTLE: Order for {symbol} suppressed.")
+            logger.warning(f" DISCIPLINE THROTTLE: Order for {symbol} suppressed.")
             return None
 
         if not self.is_connected:
@@ -997,7 +997,7 @@ class IBKRConnection:
 
         self.ib.placeOrder(trade.contract, trade.order)
         logger.info(
-            f"🏛️ HYPER-SOVEREIGN: Warm-Slot MODIFICATION executed for {symbol} (Sub-ms path)."
+            f" HYPER-SOVEREIGN: Warm-Slot MODIFICATION executed for {symbol} (Sub-ms path)."
         )
 
         # Remove from warm-slots so a new one can be pre-loaded
@@ -1096,7 +1096,7 @@ class PositionSizingChain:
 
         if balance > 2000000.0:
             logger.warning(
-                f"🏛️ SOVEREIGN GUARD: Detected outlier account value of ${balance:,.2f}. Capping at $2M for Safety."
+                f" SOVEREIGN GUARD: Detected outlier account value of ${balance:,.2f}. Capping at $2M for Safety."
             )
             balance = 2000000.0
 

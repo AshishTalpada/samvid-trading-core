@@ -181,7 +181,7 @@ class SovereignDecisionEngine:
             return await self._final_report(
                 decision="REJECT",
                 confidence=avg_confidence,
-                reason="🛑 HARD VETO: Risk_Guard blocked the trade (Safety Protocol).",
+                reason=" HARD VETO: Risk_Guard blocked the trade (Safety Protocol).",
                 votes=agent_outputs,
             )
 
@@ -191,7 +191,7 @@ class SovereignDecisionEngine:
             return await self._final_report(
                 decision="REJECT",
                 confidence=avg_confidence,
-                reason=f"🛑 COGNITIVE VETO: Mind_Ultrathink REJECTED the trade. Reason: {mind_out.get('reason')}",
+                reason=f" COGNITIVE VETO: Mind_Ultrathink REJECTED the trade. Reason: {mind_out.get('reason')}",
                 votes=agent_outputs,
             )
 
@@ -206,19 +206,19 @@ class SovereignDecisionEngine:
 
             if (actual_threshold >= required_threshold) and (avg_confidence > 0.70 or is_probe):
                 logger.info(
-                    f"🏛️ SAFE-MODE SUCCESS: High-Fidelity Quorum achieved ({actual_threshold:.2%})"
+                    f" SAFE-MODE SUCCESS: High-Fidelity Quorum achieved ({actual_threshold:.2%})"
                 )
                 return await self._final_report(
                     decision="EXECUTE",
                     confidence=avg_confidence,
-                    reason=f"🏛️ SAFE-MODE SUCCESS: Quorum {actual_threshold:.2%} achieved.",
+                    reason=f" SAFE-MODE SUCCESS: Quorum {actual_threshold:.2%} achieved.",
                     votes=agent_outputs,
                 )
             else:
                 return await self._final_report(
                     decision="REJECT",
                     confidence=avg_confidence,
-                    reason=f"🛑 SAFE-MODE REJECTION: Consensus {actual_threshold:.2%} < 50%.",
+                    reason=f" SAFE-MODE REJECTION: Consensus {actual_threshold:.2%} < 50%.",
                     votes=agent_outputs,
                 )
         else:
@@ -260,7 +260,7 @@ class SovereignDecisionEngine:
         d_out = output_map.get("Agent_D", {})
         if d_out.get("metadata", {}).get("edge_crowded", False):
             logger.warning(
-                f"🏛️ STOP-RUN SHIELD: Edge Crowding detected for {context.get('symbol', 'UNKNOWN')}. Applying Ghost Expansion (Wider Stop / Smaller Size)."
+                f" STOP-RUN SHIELD: Edge Crowding detected for {context.get('symbol', 'UNKNOWN')}. Applying Ghost Expansion (Wider Stop / Smaller Size)."
             )
             # Metadata tags for Agent C to handle the expansion
             context["execution_mode"] = "GHOST_EXPANSION"

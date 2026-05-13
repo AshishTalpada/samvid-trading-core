@@ -126,7 +126,7 @@ class MindArchitect:
             "confidence": 1.0 if valid else 0.0,
             "reason": "Sovereign structural integrity verified."
             if valid
-            else f"🛑 STRUCTURAL VETO: Syntax/Diagnostic failure in core logic! {result.get('summary')}",
+            else f" STRUCTURAL VETO: Syntax/Diagnostic failure in core logic! {result.get('summary')}",
             "timestamp": time.time_ns(),
         }
 
@@ -299,7 +299,7 @@ class MindArchitect:
             if file_key in self.healing_attempts:
                 del self.healing_attempts[file_key]
 
-            logger.info(f"🛡️ HEAL COMPLETE: {filename} successfully patched and verified.")
+            logger.info(f" HEAL COMPLETE: {filename} successfully patched and verified.")
             return {"success": True, "new_issues": len(new_issues)}
         except Exception as e:
             logger.error(f"MindArchitect: Heal Error: {e}")

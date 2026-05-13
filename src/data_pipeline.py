@@ -137,7 +137,7 @@ class DataPipeline:
 
         if not finnhub_key:
             logger.critical(
-                "🚨 NEWS DISRUPTION: No Finnhub API Key found! News fetching will stay offline. Add FINNHUB_API_KEY to Vault."
+                " NEWS DISRUPTION: No Finnhub API Key found! News fetching will stay offline. Add FINNHUB_API_KEY to Vault."
             )
 
         # Explicit type-safety cast for Vault-retrieved keys
@@ -807,10 +807,10 @@ class DataPipeline:
 
             # Log top headlines for Cockpit visibility
             for item in combined_news[:3]:  # type: ignore
-                logger.info(f"📰 NEWS [{symbol}] from {item['source']}: {item['headline']}")
+                logger.info(f" NEWS [{symbol}] from {item['source']}: {item['headline']}")
         else:
             logger.info(
-                f"🚫 NEWS: No fresh headlines for {symbol} after polling Finnhub, OpenBB, and YFinance."
+                f" NEWS: No fresh headlines for {symbol} after polling Finnhub, OpenBB, and YFinance."
             )
 
         return combined_news
@@ -859,7 +859,7 @@ class DataPipeline:
 
         # Calculate bars needed (approximate)
         minutes = int(gap.total_seconds() / 60)
-        logger.info(f"📦 BACKFILL: {symbol} is missing {minutes} minutes of data.")
+        logger.info(f" BACKFILL: {symbol} is missing {minutes} minutes of data.")
 
         # Limit backfill to 7 days (yfinance 1m limit)
         if minutes > 10080:
@@ -1119,7 +1119,7 @@ class DataPipeline:
                                 bench_p = await self.fetch_benchmark_price(symbol)
                                 if bench_p and abs(last_p - bench_p) / bench_p > 0.05:
                                     logger.critical(
-                                        f"⚠️ MATRIX DESYNC: {symbol} Price Corrupted! Reality: ${bench_p:.2f} | Matrix: ${last_p:.2f}. Rejecting."
+                                        f" MATRIX DESYNC: {symbol} Price Corrupted! Reality: ${bench_p:.2f} | Matrix: ${last_p:.2f}. Rejecting."
                                     )
                                     continue
 
@@ -1155,7 +1155,7 @@ class DataPipeline:
                     )
                     if stale_detect:
                         logger.warning(
-                            "🏛️ Sovereign Integrity: Data Stream pulse detected as STALE. Veto flag engaged."
+                            " Sovereign Integrity: Data Stream pulse detected as STALE. Veto flag engaged."
                         )
 
                     await self.bus.publish(
@@ -1238,7 +1238,7 @@ class DataPipeline:
             for sym, result in zip(self.INSTRUMENTS[: len(results)], results, strict=False):
                 if isinstance(result, Exception):
                     logger.error(f"BACKFILL FAILED for {sym}: {result}")
-            logger.info("✅ CORE SYNC COMPLETE: Database established continuity in background.")
+            logger.info(" CORE SYNC COMPLETE: Database established continuity in background.")
             # Launch periodic research and news tasks
             self._news_task = asyncio.create_task(self._run_news_loop())
             self._research_task = asyncio.create_task(self._run_research_loop())

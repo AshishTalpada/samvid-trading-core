@@ -25,7 +25,7 @@ logger = logging.getLogger("Simulator")
 async def simulate_flash_crash(bus: SharedIntelligenceBus) -> None:
     """Simulate a flash crash to test order throttling and risk gates."""
     symbol = "SPY"
-    logger.info(f"🚨 Simulating Flash Crash for {symbol}...")
+    logger.info(f" Simulating Flash Crash for {symbol}...")
 
     price = 500.0
     for i in range(200):
@@ -49,9 +49,9 @@ async def simulate_flash_crash(bus: SharedIntelligenceBus) -> None:
                 reason = f"NOTIONAL_VETO: {symbol} order exceeds hard cap."
 
             if is_safe:
-                logger.warning(f"  ❌ Order allowed: SELL 100 {symbol} @ {price:.2f}")
+                logger.warning(f"   Order allowed: SELL 100 {symbol} @ {price:.2f}")
             else:
-                logger.info(f"  🛡️ Order Blocked: {reason}")
+                logger.info(f"   Order Blocked: {reason}")
 
         await asyncio.sleep(0.01)
 
@@ -60,7 +60,7 @@ async def simulate_broker_outage() -> None:
     """Test the Dead Letter Queue by simulating 100% order failure."""
     from resilience_layer import DEAD_LETTER_QUEUE
 
-    logger.info("\n🔌 Simulating Broker Outage (Testing DLQ)...")
+    logger.info("\n Simulating Broker Outage (Testing DLQ)...")
 
     # Mock order execution function that always fails
     async def failing_order_execution(
@@ -84,9 +84,9 @@ async def simulate_broker_outage() -> None:
     stats = DEAD_LETTER_QUEUE.stats
     logger.info(f"DLQ Stats: {stats}")
     if stats["escalations"] > 0:
-        logger.info("✅ SUCCESS: DLQ properly escalated to TradingState.HALTED.")
+        logger.info(" SUCCESS: DLQ properly escalated to TradingState.HALTED.")
     else:
-        logger.warning("❌ FAILED: DLQ did not escalate.")
+        logger.warning(" FAILED: DLQ did not escalate.")
 
 
 async def main():

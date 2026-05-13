@@ -93,7 +93,7 @@ class MindEvolution:
                     # If entropy is high, force a threshold tightening
                     if wisdom.get("entropy_state") == "HIGH ENTROPY":
                         logger.warning(
-                            "🚨 [Evolution]: High System Entropy detected. Tightening Catalysts."
+                            " [Evolution]: High System Entropy detected. Tightening Catalysts."
                         )
                         await self._tool_evolve_strategy(
                             "config_tightening", {"expected_profit_factor": 2.5}
