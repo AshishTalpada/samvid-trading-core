@@ -2128,7 +2128,52 @@ async def main(s: TradingSystem) -> None:
             os._exit(1)
 
 
+def _purge_zombie_instances():
+    """
+    Sovereign Ghost Sweep: Detects and terminates orphaned instances of the system
+    to release file locks on databases (SQLite/QuestDB) before startup.
+    """
+    try:
+        import psutil
+        current_pid = os.getpid()
+        current_script = os.path.abspath(__file__)
+
+        print(f"[*] Sovereign Ghost Sweep: Auditing active processes (Current PID: {current_pid})...")
+
+        count = 0
+        for proc in psutil.process_iter(['pid', 'name', 'cmdline', 'cwd']):
+            try:
+                # Check for python processes
+                if 'python' in proc.info['name'].lower():
+                    cmdline = proc.info.get('cmdline') or []
+                    # Check if they are running the same main.py script
+                    if any('main.py' in arg for arg in cmdline) and proc.info['pid'] != current_pid:
+                        # Verify it's in the same workspace (CWD) to avoid killing unrelated python scripts
+                        if proc.info.get('cwd') == os.getcwd():
+                            print(f"[!] GHOST DETECTED: Terminating orphaned process PID {proc.info['pid']}...")
+                            proc.terminate()
+                            # Wait up to 2 seconds for clean termination
+                            try:
+                                proc.wait(timeout=2)
+                            except psutil.TimeoutExpired:
+                                print(f"[!!] GHOST RESISTANT: Force killing PID {proc.info['pid']}...")
+                                proc.kill()
+                            count += 1
+            except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+                continue
+
+        if count > 0:
+            print(f"[*] Ghost Sweep Complete: {count} zombie(s) purged. Environment sanitized.")
+            time.sleep(1) # Final cooldown for file handles to release
+        else:
+            print("[*] Environment sanitized: No existing ghosts found.")
+
+    except Exception as e:
+        print(f"[*] Ghost Sweep Warning: Could not audit processes: {e}")
+
+
 if __name__ == "__main__":
+    _purge_zombie_instances()
     try:
         import winloop
 
