@@ -3220,9 +3220,10 @@ class TradingBrain:
                 if hasattr(self.ibkr_client, "isConnected") and self.ibkr_client.isConnected():
                     # Priority: Use NetLiquidation to avoid currency confusion
                     acc_vals = self.ibkr_client.accountValues()
+                    fallback_val = self.ibkr_drawdown.peak_equity if hasattr(self, 'ibkr_drawdown') and self.ibkr_drawdown.peak_equity > 0 else STARTING_CAPITAL_CAD
                     val = next(
                         (float(x.value) for x in acc_vals if x.tag == "NetLiquidation"),
-                        STARTING_CAPITAL_CAD,
+                        fallback_val,
                     )
             elif account_type == "mt5":
                 import MetaTrader5 as mt5
