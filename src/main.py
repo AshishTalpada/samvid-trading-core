@@ -2136,40 +2136,49 @@ def _purge_zombie_instances():
     try:
         import psutil
         current_pid = os.getpid()
-        current_script = os.path.abspath(__file__)
+        cwd = os.getcwd()
 
         print(f"[*] Sovereign Ghost Sweep: Auditing active processes (Current PID: {current_pid})...")
 
         count = 0
         for proc in psutil.process_iter(['pid', 'name', 'cmdline', 'cwd']):
             try:
-                # Check for python processes
-                if 'python' in proc.info['name'].lower():
-                    cmdline = proc.info.get('cmdline') or []
-                    # Check if they are running the same main.py script
-                    if any('main.py' in arg for arg in cmdline) and proc.info['pid'] != current_pid:
-                        # Verify it's in the same workspace (CWD) to avoid killing unrelated python scripts
-                        if proc.info.get('cwd') == os.getcwd():
-                            print(f"[!] GHOST DETECTED: Terminating orphaned process PID {proc.info['pid']}...")
-                            proc.terminate()
-                            # Wait up to 2 seconds for clean termination
-                            try:
-                                proc.wait(timeout=2)
-                            except psutil.TimeoutExpired:
-                                print(f"[!!] GHOST RESISTANT: Force killing PID {proc.info['pid']}...")
-                                proc.kill()
-                            count += 1
-            except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+                p_info = proc.info
+                p_pid = p_info.get('pid')
+                p_name = p_info.get('name')
+                p_cmd = p_info.get('cmdline') or []
+                p_cwd = p_info.get('cwd')
+
+                if p_pid == current_pid:
+                    continue
+
+                is_python = p_name and 'python' in p_name.lower()
+                is_main = any('main.py' in arg for arg in p_cmd)
+                is_same_dir = p_cwd == cwd
+
+                if is_python and is_main and is_same_dir:
+                    print(f"[!] GHOST DETECTED: Terminating orphaned process PID {p_pid}...")
+                    try:
+                        p_handle = psutil.Process(p_pid)
+                        p_handle.terminate()
+                        try:
+                            p_handle.wait(timeout=1)
+                        except psutil.TimeoutExpired:
+                            p_handle.kill()
+                        count += 1
+                    except Exception:
+                        pass
+            except Exception:
                 continue
 
         if count > 0:
             print(f"[*] Ghost Sweep Complete: {count} zombie(s) purged. Environment sanitized.")
-            time.sleep(1) # Final cooldown for file handles to release
+            time.sleep(0.5)
         else:
             print("[*] Environment sanitized: No existing ghosts found.")
 
     except Exception as e:
-        print(f"[*] Ghost Sweep Warning: Could not audit processes: {e}")
+        print(f"[*] Ghost Sweep Warning: Scoped audit bypassed: {e}")
 
 
 if __name__ == "__main__":
