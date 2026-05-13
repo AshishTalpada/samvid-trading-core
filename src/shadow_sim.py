@@ -31,7 +31,7 @@ class GhostShadowSim:
 
         trade = ShadowTrade(symbol=symbol, entry_price=price, side=side, timestamp=datetime.now())
         self.active_trades[symbol] = trade
-        logger.info(f"👻 SHADOW-SIM: Opened {side} for {symbol} at ${price:.2f}")
+        logger.info(f" SHADOW-SIM: Opened {side} for {symbol} at ${price:.2f}")
 
     def update(self, symbol: str, current_price: float):
         """Updates the PnL of active shadow trades based on live ticks."""
@@ -56,7 +56,7 @@ class GhostShadowSim:
         trade.is_closed = True
         self.total_shadow_pnl += trade.pnl
         self.history.append(trade)
-        logger.info(f"👻 SHADOW-SIM: Closed {symbol} at ${exit_price:.2f} | PnL: {trade.pnl:.2%}")
+        logger.info(f" SHADOW-SIM: Closed {symbol} at ${exit_price:.2f} | PnL: {trade.pnl:.2%}")
 
     def get_stats(self):
         wins = sum(1 for t in self.history if t.pnl > 0)

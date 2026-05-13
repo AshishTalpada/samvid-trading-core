@@ -121,7 +121,7 @@ def build_dataset():
                 extracted_count += 1
 
         logger.info(
-            f"✅ Successfully extracted {extracted_count} training examples to {OUTPUT_PATH}"
+            f" Successfully extracted {extracted_count} training examples to {OUTPUT_PATH}"
         )
         logger.info(f"Dataset Balance -> Winners: {win_count} | Losers: {loss_count}")
         logger.info("This JSONL file is ready for LoRA fine-tuning.")

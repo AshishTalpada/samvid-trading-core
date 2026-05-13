@@ -37,7 +37,7 @@ def _force_paper_mode(system: Any, reason: str) -> None:
     system.mode = "paper"
     logger.warning(f"Startup Safety: {reason} — forcing paper mode")
     _send_startup_alert(
-        "🛑 SOVEREIGN: Startup safety enforced PAPER mode. Live trading is disabled until explicitly authorized."
+        " SOVEREIGN: Startup safety enforced PAPER mode. Live trading is disabled until explicitly authorized."
     )
 
 
@@ -124,10 +124,10 @@ def EMERGENCY_HALT(reason: str = "EMERGENCY HALT invoked") -> None:
 
             if loop and loop.is_running():
                 loop.call_soon_threadsafe(
-                    lambda: asyncio.create_task(send_telegram_alert(f"🛑 EMERGENCY HALT: {reason}"))
+                    lambda: asyncio.create_task(send_telegram_alert(f" EMERGENCY HALT: {reason}"))
                 )
             else:
-                asyncio.run(send_telegram_alert(f"🛑 EMERGENCY HALT: {reason}"))
+                asyncio.run(send_telegram_alert(f" EMERGENCY HALT: {reason}"))
         except RuntimeError:
             logger.debug("Emergency alert skipped because a running event loop prevented asyncio.run().")
         except Exception:

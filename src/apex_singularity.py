@@ -33,5 +33,5 @@ class SovereignSingularity:
         market_noise = sum(self._market_entropies[-20:]) / len(self._market_entropies[-20:])
         ratio = learn_rate / (market_noise + 1e-9)
         if ratio > 1.0:
-            logger.critical(f"[SINGULARITY] 🌌 SINGULARITY THRESHOLD CROSSED! Ratio={ratio:.4f}")
+            logger.critical(f"[SINGULARITY]  SINGULARITY THRESHOLD CROSSED! Ratio={ratio:.4f}")
         return round(ratio, 6)

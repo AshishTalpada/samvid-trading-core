@@ -153,7 +153,7 @@ class DecisionEngine:
             return await self._final_report(
                 decision="REJECT",
                 confidence=avg_confidence,
-                reason="🛑 HARD VETO: Risk_Guard blocked the trade (Safety Protocol).",
+                reason=" HARD VETO: Risk_Guard blocked the trade (Safety Protocol).",
                 votes=agent_outputs,
             )
 
@@ -163,7 +163,7 @@ class DecisionEngine:
             return await self._final_report(
                 decision="REJECT",
                 confidence=avg_confidence,
-                reason=f"🛑 COGNITIVE VETO: Mind_Ultrathink REJECTED the trade. Reason: {mind_out.get('reason')}",
+                reason=f" COGNITIVE VETO: Mind_Ultrathink REJECTED the trade. Reason: {mind_out.get('reason')}",
                 votes=agent_outputs,
             )
 
@@ -190,7 +190,7 @@ class DecisionEngine:
                 return await self._final_report(
                     decision="REJECT",
                     confidence=avg_confidence,
-                    reason=f"🛑 SAFE-MODE REJECTION: Consensus {actual_threshold:.2%} < 50%.",
+                    reason=f" SAFE-MODE REJECTION: Consensus {actual_threshold:.2%} < 50%.",
                     votes=agent_outputs,
                 )
         else:

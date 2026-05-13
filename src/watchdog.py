@@ -202,7 +202,7 @@ def run_watchdog():
                 if should_restart:
                     if len(recent_restarts) >= 6:  # Hard panic
                         logger.critical(
-                            "🚨 WATCHDOG PANIC: Excessive restarts (6+) in 1h. SYSTEM HALTED to protect account."
+                            " WATCHDOG PANIC: Excessive restarts (6+) in 1h. SYSTEM HALTED to protect account."
                         )
                         should_restart = False
 

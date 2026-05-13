@@ -38,7 +38,7 @@ class TimeSync:
                 logger.info(f"Synchronizing clock with {server} ({ip_addr})...")
                 offset = await cls._get_ntp_offset(ip_addr)
                 cls._offset = offset
-                logger.info(f"✅ Clock Synchronized. Offset: {offset:.4f}s")
+                logger.info(f" Clock Synchronized. Offset: {offset:.4f}s")
                 return True
             except Exception as e:
                 logger.warning(f"Failed to sync with {server}: {e}")
@@ -68,13 +68,13 @@ class TimeSync:
                         # is at the start of the second. Adding 0.5s reduces mean error.
                         cls._offset = (ntp_ts + 0.5) - (t1 - latency)
                         logger.info(
-                            f"✅ Clock Synchronized via HTTP Fallback. Offset: {cls._offset:.4f}s (Latency Adj: {latency:.4f}s)"
+                            f" Clock Synchronized via HTTP Fallback. Offset: {cls._offset:.4f}s (Latency Adj: {latency:.4f}s)"
                         )
                         return True
         except Exception as e:
             logger.warning(f"HTTP Time fallback failed: {e}")
 
-        logger.error("❌ NTP Sync Failed across all protocols. Using local system clock (Risky).")
+        logger.error(" NTP Sync Failed across all protocols. Using local system clock (Risky).")
         return False
 
     @classmethod

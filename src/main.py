@@ -186,7 +186,7 @@ class StartupProfiler:
 
     def mark(self, name: str) -> None:
         self._marks[name] = time.perf_counter() - self._start
-        logger.debug(f"⏱  PROFILER: {name.ljust(30)} | {self._marks[name] * 1000:7.2f}ms")
+        logger.debug(f"  PROFILER: {name.ljust(30)} | {self._marks[name] * 1000:7.2f}ms")
 
 
 class TradingSystem:
@@ -194,25 +194,25 @@ class TradingSystem:
         """Helper to return dynamic status icons including Probing states."""
         if component == "ibkr":
             if hasattr(self, "ibkr_client") and self.ibkr_client and self.ibkr_client.isConnected():
-                return "✅"
+                return ""
             if "connect_ibkr" in self.background_tasks:
-                return "🟡 [PROBING]"
-            return "❌"
+                return " [PROBING]"
+            return ""
         if component == "mt5":
             if hasattr(self, "mt5_client") and self.mt5_client and self.mt5_client.terminal_info():
-                return "✅"
+                return ""
             if "connect_mt5" in self.background_tasks:
-                return "🟡 [PROBING]"
-            return "❌"
+                return " [PROBING]"
+            return ""
         if component == "qdb":
             if hasattr(self, "qdb") and self.qdb and self.qdb.is_active:
-                return "✅"
-            return "❌"
+                return ""
+            return ""
         if component == "dhatu":
             if hasattr(self, "dhatu_oracle") and self.dhatu_oracle:
-                return "✅"
-            return "❌"
-        return "⏳"
+                return ""
+            return ""
+        return ""
 
     @property
     def requires_ibkr_connection(self) -> bool:
@@ -261,7 +261,7 @@ class TradingSystem:
                 f.write("Sovereign Write Test")
             os.remove(test_file)
         except (IOError, OSError) as e:
-            logger.critical(f"🛑 CRITICAL: Project path is NOT writable ({_root}). Error: {e}")
+            logger.critical(f" CRITICAL: Project path is NOT writable ({_root}). Error: {e}")
             raise RuntimeError("Sovereign Initialization Failed: No write access to PROJECT_PATH.")
 
         # Ensure directories exist
@@ -338,7 +338,7 @@ class TradingSystem:
 
                         if same_app:
                             logger.critical(
-                                f"🛑 CRITICAL: Duplicate Sovereign Instance Detected (PID: {old_pid})."
+                                f" CRITICAL: Duplicate Sovereign Instance Detected (PID: {old_pid})."
                             )
                             logger.critical(
                                 "Multiple instances cause Telegram 409 Conflict and Broker Port locks."
@@ -375,7 +375,7 @@ class TradingSystem:
             executable_found = await self.mind_system._tool_find_executable("ibkr")
             if not executable_found:
                 logger.error(
-                    "🛑 CRITICAL: IBKR/TWS Executable not found. Environment is NON-COMPLIANT. Stopping."
+                    " CRITICAL: IBKR/TWS Executable not found. Environment is NON-COMPLIANT. Stopping."
                 )
                 raise RuntimeError("Sovereign Initialization Failed: Missing Institutional Software")
         else:
@@ -422,7 +422,7 @@ class TradingSystem:
         self.profiler.mark("CACHE_WAKED")
 
         logger.info(
-            f"✅ Matrix Progressive Init Complete in {self.profiler._marks.get('SYSTEM_SCENT_CAPTURED', 0) * 1000:.2f}ms"
+            f" Matrix Progressive Init Complete in {self.profiler._marks.get('SYSTEM_SCENT_CAPTURED', 0) * 1000:.2f}ms"
         )
 
         # Launch health-Pulse Monitor
@@ -519,9 +519,9 @@ class TradingSystem:
         logger.info(f"Current trading mode: {self.mode}")
 
         if self.mode not in ["paper", "ibkr_paper"]:
-            logger.warning("⚠   LIVE TRADING MODE DETECTED!")
+            logger.warning("   LIVE TRADING MODE DETECTED!")
             print("\n" + "=" * 60)
-            print("⚠   WARNING: NOT IN PAPER TRADING MODE!")
+            print("   WARNING: NOT IN PAPER TRADING MODE!")
             print(f"   Current mode: {self.mode}")
             print("=" * 60)
             print("\nThis will execute REAL trades with REAL money!")
@@ -571,7 +571,7 @@ class TradingSystem:
                     cursor.executescript(schema_sql)
                     cursor.close()
 
-                    logger.info("✅ Database schema initialized")
+                    logger.info(" Database schema initialized")
                 else:
                     logger.warning(f"Schema file not found: {self.schema_path}")
                     logger.info("Creating basic tables...")
@@ -936,7 +936,7 @@ class TradingSystem:
             account_info = mt5.account_info()
             if account_info is not None and account_info.login == int(self.mt5_login):
                 # Already logged in with the correct account - no need to re-login
-                logger.info(f"✅ MT5 already logged in - Account: {account_info.login}")
+                logger.info(f" MT5 already logged in - Account: {account_info.login}")
                 logger.info(f"  Balance: {account_info.balance} {account_info.currency}")
                 logger.info(f"  Server: {account_info.server}")
                 logger.info(f"  Name: {account_info.name}")
@@ -1018,7 +1018,7 @@ class TradingSystem:
             if account_info is None:
                 raise ConnectionError("Failed to get MT5 account info after login")
 
-            logger.info(f"✅ MT5 connected - Account: {account_info.login}")
+            logger.info(f" MT5 connected - Account: {account_info.login}")
             logger.info(f"  Balance: {account_info.balance} {account_info.currency}")
             logger.info(f"  Server: {account_info.server}")
 
@@ -1079,7 +1079,7 @@ class TradingSystem:
                 # Start pipeline in supervised background task
                 self._start_supervised_task("data_pipeline", pipeline.run_continuous)
 
-            logger.info("✅ Data Pipeline started")
+            logger.info(" Data Pipeline started")
             return True
 
         except ImportError as e:
@@ -1114,7 +1114,7 @@ class TradingSystem:
                 # Start DMS in supervised background task
                 self._start_supervised_task("dms", dms.run)
 
-            logger.info("✅ DMS started (with emergency flatten capability)")
+            logger.info(" DMS started (with emergency flatten capability)")
             return True
 
         except ImportError as e:
@@ -1150,7 +1150,7 @@ class TradingSystem:
                 # Start brain in supervised background task
                 self._start_supervised_task("trading_brain", brain.run)
 
-            logger.info("✅ Trading Brain started")
+            logger.info(" Trading Brain started")
             return True
 
         except ImportError as e:
@@ -1176,7 +1176,7 @@ class TradingSystem:
             self.dhatu_oracle = oracle
             self._start_supervised_task("dhatu_oracle", oracle.run_continuous)
             # Logic natively integrated
-            logger.info("✅ Dhatu Oracle started (15-minute global synthesis cycle)")
+            logger.info(" Dhatu Oracle started (15-minute global synthesis cycle)")
             return True
         except ImportError as e:
             logger.warning(f"DhatuOracle not available: {e}")
@@ -1192,15 +1192,15 @@ class TradingSystem:
         """
         allowed_prefixes = [
             "[EXECUTION]",
-            "🚨",
-            "⚠️",
-            "🚀",
-            "🛑",
-            "🟢",
-            "🔴",
-            "⚪",
-            "📢",
-            "☣️",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
             "SYSTEM CRITICAL",
             "TRADE FULLY CLOSED",
             "DAILY WRAP-UP",
@@ -1243,13 +1243,13 @@ class TradingSystem:
 
             async with self._telegram_session.post(url, json=payload) as resp:
                 if resp.status == 200:
-                    logger.info("✅ Telegram notification sent successfully.")
+                    logger.info(" Telegram notification sent successfully.")
                     return True
                 else:
-                    logger.warning(f"❌ Telegram notification failed with status {resp.status}. Message: {redacted_message[:50]}...")
+                    logger.warning(f" Telegram notification failed with status {resp.status}. Message: {redacted_message[:50]}...")
                     return False
         except Exception as e:
-            logger.error(f"❌ Telegram notification error: {e}", exc_info=True)
+            logger.error(f" Telegram notification error: {e}", exc_info=True)
             return False
 
     async def _start_background_tasks(self) -> None:
@@ -1277,7 +1277,7 @@ class TradingSystem:
         logger.info(f"\n[9/9] Starting Institutional API Server (Port {_p})...")
         started = await self.api_server.start()
         if started:
-            logger.info("✅ API Server active")
+            logger.info(" API Server active")
         else:
             logger.info(f"API Server skipped (already active on port {_p})")
 
@@ -1286,7 +1286,7 @@ class TradingSystem:
         from risk_invariants import RiskInvariants
 
         if not RiskInvariants.verify_config():
-            logger.critical("❌ SYSTEM HALTED: Critical Risk Invariants Corrupted.")
+            logger.critical(" SYSTEM HALTED: Critical Risk Invariants Corrupted.")
             raise RuntimeError("Critical Risk Invariants Corrupted.")
 
         logger.info("=" * 60)
@@ -1299,7 +1299,7 @@ class TradingSystem:
             # Step 1: Initialize Sovereign Deterministic Engine
             logger.info("\n[1/10] Initializing Sovereign Deterministic Engine...")
             logger.info(
-                "🏛️ Sovereign: LLM dependencies purged. High-performance offline mode active."
+                " Sovereign: LLM dependencies purged. High-performance offline mode active."
             )
 
             # Step 2: Verify paper mode
@@ -1317,9 +1317,9 @@ class TradingSystem:
                 if not hasattr(self, "ibkr_client") or self.ibkr_client is None:
                     self.ibkr_client = IB()
                 elif self.ibkr_client.isConnected():
-                    logger.info("🏛️ Sovereign: IBKR client already connected. Skipping re-init.")
+                    logger.info(" Sovereign: IBKR client already connected. Skipping re-init.")
                 else:
-                    logger.info("🏛️ Sovereign: Re-initializing existing IBKR client instance.")
+                    logger.info(" Sovereign: Re-initializing existing IBKR client instance.")
             else:
                 logger.info("Paper mode active — skipping IBKR client instantiation.")
 
@@ -1359,7 +1359,7 @@ class TradingSystem:
 
             # Start the Remote Command Listener IMMEDIATELY
             if self.telegram_remote:
-                logger.info("🏛️ Sovereign Remote: Activating Command listener...")
+                logger.info(" Sovereign Remote: Activating Command listener...")
                 await self.telegram_remote.start()
 
             # Start the data pipeline in the background
@@ -1402,15 +1402,15 @@ class TradingSystem:
             dhatu_status = self._get_status_icon("dhatu")
 
             notification = (
-                f"🚀 <b>Trading System Online</b>\n\n"
-                f"📊 Mode: <code>{self.mode.upper()}</code>\n"
-                f"🔌 IBKR: {ibkr_status}\n"
-                f"🔌 MT5: {mt5_status}\n"
-                f"🧠 DhatuOracle: {dhatu_status}\n"
-                f"📈 OpenBB: {'✅' if (self._openbb_provider and self._openbb_provider.is_available) else '❌'}\n"
-                f"🐟 Native SLM: {'✅' if (self.native_slm and self.native_slm.is_available) else '❌'}\n"
-                f"🕒 Startup time: {(datetime.now(timezone.utc) - start_time).total_seconds():.2f}s\n"
-                f"🕒 {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')}"
+                f" <b>Trading System Online</b>\n\n"
+                f" Mode: <code>{self.mode.upper()}</code>\n"
+                f" IBKR: {ibkr_status}\n"
+                f" MT5: {mt5_status}\n"
+                f" DhatuOracle: {dhatu_status}\n"
+                f" OpenBB: {'' if (self._openbb_provider and self._openbb_provider.is_available) else ''}\n"
+                f" Native SLM: {'' if (self.native_slm and self.native_slm.is_available) else ''}\n"
+                f" Startup time: {(datetime.now(timezone.utc) - start_time).total_seconds():.2f}s\n"
+                f" {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')}"
             )
 
             await self.send_telegram_notification(notification)
@@ -1464,7 +1464,7 @@ class TradingSystem:
                             if "locked" in str(e).lower() and attempt < 9:
                                 wait_time = 1.0 + (attempt * 0.5)
                                 logger.warning(
-                                    f"🏛️ Sovereign: Database locked at startup pulse. Jittering {wait_time}s... (Attempt {attempt + 1}/10)"
+                                    f" Sovereign: Database locked at startup pulse. Jittering {wait_time}s... (Attempt {attempt + 1}/10)"
                                 )
                                 await asyncio.sleep(wait_time)
                             else:
@@ -1476,7 +1476,7 @@ class TradingSystem:
         except Exception as e:
             logger.error(f"Startup failed: {e}", exc_info=True)
             await self.send_telegram_notification(
-                f"❌ <b>Trading System Startup Failed</b>\n\nError: <code>{e!s}</code>"
+                f" <b>Trading System Startup Failed</b>\n\nError: <code>{e!s}</code>"
             )
             raise
 
@@ -1633,7 +1633,7 @@ class TradingSystem:
                     )
                     try:
                         await self.send_telegram_notification(
-                            f"⚠️  *Background Task Crashed*\nTask: {name}\nError: {e!s}"
+                            f"  *Background Task Crashed*\nTask: {name}\nError: {e!s}"
                         )
                     except Exception:
                         pass
@@ -1654,9 +1654,9 @@ class TradingSystem:
             return
 
         self.is_running = False
-        logger.info("\n" + "🛑" * 30)
+        logger.info("\n" + "" * 30)
         logger.info("SOVEREIGN: INITIATING SEQUENTIAL SHUTDOWN PROTOCOL")
-        logger.info("🛑" * 30 + "\n")
+        logger.info("" * 30 + "\n")
 
         try:
             # 1. COMPUTE DAILY PERFORMANCE
@@ -1684,15 +1684,15 @@ class TradingSystem:
             # 2. SEND TELEGRAM SUMMARY
             logger.info("[SHUTDOWN STEP 2/8] Dispatching final Telegram report...")
             try:
-                sign = "📈" if daily_pnl > 0 else "📉" if daily_pnl < 0 else "📊"
+                sign = "" if daily_pnl > 0 else "" if daily_pnl < 0 else ""
                 summary_msg = (
-                    f"🛑 <b>Sovereign System Offline</b>\n\n"
-                    f"🕒 {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')} UTC\n"
+                    f" <b>Sovereign System Offline</b>\n\n"
+                    f" {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')} UTC\n"
                     f"───────────────────────────────\n"
                     f"<b>Daily Wrap-Up:</b>\n"
                     f"{sign} <b>Total PnL:</b> ${daily_pnl:+.2f}\n"
-                    f"🔄 <b>Trades Executed:</b> {trades_today}\n"
-                    f"🏁 <b>Status:</b> GRACEFUL_EXIT"
+                    f" <b>Trades Executed:</b> {trades_today}\n"
+                    f" <b>Status:</b> GRACEFUL_EXIT"
                 )
                 # Shielded Telegram send with slightly longer timeout
                 await asyncio.wait_for(
@@ -1827,9 +1827,9 @@ class TradingSystem:
 
             # 8. EXIT
             logger.info("[SHUTDOWN STEP 8/8] Finalizing logs...")
-            logger.info("\n" + "✅" * 30)
+            logger.info("\n" + "" * 30)
             logger.info("SOVEREIGN: SHUTDOWN SEQUENCE COMPLETE")
-            logger.info("✅" * 30 + "\n")
+            logger.info("" * 30 + "\n")
 
             logging.shutdown()
             self._shutdown_complete = True
@@ -1843,13 +1843,13 @@ class TradingSystem:
             import psutil
         except ImportError:
             logger.warning(
-                "🚨 DEPENDENCY MISSING: 'psutil' not found. Watchdog verification DISABLED. (pip install psutil)"
+                " DEPENDENCY MISSING: 'psutil' not found. Watchdog verification DISABLED. (pip install psutil)"
             )
             return
         pid_file = "data/watchdog.pid"
         if not os.path.exists(pid_file):
             logger.warning(
-                "🚨 WATCHDOG SILENCE (Bug #2): data/watchdog.pid missing. System is UNPROTECTED."
+                " WATCHDOG SILENCE (Bug #2): data/watchdog.pid missing. System is UNPROTECTED."
             )
             return
 
@@ -1858,9 +1858,9 @@ class TradingSystem:
                 w_pid = int(f.read().strip())
 
             if psutil.pid_exists(w_pid):
-                logger.info(f"✅ Watchdog Verified (PID: {w_pid})")
+                logger.info(f" Watchdog Verified (PID: {w_pid})")
             else:
-                logger.warning(f"🚨 WATCHDOG STALE: PID {w_pid} found in file but process is DEAD.")
+                logger.warning(f" WATCHDOG STALE: PID {w_pid} found in file but process is DEAD.")
         except Exception as e:
             logger.error(f"Watchdog verification failed: {e}")
 
@@ -1958,7 +1958,7 @@ class TradingSystem:
                 cpu = psutil.cpu_percent()
                 ram = psutil.virtual_memory().percent
                 logger.info(
-                    f"📈 METRICS: CPU: {cpu}% | RAM: {ram}% | State: {self.trading_brain.state.name if hasattr(self, 'trading_brain') else 'INIT'}"
+                    f" METRICS: CPU: {cpu}% | RAM: {ram}% | State: {self.trading_brain.state.name if hasattr(self, 'trading_brain') else 'INIT'}"
                 )
 
                 # Log to QuestDB if available
@@ -2063,7 +2063,7 @@ class TradingSystem:
         """Final Aesthetit Polish: Displays a terminal-grade dashboard of active Minds."""
         banner = (
             "\n" + "╔" + "═" * 78 + "╗\n"
-            "║" + "  🌌  THE SOVEREIGN SINGULARITY MATRIX  ".center(78) + "║\n"
+            "║" + "    THE SOVEREIGN SINGULARITY MATRIX  ".center(78) + "║\n"
             "╠" + "═" * 78 + "╣\n"
             "║"
             + f"  STATUS:   ACTIVE  |  MODE:     {self.mode.upper().center(10)}  |  TICK:  100Hz (0.01s)  ".center(
@@ -2081,7 +2081,7 @@ class TradingSystem:
             "║  K: Ultrathink R-Res  →  [RESONANCE] ║  S: System Mind       →  [STABLE]     ║\n"
             "║  M: Coordinator Phase →  [SOVEREIGN] ║  L: Local Determinism →  [HIGH-PERF]   ║\n"
             "╠" + "═" * 78 + "╣\n"
-            "║" + "  👻 GHOST RUN STATUS: CERTIFIED & HARDENED 👻  ".center(78) + "║\n"
+            "║" + "   GHOST RUN STATUS: CERTIFIED & HARDENED   ".center(78) + "║\n"
             "╚" + "═" * 78 + "╝\n"
         )
         logger.info(banner)
@@ -2106,7 +2106,7 @@ async def main(s: TradingSystem) -> None:
 
         # PILLAR 10: PERSISTENCE - Keep the system alive indefinitely
         # This prevents main() from finishing and hitting the 'finally' shutdown block.
-        logger.info("✅ Matrix fully synchronized. System operational.")
+        logger.info(" Matrix fully synchronized. System operational.")
         while True:
             # Frequent wakeups are required on Windows to process KeyboardInterrupts
             # Increased frequency to 0.2s for higher responsiveness to Ctrl+C.
@@ -2121,7 +2121,7 @@ async def main(s: TradingSystem) -> None:
             # Increase timeout and shield from secondary Ctrl+C
             await asyncio.shield(asyncio.wait_for(s.shutdown(), timeout=30.0))
         except asyncio.TimeoutError:
-            logger.critical("🚨 SHUTDOWN HANG: Forceful Termination required.")
+            logger.critical(" SHUTDOWN HANG: Forceful Termination required.")
             os._exit(1)
         except Exception as e:
             logger.error(f"Shutdown error: {e}")
@@ -2171,7 +2171,7 @@ if __name__ == "__main__":
 
     if not str(Vault.get("DEEPSEEK_API_KEY", "")).strip() and is_tty:
         print("\n" + "═" * 78)
-        print("🏛️  SOVEREIGN GHOST KEY: Apex Auditor (671B IQ) is currently INACTIVE.")
+        print("  SOVEREIGN GHOST KEY: Apex Auditor (671B IQ) is currently INACTIVE.")
         # ... (rest of prompt suppressed in replacement for brevity, logic remains)
         try:
             key = getpass.getpass(
@@ -2181,9 +2181,9 @@ if __name__ == "__main__":
                 os.environ["DEEPSEEK_API_KEY"] = key
                 print("\n✓ GHOST KEY ACTIVE. Remote IQ Auditor Enabled.")
             else:
-                print("\n⚠ Remote Audit SKIPPED. Relying on Local Quorum.")
+                print("\n Remote Audit SKIPPED. Relying on Local Quorum.")
         except (KeyboardInterrupt, EOFError):
-            print("\n⚠ Input Interrupted. Defaulting to Local Mode.")
+            print("\n Input Interrupted. Defaulting to Local Mode.")
     elif not is_tty and not str(Vault.get("DEEPSEEK_API_KEY", "")).strip():
         logger.info("Sovereign: Non-TTY environment detected. Skipping interactive key injection.")
 

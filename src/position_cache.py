@@ -62,7 +62,7 @@ class PositionCache:
         self._positions[pos.symbol] = pos
         self._flush()
         logger.info(
-            f"PositionCache: ✅ Added {pos.symbol} {pos.side} x{pos.quantity} @ ${pos.entry_price:.2f}"
+            f"PositionCache:  Added {pos.symbol} {pos.side} x{pos.quantity} @ ${pos.entry_price:.2f}"
         )
 
     def update(self, symbol: str, **kwargs) -> None:
@@ -81,7 +81,7 @@ class PositionCache:
         pos = self._positions.pop(symbol, None)
         if pos:
             self._flush()
-            logger.info(f"PositionCache: 🔴 Removed {symbol} ({pos.side})")
+            logger.info(f"PositionCache:  Removed {symbol} ({pos.side})")
         return pos
 
     def get(self, symbol: str) -> Optional[CachedPosition]:

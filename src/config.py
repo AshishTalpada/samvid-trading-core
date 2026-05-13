@@ -157,7 +157,7 @@ def _validate_config():
 
     # 1. IBKR Account Validation
     if not IBKR_ACCOUNT_ID and not FORCED_PAPER_MODE:
-        _log.warning("⚠️ IBKR_ACCOUNT_ID is empty. System will likely fail on order execution.")
+        _log.warning(" IBKR_ACCOUNT_ID is empty. System will likely fail on order execution.")
 
     # 2. Risk Invariant Validation
     if SYSTEM_MAX_RISK > 0.10:
