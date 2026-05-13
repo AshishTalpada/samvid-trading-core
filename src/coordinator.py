@@ -16,6 +16,7 @@ if TYPE_CHECKING:
     from mind_bridge import MindBridge
 
 from agent_a import agent_a_validate_trade
+from decision_ledger import LEDGER
 from telegram_alerts import send_telegram_alert
 
 logger = logging.getLogger(__name__)
@@ -871,6 +872,24 @@ class TradingCoordinator:
                         f"EXECUTION_START: Routing {shares} shares to {self.brain.active_broker}."
                     )
                 logger.info(f"Coordinator [{proposal_id}] [QUORUM_OK] Executing trade for {symbol}")
+
+                # --- DECISION LEDGER: record the full quorum for the execution decision ---
+                try:
+                    ledger_votes = {
+                        v.get("agent", "Unknown"): f"{v.get('vote')} ({int(v.get('confidence', 0)*100)}%) - {v.get('reason', '')}"
+                        for v in all_votes
+                    }
+                    LEDGER.record_entry(
+                        symbol=symbol,
+                        pattern=getattr(pattern, "name", "Pattern"),
+                        confidence=decision.get("confidence", 0.0) * 100,
+                        agent_votes=ledger_votes,
+                        triggered_by=proposal_id,
+                        event_type="EXECUTION",
+                        meta={"shares": shares, "regime": self.brain.current_regime},
+                    )
+                except Exception as le:
+                    logger.debug(f"DecisionLedger execution audit skipped: {le}")
 
                 is_long = pattern.entry > pattern.stop
                 order_side = "BUY" if is_long else "SELL"
