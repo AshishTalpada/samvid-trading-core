@@ -393,7 +393,7 @@ class DataPipeline:
                 diffs = df.index.to_series().diff().dropna().dt.total_seconds()
                 max_gap = diffs.max()
                 if max_gap > 900:  # 15 mins
-                    logger.warning(
+                    logger.debug(
                         f"GAP DETECTED: {symbol} has a data gap of {max_gap / 60:.1f} minutes."
                     )
 
