@@ -16,10 +16,9 @@ import os
 import sqlite3
 import time
 from datetime import datetime
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import pytz
-from typing import TYPE_CHECKING
 
 # NOTE: Do NOT manipulate the event loop at module import time.
 # ib_insync's IB() and asyncio.Lock() must only be created inside

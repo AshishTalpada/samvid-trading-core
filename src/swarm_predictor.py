@@ -1,5 +1,5 @@
-import time
 import os
+import time
 
 # MUST BE SET BEFORE ANY IMPORTS THAT MIGHT TRIGGER CHROMA/POSTHOG
 os.environ["ANONYMIZED_TELEMETRY"] = "False"
@@ -652,7 +652,6 @@ class SwarmPredictor:
             import json
 
             import openai
-
             from thermal_guard import ThermalGuard
 
             if self._openai_client is None:

@@ -1,10 +1,11 @@
-import time
 import asyncio
 import logging
+import time
+from collections import deque
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Callable, Dict, List, Optional
-from collections import deque
+
 import numpy as np
 
 logger = logging.getLogger(__name__)

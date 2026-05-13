@@ -57,6 +57,7 @@ if TYPE_CHECKING:
 
 
 
+import safety
 from api_server import APIServer
 from config import (
     FORCED_PAPER_MODE,
@@ -73,7 +74,6 @@ from ibkr_streamer import IBKRStreamer
 from intelligence_bus import get_bus
 from questdb_adapter import QuestDBAdapter
 from telegram_remote import get_remote
-import safety
 
 
 class SovereignFormatter(logging.Formatter):
