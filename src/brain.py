@@ -3358,7 +3358,7 @@ class TradingBrain:
     async def _get_daily_pnl(self, account_type: str) -> float:
         """Get today's P&L."""
 
-        async def _sync_daily_pnl():
+        def _sync_daily_pnl() -> float:
             try:
                 if self.db_conn:
                     cursor = self.db_conn.cursor()
