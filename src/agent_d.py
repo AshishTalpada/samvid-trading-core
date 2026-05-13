@@ -1366,36 +1366,56 @@ class LiveLearningEngine:
         """Persist a batch of trades to SQLite with high-performance settings."""
         if not trades:
             return
-        try:
-            conn = _sqlite3.connect(self.db_path, timeout=60)
-            # High-performance PRAGMAs for massive data ingestion
-            conn.execute("PRAGMA journal_mode = WAL")
-            conn.execute("PRAGMA synchronous = NORMAL")
-            conn.execute("PRAGMA busy_timeout = 60000")
 
-            conn.executemany(
-                """INSERT INTO agent_d_trades
-                   (trade_id, symbol, pattern, outcome, r_multiple, pnl, regime, session, hold_hours)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-                [
-                    (
-                        t.get("trade_id", t.get("id", "UNKNOWN")),
-                        t.get("symbol", ""),
-                        t.get("pattern", "UNKNOWN"),
-                        t.get("outcome", "LOSS"),
-                        float(t.get("r_multiple", 0.0)),
-                        float(t.get("pnl", 0.0)),
-                        t.get("regime", "UNKNOWN"),
-                        t.get("session", "RTH"),
-                        float(t.get("hold_hours", 0.0)),
+        for attempt in range(1, 4):
+            try:
+                conn = self._connect()
+                # High-performance PRAGMAs for massive data ingestion
+                conn.execute("PRAGMA synchronous = NORMAL")
+
+                conn.executemany(
+                    """INSERT INTO agent_d_trades
+                       (trade_id, symbol, pattern, outcome, r_multiple, pnl, regime, session, hold_hours)
+                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                    [
+                        (
+                            t.get("trade_id", t.get("id", "UNKNOWN")),
+                            t.get("symbol", ""),
+                            t.get("pattern", "UNKNOWN"),
+                            t.get("outcome", "LOSS"),
+                            float(t.get("r_multiple", 0.0)),
+                            float(t.get("pnl", 0.0)),
+                            t.get("regime", "UNKNOWN"),
+                            t.get("session", "RTH"),
+                            float(t.get("hold_hours", 0.0)),
+                        )
+                        for t in trades
+                    ],
+                )
+                conn.commit()
+                conn.close()
+                return
+            except _sqlite3.OperationalError as e:
+                message = str(e).lower()
+                if "no column named trade_id" in message:
+                    _lld_logger.warning(
+                        "LiveLearningEngine: missing trade_id column; applying migration and retrying"
                     )
-                    for t in trades
-                ],
-            )
-            conn.commit()
-            conn.close()
-        except Exception as e:
-            _lld_logger.warning(f"LiveLearningEngine: batch persist failed: {e}")
+                    self._ensure_table()
+                    continue
+                if "database is locked" in message:
+                    _lld_logger.warning(
+                        f"LiveLearningEngine: database is locked on persist attempt {attempt}. Retrying..."
+                    )
+                    time.sleep(0.05 * attempt)
+                    continue
+                _lld_logger.warning(f"LiveLearningEngine: batch persist failed: {e}")
+                return
+            except Exception as e:
+                _lld_logger.warning(f"LiveLearningEngine: batch persist failed: {e}")
+                return
+
+        _lld_logger.warning("LiveLearningEngine: batch persist failed after repeated retries")
 
     async def _handle_trade_exit(self, payload: dict) -> None:
         """
