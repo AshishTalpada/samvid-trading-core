@@ -348,7 +348,7 @@ class APIServer:
             """Return aggregate stats from the decision ledger."""
             return LEDGER.summary_stats()
 
-        @self.app.websocket("/ws", ping_interval=30.0, ping_timeout=60.0)
+        @self.app.websocket("/ws")
         async def websocket_endpoint(websocket: WebSocket, token: str = Query(None)) -> None:
             from time_sync import TimeSync
 
@@ -825,6 +825,8 @@ class APIServer:
             host=self.host,
             port=self.port,
             log_level="error",
+            ws_ping_interval=30.0,
+            ws_ping_timeout=60.0,
         )
         self.server = uvicorn.Server(config)
         # Disable uvicorn's signal handlers — the main TradingSystem handles
