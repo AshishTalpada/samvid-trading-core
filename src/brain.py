@@ -2274,11 +2274,19 @@ class TradingBrain:
             # 1. Physical Exit (Broker Handshake)
             direction = "SELL" if pos.qty > 0 else "BUY"
 
-            # Handling Partials from
+            # Handling Partials
             if exit_type == "PARTIAL":
                 exit_shares = max(1, abs(int(pos.qty * 0.5)))
             else:
                 exit_shares = abs(int(pos.qty))
+
+            # --- SOVEREIGN ORDER SHIELD (Anti-Spam) ---
+            # Check if we already have an active order for this symbol at the broker
+            if self.ibkr_client and pos.account_type == "ibkr":
+                active_trades = [t for t in self.ibkr_client.trades() if t.contract.symbol == pos.symbol and not t.isDone()]
+                if active_trades:
+                    logger.warning(f" ORDER SHIELD: Suppressing {exit_type} for {pos.symbol}. Active order already exists.")
+                    return
 
             logger.warning(
                 f"EXECUTING {exit_type} FOR {pos.symbol} | PRICE: ${exit_price:.2f} (Attempt: {strikes + 1})"
@@ -2286,8 +2294,10 @@ class TradingBrain:
 
             if exit_shares > 0 and self.mode != "paper":
                 if pos.account_type == "ibkr":
+                    # Use 'EMERGENCY' urgency for VETOs to force true Market Orders
+                    urg_level = "EMERGENCY" if "VETO" in exit_type or "FLATTEN" in exit_type else "HIGH"
                     await self._place_ibkr_order(
-                        pos.symbol, direction, exit_shares, urgency="HIGH", limit_price=exit_price
+                        pos.symbol, direction, exit_shares, urgency=urg_level, limit_price=exit_price
                     )
                 elif pos.account_type == "mt5" and self.mt5_conn:
                     logger.warning(f"EXECUTING MT5 EXIT FOR {pos.symbol} (Ticket: {pos.trade_id})")
@@ -3434,6 +3444,13 @@ class TradingBrain:
 
             exec_token = self.ibkr_conn.generate_exec_token(symbol)
             kwargs["exec_token"] = exec_token
+
+            if urgency == "EMERGENCY":
+                # PILLAR 11: EMERGENCY BYPASS
+                # Force a true Market Order for safety flattens and heartbeat vetos.
+                return await self.ibkr_conn.place_order(
+                    symbol, direction, shares, order_type="MKT", **kwargs
+                )
 
             if urgency == "LOW" and limit_price > 0:
                 return await self.ibkr_conn.place_order(
