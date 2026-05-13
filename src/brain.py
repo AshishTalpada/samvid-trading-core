@@ -2423,24 +2423,32 @@ class TradingBrain:
             # Telegram Alert (Enhanced for SE-12 Detail)
             from telegram_alerts import send_telegram_alert
 
-            icon = "" if realized_net_pnl > 0 else "" if realized_net_pnl < 0 else ""
+            icon = "✅" if realized_net_pnl > 0 else "🛑" if realized_net_pnl < 0 else "⚪"
 
             intent = pos.meta.get("intent", "Sovereign")
             pattern_name = pos.meta.get("pattern", "UNKNOWN")
 
+            # Format detailed message
             title = "PARTIAL EXIT" if exit_type == "PARTIAL" else "TRADE CLOSED"
-            await send_telegram_alert(
+            msg = (
                 f"{icon} *{title}: {pos.symbol}*\n"
+                f"Account: `{pos.account_id}` ({pos.account_type})\n"
+                f"-------------------\n"
+                f"Qty: {pos.qty:.2f}\n"
+                f"Entry: ${pos.entry_price:.2f}\n"
+                f"Exit:  ${pos.current_price:.2f}\n"
+                f"-------------------\n"
                 f"Intent: {intent}\n"
                 f"Pattern: {pattern_name}\n"
                 f"Exit Type: {exit_type}\n"
                 f"-------------------\n"
-                f"Trade PnL: ${realized_net_pnl:+.2f}\n"
+                f"Trade PnL: *${realized_net_pnl:+.2f}*\n"
                 f"R-Multiple: {r_multiple:+.2f}x\n"
                 f"Hold Time: {(now - (pos.entry_time if pos.entry_time.tzinfo else pos.entry_time.replace(tzinfo=timezone.utc))).total_seconds() / 60:.1f}m\n"
                 f"-------------------\n"
-                f" SESSION TOTAL: ${self.session_pnl:+.2f}"
+                f"SESSION TOTAL: *${self.session_pnl:+.2f}*"
             )
+            await send_telegram_alert(msg)
 
         except Exception as e:
             logger.error(f"Failed to process exit for {pos.symbol}: {e}")
