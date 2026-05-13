@@ -164,7 +164,9 @@ class MindGhost:
 
         # Call the reboot_service tool on Agent I via the Bridge
         result = await self.bridge.call_tool(
-            "reboot_service", service_name=f"RESTART_{service_name}"
+            "reboot_service",
+            service_name=f"RESTART_{service_name}",
+            justification=f"GHOST_RESET: Heartbeat lost for {service_name} (Attempt {retry_count + 1})",
         )
 
         if result.get("status") == "OK":

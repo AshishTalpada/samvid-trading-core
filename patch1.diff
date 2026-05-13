@@ -1,0 +1,9 @@
+diff --git a/src/sovereign_task.py b/src/sovereign_task.py
+index b83be06..5659d4d 100644
+--- a/src/sovereign_task.py
++++ b/src/sovereign_task.py
+@@
+-                    import shutil
++                    import shutil
++                    import time as _time
+
