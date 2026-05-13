@@ -1882,6 +1882,13 @@ class TradingBrain:
                         f"SYSTEM ENTROPY CRITICAL (Density: {signal_density:.2f}): Performing Cognitive Flush..."
                     )
                     self._last_entropy_flush = now
+
+                # FINALIZATION FIX: Ensure tasks are not leaked during flush
+                for d in (self.pending_signals + discoveries):
+                    task = d.get("task")
+                    if task and hasattr(task, "finalize"):
+                        task.finalize("VETOED")
+
                 self.pending_signals.clear()
                 discoveries.clear()  # Ensure we don't immediately refill pending_signals
                 # Also clear old closed positions to free memory
