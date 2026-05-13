@@ -2128,58 +2128,7 @@ async def main(s: TradingSystem) -> None:
             os._exit(1)
 
 
-def _purge_zombie_instances():
-    """
-    Sovereign Ghost Sweep: Detects and terminates orphaned instances of the system
-    to release file locks on databases (SQLite/QuestDB) before startup.
-    """
-    try:
-        import psutil
-        current_pid = os.getpid()
-        cwd = os.getcwd()
-
-        print(f"[*] Sovereign Ghost Sweep: Auditing active processes (Current PID: {current_pid})...")
-
-        count = 0
-        for proc in psutil.process_iter(['pid', 'name', 'cmdline', 'cwd']):
-            try:
-                p_info = proc.info
-                p_pid = p_info.get('pid')
-                p_name = p_info.get('name')
-                p_cmd = p_info.get('cmdline') or []
-                p_cwd = p_info.get('cwd')
-
-                if p_pid == current_pid:
-                    continue
-
-                is_python = p_name and 'python' in p_name.lower()
-                is_main = any('main.py' in arg for arg in p_cmd)
-                is_same_dir = p_cwd == cwd
-
-                if is_python and is_main and is_same_dir:
-                    print(f"[!] GHOST DETECTED: Purging orphaned PID {p_pid}...")
-                    try:
-                        # Use OS-level forceful kill to avoid handle leaks and crashes
-                        import os as _os
-                        _os.system(f"taskkill /F /PID {p_pid} >nul 2>&1")
-                        count += 1
-                    except Exception:
-                        pass
-            except Exception:
-                continue
-
-        if count > 0:
-            print(f"[*] Ghost Sweep Complete: {count} zombie(s) purged. Environment sanitized.")
-            time.sleep(0.5)
-        else:
-            print("[*] Environment sanitized: No existing ghosts found.")
-
-    except Exception as e:
-        print(f"[*] Ghost Sweep Warning: Scoped audit bypassed: {e}")
-
-
 if __name__ == "__main__":
-    _purge_zombie_instances()
     try:
         import winloop
 
