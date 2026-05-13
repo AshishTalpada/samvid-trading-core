@@ -258,7 +258,19 @@ class IBKRConnection:
         # Note: ib_insync handles account subscriptions automatically on connect.
         # Manual reqAccountSummary is not required and causes argument errors.
 
-    @property
+    def has_pending_order(self, symbol: str) -> bool:
+        """Sovereign Order Shield: Checks if an order for this symbol is already active."""
+        if not self.ib:
+            return False
+        for trade in self.ib.trades():
+            if trade.contract.symbol == symbol and trade.orderStatus.status in (
+                "PendingSubmit",
+                "PreSubmitted",
+                "Submitted",
+            ):
+                return True
+        return False
+
     def is_connected(self) -> bool:
         if self.ib is None:
             return False
