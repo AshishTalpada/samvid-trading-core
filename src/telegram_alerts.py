@@ -26,20 +26,20 @@ async def send_telegram_alert(message: str) -> None:
     """
     allowed_prefixes = [
         "[EXECUTION]",
-        "🚨",
-        "⚠️",
-        "🚀",
-        "🛑",
-        "🔴",
-        "🟢",
-        "🟢",
-        "⚪",
-        "📢",
-        "☣️",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
         "SYSTEM CRITICAL",
         "TRADE FULLY CLOSED",
         "REJECTED",
-        "🏛️",
+        "",
         "SOVEREIGN",
         "MAIN",
         "BRAIN",
@@ -153,7 +153,7 @@ class SovereignTelegramBot:
         Transmits a message with Sterilization, Redaction, and Rate Limiting.
         """
         # 1. Sterilization
-        allowed_prefixes = ["[EXECUTION]", "🚨", "⚠️", "🚀", "🛑", "🔴", "🟢", "⚪", "📢", "☣️", "SYSTEM CRITICAL", "TRADE FULLY CLOSED", "REJECTED", "🏛️", "SOVEREIGN", "MAIN", "BRAIN", "STATUS"]
+        allowed_prefixes = ["[EXECUTION]", "", "", "", "", "", "", "", "", "", "SYSTEM CRITICAL", "TRADE FULLY CLOSED", "REJECTED", "", "SOVEREIGN", "MAIN", "BRAIN", "STATUS"]
         msg_upper = message.upper()
         is_elite = any(prefix.upper() in msg_upper for prefix in allowed_prefixes)
         is_error = any(term in msg_upper for term in ["ERROR", "FAILED", "EXCEPTION", "CRITICAL", "FATAL"])
@@ -211,7 +211,7 @@ class SovereignTelegramBot:
             return False
 
     async def broadcast_trade(self, ticker: str, action: str, price: float, size: float, conviction: float):
-        icon = "🟢" if action.upper() == "BUY" else "🔴"
+        icon = "" if action.upper() == "BUY" else ""
         msg = f"{icon} <b>SOVEREIGN EXECUTION</b>\n\n"
         msg += f"<b>Asset:</b> {ticker}\n"
         msg += f"<b>Action:</b> {action.upper()}\n"

@@ -435,7 +435,7 @@ class EvolutionManager:
                 conn.commit()
                 conn.close()
 
-                logger.warning(f"🧬 MUTATION APPLIED: {key} is now {value}. System has evolved.")
+                logger.warning(f" MUTATION APPLIED: {key} is now {value}. System has evolved.")
             except Exception as e:
                 logger.error(f"EvolutionManager: Failed to apply mutation {key}: {e}")
         except Exception as e:
@@ -477,7 +477,7 @@ class EvolutionManager:
             conn.close()
             if restored_count > 0:
                 logger.info(
-                    f"✅ Evolution: Restored {restored_count} optimized parameters from persistent memory."
+                    f" Evolution: Restored {restored_count} optimized parameters from persistent memory."
                 )
         except Exception as e:
             logger.error(f"EvolutionManager: Failed to load optimizations: {e}")

@@ -67,7 +67,7 @@ class WisdomRepository:
         if len(all_wisdom) < 5000:
             return  # Only thin if context is bloating
 
-        logger.info("📚 Wisdom: Initiating Context Thinning (Density Scent Generation)...")
+        logger.info(" Wisdom: Initiating Context Thinning (Density Scent Generation)...")
         prompt = (
             f"TASK: RECURSIVE ALPHA-PRESERVING SUMMARIZATION\nCONTEXT:\n{all_wisdom}\n\n"
             "INSTRUCTION: Synthesize these post-mortems into a 10-bullet 'Density Scent'.\n"
@@ -82,7 +82,7 @@ class WisdomRepository:
         if summary:
             scent_path = self.memory_dir / "SESSION_DENSITY_SCENT.md"
             scent_path.write_text(f"### DENSITY SCENT (Last Updated: {datetime.now()})\n{summary}")
-            logger.info("✅ Wisdom: Global Density Scent synthesized. Old context thinned.")
+            logger.info(" Wisdom: Global Density Scent synthesized. Old context thinned.")
 
     def write_post_mortem(self, pos: Position, outcome: str, pnl: float, reasoning: str) -> None:
         """Generates a high-fidelity Post-Mortem Markdown file for Agent D to inhale."""
@@ -105,7 +105,7 @@ class WisdomRepository:
 """
         try:
             filename.write_text(content)
-            logger.info(f"📚 Wisdom: Post-Mortem synthesized for {pos.symbol} at {filename}")
+            logger.info(f" Wisdom: Post-Mortem synthesized for {pos.symbol} at {filename}")
         except Exception as e:
             logger.error(f"Wisdom: Failed to write post-mortem: {e}")
 
@@ -147,7 +147,7 @@ class SkillTreeManager:
         if skill not in self.skills["unlocked"]:
             self.skills["unlocked"].append(skill)
             self._save()
-            logger.info(f"✨ SKILL UNLOCKED: The Matrix has learned '{skill}' mastery. ✨")
+            logger.info(f" SKILL UNLOCKED: The Matrix has learned '{skill}' mastery. ")
 
     def _save(self) -> None:
         """Atomically save skills configuration to disk."""

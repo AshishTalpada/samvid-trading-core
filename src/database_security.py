@@ -66,7 +66,7 @@ class DatabaseSecurity:
             # Verify Integrity BEFORE Decryption
             expected_hmac = cls._generate_hmac(actual_data_bytes)
             if not hmac.compare_digest(provided_hmac, expected_hmac):
-                logger.critical("🚨 SECURITY ALERT: Database Integrity Violation! HMAC mismatch.")
+                logger.critical(" SECURITY ALERT: Database Integrity Violation! HMAC mismatch.")
                 raise RuntimeError("Database integrity compromised: HMAC verification failed.")
 
             return cls._get_fernet().decrypt(actual_data_bytes).decode()

@@ -198,11 +198,11 @@ class DMSMonitor:
         current_time = datetime.now(timezone.utc)
 
         message = (
-            "🚨 <b>[EMERGENCY] GHOST DRIFT DETECTED!</b> 🚨\n\n"
-            f"🕒 <b>Alert Time:</b> {current_time.strftime('%Y-%m-%d %H:%M:%S')}\n"
-            f"⚠ <b>Stale Agents:</b> {', '.join(stale_agents)}\n"
-            f"⚙ <b>Timeout Threshold:</b> {self.timeout} seconds\n"
-            f"🛡 <b>Grace Period:</b> {self.grace_period}s before flatten\n\n"
+            " <b>[EMERGENCY] GHOST DRIFT DETECTED!</b> \n\n"
+            f" <b>Alert Time:</b> {current_time.strftime('%Y-%m-%d %H:%M:%S')}\n"
+            f" <b>Stale Agents:</b> {', '.join(stale_agents)}\n"
+            f" <b>Timeout Threshold:</b> {self.timeout} seconds\n"
+            f" <b>Grace Period:</b> {self.grace_period}s before flatten\n\n"
             "<b>Mind Ghost Logic activated!</b>\n"
             f"Positions will be flattened in {self.grace_period}s if agents do not recover."
         )
@@ -407,10 +407,10 @@ class DMSMonitor:
         # --- Send flatten report ---
         total_flattened = ibkr_count + mt5_count
         report = (
-            "🛑 <b>[STOP] DMS EMERGENCY FLATTEN EXECUTED [STOP]</b> 🛑\n\n"
-            f"📉 <b>IBKR positions closed:</b> {ibkr_count}\n"
-            f"📉 <b>MT5 positions closed:</b> {mt5_count}\n"
-            f"📊 <b>Total:</b> {total_flattened}\n\n"
+            " <b>[STOP] DMS EMERGENCY FLATTEN EXECUTED [STOP]</b> \n\n"
+            f" <b>IBKR positions closed:</b> {ibkr_count}\n"
+            f" <b>MT5 positions closed:</b> {mt5_count}\n"
+            f" <b>Total:</b> {total_flattened}\n\n"
         )
         if flatten_results:
             report += "<b>Details:</b>\n"
@@ -430,10 +430,10 @@ class DMSMonitor:
             hb_summary += f"• {agent}: {int(age)}s ago\n"
 
         message = (
-            "✅ <b>[OK] Sovereign Status: OPERATIONAL [OK]</b> ✅\n\n"
-            f"🕒 <b>Status Time:</b> {current_time.strftime('%Y-%m-%d %H:%M:%S')}\n"
-            f"⚡ <b>Heartbeat Matrix:</b>\n{hb_summary}\n"
-            f"⚙ <b>Timeout Threshold:</b> {self.timeout}s\n\n"
+            " <b>[OK] Sovereign Status: OPERATIONAL [OK]</b> \n\n"
+            f" <b>Status Time:</b> {current_time.strftime('%Y-%m-%d %H:%M:%S')}\n"
+            f" <b>Heartbeat Matrix:</b>\n{hb_summary}\n"
+            f" <b>Timeout Threshold:</b> {self.timeout}s\n\n"
             "All intelligence nodes nominal."
         )
 
@@ -451,13 +451,13 @@ class DMSMonitor:
 
         # Send initial status message
         await self._send_telegram_message(
-            "🟢 <b>[START] Dead Man Switch Monitor Started [START]</b>\n\n"
-            f"🕒 <b>Started at:</b> {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')}\n"
-            f"⚙ <b>Timeout:</b> {self.timeout}s\n"
-            f"🛡 <b>Grace period:</b> {self.grace_period}s\n"
-            f"💓 <b>Check interval:</b> 30s\n"
-            f"🔌 <b>IBKR flatten:</b> {'enabled' if self.ibkr_client else 'disabled'}\n"
-            f"🔌 <b>MT5 flatten:</b> {'enabled' if self.mt5_client else 'disabled'}"
+            " <b>[START] Dead Man Switch Monitor Started [START]</b>\n\n"
+            f" <b>Started at:</b> {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')}\n"
+            f" <b>Timeout:</b> {self.timeout}s\n"
+            f" <b>Grace period:</b> {self.grace_period}s\n"
+            f" <b>Check interval:</b> 30s\n"
+            f" <b>IBKR flatten:</b> {'enabled' if self.ibkr_client else 'disabled'}\n"
+            f" <b>MT5 flatten:</b> {'enabled' if self.mt5_client else 'disabled'}"
         )
 
         try:

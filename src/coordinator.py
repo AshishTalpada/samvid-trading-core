@@ -114,7 +114,7 @@ class TradingCoordinator:
                             f"FRICTION_VETO: Net RR {real_rr:.2f} < {threshold} (S:{spread}, C:{comm_per_share:.3f}). Aborting."
                         )
                     logger.warning(
-                        f"Coordinator [{symbol}] 🛑 FRICTION VETO: Net RR {real_rr:.2f} is < {threshold}."
+                        f"Coordinator [{symbol}]  FRICTION VETO: Net RR {real_rr:.2f} is < {threshold}."
                     )
 
                     if self.brain.bus:
@@ -227,7 +227,7 @@ class TradingCoordinator:
                     ohlcv_1m is None or isinstance(ohlcv_1m, str) or len(ohlcv_1m) < 20
                 ) and not is_probe:
                     logger.warning(
-                        f"Coordinator [{proposal_id}] 🛑 DATA VETO: Insufficient OHLCV for {symbol}."
+                        f"Coordinator [{proposal_id}]  DATA VETO: Insufficient OHLCV for {symbol}."
                     )
                     return False
 
@@ -324,7 +324,7 @@ class TradingCoordinator:
                     )
                     if not math_val["valid"]:
                         logger.warning(
-                            f"Coordinator [{proposal_id}] 🛑 MATH VETO: {math_val['reason']}"
+                            f"Coordinator [{proposal_id}]  MATH VETO: {math_val['reason']}"
                         )
                         return False
 
@@ -346,7 +346,7 @@ class TradingCoordinator:
                             )
                             if not q_gate["approved"]:
                                 logger.info(
-                                    f"Coordinator [{proposal_id}] 🛑 QUANT VETO: {q_gate['reason']}"
+                                    f"Coordinator [{proposal_id}]  QUANT VETO: {q_gate['reason']}"
                                 )
                                 return False
                 except Exception as qe:
@@ -357,7 +357,7 @@ class TradingCoordinator:
                         cushion = await self.brain.get_ibkr_cushion()
                         if cushion < 0.15:
                             logger.critical(
-                                f"Coordinator [{proposal_id}] 🛡️ MARGIN SHIELD VETO: Cushion is too low ({cushion:.2%}). Standing down."
+                                f"Coordinator [{proposal_id}]  MARGIN SHIELD VETO: Cushion is too low ({cushion:.2%}). Standing down."
                             )
                             return False
                     except Exception as me:
@@ -505,7 +505,7 @@ class TradingCoordinator:
 
                 if agent_a_out["vote"] == "NO":
                     logger.info(
-                        f"Coordinator [{proposal_id}] 🛑 SOVEREIGN VETO: Agent A rejected proposal. {agent_a_out.get('reason')}"
+                        f"Coordinator [{proposal_id}]  SOVEREIGN VETO: Agent A rejected proposal. {agent_a_out.get('reason')}"
                     )
                     if self.brain.bus:
                         await self.brain.bus.publish(
@@ -554,7 +554,7 @@ class TradingCoordinator:
                         ):
                             agent_d_vote["vote"] = "NO"
                             agent_d_vote["reason"] = (
-                                f"🛑 IMPERIAL VETO: Internal WR too low ({learned_wr:.2%})"
+                                f" IMPERIAL VETO: Internal WR too low ({learned_wr:.2%})"
                             )
 
                         return agent_d_vote
@@ -690,7 +690,7 @@ class TradingCoordinator:
                     )
                     if deterministic_deny and not is_probe:
                         logger.warning(
-                            f"Coordinator [{proposal_id}] 🛑 EARLY EXIT: Tier 1 agents rejected. Standing down."
+                            f"Coordinator [{proposal_id}]  EARLY EXIT: Tier 1 agents rejected. Standing down."
                         )
                         dummy_tail = [
                             {"agent": "Dhatu_Oracle", "vote": "NO", "confidence": 0.0, "reason": "Skipped", "timestamp": timestamp},
@@ -862,7 +862,7 @@ class TradingCoordinator:
                             "EXECUTION_PHANTOM: System verified operational. Standing down (Probe Mode)."
                         )
                     logger.info(
-                        f"Coordinator [{proposal_id}] ✅ PHANTOM PROBE SUCCESS: System wiring is 100% OPERATIONAL."
+                        f"Coordinator [{proposal_id}]  PHANTOM PROBE SUCCESS: System wiring is 100% OPERATIONAL."
                     )
                     return True
 
@@ -880,7 +880,7 @@ class TradingCoordinator:
                     if task:
                         task.log("MAINTENANCE_VETO: Market rollover detected. Aborting.")
                     logger.warning(
-                        f"Coordinator [{proposal_id}] 🛡️ MAINTENANCE STAND-DOWN: Market rollover in progress. Order skipped."
+                        f"Coordinator [{proposal_id}]  MAINTENANCE STAND-DOWN: Market rollover in progress. Order skipped."
                     )
                     return False
 
@@ -928,7 +928,7 @@ class TradingCoordinator:
                     full_intent = f"{side_str} {intent}"
 
                     await send_telegram_alert(
-                        f"🚀 *EXECUTION: {symbol}*\n"
+                        f" *EXECUTION: {symbol}*\n"
                         f"Type: {full_intent}\n"
                         f"Price: ${pattern.entry:.2f}\n"
                         f"Qty: {shares}\n"
@@ -969,19 +969,19 @@ class TradingCoordinator:
                         task.finalize("FAILED")
                     if shares < 1:
                         logger.warning(
-                            f"Coordinator [{proposal_id}] 🛑 SOVEREIGN STANDDOWN: Order for {symbol} blocked (Zero Size)."
+                            f"Coordinator [{proposal_id}]  SOVEREIGN STANDDOWN: Order for {symbol} blocked (Zero Size)."
                         )
                         await send_telegram_alert(
-                            f"🏛️ *STANDDOWN: {symbol}*\n"
+                            f" *STANDDOWN: {symbol}*\n"
                             f"Reason: ZERO SIZE (Risk Control)\n"
                             f"ID: {proposal_id}"
                         )
                     else:
                         logger.error(
-                            f"Coordinator [{proposal_id}] ❌ EXECUTION FAILURE: Order for {symbol} rejected by broker."
+                            f"Coordinator [{proposal_id}]  EXECUTION FAILURE: Order for {symbol} rejected by broker."
                         )
                         await send_telegram_alert(
-                            f"🚨 *EXECUTION FAILURE: {symbol}*\n"
+                            f" *EXECUTION FAILURE: {symbol}*\n"
                             f"Reason: Broker Rejected (Check TWS/Gateway logs)\n"
                             f"ID: {proposal_id}"
                         )
@@ -989,11 +989,11 @@ class TradingCoordinator:
             else:
                 reason = decision.get("reason", "Consensus No")
                 logger.info(
-                    f"Coordinator [{proposal_id}] 🛡️ VETO: {symbol} rejected by decision engine. Reason: {reason}"
+                    f"Coordinator [{proposal_id}]  VETO: {symbol} rejected by decision engine. Reason: {reason}"
                 )
 
                 await send_telegram_alert(
-                    f"🛡️ *VETO: {symbol}*\nReason: {reason}\nID: {proposal_id}"
+                    f" *VETO: {symbol}*\nReason: {reason}\nID: {proposal_id}"
                 )
 
                 # Log the rejected proposal as a 'Shadow Trade' for post-mortem calibration.
