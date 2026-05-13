@@ -236,7 +236,7 @@ class MindSystem:
             "status": "HEALTHY" if cpu < 85 and mem < 85 else "STRESSED",
         }
 
-    async def _tool_reboot_service(self, service_name: str) -> dict[str, Any]:
+    async def _tool_reboot_service(self, service_name: str, **kwargs) -> dict[str, Any]:
         """Performs a deep service reboot when the API is unresponsive."""
         async with self.lock:
             if service_name not in self.CERTIFIED_COMMANDS:
