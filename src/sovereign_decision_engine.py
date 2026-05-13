@@ -75,7 +75,7 @@ class SovereignDecisionEngine:
                 except ImportError:
                     # Fallback to the slow Python brain if Rust module isn't built yet
                     pass
-                
+
                 result = await self._evaluate_logic(context, agent_outputs)
                 return result
             finally:
@@ -143,7 +143,7 @@ class SovereignDecisionEngine:
                         t_ctx = dtparser.parse(str(context_ts))
                         t_agt = dtparser.parse(str(agent_ts))
                         drift_sec = abs((t_agt - t_ctx).total_seconds())
-                        
+
                     if drift_sec > 60.0:
                         logger.warning(
                             f"DecisionEngine: Agent '{agent}' too slow (drift={drift_sec:.2f}s). Excluding from quorum."

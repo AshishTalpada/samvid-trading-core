@@ -1,6 +1,6 @@
 import asyncio
-import logging
 import hashlib
+import logging
 import random
 import time
 from typing import Optional
@@ -174,16 +174,16 @@ class SovereignTelegramBot:
             now = time.time()
             global _last_sent_times
             _last_sent_times = [t for t in _last_sent_times if now - t < _rate_limit_window]
-            
+
             if len(_last_sent_times) >= _rate_limit_max:
                 logger.warning(f"Telegram Global Rate Limit Hit ({_rate_limit_max} msgs/min).")
                 return False
 
             last_sent = _alert_cache.get(msg_hash, 0)
             if now - last_sent < 30:
-                logger.debug(f"Deduplication: Suppressing duplicate signal.")
+                logger.debug("Deduplication: Suppressing duplicate signal.")
                 return False
-            
+
             _alert_cache[msg_hash] = now
             _last_sent_times.append(now)
 
@@ -200,7 +200,7 @@ class SovereignTelegramBot:
             global _shared_session
             if _shared_session is None or _shared_session.closed:
                 _shared_session = aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=30.0))
-            
+
             async with _shared_session.post(self.url, json=payload, proxy=proxy, headers=headers) as resp:
                 if resp.status == 200:
                     return True

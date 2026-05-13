@@ -10,8 +10,9 @@ Import pattern:
 from __future__ import annotations
 
 import logging
+from typing import Dict, List
+
 import numpy as np
-from typing import List, Dict
 
 logger = logging.getLogger(__name__)
 
@@ -289,11 +290,11 @@ def warmup() -> None:
     kalman_update(100.0, 1.0, 100.5)
     returns = np.diff(np.log(dummy + 1e-10))
     multi_factor_score(returns, np.ones(len(returns)) * 1000)
-    
+
     # Trigger compilation for local-only kernels
     _internal_kelly(0.5, 2.0, 0.5)
     _internal_sortino(np.array([0.01, -0.02, 0.015], dtype=np.float64), 0.0, 0.0)
-    
+
     logger.info("quant_math: Numba warmup complete — all kernels compiled.")
 
 

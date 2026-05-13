@@ -15,7 +15,6 @@ from vault import Vault
 # Aliases for Sovereign Compatibility
 mt5_raw: Any = None
 mt5: Any = mt5_raw
-MetaTrader5Agent = "MT5Connection"  # Placeholder, will be aliased properly at the end
 
 
 def _get_mt5_module() -> Any:
@@ -30,7 +29,7 @@ def _get_mt5_module() -> Any:
     return mt5
 
 
-class MT5Connection:
+class MT5ConnectionLegacy:
     def __init__(self) -> None:
         import time as _time
 
@@ -410,7 +409,6 @@ class DrawdownHysteresis:
         recovery_time_threshold = timedelta(hours=1)  # example threshold
         return current_dd < 0.05 and time_since_dd > recovery_time_threshold
 # ── LOCAL-ONLY MODULE CONSTANTS ─────────────────────────────────────────
-MT5Connection = MetaTrader5Agent
 
 # ── LOCAL-ONLY SOVEREIGN EXTENSIONS ─────────────────────────────────────
 
@@ -474,6 +472,7 @@ class MetaTrader5Agent:
         Action must be 'BUY' or 'SELL'.
         """
         import inspect
+
         from trading_state import TradingStateManager
         if not TradingStateManager.allow_order(True): # MT5 orders are usually new entries in this context
             logger.warning(f"[MT5] SAFETY GATE: Market order for {symbol} REJECTED due to TradingState.")
@@ -615,4 +614,3 @@ class MetaTrader5Agent:
 
 # Final Sovereign Aliases
 MT5Connection = MetaTrader5Agent
-MetaTrader5Agent = MT5Connection # Bidirectional alias
