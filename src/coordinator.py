@@ -138,7 +138,6 @@ class TradingCoordinator:
             return False
 
         self._pending_vets.add(symbol)
-
         try:
             cache = await self.exoskeleton.check_cortex_cache(symbol, proposal["pattern"].entry)
             if cache and not is_probe:
@@ -158,6 +157,9 @@ class TradingCoordinator:
             if has_position:
                 if task:
                     task.log(f"REDUNDANCY_VETO: Position already active for {symbol}.")
+                    # Transition to KILLED so it doesn't stay 'RUNNING' in TaskManager
+                    from sovereign_task import TaskStatus
+                    task.transition(TaskStatus.KILLED)
                 return False
 
             if self._semaphore is None:

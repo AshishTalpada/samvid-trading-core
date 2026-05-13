@@ -137,8 +137,18 @@ class TaskManager:
         self.load_registry()
 
     def spawn_trade(self, symbol: str, setup: dict) -> SovereignTask:
+        # Proactive memory management
         if len(self.tasks) > 500:
             self.purge_completed(max_age_days=1)  # Aggressive purge
+
+        # --- REDUNDANCY PROTECTION ---
+        # If a task for this symbol is already PENDING or RUNNING, return it instead of spawning a new one.
+        if symbol in self._symbol_index:
+            for tid in self._symbol_index[symbol]:
+                existing_task = self.tasks.get(tid)
+                if existing_task and existing_task.status in [TaskStatus.PENDING, TaskStatus.RUNNING]:
+                    logger.debug(f"TaskManager: Skipping spawn for {symbol}. Task {tid} is already {existing_task.status.value}.")
+                    return existing_task
 
         task_id = f"t_{symbol}_{int(time.time())}"
         task = SovereignTask(task_id, "trade", f"Executing {symbol} Trade", setup)
