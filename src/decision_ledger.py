@@ -92,8 +92,9 @@ class DecisionLedger:
         """Synchronous write under lock — runs in background thread."""
         try:
             with self._lock:
-                with sqlite3.connect(str(self._db_path)) as conn:
+                with sqlite3.connect(str(self._db_path), timeout=60.0) as conn:
                     conn.execute("PRAGMA journal_mode=WAL;")
+                    conn.execute("PRAGMA busy_timeout=60000;")
                     conn.execute(
                         """INSERT INTO ledger
                            (timestamp, event_type, symbol, action, triggered_by,
