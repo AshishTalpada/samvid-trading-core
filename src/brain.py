@@ -2957,6 +2957,7 @@ class TradingBrain:
         try:
             # 1. Gather Reality from Brokers
             ibkr_reality = {}
+            ibkr_polled = False
             if self.ibkr_conn and self.ibkr_conn.is_connected:
                 ibkr_reality = self.ibkr_conn._positions_cache  # {symbol: qty}
 
@@ -2974,13 +2975,16 @@ class TradingBrain:
                             for p in actual_pos:
                                 self.ibkr_conn._positions_cache[p.contract.symbol] = p.position
                             ibkr_reality = self.ibkr_conn._positions_cache
+                            ibkr_polled = True
                     except Exception as sync_e:
                         logger.warning(f" IBKR SYNC: Reality poll failed: {sync_e}")
 
             mt5_reality = {}
+            mt5_polled = False
             if self.mt5_conn and self.mt5_conn.is_connected:
                 if hasattr(self.mt5_conn, 'get_all_positions') and callable(getattr(self.mt5_conn, 'get_all_positions', None)):
                     mt5_reality = await asyncio.to_thread(self.mt5_conn.get_all_positions)
+                    mt5_polled = True
                 else:
                     logger.warning("MT5 get_all_positions not callable, skipping MT5 reconciliation")
 
@@ -2996,15 +3000,20 @@ class TradingBrain:
             for p in list(self.positions):
                 broker = p.account_type
                 reality = ibkr_reality if broker == "ibkr" else mt5_reality
+                polled = ibkr_polled if broker == "ibkr" else mt5_polled
                 
                 # SKEPTICAL HANDSHAKE: If symbol is missing from reality map, do NOT assume zero.
                 if p.symbol not in reality:
+                    # ONLY assume 0.0 if we just did a fresh, successful poll of the broker.
+                    # Otherwise, it might be a temporary event lag (Sync Lag).
+                    if not polled:
+                        continue
+                    
                     _p_entry = p.entry_time if p.entry_time.tzinfo else p.entry_time.replace(tzinfo=timezone.utc)
                     age_seconds = (now_ts - _p_entry).total_seconds()
                     
-                    # If the trade is very old (>1hr) and still missing, we consider it a purge candidate,
-                    # otherwise we assume sync lag and PROTECT the position from a false exit.
-                    if age_seconds < 3600:
+                    # Even with a poll, give young trades 2 minutes of grace for fill reflection
+                    if age_seconds < 120:
                         continue
                     broker_qty = 0.0
                 else:
