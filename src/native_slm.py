@@ -42,7 +42,7 @@ class NativeSLM:
                 verbose=False
             )
             self._available = True
-            logger.info("✅ Native SLM successfully loaded into VRAM.")
+            logger.info(" Native SLM successfully loaded into VRAM.")
         except Exception as e:
             logger.error(f"Failed to load Native SLM: {e}")
 

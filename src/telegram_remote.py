@@ -48,7 +48,7 @@ class TelegramRemote:
             logger.warning("TelegramRemote: Token or ChatID missing. Remote control DISABLED.")
             return
 
-        logger.info("🏛️ Sovereign Remote: Listening for high-priority commands...")
+        logger.info(" Sovereign Remote: Listening for high-priority commands...")
         self.is_running = True
         self.session = aiohttp.ClientSession()
 
@@ -132,12 +132,12 @@ class TelegramRemote:
 
         now = TimeSync.now().timestamp()
 
-        logger.warning(f"🏛️ Sovereign Remote: Executing command [{command}]")
+        logger.warning(f" Sovereign Remote: Executing command [{command}]")
 
         if command == "/auth":
             if self._auth_attempts >= 5 and (now - self._last_auth_attempt_time) < 300:
                 await self._send_message(
-                    "❌ <b>LOCKED</b>: Too many failed attempts. Try again in 5 minutes.",
+                    " <b>LOCKED</b>: Too many failed attempts. Try again in 5 minutes.",
                     sender_chat_id,
                 )
                 return
@@ -147,12 +147,12 @@ class TelegramRemote:
                 self.last_auth_time = now
                 self._auth_attempts = 0  # Reset on success
                 await self._send_message(
-                    "✅ <b>AUTH SUCCESS</b>: Critical commands unlocked for 5 mins.", sender_chat_id
+                    " <b>AUTH SUCCESS</b>: Critical commands unlocked for 5 mins.", sender_chat_id
                 )
             else:
                 self._auth_attempts += 1
                 await self._send_message(
-                    f"❌ <b>AUTH FAILED</b>: Invalid PIN. ({self._auth_attempts}/5)", sender_chat_id
+                    f" <b>AUTH FAILED</b>: Invalid PIN. ({self._auth_attempts}/5)", sender_chat_id
                 )
             return
 
@@ -166,16 +166,16 @@ class TelegramRemote:
                     await self._execute_dhatu_override(args, sender_chat_id)
             else:
                 await self._send_message(
-                    "🔒 <b>LOCKED</b>: Please `/auth <PIN>` to execute high-privilege commands.",
+                    " <b>LOCKED</b>: Please `/auth <PIN>` to execute high-privilege commands.",
                     sender_chat_id,
                 )
         elif command == "/ping":
             await self._send_message(
-                "🏓 <b>PONG</b>: Sovereign Intelligence is Active.", sender_chat_id
+                " <b>PONG</b>: Sovereign Intelligence is Active.", sender_chat_id
             )
         else:
             await self._send_message(
-                "❓ Unknown command. Available: /status, /panic, /dhatu, /ping, /auth",
+                " Unknown command. Available: /status, /panic, /dhatu, /ping, /auth",
                 sender_chat_id,
             )
 
@@ -190,10 +190,10 @@ class TelegramRemote:
 
         now = TimeSync.now().timestamp()
         age = now - self.snapshot_time if self.snapshot_time > 0 else 999
-        stale_warning = " ⚠️ STALE" if age > 30 else ""
+        stale_warning = "  STALE" if age > 30 else ""
 
         msg = (
-            "🏛️ <b>Sovereign Status</b>\n"
+            " <b>Sovereign Status</b>\n"
             f"───────────────────\n"
             f"Regime: `{self.current_regime}`\n"
             f"Dhatu: `{self.current_dhatu}`\n"
@@ -207,7 +207,7 @@ class TelegramRemote:
     async def _execute_panic(self, chat_id: str):
         """Trigger the Sovereign Panic Shield."""
         await self._send_message(
-            "⚠️ <b>PANIC INITIATED</b>: Broadcasting Emergency Liquidation Command...", chat_id
+            " <b>PANIC INITIATED</b>: Broadcasting Emergency Liquidation Command...", chat_id
         )
         await self.bus.publish("command.remote", {"cmd": "panic", "ts": time.time_ns()})
 
@@ -219,11 +219,11 @@ class TelegramRemote:
 
         target = args[0].upper()
         if target not in ["ABHAVA", "STHITI", "VRIDDHI", "SHANTI"]:
-            await self._send_message("❌ Invalid Dhatu target.", chat_id)
+            await self._send_message(" Invalid Dhatu target.", chat_id)
             return
 
         await self._send_message(
-            f"🔄 <b>OVERRIDE</b>: Forcing system state to `{target}`...", chat_id
+            f" <b>OVERRIDE</b>: Forcing system state to `{target}`...", chat_id
         )
         await self.bus.publish("command.remote", {"cmd": "dhatu_override", "target": target})
 

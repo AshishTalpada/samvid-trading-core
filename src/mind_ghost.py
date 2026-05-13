@@ -48,12 +48,12 @@ class MindGhost:
                         return
 
                     err = t.exception()
-                    msg = f"🚨 <b>CRITICAL</b>: MindGhost (Agent J) has CRASHED! {err}"
+                    msg = f" <b>CRITICAL</b>: MindGhost (Agent J) has CRASHED! {err}"
                 except (asyncio.CancelledError, Exception) as e:
                     # Catch CancelledError explicitly if raised by exception()
                     if isinstance(e, asyncio.CancelledError):
                         return
-                    msg = "🚨 <b>CRITICAL</b>: MindGhost (Agent J) has STOPPED UNEXPECTEDLY!"
+                    msg = " <b>CRITICAL</b>: MindGhost (Agent J) has STOPPED UNEXPECTEDLY!"
 
                 logger.critical(msg)
                 asyncio.create_task(
@@ -155,7 +155,7 @@ class MindGhost:
         # Pillar 4: Signal the Matrix + User via Bridge
         await self.bridge.broadcast(
             "ghost",
-            f"☣️ EMERGENCY RESET WARNING: {service_name} heartbeat failure. Rebooting in 5s unless system scent returns.",
+            f" EMERGENCY RESET WARNING: {service_name} heartbeat failure. Rebooting in 5s unless system scent returns.",
             {"alert": "TELEGRAM", "urgency": "CRITICAL"},
         )
 
