@@ -575,7 +575,8 @@ class TradingCoordinator:
                         ts = state["timestamp"]
                         # Handle both string and numeric timestamps
                         if isinstance(ts, (int, float)):
-                            ts = datetime.fromtimestamp(ts, tz=timezone.utc)
+                            _sec = ts / 1e9 if ts > 1e16 else (ts / 1e3 if ts > 1e11 else ts)
+                            ts = datetime.fromtimestamp(_sec, tz=timezone.utc)
                         else:
                             ts = dtparser.parse(ts)
                         if (datetime.now(timezone.utc) - ts).total_seconds() < 90:
@@ -607,7 +608,8 @@ class TradingCoordinator:
                         ts = state["timestamp"]
                         # Handle both string and numeric timestamps
                         if isinstance(ts, (int, float)):
-                            ts = datetime.fromtimestamp(ts, tz=timezone.utc)
+                            _sec = ts / 1e9 if ts > 1e16 else (ts / 1e3 if ts > 1e11 else ts)
+                            ts = datetime.fromtimestamp(_sec, tz=timezone.utc)
                         else:
                             ts = dtparser.parse(ts)
                         if (datetime.now(timezone.utc) - ts).total_seconds() < 90:
@@ -746,7 +748,8 @@ class TradingCoordinator:
                             if state_ts and not should_call:
                                 # Handle both string and numeric timestamps
                                 if isinstance(state_ts, (int, float)):
-                                    ts = datetime.fromtimestamp(state_ts, tz=timezone.utc)
+                                    _sec = state_ts / 1e9 if state_ts > 1e16 else (state_ts / 1e3 if state_ts > 1e11 else state_ts)
+                                    ts = datetime.fromtimestamp(_sec, tz=timezone.utc)
                                 else:
                                     ts = dtparser.parse(state_ts)
                                 should_call = (datetime.now(timezone.utc) - ts).total_seconds() > 90
