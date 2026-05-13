@@ -49,6 +49,7 @@ def apply_runtime_safety(system: Any) -> None:
     """
     try:
         import config
+        from vault import Vault
 
         if getattr(config, "FORCED_PAPER_MODE", False):
             _force_paper_mode(system, "FORCED_PAPER_MODE active")
@@ -58,8 +59,16 @@ def apply_runtime_safety(system: Any) -> None:
             _force_paper_mode(system, "PAPER_MODE=1 detected")
             return
 
-        env_mode = os.environ.get("TRADING_MODE", "").strip().lower()
-        allow_live = os.environ.get("ALLOW_FORCE_LIVE", "0").strip() == "1"
+        # Check Vault FIRST (authoritative — .env file is loaded into Vault, not os.environ)
+        # Then fall back to os.environ for container/CI overrides.
+        env_mode = Vault.get("TRADING_MODE", "").strip().lower()
+        if not env_mode:
+            env_mode = os.environ.get("TRADING_MODE", "").strip().lower()
+
+        allow_live = (
+            Vault.get("ALLOW_FORCE_LIVE", "0").strip() == "1"
+            or os.environ.get("ALLOW_FORCE_LIVE", "0").strip() == "1"
+        )
 
         if env_mode:
             if env_mode not in ("paper", "ibkr_paper", "live"):
@@ -75,7 +84,7 @@ def apply_runtime_safety(system: Any) -> None:
 
         if env_mode:
             system.mode = env_mode
-            logger.info(f"Startup Safety: TRADING_MODE environment set to '{env_mode}'")
+            logger.info(f"Startup Safety: TRADING_MODE set to '{env_mode}'")
             return
 
         if not allow_live:
