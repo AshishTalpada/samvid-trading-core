@@ -194,25 +194,25 @@ class TradingSystem:
         """Helper to return dynamic status icons including Probing states."""
         if component == "ibkr":
             if hasattr(self, "ibkr_client") and self.ibkr_client and self.ibkr_client.isConnected():
-                return ""
+                return "🟢 ONLINE"
             if "connect_ibkr" in self.background_tasks:
-                return " [PROBING]"
-            return ""
+                return "🟠 PROBING"
+            return "🔴 OFFLINE"
         if component == "mt5":
             if hasattr(self, "mt5_client") and self.mt5_client and self.mt5_client.terminal_info():
-                return ""
+                return "🟢 ONLINE"
             if "connect_mt5" in self.background_tasks:
-                return " [PROBING]"
-            return ""
+                return "🟠 PROBING"
+            return "🔴 OFFLINE"
         if component == "qdb":
             if hasattr(self, "qdb") and self.qdb and self.qdb.is_active:
-                return ""
-            return ""
+                return "🟢 ACTIVE"
+            return "🔴 OFFLINE"
         if component == "dhatu":
             if hasattr(self, "dhatu_oracle") and self.dhatu_oracle:
-                return ""
-            return ""
-        return ""
+                return "🟢 CALIBRATED"
+            return "🔴 OFFLINE"
+        return "⚪ UNKNOWN"
 
     @property
     def requires_ibkr_connection(self) -> bool:
@@ -1398,19 +1398,22 @@ class TradingSystem:
             # Step 10: Dynamic Status Generation
             ibkr_status = self._get_status_icon("ibkr")
             mt5_status = self._get_status_icon("mt5")
-            self._get_status_icon("qdb")
             dhatu_status = self._get_status_icon("dhatu")
+            obb_status = "🟢 ACTIVE" if (hasattr(self, "_openbb_provider") and self._openbb_provider and self._openbb_provider.is_available) else "🔴 OFFLINE"
+            slm_status = "🟢 VRAM LOADED" if (hasattr(self, "native_slm") and self.native_slm and self.native_slm.is_available) else "🔴 OFFLINE"
 
             notification = (
-                f" <b>Trading System Online</b>\n\n"
-                f" Mode: <code>{self.mode.upper()}</code>\n"
-                f" IBKR: {ibkr_status}\n"
-                f" MT5: {mt5_status}\n"
-                f" DhatuOracle: {dhatu_status}\n"
-                f" OpenBB: {'' if (self._openbb_provider and self._openbb_provider.is_available) else ''}\n"
-                f" Native SLM: {'' if (self.native_slm and self.native_slm.is_available) else ''}\n"
-                f" Startup time: {(datetime.now(timezone.utc) - start_time).total_seconds():.2f}s\n"
-                f" {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')}"
+                f"⚡ <b>Sovereign Trading System Online</b>\n\n"
+                f"<b>Mode:</b> <code>{self.mode.upper()}</code>\n"
+                f"───────────────────\n"
+                f"<b>IBKR Gateway:</b> {ibkr_status}\n"
+                f"<b>MetaTrader 5:</b> {mt5_status}\n"
+                f"<b>Dhatu Oracle:</b> {dhatu_status}\n"
+                f"<b>OpenBB Data:</b> {obb_status}\n"
+                f"<b>Native SLM:</b> {slm_status}\n"
+                f"───────────────────\n"
+                f"<b>Startup Latency:</b> {(datetime.now(timezone.utc) - start_time).total_seconds():.2f}s\n"
+                f"<i>{datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')} UTC</i>"
             )
 
             await self.send_telegram_notification(notification)
