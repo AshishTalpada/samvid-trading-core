@@ -1861,6 +1861,13 @@ class TradingSystem:
                 logger.info(f" Watchdog Verified (PID: {w_pid})")
             else:
                 logger.warning(f" WATCHDOG STALE: PID {w_pid} found in file but process is DEAD.")
+                try:
+                    os.remove(pid_file)
+                    logger.info("Removed stale watchdog PID file.")
+                except Exception as remove_error:
+                    logger.warning(
+                        f"Failed to remove stale watchdog PID file: {remove_error}"
+                    )
         except Exception as e:
             logger.error(f"Watchdog verification failed: {e}")
 
