@@ -1661,7 +1661,7 @@ class TradingSystem:
                 return
 
             self.is_running = False
-            
+
             # PILLAR 14: SHUTDOWN BROADCAST
             # Signals all autonomous minds (Ghost, Scent, Evolution) to stand down.
             if hasattr(self, "bus") and self.bus:
@@ -1861,7 +1861,7 @@ class TradingSystem:
 
             logging.shutdown()
             self._shutdown_complete = True
-            
+
             # PILLAR 13: FORCED TERMINATION
             # Ensures dangling background threads (Dhatu, Watchdogs) cannot re-awaken the matrix.
             import os
