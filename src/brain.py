@@ -153,7 +153,8 @@ class DrawdownLadder:
         """Update drawdown state and return current level."""
         if self.peak_equity > equity * 2:
             logger.warning(
-                f"DrawdownLadder ({self.account_type}): Peak ${self.peak_equity:,.2f} is wildly above "
+                f"DrawdownLadder ({self.account_type}): Peak ${self.peak_equity:,.2f} "
+                f"is wildly above "
                 f"Current ${equity:,.2f}. Resetting peak to prevent false RED-ZONE lockout."
             )
             self.peak_equity = equity
@@ -185,12 +186,17 @@ class DrawdownLadder:
             )
             # --- SOVEREIGN WIRING: Enforce global state escalation ---
             from trading_state import TradingStateManager
+
             if self.level == DrawdownLevel.RED:
                 TradingStateManager.halt(f"Drawdown Ladder [{self.account_type}] reached RED-ZONE.")
             elif self.level in (DrawdownLevel.YELLOW, DrawdownLevel.ORANGE):
-                TradingStateManager.reduce_only(f"Drawdown Ladder [{self.account_type}] escalation: {self.level.name}")
+                TradingStateManager.reduce_only(
+                    f"Drawdown Ladder [{self.account_type}] escalation: {self.level.name}"
+                )
             elif self.level == DrawdownLevel.NORMAL:
-                TradingStateManager.activate(f"Drawdown Ladder [{self.account_type}] recovered to NORMAL.")
+                TradingStateManager.activate(
+                    f"Drawdown Ladder [{self.account_type}] recovered to NORMAL."
+                )
 
         return self.level
 
@@ -250,8 +256,13 @@ class ConsecutiveLossTracker:
             if self.consecutive_losses < 4:
                 self.paper_mode_forced = False
             if self.consecutive_losses < old_losses:
-                logger.info(f" RECOVERY: System regained {recovered} loss units via Time-Decay. Current: {self.consecutive_losses}")
-                self.last_loss_time = now - timedelta(hours=(elapsed % 4)) # Reset clock for next unit
+                logger.info(
+                    f" RECOVERY: System regained {recovered} loss units via Time-Decay. "
+                    f"Current: {self.consecutive_losses}"
+                )
+                self.last_loss_time = now - timedelta(
+                    hours=(elapsed % 4)
+                )  # Reset clock for next unit
 
     def _check_daily_reset(self) -> None:
         """Hard reset loss streak if it's a new trading day (after 8 AM ET)."""
@@ -263,7 +274,9 @@ class ConsecutiveLossTracker:
             last_loss_et = self.last_loss_time.astimezone(tz)
             if last_loss_et.date() < now.date() and now.hour >= 8:
                 if self.consecutive_losses > 0:
-                    logger.info(" MORNING RESET: Clearing previous session's loss streak for a fresh start.")
+                    logger.info(
+                        " MORNING RESET: Clearing previous session's loss streak for a fresh start."
+                    )
                     self.consecutive_losses = 0
                     self.win_streak = 0
                     self.paper_mode_forced = False
@@ -283,7 +296,8 @@ class ConsecutiveLossTracker:
             self.pause_until = None
             if self.win_streak >= 3:
                 logger.info(
-                    f" VELOCITY REACHED: {self.win_streak} consecutive wins — Compounding Risk Mode Active"
+                    f" VELOCITY REACHED: {self.win_streak} consecutive wins — "
+                    "Compounding Risk Mode Active"
                 )
         else:
             self.win_streak = 0
@@ -293,7 +307,8 @@ class ConsecutiveLossTracker:
                 self.paper_mode_forced = True
                 self.audit_required = True
                 logger.critical(
-                    f"G1 LEVEL 5: {self.consecutive_losses} consecutive losses — PAPER MODE + AUDIT REQUIRED"
+                    f"G1 LEVEL 5: {self.consecutive_losses} consecutive losses — "
+                    "PAPER MODE + AUDIT REQUIRED"
                 )
             elif self.consecutive_losses >= 4:
                 self.paper_mode_forced = True
@@ -303,7 +318,8 @@ class ConsecutiveLossTracker:
             elif self.consecutive_losses >= 3:
                 self.pause_until = datetime.now(timezone.utc) + timedelta(hours=1)
                 logger.warning(
-                    f"G1 LEVEL 3: {self.consecutive_losses} consecutive losses — 25% size + 1h pause"
+                    f"G1 LEVEL 3: {self.consecutive_losses} consecutive losses — "
+                    "25% size + 1h pause"
                 )
             elif self.consecutive_losses >= 2:
                 logger.warning(
@@ -734,7 +750,8 @@ class TradingBrain:
             self.conviction_state = capsule.get("conviction_state", {})
             self.session_pnl = capsule.get("session_pnl", 0.0)
             logger.info(
-                f"Brain: Cognitive Capsule inhaled. Regime: {self.current_regime} | PnL: ${self.session_pnl:.2f}"
+                f"Brain: Cognitive Capsule inhaled. Regime: {self.current_regime} | "
+                f"PnL: ${self.session_pnl:.2f}"
             )
 
         # --- Cognitive Conviction State (SOLUTION 5: Async Pipeline) ---
@@ -858,7 +875,9 @@ class TradingBrain:
                             filtered_data = {k: v for k, v in p_data.items() if k in valid_keys}
                             self.positions.append(Position(**filtered_data))
                         except Exception as _pos_err:
-                            logger.debug(f"Brain: Skipping malformed position state entry: {_pos_err}")
+                            logger.debug(
+                                f"Brain: Skipping malformed position state entry: {_pos_err}"
+                            )
 
                 self.ibkr_drawdown.peak_equity = state.get(
                     "peak_equity", self.ibkr_drawdown.peak_equity
@@ -869,12 +888,15 @@ class TradingBrain:
                     self.loss_tracker.win_streak = lt_state.get("win_streak", 0)
                     if "last_loss_time" in lt_state and lt_state["last_loss_time"]:
                         try:
-                            self.loss_tracker.last_loss_time = datetime.fromisoformat(lt_state["last_loss_time"])
+                            self.loss_tracker.last_loss_time = datetime.fromisoformat(
+                                lt_state["last_loss_time"]
+                            )
                         except Exception as _dt_err:
                             logger.debug(f"Brain: Skipping bad last_loss_time format: {_dt_err}")
 
                 logger.info(
-                    f"MindBrain: Legacy state thawed in background. {len(self.positions)} positions restored."
+                    "MindBrain: Legacy state thawed in background. "
+                    f"{len(self.positions)} positions restored."
                 )
         except Exception as e:
             logger.error(f"MindBrain: Background thaw failure: {e}")
@@ -991,7 +1013,8 @@ class TradingBrain:
 
         if is_hft_impact:
             logger.info(
-                f" BRAIN: News Action Triggered -> {headline[:60]}... (Sent: {sentiment:.2f}, Imp: {impact:.2f})"
+                f" BRAIN: News Action Triggered -> {headline[:60]}... "
+                f"(Sent: {sentiment:.2f}, Imp: {impact:.2f})"
             )
 
             # Apply Neural Bias to the next scan cycle
@@ -1002,7 +1025,8 @@ class TradingBrain:
                 # Sane bounds
                 self._oracle_risk_modifier = max(0.5, min(1.8, target_modifier))
                 logger.info(
-                    f" BRAIN: News-Driven Risk Shift active (Transient Modifier: {self._oracle_risk_modifier:.2f})"
+                    " BRAIN: News-Driven Risk Shift active "
+                    f"(Transient Modifier: {self._oracle_risk_modifier:.2f})"
                 )
 
             # Force an immediate scan of the watchlist
@@ -1164,7 +1188,8 @@ class TradingBrain:
 
                     if self._scan_cycle % 50 == 0:
                         logger.info(
-                            f"[SOVEREIGN] Pulse active. Cycle: #{self._scan_cycle} | State: {self.state.name}"
+                            f"[SOVEREIGN] Pulse active. Cycle: #{self._scan_cycle} | "
+                            f"State: {self.state.name}"
                         )
 
                     # Run Adoption/Pruning Protocol every 10 seconds across ALL states
@@ -1201,7 +1226,8 @@ class TradingBrain:
 
                 except Exception as loop_e:
                     logger.error(
-                        f"SSS-Tier Recovery: Loop anomaly detected: {loop_e}. Forcing reset to SCANNING...",
+                        f"SSS-Tier Recovery: Loop anomaly detected: {loop_e}. "
+                        "Forcing reset to SCANNING...",
                         exc_info=True,
                     )
                     async with self._state_lock:
@@ -1222,7 +1248,8 @@ class TradingBrain:
                 from telegram_alerts import send_telegram_alert
 
                 await send_telegram_alert(
-                    f" *SYSTEM CRITICAL ERROR*\n{outer_e}\nBrain is attempting autonomous healing..."
+                    " *SYSTEM CRITICAL ERROR*\n"
+                    f"{outer_e}\nBrain is attempting autonomous healing..."
                 )
                 await asyncio.sleep(10)
 
@@ -1230,7 +1257,8 @@ class TradingBrain:
                 error_trace = traceback.format_exc()
                 await self.mind_bridge.broadcast(
                     "trader",
-                    f"SYSTEM CRITICAL: Main loop exception detected. Traceback: {error_trace[:500]}...",
+                    "SYSTEM CRITICAL: Main loop exception detected. "
+                    f"Traceback: {error_trace[:500]}...",
                     {"type": "EXCEPTION", "traceback": error_trace},
                 )
                 await asyncio.sleep(5)
@@ -1250,7 +1278,9 @@ class TradingBrain:
                     "loss_tracker": {
                         "consecutive_losses": self.loss_tracker.consecutive_losses,
                         "win_streak": self.loss_tracker.win_streak,
-                        "last_loss_time": self.loss_tracker.last_loss_time.isoformat() if self.loss_tracker.last_loss_time else None,
+                        "last_loss_time": self.loss_tracker.last_loss_time.isoformat()
+                        if self.loss_tracker.last_loss_time
+                        else None,
                     },
                     "timestamp": time.time_ns(),
                 }
@@ -1298,7 +1328,10 @@ class TradingBrain:
     # INDEPENDENT WATCHDOG
 
     async def _run_watchdog(self) -> None:
-        """Background task pulsing the DMS every 15 seconds and publishing live state to frontend."""
+        """
+        Background task pulsing the DMS every 15 seconds and publishing
+        live state to frontend.
+        """
         logger.info("BrainWatchdog: Pulse task active (15s interval)")
         while self.is_running:
             try:
@@ -1392,7 +1425,8 @@ class TradingBrain:
                         if getattr(self.loss_tracker, "consecutive_losses", 0) >= 5:
                             if new_dhatu != "Abhava":
                                 logger.debug(
-                                    f"Risk-Off Override: Ignoring Oracle {new_dhatu} due to loss streak."
+                                    f"Risk-Off Override: Ignoring Oracle {new_dhatu} "
+                                    "due to loss streak."
                                 )
                                 new_dhatu = "Abhava"
 
@@ -1405,7 +1439,8 @@ class TradingBrain:
 
                         logger.info(
                             f" BUS → oracle.state: dhatu={self._oracle_dhatu} "
-                            f"modifier={self._oracle_risk_modifier:.2f} (freeze={self._oracle_freeze})"
+                            f"modifier={self._oracle_risk_modifier:.2f} "
+                            f"(freeze={self._oracle_freeze})"
                         )
 
                     elif label == "oracle.freeze":
@@ -1455,7 +1490,8 @@ class TradingBrain:
                         elif impact == "BULLISH":
                             self._oracle_risk_modifier = min(1.5, self._oracle_risk_modifier * 1.1)
                         logger.info(
-                            f" BUS → macro.impact: {impact} | Adjusted Modifier: {self._oracle_risk_modifier:.2f}"
+                            f" BUS → macro.impact: {impact} | "
+                            f"Adjusted Modifier: {self._oracle_risk_modifier:.2f}"
                         )
 
                     elif label == "institutional.flow":
@@ -1588,7 +1624,8 @@ class TradingBrain:
 
         if not self.loss_tracker.is_trading_allowed():
             logger.warning(
-                f"G1 escalation — trading suspended (consecutive losses: {self.loss_tracker.consecutive_losses})"
+                "G1 escalation — trading suspended "
+                f"(consecutive losses: {self.loss_tracker.consecutive_losses})"
             )
             await asyncio.sleep(60)
             return
@@ -1681,7 +1718,9 @@ class TradingBrain:
             if self.mode == "paper":
                 broker_online = True
             elif self.mode == "ibkr_paper":
-                broker_online = hasattr(self.ibkr_conn, "is_connected") and self.ibkr_conn.is_connected
+                broker_online = (
+                    hasattr(self.ibkr_conn, "is_connected") and self.ibkr_conn.is_connected
+                )
             elif self.active_broker == "IBKR":
                 broker_online = (
                     hasattr(self.ibkr_conn, "is_connected") and self.ibkr_conn.is_connected
@@ -1766,7 +1805,8 @@ class TradingBrain:
                         tr = df_pl.select([tr_expr])["tr"]
                         atr_val = float(tr.tail(20).mean()) if len(tr) >= 20 else 0.0
 
-                        # Offload CPU-heavy pattern detection to a thread pool to avoid blocking the event loop
+                        # Offload CPU-heavy pattern detection to a thread pool
+                        # to avoid blocking the event loop
                         # Pass the Polars DataFrame as expected by agent_a
                         patterns = await asyncio.to_thread(self.pattern_detector.detect_all, df_pl)
                         for p in patterns:
@@ -1783,7 +1823,8 @@ class TradingBrain:
                                     stats["rejected"] += 1
                                 best_low = max(all_found, key=lambda x: x.confidence)
                                 logger.info(
-                                    f"Scan [{symbol}]: Pattern {best_low.name} detected but confidence {best_low.confidence}% too low."
+                                    f"Scan [{symbol}]: Pattern {best_low.name} detected but "
+                                    f"confidence {best_low.confidence}% too low."
                                 )
                             return None
 
@@ -1803,7 +1844,10 @@ class TradingBrain:
                                 pattern=best.name,
                                 confidence=best.confidence,
                                 agent_votes={
-                                    "agent_a": f"{best.name} ({best.confidence:.1f}%) — R/R {getattr(best, 'r_r_ratio', 0):.1f}x"
+                                    "agent_a": (
+                                        f"{best.name} ({best.confidence:.1f}%) — "
+                                        f"R/R {getattr(best, 'r_r_ratio', 0):.1f}x"
+                                    )
                                 },
                                 triggered_by="agent_a",
                                 meta={
@@ -1871,9 +1915,11 @@ class TradingBrain:
                 self.task_manager.purge_dormant_tasks(max_age_minutes=15)
 
             # Prevent 'Information Overload' by clearing buffers when signal density is too high.
-            # Guard: skip entropy check if no symbols were successfully scanned to avoid false flushes.
+            # Guard: skip entropy check if no symbols were successfully scanned
+            # to avoid false flushes.
             scanned_count = stats["scanned"]
-            # Corrected: Density should reflect actual Task Registry occupancy (Volume), not Hit Rate.
+            # Corrected: Density should reflect actual Task Registry occupancy
+            # (Volume), not Hit Rate.
             # Hit rate is a measure of opportunity; Registry occupancy is a measure of memory load.
             # We only flush if we are approaching the 1000-task hard limit.
             signal_density = len(self.task_manager.tasks) / 1000.0 if self.task_manager else 0.0
@@ -1881,14 +1927,18 @@ class TradingBrain:
             # Use a time-based cooldown (max 1 flush per 60 seconds) to prevent log spam
             now = time.monotonic()
             if signal_density > 0.8:
-                if not hasattr(self, '_last_entropy_flush') or now - getattr(self, '_last_entropy_flush', 0) > 60:
+                if (
+                    not hasattr(self, "_last_entropy_flush")
+                    or now - getattr(self, "_last_entropy_flush", 0) > 60
+                ):
                     logger.warning(
-                        f"SYSTEM ENTROPY CRITICAL (Density: {signal_density:.2f}): Performing Cognitive Flush..."
+                        "SYSTEM ENTROPY CRITICAL "
+                        f"(Density: {signal_density:.2f}): Performing Cognitive Flush..."
                     )
                     self._last_entropy_flush = now
 
                 # FINALIZATION FIX: Ensure tasks are not leaked during flush
-                for d in (self.pending_signals + discoveries):
+                for d in self.pending_signals + discoveries:
                     task = d.get("task")
                     if task and hasattr(task, "finalize"):
                         task.finalize("VETOED")
@@ -1925,7 +1975,8 @@ class TradingBrain:
             return
 
         logger.info(
-            f"TradingBrain: Spawning {len(self.pending_signals)} Parallel Vetting Tasks (Agent M)..."
+            f"TradingBrain: Spawning {len(self.pending_signals)} "
+            "Parallel Vetting Tasks (Agent M)..."
         )
 
         # Pillar 3: Spawning concurrent coordinator tasks
@@ -2009,7 +2060,8 @@ class TradingBrain:
 
                 # Check take profit
                 if current_price >= pos.take_profit and pos.account_type != "short":
-                    # Do not exit instantly on Target, wait for ExitIntelligence to scale-out/runner.
+                    # Do not exit instantly on Target, wait for ExitIntelligence
+                    # to scale-out/runner.
                     pass
 
                 # Build dictionaries for Exit Intelligence Engine
@@ -2074,11 +2126,13 @@ class TradingBrain:
                         # Only log if the position actually still exists in reality
                         if not pos.meta.get("broker_flat", False):
                             logger.info(
-                                f"TIGHTEN: {pos.symbol} stop ${old_stop:.2f} -> ${pos.stop_loss:.2f}"
+                                f"TIGHTEN: {pos.symbol} stop ${old_stop:.2f} -> "
+                                f"${pos.stop_loss:.2f}"
                             )
                         else:
                             logger.debug(
-                                f"Sovereign [Quiet-Sync]: Tightened phantom stop for {pos.symbol} (Flat)."
+                                f"Sovereign [Quiet-Sync]: Tightened phantom stop for "
+                                f"{pos.symbol} (Flat)."
                             )
 
                 elif decision.action == ExitAction.CASCADE:
@@ -2246,7 +2300,9 @@ class TradingBrain:
             strikes = self._exit_failure_count.get(symbol, 0)
             if strikes >= 3:
                 logger.critical(
-                    f"STRIKE-3 LOCKOUT: {symbol} has 3 failed exit attempts. Automated execution HALTED to prevent account damage. HUMAN INTERVENTION REQUIRED."
+                    f"STRIKE-3 LOCKOUT: {symbol} has 3 failed exit attempts. "
+                    "Automated execution HALTED to prevent account damage. "
+                    "HUMAN INTERVENTION REQUIRED."
                 )
                 return
 
@@ -2256,7 +2312,8 @@ class TradingBrain:
             )
             if (now - last_attempt).total_seconds() < 10 and not is_emergency:
                 logger.warning(
-                    f"DAMPENER ACTIVE: {symbol} exit attempt suppressed. Waiting for cooldown (Last try: {last_attempt.strftime('%H:%M:%S')})."
+                    f"DAMPENER ACTIVE: {symbol} exit attempt suppressed. "
+                    f"Waiting for cooldown (Last try: {last_attempt.strftime('%H:%M:%S')})."
                 )
                 return
 
@@ -2295,7 +2352,8 @@ class TradingBrain:
             # allow the Brain to re-submit as a fresh Market Order on this tick.
             if self.ibkr_client and pos.account_type == "ibkr":
                 active_trades = [
-                    t for t in self.ibkr_client.trades()
+                    t
+                    for t in self.ibkr_client.trades()
                     if t.contract.symbol == pos.symbol and not t.isDone()
                 ]
                 if active_trades:
@@ -2309,31 +2367,42 @@ class TradingBrain:
                         if age_sec > STALE_THRESHOLD_SEC:
                             logger.warning(
                                 f" STALE ORDER ESCALATION: {pos.symbol} order #{order_id} "
-                                f"is {age_sec:.0f}s old without fill. Cancelling and re-submitting as MKT."
+                                f"is {age_sec:.0f}s old without fill. "
+                                "Cancelling and re-submitting as MKT."
                             )
                             try:
                                 self.ibkr_client.cancelOrder(stale_trade.order)
                                 self._order_submit_times.pop(order_id, None)
                             except Exception as cancel_err:
-                                logger.warning(f"Cancel failed for {pos.symbol} #{order_id}: {cancel_err}")
+                                logger.warning(
+                                    f"Cancel failed for {pos.symbol} #{order_id}: {cancel_err}"
+                                )
                             stale_found = True
                     if not stale_found:
                         logger.warning(
-                            f" ORDER SHIELD: Suppressing {exit_type} for {pos.symbol}. Active order already exists."
+                            f" ORDER SHIELD: Suppressing {exit_type} for {pos.symbol}. "
+                            "Active order already exists."
                         )
                         return
                     # else: stale order cancelled — fall through to re-submit below
 
             logger.warning(
-                f"EXECUTING {exit_type} FOR {pos.symbol} | PRICE: ${exit_price:.2f} (Attempt: {strikes + 1})"
+                f"EXECUTING {exit_type} FOR {pos.symbol} | "
+                f"PRICE: ${exit_price:.2f} (Attempt: {strikes + 1})"
             )
 
             if exit_shares > 0 and self.mode != "paper":
                 if pos.account_type == "ibkr":
                     # Use 'EMERGENCY' urgency for VETOs to force true Market Orders
-                    urg_level = "EMERGENCY" if "VETO" in exit_type or "FLATTEN" in exit_type else "HIGH"
+                    urg_level = (
+                        "EMERGENCY" if "VETO" in exit_type or "FLATTEN" in exit_type else "HIGH"
+                    )
                     await self._place_ibkr_order(
-                        pos.symbol, direction, exit_shares, urgency=urg_level, limit_price=exit_price
+                        pos.symbol,
+                        direction,
+                        exit_shares,
+                        urgency=urg_level,
+                        limit_price=exit_price,
                     )
                 elif pos.account_type == "mt5" and self.mt5_conn:
                     logger.warning(f"EXECUTING MT5 EXIT FOR {pos.symbol} (Ticket: {pos.trade_id})")
@@ -2360,7 +2429,8 @@ class TradingBrain:
             is_dirty = slippage_pct > 0.005  # 50bps threshold
             if is_dirty:
                 logger.warning(
-                    f"SLIPPAGE DETECTED: {pos.symbol} fill deviated {slippage_pct:.2%} from target. Trade marked as DIRTY."
+                    f"SLIPPAGE DETECTED: {pos.symbol} fill deviated {slippage_pct:.2%} "
+                    "from target. Trade marked as DIRTY."
                 )
 
             # --- COMMISSION & SLIPPAGE SIMULATION ---
@@ -2449,7 +2519,8 @@ class TradingBrain:
                     self._loss_streak += 1
                     if self._loss_streak >= 5:
                         logger.critical(
-                            f" LOSS STREAK DETECTED ({self._loss_streak}). TRIGGERING RISK-OFF REGIME."
+                            f" LOSS STREAK DETECTED ({self._loss_streak}). "
+                            "TRIGGERING RISK-OFF REGIME."
                         )
                         self.current_regime = "RISK_OFF"
                         # Reset streak after triggering so we can eventually recover
@@ -2493,6 +2564,7 @@ class TradingBrain:
             acc_id = pos.account_id
             if acc_id == "UNKNOWN":
                 from config import IBKR_ACCOUNT_ID
+
                 acc_id = IBKR_ACCOUNT_ID or "Master Account"
 
             # Reason Translation
@@ -2501,29 +2573,43 @@ class TradingBrain:
                 reason = "Sovereign Safety Veto"
 
             # Duration Formatting
-            duration_min = (now - (pos.entry_time if pos.entry_time.tzinfo else pos.entry_time.replace(tzinfo=timezone.utc))).total_seconds() / 60
-            duration_str = f"{duration_min:.1f}m" if duration_min < 60 else f"{duration_min/60:.1f}h"
+            duration_min = (
+                now
+                - (
+                    pos.entry_time
+                    if pos.entry_time.tzinfo
+                    else pos.entry_time.replace(tzinfo=timezone.utc)
+                )
+            ).total_seconds() / 60
+            duration_str = (
+                f"{duration_min:.1f}m" if duration_min < 60 else f"{duration_min / 60:.1f}h"
+            )
 
             # Format detailed message
             title = "PARTIAL HARVEST" if exit_type == "PARTIAL" else "TRADE FINALIZED"
+            outcome = (
+                "PROFIT" if realized_net_pnl > 0
+                else "LOSS" if realized_net_pnl < 0
+                else "BREAKEVEN"
+            )
 
             msg = (
                 f"{icon} <b>{title}: {pos.symbol}</b>\n"
                 f"<i>Account: {acc_id} ({pos.account_type.upper()})</i>\n"
-                f"───────────────────\n"
+                "───────────────────\n"
                 f"<b>Size:</b> {abs(pos.qty):.0f} units\n"
                 f"<b>Entry:</b> ${pos.entry_price:,.2f}\n"
                 f"<b>Exit:</b>  ${pos.current_price:,.2f}\n"
-                f"───────────────────\n"
+                "───────────────────\n"
                 f"<b>Strategy:</b> {intent}\n"
                 f"<b>Pattern:</b> {pattern_name}\n"
                 f"<b>Reason:</b> {reason}\n"
-                f"───────────────────\n"
-                f"<b>Outcome:</b> {'PROFIT' if realized_net_pnl > 0 else 'LOSS' if realized_net_pnl < 0 else 'BREAKEVEN'}\n"
+                "───────────────────\n"
+                f"<b>Outcome:</b> {outcome}\n"
                 f"<b>Net PnL:</b> <code>${realized_net_pnl:+.2f}</code>\n"
                 f"<b>Efficiency:</b> {r_multiple:+.2f}R\n"
                 f"<b>Duration:</b> {duration_str}\n"
-                f"───────────────────\n"
+                "───────────────────\n"
                 f"<b>SESSION P&L:</b> <code>${self.session_pnl:+.2f}</code>"
             )
             await send_telegram_alert(msg)
@@ -2570,7 +2656,8 @@ class TradingBrain:
                             sma_200 = sum(closes[-200:]) / 200
                             spy_above_200ma = closes[-1] > sma_200
                             logger.debug(
-                                f"True Daily SMA 200 detected: {sma_200:.2f} (Price: {closes[-1]:.2f})"
+                                f"True Daily SMA 200 detected: {sma_200:.2f} "
+                                f"(Price: {closes[-1]:.2f})"
                             )
                 except Exception as e:
                     logger.debug(f"Regime data fallback (1d): {e}")
@@ -2604,7 +2691,8 @@ class TradingBrain:
                             else:
                                 # Fallback to DB
                                 row = pd.read_sql_query(
-                                    "SELECT close FROM ohlcv WHERE symbol=? ORDER BY timestamp DESC LIMIT 2",
+                                    "SELECT close FROM ohlcv WHERE symbol=? "
+                                    "ORDER BY timestamp DESC LIMIT 2",
                                     self.db_conn,
                                     params=(sym,),
                                 )
@@ -2625,7 +2713,8 @@ class TradingBrain:
                 momentum=momentum,
             )
             logger.info(
-                f"Regime: {regime} (VIX={vix:.1f}, Mom={momentum:.4f}, Breadth={breadth:.2f}, SPY>200MA={spy_above_200ma})"
+                f"Regime: {regime} (VIX={vix:.1f}, Mom={momentum:.4f}, "
+                f"Breadth={breadth:.2f}, SPY>200MA={spy_above_200ma})"
             )
             # PERSIST Context for the State Capsule
             self.session_restorer.save_cognitive_capsule(
@@ -2757,11 +2846,13 @@ class TradingBrain:
                     if self._qdb_failure_count >= 3:
                         self._qdb_circuit_broken = True
                         logger.critical(
-                            "QuestDB SLOWNESS DETECTED. Circuit Broken for 5 minutes. Failing over to SQLite/Cache."
+                            "QuestDB SLOWNESS DETECTED. Circuit Broken for 5 minutes. "
+                            "Failing over to SQLite/Cache."
                         )
                     else:
                         logger.warning(
-                            f"QuestDB timeout for {symbol} ({self._qdb_failure_count}/3) — failing over to SQLite"
+                            f"QuestDB timeout for {symbol} ({self._qdb_failure_count}/3) "
+                            "— failing over to SQLite"
                         )
                     df_qdb = None
                 except Exception as q_err:
@@ -2783,7 +2874,8 @@ class TradingBrain:
                         use_fallback = False
                     else:
                         logger.debug(
-                            f"QuestDB returned stale data for {symbol} ({qdb_staleness / 60:.1f}m old), falling back to SQLite"
+                            f"QuestDB returned stale data for {symbol} "
+                            f"({qdb_staleness / 60:.1f}m old), falling back to SQLite"
                         )
 
             if use_fallback:
@@ -2861,7 +2953,8 @@ class TradingBrain:
                     return cast(pd.DataFrame, "STALE")  # Sentinel — caller counts separately
                 else:
                     logger.debug(
-                        f"✓ FRESH DATA: {symbol} newest bar is {staleness / 60:.1f}min old (passed staleness gate)"
+                        f"✓ FRESH DATA: {symbol} newest bar is {staleness / 60:.1f}min old "
+                        "(passed staleness gate)"
                     )
             except Exception as e:
                 logger.debug(f"Staleness check skipped for {symbol}: {e}")
@@ -3016,7 +3109,10 @@ class TradingBrain:
                 # compared to our internal memory pool. This prevents 'Sync Lag' False Exits.
                 memory_ibkr_count = len([p for p in self.positions if p.account_type == "ibkr"])
                 if not ibkr_reality or len(ibkr_reality) < memory_ibkr_count:
-                    logger.debug(f" IBKR SYNC: Cache incomplete ({len(ibkr_reality)} vs {memory_ibkr_count}). Forcing reality poll...")
+                    logger.debug(
+                        f" IBKR SYNC: Cache incomplete ({len(ibkr_reality)} vs "
+                        f"{memory_ibkr_count}). Forcing reality poll..."
+                    )
                     try:
                         positions_callable = getattr(self.ibkr_conn.ib, "positions", None)
                         if positions_callable is not None and callable(positions_callable):
@@ -3033,11 +3129,15 @@ class TradingBrain:
             mt5_reality = {}
             mt5_polled = False
             if self.mt5_conn and self.mt5_conn.is_connected:
-                if hasattr(self.mt5_conn, 'get_all_positions') and callable(getattr(self.mt5_conn, 'get_all_positions', None)):
+                if hasattr(self.mt5_conn, "get_all_positions") and callable(
+                    getattr(self.mt5_conn, "get_all_positions", None)
+                ):
                     mt5_reality = await asyncio.to_thread(self.mt5_conn.get_all_positions)
                     mt5_polled = True
                 else:
-                    logger.warning("MT5 get_all_positions not callable, skipping MT5 reconciliation")
+                    logger.warning(
+                        "MT5 get_all_positions not callable, skipping MT5 reconciliation"
+                    )
 
             # 2. Sanitize Memory
             self._sanitize_positions()
@@ -3060,7 +3160,11 @@ class TradingBrain:
                     if not polled:
                         continue
 
-                    _p_entry = p.entry_time if p.entry_time.tzinfo else p.entry_time.replace(tzinfo=timezone.utc)
+                    _p_entry = (
+                        p.entry_time
+                        if p.entry_time.tzinfo
+                        else p.entry_time.replace(tzinfo=timezone.utc)
+                    )
                     age_seconds = (now_ts - _p_entry).total_seconds()
 
                     # Even with a poll, give young trades 2 minutes of grace for fill reflection
@@ -3070,14 +3174,19 @@ class TradingBrain:
                 else:
                     broker_qty = reality[p.symbol]
 
-                _p_entry = p.entry_time if p.entry_time.tzinfo else p.entry_time.replace(tzinfo=timezone.utc)
+                _p_entry = (
+                    p.entry_time
+                    if p.entry_time.tzinfo
+                    else p.entry_time.replace(tzinfo=timezone.utc)
+                )
                 age_seconds = (now_ts - _p_entry).total_seconds()
 
                 # A. The Zero-Sync Purge (Clean up phantom positions)
                 # ONLY purge if: Uptime > 300s, Age > 3600s, and Reality is confirmed FLAT
                 if uptime > 300 and age_seconds > 3600 and abs(broker_qty) < 0.1:
                     logger.warning(
-                        f" SYNC PURGE [{broker.upper()}]: {p.symbol} is flat in reality. Removing from memory."
+                        f" SYNC PURGE [{broker.upper()}]: {p.symbol} is flat in reality. "
+                        "Removing from memory."
                     )
                     if p in self.positions:
                         self.positions.remove(p)
@@ -3085,7 +3194,8 @@ class TradingBrain:
                     continue
 
                 # B. Quantity & Polarity Sync
-                # Only sync if the symbol was FOUND in the reality map to prevent zeroing-out during blips.
+                # Only sync if the symbol was FOUND in the reality map to prevent
+                # zeroing-out during blips.
                 if p.symbol in reality and abs(p.qty - broker_qty) > 0.00001:
                     if age_seconds > 60:  # 60s grace for fill reflection
                         p.qty = float(broker_qty)
@@ -3096,7 +3206,8 @@ class TradingBrain:
                 "\n" + "=" * 80,
                 "   SOVEREIGN REALITY HANDSHAKE (Memory vs Broker) ",
                 "=" * 80,
-                f" {'Symbol':<10} | {'Broker':<8} | {'Memory Qty':<12} | {'Reality Qty':<12} | {'Status':<10}",
+                f" {'Symbol':<10} | {'Broker':<8} | {'Memory Qty':<12} | "
+                f"{'Reality Qty':<12} | {'Status':<10}",
                 "-" * 80,
             ]
 
@@ -3202,7 +3313,8 @@ class TradingBrain:
             if self.db_conn and not db_row:
                 cursor = self.db_conn.cursor()
                 cursor.execute(
-                    "INSERT INTO trades (timestamp, instrument, direction, quantity, entry_price, outcome, stop_price, target_price, broker, notes) "
+                    "INSERT INTO trades (timestamp, instrument, direction, quantity, entry_price, "
+                    "outcome, stop_price, target_price, broker, notes) "
                     "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                     (
                         time.time_ns(),
@@ -3222,11 +3334,18 @@ class TradingBrain:
 
             logger.info(f" ADOPTED: {symbol} in {broker.upper()} absorbed @ {price:.2f}")
 
-            if self.bus and hasattr(self.bus, 'publish') and callable(getattr(self.bus, 'publish', None)):
+            if (
+                self.bus
+                and hasattr(self.bus, "publish")
+                and callable(getattr(self.bus, "publish", None))
+            ):
                 await self.bus.publish(
                     "notification.telegram",
                     {
-                        "message": f" *ORPHAN ADOPTED*\nBroker: {broker.upper()}\nSymbol: {symbol}\nQty: {qty}\nStop: {stop:.2f}"
+                        "message": (
+                            f" *ORPHAN ADOPTED*\nBroker: {broker.upper()}\n"
+                            f"Symbol: {symbol}\nQty: {qty}\nStop: {stop:.2f}"
+                        )
                     },
                 )
 
@@ -3238,7 +3357,8 @@ class TradingBrain:
         try:
             if self.db_conn:
                 self.db_conn.execute(
-                    "UPDATE trades SET outcome = 'LIQUIDATED' WHERE instrument = ? AND broker = ? AND outcome = 'OPEN'",
+                    "UPDATE trades SET outcome = 'LIQUIDATED' WHERE instrument = ? "
+                    "AND broker = ? AND outcome = 'OPEN'",
                     (symbol, broker),
                 )
                 self.db_conn.commit()
@@ -3250,7 +3370,8 @@ class TradingBrain:
         try:
             if self.db_conn:
                 self.db_conn.execute(
-                    "UPDATE trades SET shares = ? WHERE instrument = ? AND broker = ? AND outcome = 'OPEN'",
+                    "UPDATE trades SET shares = ? WHERE instrument = ? "
+                    "AND broker = ? AND outcome = 'OPEN'",
                     (abs(qty), symbol, broker),
                 )
                 self.db_conn.commit()
@@ -3312,7 +3433,8 @@ class TradingBrain:
         safe_equity = raw_equity * (1.0 - haircut_pct)
 
         logger.debug(
-            f"Defensive Equity: Raw ${raw_equity:.2f} | VIX {vix:.1f} | Haircut {haircut_pct:.1%} | Safe ${safe_equity:.2f}"
+            f"Defensive Equity: Raw ${raw_equity:.2f} | VIX {vix:.1f} | "
+            f"Haircut {haircut_pct:.1%} | Safe ${safe_equity:.2f}"
         )
         return safe_equity
 
@@ -3330,7 +3452,11 @@ class TradingBrain:
                 if hasattr(self.ibkr_client, "isConnected") and self.ibkr_client.isConnected():
                     # Priority: Use NetLiquidation to avoid currency confusion
                     acc_vals = self.ibkr_client.accountValues()
-                    fallback_val = self.ibkr_drawdown.peak_equity if hasattr(self, 'ibkr_drawdown') and self.ibkr_drawdown.peak_equity > 0 else STARTING_CAPITAL_CAD
+                    fallback_val = (
+                        self.ibkr_drawdown.peak_equity
+                        if hasattr(self, "ibkr_drawdown") and self.ibkr_drawdown.peak_equity > 0
+                        else STARTING_CAPITAL_CAD
+                    )
                     val = next(
                         (float(x.value) for x in acc_vals if x.tag == "NetLiquidation"),
                         fallback_val,
@@ -3364,7 +3490,8 @@ class TradingBrain:
                     cursor = self.db_conn.cursor()
                     today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
                     cursor.execute(
-                        "SELECT COALESCE(SUM(pnl_dollars), 0) FROM trades WHERE timestamp LIKE ? AND broker = ?",
+                        "SELECT COALESCE(SUM(pnl_dollars), 0) FROM trades "
+                        "WHERE timestamp LIKE ? AND broker = ?",
                         (f"{today}%", account_type),
                     )
                     result = cursor.fetchone()
@@ -3395,7 +3522,9 @@ class TradingBrain:
         # --- SOVEREIGN ORDER SHIELD (Pillar 12) ---
         # Prevent redundant exits for symbols already pending on the book.
         if await asyncio.to_thread(self.ibkr_conn.has_pending_order, symbol):
-            logger.info(f"Sovereign Shield: Suppressed redundant order for {symbol} (Order Pending).")
+            logger.info(
+                f"Sovereign Shield: Suppressed redundant order for {symbol} (Order Pending)."
+            )
             return "SHIELDED"
 
         try:
@@ -3414,18 +3543,21 @@ class TradingBrain:
                     np.sign(p.qty) != np.sign(broker_qty) or abs(p.qty - broker_qty) > 0.1
                 ):
                     logger.warning(
-                        f" MIRROR SYNC: {symbol} memory error ({p.qty}) corrected to Broker Reality ({broker_qty})."
+                        f" MIRROR SYNC: {symbol} memory error ({p.qty}) "
+                        f"corrected to Broker Reality ({broker_qty})."
                     )
                     p.qty = float(broker_qty)
 
             if direction == "SELL" and broker_qty < 0:
                 logger.critical(
-                    f" POLARITY SHIELD: Blocked SELL for {symbol} (Short exposure: {broker_qty}). Next cycle will BUY to close."
+                    f" POLARITY SHIELD: Blocked SELL for {symbol} "
+                    f"(Short exposure: {broker_qty}). Next cycle will BUY to close."
                 )
                 return None
             if direction == "BUY" and broker_qty > 0:
                 logger.critical(
-                    f" POLARITY SHIELD: Blocked BUY for {symbol} (Long exposure: {broker_qty}). Next cycle will SELL to close."
+                    f" POLARITY SHIELD: Blocked BUY for {symbol} "
+                    f"(Long exposure: {broker_qty}). Next cycle will SELL to close."
                 )
                 return None
         except Exception as guard_e:
@@ -3436,7 +3568,10 @@ class TradingBrain:
 
         try:
             if shares < 1:
-                warn_msg = f" ZERO-SHARE SHIELD: Blocked {direction} for {symbol} (Size=0). Check sizer math or Probe logic."
+                warn_msg = (
+                    f" ZERO-SHARE SHIELD: Blocked {direction} for {symbol} (Size=0). "
+                    "Check sizer math or Probe logic."
+                )
                 logger.warning(warn_msg)
                 from telegram_alerts import send_telegram_alert
 
@@ -3557,8 +3692,8 @@ class TradingBrain:
                 if self.db_conn:
                     cursor = self.db_conn.cursor()
                     cursor.execute(
-                        "INSERT INTO signals (timestamp, instrument, pattern, base_quality, catalyst_score, "
-                        "action_taken, skip_reason) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                        "INSERT INTO signals (timestamp, instrument, pattern, base_quality, "
+                        "catalyst_score, action_taken, skip_reason) VALUES (?, ?, ?, ?, ?, ?, ?)",
                         (
                             time.time_ns(),
                             symbol,
@@ -3576,7 +3711,7 @@ class TradingBrain:
         await asyncio.to_thread(_sync_log)  # type: ignore
 
     def _determine_target_broker(self) -> str:
-        """Determines if the system should be in Equities (IBKR) or Forex (MT5) mode using NY Time."""
+        """Determines if the system should be in Equities (IBKR) or Forex (MT5) mode."""
         # April is EDT (UTC-4)
         now_utc = datetime.now(timezone.utc)
         now_ny = now_utc - timedelta(hours=4)
@@ -3652,7 +3787,8 @@ class TradingBrain:
             try:
                 if self.db_conn:
                     cursor = self.db_conn.cursor()
-                    # Force absolute magnitude for the shares column to prevent 'Inverse' data corruption
+                    # Force absolute magnitude for the shares column to prevent
+                    # 'Inverse' data corruption
                     # but keep the direction_str as the source of truth for side.
                     recorded_shares = abs(pos.qty)
                     direction_str = "LONG" if pos.qty > 0 else "SHORT"
@@ -3676,7 +3812,8 @@ class TradingBrain:
                     cursor.execute(
                         "INSERT INTO trades (timestamp, instrument, direction, pattern, regime, "
                         "entry_price, stop_price, target_price, shares, r_r_ratio, catalyst_score, "
-                        "dhatu_state, belief_at_entry, broker, account_id, trading_mode, outcome, net_pnl, intel_snapshot) "
+                        "dhatu_state, belief_at_entry, broker, account_id, trading_mode, outcome, "
+                        "net_pnl, intel_snapshot) "
                         "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                         (
                             pos.entry_time.isoformat(),
@@ -3716,10 +3853,12 @@ class TradingBrain:
         def _sync_log() -> None:
             nonlocal exit_price, pnl
             try:
-                # If exit_price is zero/none (Broker lag), recover from the Last Known Price in pipeline
+                # If exit_price is zero/none (Broker lag), recover from the Last Known Price
+                # in pipeline
                 if not exit_price or exit_price <= 0:
                     logger.warning(
-                        f"GHOST RECOVERY: {pos.symbol} exit price is 0. Pulling reality from pipeline..."
+                        f"GHOST RECOVERY: {pos.symbol} exit price is 0. "
+                        "Pulling reality from pipeline..."
                     )
                     # Assume self.data_pipeline is available as we're in the Brain
                     if hasattr(self, "data_pipeline"):
@@ -3733,10 +3872,12 @@ class TradingBrain:
 
                 if self.db_conn:
                     cursor = self.db_conn.cursor()
-                    _entry_ts = pos.entry_time if pos.entry_time.tzinfo else pos.entry_time.replace(tzinfo=timezone.utc)
-                    hold_hours = (
-                        datetime.now(timezone.utc) - _entry_ts
-                    ).total_seconds() / 3600
+                    _entry_ts = (
+                        pos.entry_time
+                        if pos.entry_time.tzinfo
+                        else pos.entry_time.replace(tzinfo=timezone.utc)
+                    )
+                    hold_hours = (datetime.now(timezone.utc) - _entry_ts).total_seconds() / 3600
                     cursor.execute(
                         "UPDATE trades SET exit_price=?, outcome=?, pnl_dollars=?, r_multiple=?, "
                         "hold_hours=?, belief_at_exit=?, net_pnl=? WHERE rowid=?",
@@ -3756,7 +3897,10 @@ class TradingBrain:
                 logger.debug(f"Could not log trade exit: {e}")
 
         # Trigger Pillar 4/6 (Wisdom & Skill Evolution)
-        reasoning = f"Exit Type: {exit_type} | PnL: ${pnl:.2f} | R-Multiple: {r_multiple:.2f}x | Catalyst: {pos.catalyst_score:.1f}"
+        reasoning = (
+            f"Exit Type: {exit_type} | PnL: ${pnl:.2f} | R-Multiple: {r_multiple:.2f}x | "
+            f"Catalyst: {pos.catalyst_score:.1f}"
+        )
         self.wisdom.write_post_mortem(pos, exit_type, pnl, reasoning)
 
         # PILLAR 6: EVOLVE SKILL TREE
@@ -3814,11 +3958,13 @@ class TradingBrain:
                     )
                     if not success:
                         logger.critical(
-                            " PHANTOM PROBE FAILED! System logic returned False (Possible Quorum or Context Block)."
+                            " PHANTOM PROBE FAILED! System logic returned False "
+                            "(Possible Quorum or Context Block)."
                         )
                         if self.dms:
                             await self.dms._send_telegram_message(
-                                " <b>[Sovereign Alert]</b>: Phantom Probe Failure. System wiring check returned REJECT."
+                                " <b>[Sovereign Alert]</b>: Phantom Probe Failure. "
+                                "System wiring check returned REJECT."
                             )
             except Exception as e:
                 logger.error(f"Phantom Probe Error: {e}")
@@ -3880,8 +4026,10 @@ class TradingBrain:
                             logger.debug("Brain: Swarm_Predictor synchronized.")
                         except (asyncio.TimeoutError, Exception) as e:
                             import traceback
+
                             logger.warning(
-                                f"Brain: Swarm_Predictor sync latency/error: {type(e).__name__}\n{traceback.format_exc()}"
+                                f"Brain: Swarm_Predictor sync latency/error: "
+                                f"{type(e).__name__}\n{traceback.format_exc()}"
                             )
 
                     # 3. Ultrathink Poll
@@ -3899,14 +4047,18 @@ class TradingBrain:
                                 f"Brain: Mind_Ultrathink sync latency/error: {type(e).__name__}"
                             )
 
-                # ATOMIC UPDATE: Merge results into state in one go to prevent mid-cycle hallucinations
+                # ATOMIC UPDATE: Merge results into state in one go to prevent
+                # mid-cycle hallucinations
                 if new_convictions:
                     self.conviction_state.update(new_convictions)
                     logger.info(
-                        f" TradingBrain: Global Conviction State synchronized ({len(new_convictions)} agents)."
+                        " TradingBrain: Global Conviction State synchronized "
+                        f"({len(new_convictions)} agents)."
                     )
                 else:
-                    logger.warning(" TradingBrain: Conviction sync cycle finished with ZERO agents.")
+                    logger.warning(
+                        " TradingBrain: Conviction sync cycle finished with ZERO agents."
+                    )
 
             except Exception as e:
                 logger.error(f"Conviction Sync Error: {e}")
@@ -3930,9 +4082,7 @@ class TradingBrain:
                         logger.info(" SHIELD: No positions to liquidate. Clean Slate.")
                         return
 
-                    logger.critical(
-                        f" SHIELD: Liquidating {len(positions)} positions immediately."
-                    )
+                    logger.critical(f" SHIELD: Liquidating {len(positions)} positions immediately.")
                     for p in positions:
                         contract = p.contract
                         qty = p.position

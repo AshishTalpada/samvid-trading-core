@@ -87,7 +87,8 @@ class Vault:
             env_val = os.getenv(key, default)
             if env_val is None:
                 logger.error(
-                    f"SECURITY BLOCK: Sensitive key '{key}' missing from Vault and .env. Fallback DENIED."
+                    f"SECURITY BLOCK: Sensitive key '{key}' missing from Vault and .env. "
+                    "Fallback DENIED."
                 )
             return env_val
 

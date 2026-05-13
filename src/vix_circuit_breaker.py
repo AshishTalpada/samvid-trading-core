@@ -17,7 +17,8 @@ class VIXCircuitBreaker:
 
     def process_vix_tick(self, vix_value: float) -> bool:
         """
-        Ingests a VIX value. Returns True if a catastrophic spike is detected, triggering liquidation.
+        Ingests a VIX value. Returns True if a catastrophic spike is 
+        detected, triggering liquidation.
         """
         current_time = time.time()
         self.tick_history.append((current_time, vix_value))
@@ -33,7 +34,10 @@ class VIXCircuitBreaker:
         percent_change = (vix_value - oldest_vix) / oldest_vix
 
         if percent_change >= self.spike_threshold:
-            logger.critical(f"VIX FLASH SPIKE DETECTED! {percent_change*100:.2f}% in < {self.window_seconds}s")
+            logger.critical(
+                f"VIX FLASH SPIKE DETECTED! {percent_change*100:.2f}% "
+                f"in < {self.window_seconds}s"
+            )
             return True
 
         return False
