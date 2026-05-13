@@ -2437,7 +2437,7 @@ class TradingBrain:
             icon = "💰" if realized_net_pnl > 0 else "📉" if realized_net_pnl < 0 else "🛡️"
             intent = pos.meta.get("intent") or getattr(pos, "intent", "Sovereign")
             pattern_name = pos.meta.get("pattern") or pos.pattern or "Sovereign Signal"
-            
+
             # Account ID Sanitization
             acc_id = pos.account_id
             if acc_id == "UNKNOWN":
@@ -2455,7 +2455,7 @@ class TradingBrain:
 
             # Format detailed message
             title = "PARTIAL HARVEST" if exit_type == "PARTIAL" else "TRADE FINALIZED"
-            
+
             msg = (
                 f"{icon} <b>{title}: {pos.symbol}</b>\n"
                 f"<i>Account: {acc_id} ({pos.account_type.upper()})</i>\n"
