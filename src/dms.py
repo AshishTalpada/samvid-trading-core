@@ -13,10 +13,9 @@ Implements:
 import asyncio
 import logging
 from datetime import datetime, timezone
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING, Any, Optional
 
 import aiohttp
-from typing import Any
 
 mt5: Any = None
 
