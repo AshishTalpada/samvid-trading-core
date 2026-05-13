@@ -21,18 +21,10 @@ from typing import Any
 import pytz
 from typing import TYPE_CHECKING
 
-# Ensure a current event loop exists before any ib_insync imports or IB client creation.
-# This is more aggressive to handle supervised task contexts
-try:
-    asyncio.get_running_loop()
-except RuntimeError:
-    # No running loop, ensure we have one
-    try:
-        loop = asyncio.get_event_loop()
-        if loop.is_closed():
-            asyncio.set_event_loop(asyncio.new_event_loop())
-    except RuntimeError:
-        asyncio.set_event_loop(asyncio.new_event_loop())
+# NOTE: Do NOT manipulate the event loop at module import time.
+# ib_insync's IB() and asyncio.Lock() must only be created inside
+# an async context (inside asyncio.run()). All lazy init is deferred
+# to _ensure_ib_client() which is only called from async methods.
 
 if TYPE_CHECKING:
     from ib_insync import IB
@@ -81,7 +73,8 @@ class IBKRConnection:
         if ib_client is not None:
             self.ib = ib_client
         else:
-            # Defer IB client creation until needed to avoid event loop issues at import time
+            # IB client is created lazily inside async context via _ensure_ib_client()
+            # to avoid event loop errors at construction/import time (Python 3.10+).
             self.ib = None
         self._last_heartbeat = datetime.now()
         self._last_trade_time = datetime.fromtimestamp(0)  # 15-Minute Discipline Lock
@@ -92,13 +85,17 @@ class IBKRConnection:
         # Financial Advisor (FA) support
         self.managed_accounts = []
         self.current_account_id = None
-        self._lock = asyncio.Lock()  # PILLAR 3: Concurrency Safety for Parallel Vetting
+        # PILLAR 3: Lock is created lazily inside async context to avoid
+        # "no current event loop" errors when instantiated before asyncio.run().
+        self._lock: asyncio.Lock | None = None
         self._qualified_contracts: dict[str, Any] = {}
         self._warm_slots: dict[str, Any] = {}  # Hyper-Sovereign Warm Path
         self._exec_secret = (
             Vault.get("EXEC_SECRET", "SETO_SOVEREIGN_EXEC_V22") or "SETO_SOVEREIGN_EXEC_V22"
         )
-        self._setup_callbacks()
+        # NOTE: _setup_callbacks() is NOT called here — it must be called after
+        # the event loop is running (i.e. from an async method or connect()).
+        self._callbacks_registered = False
 
         self._recovered_orders: set[int] = set()
 
@@ -210,25 +207,23 @@ class IBKRConnection:
             return False, f"PRE_FLIGHT_CRASH: {e}"
 
     def _ensure_ib_client(self) -> bool:
-        """Lazily create IB client with proper event loop setup."""
+        """Lazily create IB client. Must only be called from within an async context
+        (i.e. after asyncio.run() has started the event loop)."""
         if self.ib is not None:
             return True
-        
-        try:
-            # Aggressive event loop setup for supervised task contexts
+
+        # Ensure the lock also exists (created lazily alongside IB client)
+        if self._lock is None:
             try:
-                asyncio.get_running_loop()
-            except RuntimeError:
-                # No running loop, ensure we have one
-                try:
-                    loop = asyncio.get_event_loop()
-                    if loop.is_closed():
-                        asyncio.set_event_loop(asyncio.new_event_loop())
-                except RuntimeError:
-                    asyncio.set_event_loop(asyncio.new_event_loop())
-            
+                self._lock = asyncio.Lock()
+            except RuntimeError as e:
+                logger.error(f"agent_c_ibkr: cannot create asyncio.Lock — not inside event loop: {e}")
+                return False
+
+        try:
             from ib_insync import IB
             self.ib = IB()
+            logger.debug("agent_c_ibkr: IB client created successfully.")
             return True
         except Exception as e:
             logger.error(f"agent_c_ibkr: failed to initialize IB client: {e}")
@@ -236,7 +231,10 @@ class IBKRConnection:
             return False
 
     def _setup_callbacks(self) -> None:
-        """Bind IBKR Real-time Events (Safely)."""
+        """Bind IBKR Real-time Events. Must be called AFTER the event loop is running
+        and AFTER _ensure_ib_client() has succeeded."""
+        if self._callbacks_registered:
+            return  # Idempotent guard — don't double-register
         if not self._ensure_ib_client():
             return
 
@@ -256,14 +254,19 @@ class IBKRConnection:
             except AttributeError:
                 logger.debug(f"IBKRConnection: Event '{event_name}' not available on client.")
 
+        self._callbacks_registered = True
+        logger.debug("IBKRConnection: Event callbacks registered.")
         # Note: ib_insync handles account subscriptions automatically on connect.
         # Manual reqAccountSummary is not required and causes argument errors.
 
     @property
     def is_connected(self) -> bool:
-        if not self._ensure_ib_client():
+        if self.ib is None:
             return False
-        return self.ib.isConnected()
+        try:
+            return self.ib.isConnected()
+        except Exception:
+            return False
 
     def _on_error(self, reqId: int, errorCode: int, errorString: str, contract: Any) -> None:
         if BrokerErrorProtocol.is_critical(errorCode):
@@ -461,6 +464,11 @@ class IBKRConnection:
         if not self.is_connected and not self.is_reconnecting:
             logger.warning("IBKR: Connection offline. Requesting infrastructure heal...")
             return False
+
+        # Register callbacks now that we're inside the running event loop
+        # (safe to call multiple times — idempotent guard inside _setup_callbacks)
+        if not self._callbacks_registered:
+            self._setup_callbacks()
 
         if self.is_connected and not self._recovered_orders:
             asyncio.create_task(self.recover_orphaned_orders())
@@ -675,7 +683,11 @@ class IBKRConnection:
             logger.error(f"IBKR: Offline. Cannot place bracket order for {symbol}.")
             return []
 
-        async with self._lock:  # Ensure serial access to IB client socket
+        # Ensure lock exists (lazy-initialized inside async context)
+        if self._lock is None:
+            self._ensure_ib_client()
+        _lock = self._lock or asyncio.Lock()
+        async with _lock:  # Ensure serial access to IB client socket
             try:
                 # Use cached contract if available (Neural Warmup)
                 from ib_insync import LimitOrder, Stock, StopLimitOrder
@@ -841,7 +853,11 @@ class IBKRConnection:
             logger.error(f"IBKR: Offline. Cannot place Single order for {symbol}.")
             return None
 
-        async with self._lock:  # Ensure serial access to IB client socket
+        # Ensure lock exists (lazy-initialized inside async context)
+        if self._lock is None:
+            self._ensure_ib_client()
+        _lock = self._lock or asyncio.Lock()
+        async with _lock:  # Ensure serial access to IB client socket
             self._persist_execution(
                 symbol,
                 "SINGLE",
