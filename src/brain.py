@@ -69,7 +69,6 @@ from agent_d import (
 )
 from agent_e import CorrelationGuard
 from agent_h_skeptic import SkepticAgent
-from shadow_sim import GhostShadowSim
 from config import (
     FORCED_PAPER_MODE,
     IBKR_MAX_TRADES_PER_DAY,
@@ -96,6 +95,7 @@ from portfolio_analyzer import PORTFOLIO_ANALYZER
 from quant_signals import QuantConsensus
 from questdb_adapter import QuestDBAdapter
 from session_restorer import SessionRestorer
+from shadow_sim import GhostShadowSim
 from sovereign_decision_engine import SovereignDecisionEngine
 from sovereign_task import TaskManager
 from swarm_predictor import SwarmPredictor
@@ -1873,7 +1873,7 @@ class TradingBrain:
             # Guard: skip entropy check if no symbols were successfully scanned to avoid false flushes.
             scanned_count = stats["scanned"]
             signal_density = stats["detected"] / scanned_count if scanned_count > 0 else 0.0
-            
+
             # Use a time-based cooldown (max 1 flush per 60 seconds) to prevent log spam
             now = time.monotonic()
             if signal_density > 0.8:

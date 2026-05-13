@@ -15,12 +15,11 @@ Usage:
 """
 from __future__ import annotations
 
-import time
-
 import json
 import logging
 import sqlite3
 import threading
+import time
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path

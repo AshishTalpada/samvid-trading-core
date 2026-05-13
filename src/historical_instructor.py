@@ -1,4 +1,5 @@
 import logging
+from dataclasses import dataclass, field
 
 from backtest_engine import run_phase1_validation
 from quant_signals import QuantConsensus
@@ -31,7 +32,6 @@ class HistoricalInstructor:
 
 
 # ── LOCAL-ONLY MODULE CONSTANTS ─────────────────────────────────────────
-@dataclass
 
 # ── LOCAL-ONLY SOVEREIGN EXTENSIONS ─────────────────────────────────────
 
