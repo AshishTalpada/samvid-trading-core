@@ -119,8 +119,8 @@ class ChromaDeepMemory:
         if ChromaDeepMemory._client_instance is None:
             try:
                 if platform.system() == "Windows":
-                    logger.warning(
-                        "Windows detected: using Ephemeral Chroma client to avoid sqlite backend instability."
+                    logger.info(
+                        "Windows detected: using Ephemeral Chroma client (sqlite backend disabled for stability)."
                     )
                     ChromaDeepMemory._client_instance = chromadb.EphemeralClient(
                         settings=Settings(allow_reset=True, anonymized_telemetry=False)
