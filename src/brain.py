@@ -2761,7 +2761,7 @@ class TradingBrain:
                 try:
                     df = await asyncio.wait_for(
                         asyncio.to_thread(pd.read_sql_query, query, self.db_conn, params=[symbol]),
-                        timeout=10.0,
+                        timeout=30.0,
                     )
                 except (asyncio.TimeoutError, TimeoutError):
                     logger.warning(f"SQLite timeout for {symbol} after 15s — skipping symbol")
