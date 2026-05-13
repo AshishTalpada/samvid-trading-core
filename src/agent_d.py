@@ -1241,6 +1241,21 @@ class LiveLearningEngine:
         )
     """
 
+    def _connect(self) -> _sqlite3.Connection:
+        """Create a SQLite connection with retry support for locked databases."""
+        for attempt in range(1, 6):
+            try:
+                conn = _sqlite3.connect(self.db_path, timeout=60)
+                conn.execute("PRAGMA journal_mode=WAL;")
+                conn.execute("PRAGMA busy_timeout = 60000;")
+                return conn
+            except _sqlite3.OperationalError as e:
+                if "database is locked" in str(e).lower():
+                    time.sleep(0.05 * attempt)
+                    continue
+                raise
+        raise _sqlite3.OperationalError("SQLite database is locked after 5 retry attempts")
+
     def __init__(
         self,
         db_path: str = "data/trading.db",
@@ -1265,9 +1280,7 @@ class LiveLearningEngine:
     def _ensure_table(self) -> None:
         """Create the agent_d_trades table if it doesn't exist."""
         try:
-            conn = _sqlite3.connect(self.db_path, timeout=60)
-            conn.execute("PRAGMA journal_mode=WAL;")
-            conn.execute("PRAGMA busy_timeout = 60000;")
+            conn = self._connect()
             conn.execute(self.TABLE_DDL)
 
             # Migration: Ensure trade_id column exists (Fix for Bug #40)
