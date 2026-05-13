@@ -1182,7 +1182,7 @@ class PositionSizingChain:
         # This prevents forced over-leverage on micro-accounts ($500 etc.)
         min_trade_value = balance * 0.02  # 2% of NAV = $10 on $500 account
         if (
-            step8_shares > 0
+            step8_shares >= 0
             and (step8_shares * price) < min_trade_value
             and price > 0
             and step7_final_risk > 0
