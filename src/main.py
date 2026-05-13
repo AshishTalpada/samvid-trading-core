@@ -56,7 +56,6 @@ if TYPE_CHECKING:
     from dms import DMSMonitor
 
 
-
 import safety
 from api_server import APIServer
 from config import (
@@ -103,7 +102,8 @@ class SovereignFormatter(logging.Formatter):
             if self._pattern:
                 msg = self._pattern.sub("[REDACTED]", msg)
 
-            # We detect this by checking if the handler being used is a StreamHandler to stdout/stderr
+            # We detect this by checking if the handler being used is a StreamHandler
+            # to stdout/stderr
             # But since format() doesn't know the handler, we rely on a cleaner check.
             # Modern Windows Terminals and File Handlers (with encoding='utf-8') handle emojis fine.
             return msg
@@ -271,7 +271,7 @@ class TradingSystem:
 
         # Component References (Lazy Init)
         self.db_conn: sqlite3.Connection | None = None
-        self.ibkr_client: 'IB' | None = None
+        self.ibkr_client: "IB" | None = None
         self.mt5_client: Any = None
         self.data_pipeline: DataPipeline | None = None
         self.dms: DMSMonitor | None = None
@@ -338,10 +338,12 @@ class TradingSystem:
 
                         if same_app:
                             logger.critical(
-                                f" CRITICAL: Duplicate Sovereign Instance Detected (PID: {old_pid})."
+                                f" CRITICAL: Duplicate Sovereign Instance Detected "
+                                f"(PID: {old_pid})."
                             )
                             logger.critical(
-                                "Multiple instances cause Telegram 409 Conflict and Broker Port locks."
+                                "Multiple instances cause Telegram 409 Conflict "
+                                "and Broker Port locks."
                             )
                             logger.critical(
                                 "Please kill the existing process before starting a new one."
@@ -351,7 +353,9 @@ class TradingSystem:
                         if "python" in proc_name:
                             logger.warning(
                                 f"Stale PID file detected for PID {old_pid}. "
-                                "Process exists but does not appear to be the current Sovereign instance. Overwriting PID file."
+                                "Process exists but does not appear to be the "
+                                "current Sovereign instance. "
+                                "Overwriting PID file."
                             )
                 except (ValueError, psutil.NoSuchProcess, psutil.AccessDenied):
                     pass  # Stale or invalid PID file
@@ -375,9 +379,12 @@ class TradingSystem:
             executable_found = await self.mind_system._tool_find_executable("ibkr")
             if not executable_found:
                 logger.error(
-                    " CRITICAL: IBKR/TWS Executable not found. Environment is NON-COMPLIANT. Stopping."
+                    " CRITICAL: IBKR/TWS Executable not found. "
+                    "Environment is NON-COMPLIANT. Stopping."
                 )
-                raise RuntimeError("Sovereign Initialization Failed: Missing Institutional Software")
+                raise RuntimeError(
+                    "Sovereign Initialization Failed: Missing Institutional Software"
+                )
         else:
             logger.info("Paper mode detected — skipping IBKR executable verification.")
         self.profiler.mark("SYSTEM_SCENT_CAPTURED")
@@ -422,7 +429,8 @@ class TradingSystem:
         self.profiler.mark("CACHE_WAKED")
 
         logger.info(
-            f" Matrix Progressive Init Complete in {self.profiler._marks.get('SYSTEM_SCENT_CAPTURED', 0) * 1000:.2f}ms"
+            " Matrix Progressive Init Complete in "
+            f"{self.profiler._marks.get('SYSTEM_SCENT_CAPTURED', 0) * 1000:.2f}ms"
         )
 
         # Launch health-Pulse Monitor
@@ -709,7 +717,7 @@ class TradingSystem:
         logger.info("✓ Basic schema created")
 
     async def _is_ibkr_process_active(self) -> bool:
-        """Sovereign Shield: Checks if IBKR software is already running to avoid redundant launches."""
+        """Sovereign Shield: Checks if IBKR software is already running."""
         for target in ["tws.exe", "ibgateway.exe"]:
             try:
                 # Use Windows tasklist (Pillar 6 optimized)
@@ -802,10 +810,9 @@ class TradingSystem:
                     for host in ["127.0.0.1", "localhost", "::1"]:
                         for port in ports_to_try:
                             try:
-                                logger.info(
-                                    f"Sovereign Probe: {host}:{port} (ID: {current_id})..."
-                                )
-                                # Lower timeout for the socket connection to 5s, but allow more for data sync
+                                logger.info(f"Sovereign Probe: {host}:{port} (ID: {current_id})...")
+                                # Lower timeout for the socket connection to 5s, but allow
+                                # more for data sync
                                 await asyncio.wait_for(
                                     client.connectAsync(
                                         host=host, port=port, clientId=current_id, timeout=10
@@ -1210,7 +1217,8 @@ class TradingSystem:
         msg_upper = message.upper()
         if not any(prefix.upper() in msg_upper for prefix in allowed_prefixes):
             logger.info(
-                f"Sterilization: Suppressing non-elite main notification (No allowed prefix found): {message[:50]}..."
+                "Sterilization: Suppressing non-elite main notification "
+                f"(No allowed prefix found): {message[:50]}..."
             )
             return False
 
@@ -1246,7 +1254,10 @@ class TradingSystem:
                     logger.info(" Telegram notification sent successfully.")
                     return True
                 else:
-                    logger.warning(f" Telegram notification failed with status {resp.status}. Message: {redacted_message[:50]}...")
+                    logger.warning(
+                        f" Telegram notification failed with status {resp.status}. "
+                        f"Message: {redacted_message[:50]}..."
+                    )
                     return False
         except Exception as e:
             logger.error(f" Telegram notification error: {e}", exc_info=True)
@@ -1351,7 +1362,8 @@ class TradingSystem:
                 if not self.mt5_server:
                     missing.append("MT5_SERVER")
                 logger.warning(
-                    f"MT5 Kill Switch ACTIVE: Skipping MetaTrader. Missing from Vault: {', '.join(missing)}"
+                    "MT5 Kill Switch ACTIVE: Skipping MetaTrader. "
+                    f"Missing from Vault: {', '.join(missing)}"
                 )
 
             logger.info("\n[4/10] Starting Trading Brain (Standby Mode)...")
@@ -1399,8 +1411,22 @@ class TradingSystem:
             ibkr_status = self._get_status_icon("ibkr")
             mt5_status = self._get_status_icon("mt5")
             dhatu_status = self._get_status_icon("dhatu")
-            obb_status = "🟢 ACTIVE" if (hasattr(self, "_openbb_provider") and self._openbb_provider and self._openbb_provider.is_available) else "🔴 OFFLINE"
-            slm_status = "🟢 VRAM LOADED" if (hasattr(self, "native_slm") and self.native_slm and self.native_slm.is_available) else "🔴 OFFLINE"
+            obb_status = (
+                "🟢 ACTIVE"
+                if (
+                    hasattr(self, "_openbb_provider")
+                    and self._openbb_provider
+                    and self._openbb_provider.is_available
+                )
+                else "🔴 OFFLINE"
+            )
+            slm_status = (
+                "🟢 VRAM LOADED"
+                if (
+                    hasattr(self, "native_slm") and self.native_slm and self.native_slm.is_available
+                )
+                else "🔴 OFFLINE"
+            )
 
             notification = (
                 f"⚡ <b>Sovereign Trading System Online</b>\n\n"
@@ -1412,7 +1438,8 @@ class TradingSystem:
                 f"<b>OpenBB Data:</b> {obb_status}\n"
                 f"<b>Native SLM:</b> {slm_status}\n"
                 f"───────────────────\n"
-                f"<b>Startup Latency:</b> {(datetime.now(timezone.utc) - start_time).total_seconds():.2f}s\n"
+                f"<b>Startup Latency:</b> "
+                f"{(datetime.now(timezone.utc) - start_time).total_seconds():.2f}s\n"
                 f"<i>{datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')} UTC</i>"
             )
 
@@ -1429,7 +1456,10 @@ class TradingSystem:
                         "mind.dialogue",
                         {
                             "sender": "architect",
-                            "content": "Sovereign Matrix awakening. Synchronizing global bus. Initializing diagnostic pre-flight checks.",
+                            "content": (
+                                "Sovereign Matrix awakening. Synchronizing global bus. "
+                                "Initializing diagnostic pre-flight checks."
+                            ),
                             "metadata": {"type": "STATUS"},
                         },
                     )
@@ -1438,7 +1468,10 @@ class TradingSystem:
                         "mind.dialogue",
                         {
                             "sender": "evolution",
-                            "content": "Consensus reached. Market regimes ready for classification. Standing by for tick stream alignment.",
+                            "content": (
+                                "Consensus reached. Market regimes ready for classification. "
+                                "Standing by for tick stream alignment."
+                            ),
                             "metadata": {"type": "STATUS"},
                         },
                     )
@@ -1467,7 +1500,8 @@ class TradingSystem:
                             if "locked" in str(e).lower() and attempt < 9:
                                 wait_time = 1.0 + (attempt * 0.5)
                                 logger.warning(
-                                    f" Sovereign: Database locked at startup pulse. Jittering {wait_time}s... (Attempt {attempt + 1}/10)"
+                                    " Sovereign: Database locked at startup pulse. "
+                                    f"Jittering {wait_time}s... (Attempt {attempt + 1}/10)"
                                 )
                                 await asyncio.sleep(wait_time)
                             else:
@@ -1572,7 +1606,8 @@ class TradingSystem:
                     drops = self.hft_streamer.dropped_ticks
                     if drops > 0:
                         logger.warning(
-                            f"Sovereign Monitor: {drops} ticks DROPPED during current session. Bus Saturation detected."
+                            f"Sovereign Monitor: {drops} ticks DROPPED during current "
+                            "session. Bus Saturation detected."
                         )
 
                 # Checkpoint every 5 minutes (300s) to protect against local crashes
@@ -1585,7 +1620,9 @@ class TradingSystem:
                             "positions": self.trading_brain.positions,
                             "peak_equity": self.trading_brain.ibkr_drawdown.peak_equity,
                             "loss_tracker": {
-                                "consecutive_losses": self.trading_brain.loss_tracker.consecutive_losses
+                                "consecutive_losses": (
+                                    self.trading_brain.loss_tracker.consecutive_losses
+                                )
                             },
                         }
                         await asyncio.to_thread(
@@ -1619,7 +1656,8 @@ class TradingSystem:
                     logger.info(f"Supervisor: Launching {name}...")
                     await coro_func()
                     logger.warning(
-                        f"Background task '{name}' finished unexpectedly without error. Restarting supervisor..."
+                        f"Background task '{name}' finished unexpectedly without error. "
+                        "Restarting supervisor..."
                     )
                     await asyncio.sleep(5.0)  # Grace period before restart
                     retries += 1
@@ -1631,7 +1669,8 @@ class TradingSystem:
                     retries += 1
                     delay = base_delay * (2 ** (retries - 1))
                     logger.error(
-                        f"Background task '{name}' crashed: {e} (Attempt {retries}/{max_retries}). Restarting in {delay}s...",
+                        f"Background task '{name}' crashed: {e} "
+                        f"(Attempt {retries}/{max_retries}). Restarting in {delay}s...",
                         exc_info=True,
                     )
                     try:
@@ -1657,7 +1696,11 @@ class TradingSystem:
             self._shutdown_lock = asyncio.Lock()
 
         async with self._shutdown_lock:
-            if not self.is_running and hasattr(self, "_shutdown_complete") and self._shutdown_complete:
+            if (
+                not self.is_running
+                and hasattr(self, "_shutdown_complete")
+                and self._shutdown_complete
+            ):
                 return
 
             self.is_running = False
@@ -1667,8 +1710,7 @@ class TradingSystem:
             if hasattr(self, "bus") and self.bus:
                 try:
                     await self.bus.publish(
-                        "system.status",
-                        {"state": "SHUTDOWN", "timestamp": time.time_ns()}
+                        "system.status", {"state": "SHUTDOWN", "timestamp": time.time_ns()}
                     )
                 except Exception:
                     pass
@@ -1696,7 +1738,9 @@ class TradingSystem:
                         if row[0] is not None:
                             daily_pnl += float(row[0])
                     cursor.close()
-                    logger.info(f"✓ Performance Tally: ${daily_pnl:+.2f} over {trades_today} trades.")
+                    logger.info(
+                        f"✓ Performance Tally: ${daily_pnl:+.2f} over {trades_today} trades."
+                    )
                 except Exception as e:
                     logger.error(f"Shutdown: Performance tally failed: {e}")
 
@@ -1805,7 +1849,9 @@ class TradingSystem:
             if self.ibkr_client and self.ibkr_client.isConnected():
                 try:
                     logger.info(" -> Disconnecting IBKR...")
-                    await asyncio.wait_for(asyncio.to_thread(self.ibkr_client.disconnect), timeout=5.0)
+                    await asyncio.wait_for(
+                        asyncio.to_thread(self.ibkr_client.disconnect), timeout=5.0
+                    )
                 except Exception as e:
                     logger.debug(f"IBKR disconnect error: {e}")
 
@@ -1813,6 +1859,7 @@ class TradingSystem:
                 try:
                     logger.info(" -> Disconnecting MT5...")
                     import MetaTrader5 as mt5
+
                     await asyncio.to_thread(mt5.shutdown)
                 except Exception as e:
                     logger.debug(f"MT5 shutdown error: {e}")
@@ -1865,6 +1912,7 @@ class TradingSystem:
             # PILLAR 13: FORCED TERMINATION
             # Ensures dangling background threads (Dhatu, Watchdogs) cannot re-awaken the matrix.
             import os
+
             os._exit(0)
 
         except Exception as e:
@@ -1876,7 +1924,8 @@ class TradingSystem:
             import psutil
         except ImportError:
             logger.warning(
-                " DEPENDENCY MISSING: 'psutil' not found. Watchdog verification DISABLED. (pip install psutil)"
+                " DEPENDENCY MISSING: 'psutil' not found. "
+                "Watchdog verification DISABLED. (pip install psutil)"
             )
             return
         pid_file = "data/watchdog.pid"
@@ -1898,9 +1947,7 @@ class TradingSystem:
                     os.remove(pid_file)
                     logger.info("Removed stale watchdog PID file.")
                 except Exception as remove_error:
-                    logger.warning(
-                        f"Failed to remove stale watchdog PID file: {remove_error}"
-                    )
+                    logger.warning(f"Failed to remove stale watchdog PID file: {remove_error}")
         except Exception as e:
             logger.error(f"Watchdog verification failed: {e}")
 
@@ -1919,7 +1966,8 @@ class TradingSystem:
                 # If we haven't seen a tick in 5 minutes, we are likely 'Blinded'
                 if drift > 300 and not self._recalibration_in_progress:
                     logger.warning(
-                        f"Watchdog: Data Starvation Detected (Drift: {drift:.2f}s). Initiating Autonomous Recovery..."
+                        f"Watchdog: Data Starvation Detected (Drift: {drift:.2f}s). "
+                        "Initiating Autonomous Recovery..."
                     )
 
                 if hasattr(self, "mt5_client") and self.mt5_client:
@@ -1928,18 +1976,22 @@ class TradingSystem:
                         if info is None or not info.connected:
                             self._mt5_failure_count += 1
                             logger.warning(
-                                f"Watchdog: MT5 Terminal Heartbeat LOST ({self._mt5_failure_count}/3). Attempting Reconnect..."
+                                f"Watchdog: MT5 Terminal Heartbeat LOST "
+                                f"({self._mt5_failure_count}/3). "
+                                "Attempting Reconnect..."
                             )
                             if self._mt5_failure_count >= 3:
                                 logger.error(
-                                    "Watchdog: MT5 Persistent Failure detected. Initiating Sovereign Resource Flush..."
+                                    "Watchdog: MT5 Persistent Failure detected. "
+                                    "Initiating Sovereign Resource Flush..."
                                 )
                                 self._recalibration_in_progress = True
                                 try:
                                     if hasattr(self, "mind_system") and self.mind_system:
                                         await self.mind_system._tool_sovereign_flush()
                                         logger.info(
-                                            "Watchdog: Sovereign Recovery Complete. Matrix state re-synchronized."
+                                            "Watchdog: Sovereign Recovery Complete. "
+                                            "Matrix state re-synchronized."
                                         )
                                         self._mt5_failure_count = 0  # Reset after flush
                                 finally:
@@ -1998,7 +2050,8 @@ class TradingSystem:
                 cpu = psutil.cpu_percent()
                 ram = psutil.virtual_memory().percent
                 logger.info(
-                    f" METRICS: CPU: {cpu}% | RAM: {ram}% | State: {self.trading_brain.state.name if hasattr(self, 'trading_brain') else 'INIT'}"
+                    f" METRICS: CPU: {cpu}% | RAM: {ram}% | State: "
+                    f"{self.trading_brain.state.name if hasattr(self, 'trading_brain') else 'INIT'}"
                 )
 
                 # Log to QuestDB if available
@@ -2060,7 +2113,8 @@ class TradingSystem:
                         ram_pct = psutil.virtual_memory().percent
                         if ram_pct > 75.0:
                             logger.warning(
-                                f"Sentinel: RAM at {ram_pct:.1f}% is TOO HIGH for deep training. Postponing cycle."
+                                f"Sentinel: RAM at {ram_pct:.1f}% is TOO HIGH for deep training. "
+                                "Postponing cycle."
                             )
                             return True
 
@@ -2071,7 +2125,8 @@ class TradingSystem:
                                 script_name in arg for arg in proc.info["cmdline"]
                             ):
                                 logger.warning(
-                                    f"Sentinel: {script_name} is already alive (PID {proc.info['pid']}). Aborting new spawn."
+                                    f"Sentinel: {script_name} is already alive "
+                                    f"(PID {proc.info['pid']}). Aborting new spawn."
                                 )
                                 return True
 
@@ -2106,9 +2161,10 @@ class TradingSystem:
             "║" + "    THE SOVEREIGN SINGULARITY MATRIX  ".center(78) + "║\n"
             "╠" + "═" * 78 + "╣\n"
             "║"
-            + f"  STATUS:   ACTIVE  |  MODE:     {self.mode.upper().center(10)}  |  TICK:  100Hz (0.01s)  ".center(
-                78
-            )
+            + (
+                f"  STATUS:   ACTIVE  |  MODE:     {self.mode.upper().center(10)}  |  "
+                "TICK:  100Hz (0.01s)  "
+            ).center(78)
             + "║\n"
             "╠" + "═" * 38 + "╦" + "═" * 39 + "╣\n"
             "║  COGNITIVE MINDS (A-M) Status        ║  SYSTEM INFRASTRUCTURE Diagnostics    ║\n"

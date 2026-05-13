@@ -217,7 +217,9 @@ class TradingCoordinator:
                     self.brain.dms.record_heartbeat("COORDINATOR")
 
                 timestamp = time.time_ns()
-                account_value = await self.brain.get_safe_buying_power(self.brain.active_broker.lower())
+                account_value = await self.brain.get_safe_buying_power(
+                    self.brain.active_broker.lower()
+                )
                 pattern = proposal["pattern"]
 
                 alpha_val = proposal.get("lambda", pattern.confidence / 100.0)
@@ -249,9 +251,12 @@ class TradingCoordinator:
                     )
                     if self.brain.active_broker.upper() == "MT5":
                         risk_per_trade = getattr(self.brain, "mt5_risk_per_trade", 10.0)
-                        shares = self.brain.mt5_sizer.calculate_lots(
-                            risk_per_trade, pattern.entry, pattern.stop, symbol
-                        ) or 0.0
+                        shares = (
+                            self.brain.mt5_sizer.calculate_lots(
+                                risk_per_trade, pattern.entry, pattern.stop, symbol
+                            )
+                            or 0.0
+                        )
                         pos_value = shares * 100000.0  # Synthetic estimate for Forex tracking
                     else:
                         sizing = self.brain.ibkr_sizer.calculate(
@@ -687,16 +692,35 @@ class TradingCoordinator:
                     deterministic_deny = any(
                         v["vote"] == "NO"
                         for v in vote_registry.values()
-                        if v.get("agent") in ["Agent_B", "Agent_C", "Risk_Guard", "Agent_E", "Agent_F", "Agent_G"]
+                        if v.get("agent")
+                        in ["Agent_B", "Agent_C", "Risk_Guard", "Agent_E", "Agent_F", "Agent_G"]
                     )
                     if deterministic_deny and not is_probe:
                         logger.warning(
                             f"Coordinator [{proposal_id}]  EARLY EXIT: Tier 1 agents rejected. Standing down."
                         )
                         dummy_tail = [
-                            {"agent": "Dhatu_Oracle", "vote": "NO", "confidence": 0.0, "reason": "Skipped", "timestamp": timestamp},
-                            {"agent": "Swarm_Predictor", "vote": "NO", "confidence": 0.0, "reason": "Skipped", "timestamp": timestamp},
-                            {"agent": "Mind_Ultrathink", "vote": "NO", "confidence": 0.0, "reason": "Skipped", "timestamp": timestamp},
+                            {
+                                "agent": "Dhatu_Oracle",
+                                "vote": "NO",
+                                "confidence": 0.0,
+                                "reason": "Skipped",
+                                "timestamp": timestamp,
+                            },
+                            {
+                                "agent": "Swarm_Predictor",
+                                "vote": "NO",
+                                "confidence": 0.0,
+                                "reason": "Skipped",
+                                "timestamp": timestamp,
+                            },
+                            {
+                                "agent": "Mind_Ultrathink",
+                                "vote": "NO",
+                                "confidence": 0.0,
+                                "reason": "Skipped",
+                                "timestamp": timestamp,
+                            },
                         ]
                         for res in dummy_tail:
                             vote_registry[res["agent"]] = res
@@ -749,7 +773,11 @@ class TradingCoordinator:
                             if state_ts and not should_call:
                                 # Handle both string and numeric timestamps
                                 if isinstance(state_ts, (int, float)):
-                                    _sec = state_ts / 1e9 if state_ts > 1e16 else (state_ts / 1e3 if state_ts > 1e11 else state_ts)
+                                    _sec = (
+                                        state_ts / 1e9
+                                        if state_ts > 1e16
+                                        else (state_ts / 1e3 if state_ts > 1e11 else state_ts)
+                                    )
                                     ts = datetime.fromtimestamp(_sec, tz=timezone.utc)
                                 else:
                                     ts = dtparser.parse(state_ts)
@@ -876,7 +904,9 @@ class TradingCoordinator:
                 # --- DECISION LEDGER: record the full quorum for the execution decision ---
                 try:
                     ledger_votes = {
-                        v.get("agent", "Unknown"): f"{v.get('vote')} ({int(v.get('confidence', 0)*100)}%) - {v.get('reason', '')}"
+                        v.get(
+                            "agent", "Unknown"
+                        ): f"{v.get('vote')} ({int(v.get('confidence', 0) * 100)}%) - {v.get('reason', '')}"
                         for v in all_votes
                     }
                     LEDGER.record_entry(
@@ -1011,9 +1041,7 @@ class TradingCoordinator:
                     f"Coordinator [{proposal_id}]  VETO: {symbol} rejected by decision engine. Reason: {reason}"
                 )
 
-                await send_telegram_alert(
-                    f" *VETO: {symbol}*\nReason: {reason}\nID: {proposal_id}"
-                )
+                await send_telegram_alert(f" *VETO: {symbol}*\nReason: {reason}\nID: {proposal_id}")
 
                 # Log the rejected proposal as a 'Shadow Trade' for post-mortem calibration.
                 try:
