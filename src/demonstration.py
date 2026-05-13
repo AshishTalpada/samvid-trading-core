@@ -27,7 +27,7 @@ async def typewriter_print(text, delay=0.02, color=Colors.END):
 
 async def run_demonstration():
     print(
-        f"\n{Colors.BOLD}{Colors.CYAN}🚀 SAMVID TRADING CORE: SOVEREIGN DEMONSTRATION{Colors.END}"
+        f"\n{Colors.BOLD}{Colors.CYAN} SAMVID TRADING CORE: SOVEREIGN DEMONSTRATION{Colors.END}"
     )
     print(f"{Colors.BLUE}Version: v1.0-beta | Release: 2026-04-28{Colors.END}")
     print("=" * 60)
@@ -68,7 +68,7 @@ async def run_demonstration():
         await asyncio.sleep(0.8)
         confidence = random.uniform(75, 92)
         print(
-            f"    {Colors.CYAN}🎯 DISCOVERY:{Colors.END} {sym} matched {Colors.BOLD}BULL_FLAG{Colors.END} ({confidence:.1f}%)"
+            f"    {Colors.CYAN} DISCOVERY:{Colors.END} {sym} matched {Colors.BOLD}BULL_FLAG{Colors.END} ({confidence:.1f}%)"
         )
 
     await asyncio.sleep(1)
@@ -95,7 +95,7 @@ async def run_demonstration():
         )
 
     await asyncio.sleep(1)
-    print(f"\n{Colors.BOLD}{Colors.YELLOW}⚖️ CONSENSUS REACHED: 100% APPROVAL{Colors.END}")
+    print(f"\n{Colors.BOLD}{Colors.YELLOW} CONSENSUS REACHED: 100% APPROVAL{Colors.END}")
     print(f"{Colors.GREEN}ACTION: EXECUTING LIMIT ORDER FOR {target} @ MARKET...{Colors.END}")
 
     await asyncio.sleep(1.5)

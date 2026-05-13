@@ -29,7 +29,7 @@ class NativeLibrary:
             for path in possible_paths:
                 if path.exists():
                     self._lib = ctypes.CDLL(str(path.absolute()))
-                    logger.info(f"✅ Native library loaded from {path}")
+                    logger.info(f" Native library loaded from {path}")
 
                     # Define argument/return types for safety core
                     if hasattr(self._lib, 'set_global_halt'):

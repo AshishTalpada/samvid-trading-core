@@ -346,13 +346,13 @@ def aggregate_results(results: list[WalkForwardResult]) -> dict:
     )
 
     verdict = (
-        "❌ NO EDGE"
+        " NO EDGE"
         if sharpe < 0.5
-        else "⚠️ WEAK EDGE"
+        else " WEAK EDGE"
         if sharpe < 1.0
-        else "✅ DEPLOYABLE EDGE"
+        else " DEPLOYABLE EDGE"
         if sharpe < 1.5
-        else "🚀 STRONG EDGE"
+        else " STRONG EDGE"
     )
 
     result = {
@@ -393,12 +393,12 @@ async def run_phase1_validation(
     async def run_one(symbol):
         # Slightly stagger start times to prevent absolute simultaneous DB hits
         await asyncio.sleep(np.random.uniform(0.1, 0.5))
-        print(f"▶ Starting walk-forward for {symbol}...")
+        print(f" Starting walk-forward for {symbol}...")
         engine = WalkForwardEngine(db_path=db_path, initial_capital=capital)
         windows = await engine.run(symbol)
 
         if not windows:
-            print(f"  ⚠ {symbol}: Not enough data in DB.")
+            print(f"   {symbol}: Not enough data in DB.")
             return symbol, None
 
         stats = aggregate_results(windows)
@@ -428,16 +428,16 @@ async def run_phase1_validation(
         print(f"  Statistically significant symbols: {sig_count}/{len(all_symbol_results)}")
 
         if avg_sharpe >= 1.0 and sig_count >= (len(all_symbol_results) // 2 + 1):
-            print("\n  ✅ PHASE 1 PASSED — Edge is real. Proceed to Phase 2 (Live Paper Trading).")
+            print("\n   PHASE 1 PASSED — Edge is real. Proceed to Phase 2 (Live Paper Trading).")
             return True
         elif avg_sharpe >= 0.5:
-            print("\n  ⚠️  EDGE EXISTS BUT WEAK — Tune signal weights before live deployment.")
+            print("\n    EDGE EXISTS BUT WEAK — Tune signal weights before live deployment.")
             return False
         else:
-            print("\n  ❌ NO SIGNIFICANT EDGE — Do not deploy live capital.")
+            print("\n   NO SIGNIFICANT EDGE — Do not deploy live capital.")
             return False
     else:
-        print("\n  ❌ CRITICAL: No results generated. Check database integrity.")
+        print("\n   CRITICAL: No results generated. Check database integrity.")
         return False
     print("=" * 65 + "\n")
 

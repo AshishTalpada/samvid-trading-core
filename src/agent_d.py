@@ -95,7 +95,7 @@ class LiveRecursiveEvolution:
             count += 1
 
         logging.info(
-            f"🏛️ Evolution: Stable Rewire for '{pattern_name}'. Impact: {multiplier:.4f}x (Alpha: {alpha:.4f}, n={n_count})."
+            f" Evolution: Stable Rewire for '{pattern_name}'. Impact: {multiplier:.4f}x (Alpha: {alpha:.4f}, n={n_count})."
         )
 
 
@@ -1409,7 +1409,7 @@ class LiveLearningEngine:
         # Run gate + calibration (using RAM-lean helper)
         result = run_after_trade(trade, self._n_trades, self._n_wins, list(self._recent_trades))
         _lld_logger.info(
-            f"🧠 [Agent D Learning]: n={n} rating={result['data_rating']} "
+            f" [Agent D Learning]: n={n} rating={result['data_rating']} "
             f"entropy={result['entropy_level']} matrix={result['matrix_active']}"
         )
 
@@ -1453,7 +1453,7 @@ class LiveLearningEngine:
         if self._matrix.activated and not is_dirty:
             await _asyncio.to_thread(self._matrix.save_priors)
             _lld_logger.info(
-                f"🧠 [Agent D Evolution]: Trade #{n} integrated. System Wisdom permanently anchored."
+                f" [Agent D Evolution]: Trade #{n} integrated. System Wisdom permanently anchored."
             )
 
     async def _publish_calibration(self) -> None:
@@ -1530,11 +1530,11 @@ class LiveLearningEngine:
                 if self.dms:
                     self.dms.record_heartbeat("AGENT_D")
 
-                # --- 🪞 DEEP REFLECTION PULSE ---
+                # ---  DEEP REFLECTION PULSE ---
                 now = time.time()
                 if (now - last_dream_at) > DREAM_INTERVAL and self._n_trades >= 5:
                     _lld_logger.info(
-                        "🧠 [Agent D]: Initiating Sovereign Dream (Deep Reflection)..."
+                        " [Agent D]: Initiating Sovereign Dream (Deep Reflection)..."
                     )
                     await self._deep_reflection()
                     last_dream_at = now
@@ -1543,7 +1543,7 @@ class LiveLearningEngine:
                 try:
                     payload = await _asyncio.wait_for(q.get(), timeout=60.0)
                     _lld_logger.info(
-                        "🧠 INTELLIGENCE: New trade outcome received. Evolving Matrix..."
+                        " INTELLIGENCE: New trade outcome received. Evolving Matrix..."
                     )
                     await self._handle_trade_exit(payload)
                 except (_asyncio.TimeoutError, TimeoutError):
@@ -1587,7 +1587,7 @@ class LiveLearningEngine:
             # 3. SELF-CORRECTION (RE-WIRE IF DECAYING)
             if entropy == "HIGH ENTROPY":
                 _lld_logger.warning(
-                    "🚨 [Agent D]: HIGH ENTROPY DETECTED. Forcing Emergency Weight Anchoring."
+                    " [Agent D]: HIGH ENTROPY DETECTED. Forcing Emergency Weight Anchoring."
                 )
                 # Reset Bayesian Alpha to be more aggressive for recovery
                 if self.evolution_engine:
@@ -1597,7 +1597,7 @@ class LiveLearningEngine:
             # Persist the Dream result
             save_path = Path("data/wisdom.json")
             save_path.write_text(json.dumps(wisdom, indent=4))
-            _lld_logger.info("🏛️ [Agent D]: Sovereign Dream finalized. Wisdom consolidated.")
+            _lld_logger.info(" [Agent D]: Sovereign Dream finalized. Wisdom consolidated.")
 
         except Exception as e:
             _lld_logger.error(f"Sovereign Dream failed: {e}")

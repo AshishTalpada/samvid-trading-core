@@ -571,7 +571,7 @@ class NewsHarvester:
                                     if distilled["impact"] > 0.6:
                                         self.status_summary = f"Synthesizing {h[:15]}..."
                                         logger.info(
-                                            f"📰 HIGH IMPACT: {h} (Sentiment Shift: {distilled['sentiment']})"
+                                            f" HIGH IMPACT: {h} (Sentiment Shift: {distilled['sentiment']})"
                                         )
 
                                     if self.bus:
@@ -601,7 +601,7 @@ class NewsHarvester:
                     await asyncio.sleep(60)  # Poll every minute
 
                 except Exception as e:
-                    logger.error(f"🚨 NewsHarvester: Neural Hub failure: {e}")
+                    logger.error(f" NewsHarvester: Neural Hub failure: {e}")
                     await asyncio.sleep(60)
 
 
@@ -714,7 +714,7 @@ class TVNewsScent:
                                         source = item.get("source", "UNKNOWN")
 
                                         if headline:
-                                            logger.info(f"📰 TV_SCENT: [{source}] {headline}")
+                                            logger.info(f" TV_SCENT: [{source}] {headline}")
                                             # Broadcast to the machine's nervous system
                                             if self.bus:
                                                 await self.bus.publish(
@@ -729,7 +729,7 @@ class TVNewsScent:
                                                     },
                                                 )
             except Exception as e:
-                logger.error(f"⚠️ TVNewsScent: Neural Scent blip (Check Origin/Proxy): {e}")
+                logger.error(f" TVNewsScent: Neural Scent blip (Check Origin/Proxy): {e}")
 
             # Replaces the unstable fixed sleep inside the except block.
             await asyncio.sleep(15)
@@ -828,7 +828,7 @@ class DhatuOracle:
         h_up = h_raw.upper()
         h = h_raw
         if any(f in h_up for f in self._forbidden_neural):
-            logger.warning(f"🛡️ DHATU INJECTION SHIELD: Redacted malicious news headline from {s}")
+            logger.warning(f" DHATU INJECTION SHIELD: Redacted malicious news headline from {s}")
             h = f"[REDACTED_INJECTION] {h_raw[:20]}..."
             h_up = h.upper()
 
@@ -845,7 +845,7 @@ class DhatuOracle:
                 now = time.time()
                 # 5-minute cooldown between flashes to prevent LLM/Budget burnout
                 if not is_negated and (now - self._last_flash_time > 300):
-                    logger.warning(f"🏛️ DHATU FLASH TRIGGER: critical news detected: '{h}'")
+                    logger.warning(f" DHATU FLASH TRIGGER: critical news detected: '{h}'")
                     self._last_flash_time = now
                     self._flash_event.set()
 
@@ -1083,7 +1083,7 @@ class DhatuOracle:
                             },
                         )
                         await send_telegram_alert(
-                            f"❄️ *ORACLE FREEZE: {state.dhatu_state}*\n"
+                            f" *ORACLE FREEZE: {state.dhatu_state}*\n"
                             f"Reason: {state.causation_summary}"
                         )
                         logger.warning(f"DhatuOracle: FREEZE published — {state.dhatu_state}")
@@ -1107,7 +1107,7 @@ class DhatuOracle:
                     )
                     # Notify User of Regime Shift
                     await send_telegram_alert(
-                        f"🏛️ *REGIME UPDATE: {state.dhatu_state}*\n"
+                        f" *REGIME UPDATE: {state.dhatu_state}*\n"
                         f"Action: {state.action_protocol}\n"
                         f"Risk Multiplier: {state.risk_modifier:.2f}\n"
                         f"Summary: {state.causation_summary[:200]}..."
@@ -1172,7 +1172,7 @@ class DhatuOracle:
                 for item in [news[i] for i in range(min(2, len(news)))]:
                     title = item.get("title", "")
                     if title:
-                        logger.info(f"📰 YF_ORACLE: [{name}] {title}")
+                        logger.info(f" YF_ORACLE: [{name}] {title}")
                         snippets.append(f"NEWS [{name}]: {title}")
 
             del ticker

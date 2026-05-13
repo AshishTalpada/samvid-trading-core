@@ -67,7 +67,7 @@ class DeadLetterQueue:
         try:
             self._queue.put_nowait(order)
             logger.warning(
-                f"DLQ: ⚠ Order queued for retry — {direction} {shares}x {symbol} "
+                f"DLQ:  Order queued for retry — {direction} {shares}x {symbol} "
                 f"@ ${price:.2f} | Reason: {reason}"
             )
         except asyncio.QueueFull:
@@ -98,7 +98,7 @@ class DeadLetterQueue:
             if success:
                 self._retry_count += 1
                 logger.info(
-                    f"DLQ: ✅ Retry #{order.attempt} SUCCESS — "
+                    f"DLQ:  Retry #{order.attempt} SUCCESS — "
                     f"{order.direction} {order.shares}x {order.symbol}"
                 )
             elif order.attempt >= order.max_attempts:
@@ -120,7 +120,7 @@ class DeadLetterQueue:
             f"DLQ ESCALATION: {order.direction} {order.shares}x {order.symbol} "
             f"@ ${order.price:.2f} — {reason}"
         )
-        logger.critical(f"🚨 {full_reason}")
+        logger.critical(f" {full_reason}")
 
         # Halt trading to prevent further capital risk
         try:
@@ -168,7 +168,7 @@ class ApexExoskeleton:
 
         if price_delta < 0.0005 and age < 60:
             logger.info(
-                f"Apex Exoskeleton: 🧠 CORTEX HIT for {symbol}. Price stable ({price_delta:.4%})."
+                f"Apex Exoskeleton:  CORTEX HIT for {symbol}. Price stable ({price_delta:.4%})."
             )
 
             if hasattr(self.brain, "bus"):
@@ -223,7 +223,7 @@ class ApexExoskeleton:
 
                 if learned_wr is not None and isinstance(learned_wr, float) and learned_wr < 0.40:
                     vote["vote"] = "NO"
-                    vote["reason"] = f"🛑 IMPERIAL VETO: Internal WR too low ({learned_wr:.2%})"
+                    vote["reason"] = f" IMPERIAL VETO: Internal WR too low ({learned_wr:.2%})"
 
                     if hasattr(self.brain, "bus"):
                         await self.brain.bus.publish(
@@ -259,7 +259,7 @@ class ApexExoskeleton:
                     "confidence": 1.0 if is_valid else 0.0,
                     "reason": "Syntax Verified"
                     if is_valid
-                    else f"🚨 SYNTAX ERROR: {res.get('summary', 'Unknown Fracture')}",
+                    else f" SYNTAX ERROR: {res.get('summary', 'Unknown Fracture')}",
                     "timestamp": time.time_ns(),
                 }
             except Exception as e:
@@ -320,7 +320,7 @@ class ApexExoskeleton:
             and agent_d_res.get("confidence", 0) >= 0.99
         ):
             logger.info(
-                f"Apex Exoskeleton: 👑 EMERGENCY DICTATORSHIP TRIGGERED by Agent D ({agent_d_res['confidence']:.2%})."
+                f"Apex Exoskeleton:  EMERGENCY DICTATORSHIP TRIGGERED by Agent D ({agent_d_res['confidence']:.2%})."
             )
 
             # Synthetic Signal Generation for GPU agents
@@ -385,7 +385,7 @@ class CorrelationWatchdog:
 
         if correlation < self.decay_threshold:
             logger.warning(
-                f"🚨 CORRELATION DECAY: {symbol} decoupled from sector (Corr: {correlation:.2f})."
+                f" CORRELATION DECAY: {symbol} decoupled from sector (Corr: {correlation:.2f})."
             )
             return False
         return True

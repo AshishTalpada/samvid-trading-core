@@ -7,7 +7,7 @@ sys.path.append(str(Path(__file__).parent))
 try:
     from vault import Vault
 except ImportError:
-    print("❌ Error: Could not find vault.py.")
+    print(" Error: Could not find vault.py.")
     sys.exit(1)
 
 import getpass
@@ -20,14 +20,14 @@ def check_vault_service():
 
     backend = keyring.get_keyring()
     if "fail" in str(backend).lower():
-        print("❌ CRITICAL: No secure keyring backend found. Secrets cannot be stored safely.")
+        print(" CRITICAL: No secure keyring backend found. Secrets cannot be stored safely.")
         sys.exit(1)
     print(f"✓ Keyring service detected: {type(backend).__name__}")
 
 
 def initialize_vault():
     check_vault_service()
-    print("\n🛡️  SOVEREIGN VAULT INITIALIZATION (Hardened)")
+    print("\n  SOVEREIGN VAULT INITIALIZATION (Hardened)")
     print("-" * 50)
 
     # Essential keys without default values to avoid leaks
@@ -65,10 +65,10 @@ def initialize_vault():
                         for k, v in data.items():
                             Vault.set(k, v)
                             print(f"✓ Batch set: {k}")
-                    print("✅ Batch initialization complete.")
+                    print(" Batch initialization complete.")
                     return
                 except Exception as e:
-                    print(f"❌ Batch error: {e}")
+                    print(f" Batch error: {e}")
                     sys.exit(1)
 
     # Interactive Mode
@@ -86,13 +86,13 @@ def initialize_vault():
         val = getpass.getpass(f"{prompt}: ").strip()
         if val:
             Vault.set(key, val)
-            print(f"✅ '{key}' updated.")
+            print(f" '{key}' updated.")
         else:
             if not existing:
-                print(f"⚠️  Warning: '{key}' remains uninitialized.")
+                print(f"  Warning: '{key}' remains uninitialized.")
 
     print("-" * 50)
-    print("✅ Vault Initialization Complete.")
+    print(" Vault Initialization Complete.")
 
 
 if __name__ == "__main__":

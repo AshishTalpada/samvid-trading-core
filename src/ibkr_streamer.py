@@ -285,14 +285,14 @@ class IBKRStreamer:
             if bid > 0 and ask > 0:
                 if bid > ask:
                     logger.warning(
-                        f"⚠️ HALLUCINATION VETO: {symbol} Bid (${bid}) > Ask (${ask}). Broken broker state. Skipping."
+                        f" HALLUCINATION VETO: {symbol} Bid (${bid}) > Ask (${ask}). Broken broker state. Skipping."
                     )
                     continue
 
                 spread_pct = (ask - bid) / bid
                 if spread_pct > 0.05:
                     logger.warning(
-                        f"⚠️ LIQUIDITY VETO: {symbol} spread too wide ({spread_pct:.1%}). Hallucination rejected."
+                        f" LIQUIDITY VETO: {symbol} spread too wide ({spread_pct:.1%}). Hallucination rejected."
                     )
                     continue
 

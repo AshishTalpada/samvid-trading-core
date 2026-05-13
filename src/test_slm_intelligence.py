@@ -14,17 +14,17 @@ logger = logging.getLogger("SLM_Test")
 
 async def test_scenarios():
     print("\n" + "=" * 50)
-    print("🚀 SOVEREIGN SLM INTELLIGENCE AUDIT")
+    print(" SOVEREIGN SLM INTELLIGENCE AUDIT")
     print("=" * 50)
 
     slm = NativeSLM()
     if not slm.is_available:
-        print("❌ Error: SLM not available.")
+        print(" Error: SLM not available.")
         return
 
     scenarios = [
         {
-            "name": "🔥 SCENARIO 1: AGGRESSIVE BULLISH (The Vriddhi State)",
+            "name": " SCENARIO 1: AGGRESSIVE BULLISH (The Vriddhi State)",
             "context": {
                 "symbol": "BTCUSD",
                 "regime": "Strong Uptrend",
@@ -36,7 +36,7 @@ async def test_scenarios():
             },
         },
         {
-            "name": "❄️ SCENARIO 2: BEARISH DECAY (The Kshaya State)",
+            "name": " SCENARIO 2: BEARISH DECAY (The Kshaya State)",
             "context": {
                 "symbol": "SPY",
                 "regime": "Distribution / Downtrend",
@@ -48,7 +48,7 @@ async def test_scenarios():
             },
         },
         {
-            "name": "🚧 SCENARIO 3: CONTRADICTION VETO (Bullish Pattern in Bearish Dhatu)",
+            "name": " SCENARIO 3: CONTRADICTION VETO (Bullish Pattern in Bearish Dhatu)",
             "context": {
                 "symbol": "EURUSD",
                 "regime": "Bearish",
@@ -60,7 +60,7 @@ async def test_scenarios():
             },
         },
         {
-            "name": "🌪️ SCENARIO 4: UNCERTAINTY (The Chala State)",
+            "name": " SCENARIO 4: UNCERTAINTY (The Chala State)",
             "context": {
                 "symbol": "NVDA",
                 "regime": "Sideways",
@@ -81,14 +81,14 @@ async def test_scenarios():
 
         result = await slm.evaluate_proposal(scenario["context"])
 
-        vote_icon = "✅" if result["vote"] == "YES" else "❌"
+        vote_icon = "" if result["vote"] == "YES" else ""
         print(f"   SLM BIAS: {result['bias']}")
         print(f"   VOTE: {vote_icon} {result['vote']}")
         print(f"   REASON: {result['reason']}")
         print(f"   CONFIDENCE: {result['confidence']:.2f}")
 
     print("\n" + "=" * 50)
-    print("🏁 AUDIT COMPLETE")
+    print(" AUDIT COMPLETE")
     print("=" * 50)
     await slm.close()
 

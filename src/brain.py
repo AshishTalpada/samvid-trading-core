@@ -250,7 +250,7 @@ class ConsecutiveLossTracker:
             if self.consecutive_losses < 4:
                 self.paper_mode_forced = False
             if self.consecutive_losses < old_losses:
-                logger.info(f"🛡️ RECOVERY: System regained {recovered} loss units via Time-Decay. Current: {self.consecutive_losses}")
+                logger.info(f" RECOVERY: System regained {recovered} loss units via Time-Decay. Current: {self.consecutive_losses}")
                 self.last_loss_time = now - timedelta(hours=(elapsed % 4)) # Reset clock for next unit
 
     def _check_daily_reset(self) -> None:
@@ -263,7 +263,7 @@ class ConsecutiveLossTracker:
             last_loss_et = self.last_loss_time.astimezone(tz)
             if last_loss_et.date() < now.date() and now.hour >= 8:
                 if self.consecutive_losses > 0:
-                    logger.info("🌅 MORNING RESET: Clearing previous session's loss streak for a fresh start.")
+                    logger.info(" MORNING RESET: Clearing previous session's loss streak for a fresh start.")
                     self.consecutive_losses = 0
                     self.win_streak = 0
                     self.paper_mode_forced = False
@@ -283,7 +283,7 @@ class ConsecutiveLossTracker:
             self.pause_until = None
             if self.win_streak >= 3:
                 logger.info(
-                    f"🚀 VELOCITY REACHED: {self.win_streak} consecutive wins — Compounding Risk Mode Active"
+                    f" VELOCITY REACHED: {self.win_streak} consecutive wins — Compounding Risk Mode Active"
                 )
         else:
             self.win_streak = 0
@@ -484,7 +484,7 @@ class TradingBrain:
                 return
 
             self.state = new_state
-            logger.info(f"🧠 BRAIN STATE TRANSITION: {old_state.name} ➔ {new_state.name}")
+            logger.info(f" BRAIN STATE TRANSITION: {old_state.name} ➔ {new_state.name}")
 
             await self._safe_publish(
                 "system.state",
@@ -529,7 +529,7 @@ class TradingBrain:
         bus: Optional["SharedIntelligenceBus"] = None,
         native_slm: Optional["NativeSLM"] = None,
     ) -> None:
-        logger.info("🧠 TradingBrain: Initializing constructor...")
+        logger.info(" TradingBrain: Initializing constructor...")
         self.db_conn = db_conn
         self.ibkr_client = ibkr_client
         self.mt5_client = mt5_client
@@ -990,7 +990,7 @@ class TradingBrain:
 
         if is_hft_impact:
             logger.info(
-                f"🚨 BRAIN: News Action Triggered -> {headline[:60]}... (Sent: {sentiment:.2f}, Imp: {impact:.2f})"
+                f" BRAIN: News Action Triggered -> {headline[:60]}... (Sent: {sentiment:.2f}, Imp: {impact:.2f})"
             )
 
             # Apply Neural Bias to the next scan cycle
@@ -1001,7 +1001,7 @@ class TradingBrain:
                 # Sane bounds
                 self._oracle_risk_modifier = max(0.5, min(1.8, target_modifier))
                 logger.info(
-                    f"🧠 BRAIN: News-Driven Risk Shift active (Transient Modifier: {self._oracle_risk_modifier:.2f})"
+                    f" BRAIN: News-Driven Risk Shift active (Transient Modifier: {self._oracle_risk_modifier:.2f})"
                 )
 
             # Force an immediate scan of the watchlist
@@ -1037,7 +1037,7 @@ class TradingBrain:
         from config import PANIC_LIQUIDATE
 
         if PANIC_LIQUIDATE:
-            logger.critical("🛑 PANIC SWITCH DETECTED: Initiating Total Portfolio Liquidation...")
+            logger.critical(" PANIC SWITCH DETECTED: Initiating Total Portfolio Liquidation...")
             await self._panic_liquidate_all()
             # We do NOT exit, we allow the brain to continue in a clean state.
 
@@ -1104,7 +1104,7 @@ class TradingBrain:
 
     async def run(self) -> None:
         """Entry point for supervisor — blocks until tasks are finished."""
-        logger.info("🧠 MAIN BRAIN TASK ACTIVATED")
+        logger.info(" MAIN BRAIN TASK ACTIVATED")
         await self.start()
 
         # Ensures the Brain never exits unexpectedly after a Veto or Rejection.
@@ -1221,7 +1221,7 @@ class TradingBrain:
                 from telegram_alerts import send_telegram_alert
 
                 await send_telegram_alert(
-                    f"☣️ *SYSTEM CRITICAL ERROR*\n{outer_e}\nBrain is attempting autonomous healing..."
+                    f" *SYSTEM CRITICAL ERROR*\n{outer_e}\nBrain is attempting autonomous healing..."
                 )
                 await asyncio.sleep(10)
 
@@ -1403,7 +1403,7 @@ class TradingBrain:
                             self._oracle_freeze = False
 
                         logger.info(
-                            f"🌐 BUS → oracle.state: dhatu={self._oracle_dhatu} "
+                            f" BUS → oracle.state: dhatu={self._oracle_dhatu} "
                             f"modifier={self._oracle_risk_modifier:.2f} (freeze={self._oracle_freeze})"
                         )
 
@@ -1411,7 +1411,7 @@ class TradingBrain:
                         self._oracle_freeze = True
                         self._oracle_dhatu = str(payload.get("dhatu", "Abhava"))
                         logger.warning(
-                            f"❄  BUS → oracle.freeze: {payload.get('dhatu')} — "
+                            f"  BUS → oracle.freeze: {payload.get('dhatu')} — "
                             f"all new entries BLocked"
                         )
 
@@ -1428,14 +1428,14 @@ class TradingBrain:
                                     self._learned_win_rates[key] = float(wr)
 
                         logger.info(
-                            f"📈 BUS → calibration.update: n={n} rating={rating} "
+                            f" BUS → calibration.update: n={n} rating={rating} "
                             f"learned_keys={len(self._learned_win_rates)}"
                         )
 
                     elif label == "candle.batch":
                         # Pulse the state machine that new data is available
                         count = payload.get("count", 0)
-                        logger.info(f"🕯 BUS → candle.batch: {count} symbols Pulse Detected.")
+                        logger.info(f" BUS → candle.batch: {count} symbols Pulse Detected.")
                         self.new_candle_event.set()
 
                     elif label == "tick.hft":
@@ -1454,19 +1454,19 @@ class TradingBrain:
                         elif impact == "BULLISH":
                             self._oracle_risk_modifier = min(1.5, self._oracle_risk_modifier * 1.1)
                         logger.info(
-                            f"🧠 BUS → macro.impact: {impact} | Adjusted Modifier: {self._oracle_risk_modifier:.2f}"
+                            f" BUS → macro.impact: {impact} | Adjusted Modifier: {self._oracle_risk_modifier:.2f}"
                         )
 
                     elif label == "institutional.flow":
                         # Order flow awareness
                         bias = payload.get("flow_bias", "NEUTRAL")
                         sym = payload.get("symbol", "")
-                        logger.info(f"🧠 BUS → inst.flow [{sym}]: {bias}")
+                        logger.info(f" BUS → inst.flow [{sym}]: {bias}")
 
                     elif label == "command.remote":
                         cmd = payload.get("cmd")
                         if cmd == "panic":
-                            logger.critical("🚨 REMOTE COMMAND: PANIC SHIELD INITIATED")
+                            logger.critical(" REMOTE COMMAND: PANIC SHIELD INITIATED")
                             await self._panic_liquidate_all()
                             self.emergency_halted = True
                         elif cmd == "status":
@@ -1475,7 +1475,7 @@ class TradingBrain:
                                 "notification.telegram",
                                 {
                                     "message": (
-                                        f"📊 <b>TELEMETRY SNAPSHOT</b>\n"
+                                        f" <b>TELEMETRY SNAPSHOT</b>\n"
                                         f"Session PnL: ${self.session_pnl:+.2f}\n"
                                         f"Open Positions: {len(self.positions)}\n"
                                         f"State: {self._oracle_dhatu}\n"
@@ -1490,7 +1490,7 @@ class TradingBrain:
                                 0.0 if target == "ABHAVA" else 0.5 if target == "SHANTI" else 1.0
                             )
                             self._oracle_freeze = target == "ABHAVA"
-                            logger.warning(f"🔄 REMOTE OVERRIDE: Dhatu set to {target}")
+                            logger.warning(f" REMOTE OVERRIDE: Dhatu set to {target}")
 
                 except Exception as e:
                     logger.error(f"BrainBusListener error in {label}: {e}")
@@ -1792,7 +1792,7 @@ class TradingBrain:
                             stats["approved"] += 1
 
                         logger.info(
-                            f"🎯 DISCOVERY: {symbol} matched {best.name} ({best.confidence:.1f}%)"
+                            f" DISCOVERY: {symbol} matched {best.name} ({best.confidence:.1f}%)"
                         )
 
                         # --- DECISION LEDGER: record every approved pattern ---
@@ -2029,7 +2029,7 @@ class TradingBrain:
                 thought_dna = await self.mind_ultrathink.heartbeat_vet(pos_dict, market_dict)
                 if thought_dna.get("veto"):
                     logger.warning(
-                        f"🏛️ Sovereign HEARTBEAT VETO: {pos.symbol} — {thought_dna.get('reason')}"
+                        f" Sovereign HEARTBEAT VETO: {pos.symbol} — {thought_dna.get('reason')}"
                     )
                     exits_triggered.append((pos, "HEARTBEAT_VETO", current_price))
                     continue  # Skip further monitoring for this tick
@@ -2169,7 +2169,7 @@ class TradingBrain:
         from telegram_alerts import send_telegram_alert
 
         await send_telegram_alert(
-            "🚨 *EMERGENCY HALT* 🚨\nAttempting to flatten ALL positions due to critical system error."
+            " *EMERGENCY HALT* \nAttempting to flatten ALL positions due to critical system error."
         )
 
         for pos in list(self.positions):  # type: ignore
@@ -2248,7 +2248,7 @@ class TradingBrain:
             age_seconds = (now - entry_time).total_seconds()
             if age_seconds < 100 and "STOP" not in exit_type and "VIX" not in exit_type:
                 logger.warning(
-                    f"🛡️ EXIT IMMUNITY: Rejecting {exit_type} exit for {symbol}. "
+                    f" EXIT IMMUNITY: Rejecting {exit_type} exit for {symbol}. "
                     f"Position is only {age_seconds:.0f}s old. Minimum hold: 100s."
                 )
                 return
@@ -2388,7 +2388,7 @@ class TradingBrain:
                     self._loss_streak += 1
                     if self._loss_streak >= 5:
                         logger.critical(
-                            f"🚨 LOSS STREAK DETECTED ({self._loss_streak}). TRIGGERING RISK-OFF REGIME."
+                            f" LOSS STREAK DETECTED ({self._loss_streak}). TRIGGERING RISK-OFF REGIME."
                         )
                         self.current_regime = "RISK_OFF"
                         # Reset streak after triggering so we can eventually recover
@@ -2423,7 +2423,7 @@ class TradingBrain:
             # Telegram Alert (Enhanced for SE-12 Detail)
             from telegram_alerts import send_telegram_alert
 
-            icon = "🟢" if realized_net_pnl > 0 else "🔴" if realized_net_pnl < 0 else "⚪"
+            icon = "" if realized_net_pnl > 0 else "" if realized_net_pnl < 0 else ""
 
             intent = pos.meta.get("intent", "Sovereign")
             pattern_name = pos.meta.get("pattern", "UNKNOWN")
@@ -2439,7 +2439,7 @@ class TradingBrain:
                 f"R-Multiple: {r_multiple:+.2f}x\n"
                 f"Hold Time: {(now - (pos.entry_time if pos.entry_time.tzinfo else pos.entry_time.replace(tzinfo=timezone.utc))).total_seconds() / 60:.1f}m\n"
                 f"-------------------\n"
-                f"📈 SESSION TOTAL: ${self.session_pnl:+.2f}"
+                f" SESSION TOTAL: ${self.session_pnl:+.2f}"
             )
 
         except Exception as e:
@@ -2881,11 +2881,11 @@ class TradingBrain:
 
                 if restored:
                     logger.info(
-                        f"♻ RESTORED {restored} position(s) from prior session: "
+                        f" RESTORED {restored} position(s) from prior session: "
                         f"{[p.symbol for p in self.positions]}"
                     )
                 if orphaned:
-                    logger.info(f"🧹 Marked {orphaned} old/duplicate trade(s) as ORPHANED")
+                    logger.info(f" Marked {orphaned} old/duplicate trade(s) as ORPHANED")
 
             except Exception as e:
                 logger.error(f"Position restoration failed: {e}")
@@ -2909,7 +2909,7 @@ class TradingBrain:
                     field_names = {f.name for f in fields(Position)}
                     filtered = {k: v for k, v in p.items() if k in field_names}
                     valid.append(Position(**filtered))
-                    logger.warning(f"🛡️ SANITIZER: Re-hydrated dictionary for {p['symbol']}.")
+                    logger.warning(f" SANITIZER: Re-hydrated dictionary for {p['symbol']}.")
                 except Exception:
                     continue
         self.positions = valid
@@ -2927,7 +2927,7 @@ class TradingBrain:
 
                 # Always force a real-time check on the first reconciliation or if cache is empty
                 if not ibkr_reality:
-                    logger.debug("⚖️ IBKR SYNC: Local cache is empty. Forcing real-time check...")
+                    logger.debug(" IBKR SYNC: Local cache is empty. Forcing real-time check...")
                     try:
                         positions_callable = getattr(self.ibkr_conn.ib, "positions", None)
                         if positions_callable is None or not callable(positions_callable):
@@ -2938,7 +2938,7 @@ class TradingBrain:
                             self.ibkr_conn._positions_cache[p.contract.symbol] = p.position
                         ibkr_reality = self.ibkr_conn._positions_cache
                     except Exception as sync_e:
-                        logger.warning(f"⚖️ IBKR SYNC: Direct poll failed: {sync_e}")
+                        logger.warning(f" IBKR SYNC: Direct poll failed: {sync_e}")
 
             mt5_reality = {}
             if self.mt5_conn and self.mt5_conn.is_connected:
@@ -2968,7 +2968,7 @@ class TradingBrain:
                 # ONLY purge if: Uptime > 300s, Age > 600s, and Reality is FLAT
                 if uptime > 300 and age_seconds > 600 and abs(broker_qty) < 0.1:
                     logger.warning(
-                        f"🧹 SYNC PURGE [{broker.upper()}]: {p.symbol} is flat in reality. Removing from memory."
+                        f" SYNC PURGE [{broker.upper()}]: {p.symbol} is flat in reality. Removing from memory."
                     )
                     if p in self.positions:
                         self.positions.remove(p)
@@ -2984,7 +2984,7 @@ class TradingBrain:
             # Triggers a high-visibility audit once per cycle (or on-demand)
             report_lines = [
                 "\n" + "=" * 80,
-                " ⚖️  SOVEREIGN REALITY HANDSHAKE (Memory vs Broker) ",
+                "   SOVEREIGN REALITY HANDSHAKE (Memory vs Broker) ",
                 "=" * 80,
                 f" {'Symbol':<10} | {'Broker':<8} | {'Memory Qty':<12} | {'Reality Qty':<12} | {'Status':<10}",
                 "-" * 80,
@@ -3010,7 +3010,7 @@ class TradingBrain:
                     if abs(m_qty) < 0.01 and abs(r_qty) < 0.01:
                         continue
 
-                    status = "✅ MATCH" if abs(m_qty - r_qty) < 0.0001 else "⚠️ DRIFT"
+                    status = " MATCH" if abs(m_qty - r_qty) < 0.0001 else " DRIFT"
                     report_lines.append(
                         f" {sym:<10} | {b:<8} | {m_qty:<12.2f} | {r_qty:<12.2f} | {status}"
                     )
@@ -3037,7 +3037,7 @@ class TradingBrain:
     async def _adopt_orphan(self, symbol: str, qty: float, broker: str) -> None:
         """Absorb an unmanaged broker position into the Matrix."""
         logger.warning(
-            f"🧟 ORPHAN DETECTED [{broker.upper()}]: {symbol} | Qty: {qty}. Initiating Adoption..."
+            f" ORPHAN DETECTED [{broker.upper()}]: {symbol} | Qty: {qty}. Initiating Adoption..."
         )
         try:
             # 1. Get current price context
@@ -3110,13 +3110,13 @@ class TradingBrain:
                 adopted.db_id = cursor.lastrowid
                 self.db_conn.commit()
 
-            logger.info(f"✅ ADOPTED: {symbol} in {broker.upper()} absorbed @ {price:.2f}")
+            logger.info(f" ADOPTED: {symbol} in {broker.upper()} absorbed @ {price:.2f}")
 
             if self.bus and hasattr(self.bus, 'publish') and callable(getattr(self.bus, 'publish', None)):
                 await self.bus.publish(
                     "notification.telegram",
                     {
-                        "message": f"🧟 *ORPHAN ADOPTED*\nBroker: {broker.upper()}\nSymbol: {symbol}\nQty: {qty}\nStop: {stop:.2f}"
+                        "message": f" *ORPHAN ADOPTED*\nBroker: {broker.upper()}\nSymbol: {symbol}\nQty: {qty}\nStop: {stop:.2f}"
                     },
                 )
 
@@ -3308,18 +3308,18 @@ class TradingBrain:
                     np.sign(p.qty) != np.sign(broker_qty) or abs(p.qty - broker_qty) > 0.1
                 ):
                     logger.warning(
-                        f"⚖️ MIRROR SYNC: {symbol} memory error ({p.qty}) corrected to Broker Reality ({broker_qty})."
+                        f" MIRROR SYNC: {symbol} memory error ({p.qty}) corrected to Broker Reality ({broker_qty})."
                     )
                     p.qty = float(broker_qty)
 
             if direction == "SELL" and broker_qty < 0:
                 logger.critical(
-                    f"🛑 POLARITY SHIELD: Blocked SELL for {symbol} (Short exposure: {broker_qty}). Next cycle will BUY to close."
+                    f" POLARITY SHIELD: Blocked SELL for {symbol} (Short exposure: {broker_qty}). Next cycle will BUY to close."
                 )
                 return None
             if direction == "BUY" and broker_qty > 0:
                 logger.critical(
-                    f"🛑 POLARITY SHIELD: Blocked BUY for {symbol} (Long exposure: {broker_qty}). Next cycle will SELL to close."
+                    f" POLARITY SHIELD: Blocked BUY for {symbol} (Long exposure: {broker_qty}). Next cycle will SELL to close."
                 )
                 return None
         except Exception as guard_e:
@@ -3330,12 +3330,12 @@ class TradingBrain:
 
         try:
             if shares < 1:
-                warn_msg = f"🛑 ZERO-SHARE SHIELD: Blocked {direction} for {symbol} (Size=0). Check sizer math or Probe logic."
+                warn_msg = f" ZERO-SHARE SHIELD: Blocked {direction} for {symbol} (Size=0). Check sizer math or Probe logic."
                 logger.warning(warn_msg)
                 from telegram_alerts import send_telegram_alert
 
                 await send_telegram_alert(
-                    f"🏛️ *SHIELD VETO: {symbol}*\n"
+                    f" *SHIELD VETO: {symbol}*\n"
                     f"Action: Blocked {direction}\n"
                     f"Reason: Zero Size (Risk/Ladder restriction)\n"
                     f"Status: Standing Down"
@@ -3350,7 +3350,7 @@ class TradingBrain:
                     self.ibkr_conn.validate_order_pre_flight, symbol, direction, shares, limit_price
                 )
                 if not ok:
-                    logger.critical(f"🛑 PRE-FLIGHT REJECTION for {symbol}: {reason}")
+                    logger.critical(f" PRE-FLIGHT REJECTION for {symbol}: {reason}")
                     return None
 
                 exec_token = self.ibkr_conn.generate_exec_token(symbol)
@@ -3476,7 +3476,7 @@ class TradingBrain:
 
     async def _perform_broker_hotswap(self, target: str):
         """Swaps the system consciousness between brokers to save VRAM/CPU."""
-        logger.warning(f"🔄 SOVEREIGN HOT-SWAP: Switching from {self.active_broker} to {target}...")
+        logger.warning(f" SOVEREIGN HOT-SWAP: Switching from {self.active_broker} to {target}...")
 
         if target == "MT5":
             # Shutdown IBKR streams if possible
@@ -3646,13 +3646,13 @@ class TradingBrain:
 
         self.loss_tracker.record_outcome(pnl > 0)
         if self.loss_tracker.consecutive_losses >= 5:
-            logger.critical("🚨 5+ Consecutive Losses. Entering ABHAVA (Risk-Off) state.")
+            logger.critical(" 5+ Consecutive Losses. Entering ABHAVA (Risk-Off) state.")
             self._oracle_dhatu = "Abhava"
         elif self.loss_tracker.win_streak >= 3:
             # We are in a groove, maintain or shift to Vriddhi
             if self._oracle_dhatu != "Vriddhi":
                 logger.info(
-                    f"🚀 WIN STREAK ({self.loss_tracker.win_streak}): Shifting to VRIDDHI state."
+                    f" WIN STREAK ({self.loss_tracker.win_streak}): Shifting to VRIDDHI state."
                 )
                 self._oracle_dhatu = "Vriddhi"
 
@@ -3664,7 +3664,7 @@ class TradingBrain:
         while self.is_running:
             try:
                 if hasattr(self, "coordinator"):
-                    logger.info("🧠 Brain: Initiating PHANTOM PROBE (System Wiring Check)...")
+                    logger.info(" Brain: Initiating PHANTOM PROBE (System Wiring Check)...")
                     # Construct a fake proposal
                     from agent_a import PatternResult
 
@@ -3689,11 +3689,11 @@ class TradingBrain:
                     )
                     if not success:
                         logger.critical(
-                            "🚨 PHANTOM PROBE FAILED! System logic returned False (Possible Quorum or Context Block)."
+                            " PHANTOM PROBE FAILED! System logic returned False (Possible Quorum or Context Block)."
                         )
                         if self.dms:
                             await self.dms._send_telegram_message(
-                                "📢 <b>[Sovereign Alert]</b>: Phantom Probe Failure. System wiring check returned REJECT."
+                                " <b>[Sovereign Alert]</b>: Phantom Probe Failure. System wiring check returned REJECT."
                             )
             except Exception as e:
                 logger.error(f"Phantom Probe Error: {e}")
@@ -3706,7 +3706,7 @@ class TradingBrain:
         Continuously polls macro agents in the background to update the 'Global Conviction State'.
         This eliminates latency from the live trade-lifecycle quorum.
         """
-        logger.info("🧠 Brain: Asynchronous Prediction Pipeline ACTIVE (Background Thinking).")
+        logger.info(" Brain: Asynchronous Prediction Pipeline ACTIVE (Background Thinking).")
         while self.is_running:
             try:
                 # Construct Global Context (No symbol-specifics)
@@ -3778,10 +3778,10 @@ class TradingBrain:
                 if new_convictions:
                     self.conviction_state.update(new_convictions)
                     logger.info(
-                        f"🧠 TradingBrain: Global Conviction State synchronized ({len(new_convictions)} agents)."
+                        f" TradingBrain: Global Conviction State synchronized ({len(new_convictions)} agents)."
                     )
                 else:
-                    logger.warning("🧠 TradingBrain: Conviction sync cycle finished with ZERO agents.")
+                    logger.warning(" TradingBrain: Conviction sync cycle finished with ZERO agents.")
 
             except Exception as e:
                 logger.error(f"Conviction Sync Error: {e}")
@@ -3802,11 +3802,11 @@ class TradingBrain:
                 if hasattr(agent, "ib") and agent.ib.isConnected():
                     positions = agent.ib.positions()
                     if not positions:
-                        logger.info("🛡️ SHIELD: No positions to liquidate. Clean Slate.")
+                        logger.info(" SHIELD: No positions to liquidate. Clean Slate.")
                         return
 
                     logger.critical(
-                        f"🛡️ SHIELD: Liquidating {len(positions)} positions immediately."
+                        f" SHIELD: Liquidating {len(positions)} positions immediately."
                     )
                     for p in positions:
                         contract = p.contract
@@ -3814,13 +3814,13 @@ class TradingBrain:
                         action = "SELL" if qty > 0 else "BUY"
                         abs_qty = abs(qty)
 
-                        logger.warning(f"🛡️ SHIELD: Closing {contract.symbol} ({action} {abs_qty})")
+                        logger.warning(f" SHIELD: Closing {contract.symbol} ({action} {abs_qty})")
                         order = ib_insync.MarketOrder(action, abs_qty)
                         agent.ib.placeOrder(contract, order)
 
-                    logger.info("🛡️ SHIELD: Liquidation orders broadcast. Waiting for sync...")
+                    logger.info(" SHIELD: Liquidation orders broadcast. Waiting for sync...")
                     await asyncio.sleep(5)
-                    logger.critical("🏛️ SOVEREIGN SHIELD: TOTAL LIQUIDATION COMPLETE.")
+                    logger.critical(" SOVEREIGN SHIELD: TOTAL LIQUIDATION COMPLETE.")
         except Exception as e:
             logger.error(f"SHIELD: Panic Liquidation Failed: {e}")
 
