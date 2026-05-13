@@ -80,6 +80,7 @@ class MindGhost:
     async def _ghost_audit_loop(self) -> None:
         """The core audit loop that runs at sub-second frequency."""
         from time_sync import TimeSync
+
         while self.is_running:
             try:
                 if self._stand_down:
@@ -101,7 +102,9 @@ class MindGhost:
                 if self.last_api_heartbeat > self.startup_time:
                     if current_time - self.last_api_heartbeat > 60.0:
                         logger.error(
-                            f"MindGhost: API HEARTBEAT LOST! (Last: {int(current_time - self.last_api_heartbeat)}s ago). Service may be hanging."
+                            f"MindGhost: API HEARTBEAT LOST! (Last: "
+                            f"{int(current_time - self.last_api_heartbeat)}s ago). "
+                            "Service may be hanging."
                         )
                         await self._trigger_ghost_reset("IBKR")
                 else:
@@ -153,12 +156,14 @@ class MindGhost:
         backoff_delay = self.backoff_base**retry_count
 
         logger.warning(
-            f"MindGhost: Initiating GHOST RESET sequence for {service_name} (Attempt {retry_count + 1}, Delay {backoff_delay:.1f}s)..."
+            f"MindGhost: Initiating GHOST RESET sequence for {service_name} "
+            f"(Attempt {retry_count + 1}, Delay {backoff_delay:.1f}s)..."
         )
         # Pillar 4: Signal the Matrix + User via Bridge
         await self.bridge.broadcast(
             "ghost",
-            f" EMERGENCY RESET WARNING: {service_name} heartbeat failure. Rebooting in 5s unless system scent returns.",
+            f" EMERGENCY RESET WARNING: {service_name} heartbeat failure. "
+            "Rebooting in 5s unless system scent returns.",
             {"alert": "TELEGRAM", "urgency": "CRITICAL"},
         )
 
@@ -171,7 +176,9 @@ class MindGhost:
         result = await self.bridge.call_tool(
             "reboot_service",
             service_name=f"RESTART_{service_name}",
-            justification=f"GHOST_RESET: Heartbeat lost for {service_name} (Attempt {retry_count + 1})",
+            justification=(
+                f"GHOST_RESET: Heartbeat lost for {service_name} (Attempt {retry_count + 1})"
+            ),
         )
 
         if result.get("status") == "OK":
@@ -184,15 +191,18 @@ class MindGhost:
             self.retry_counts[service_name] = retry_count + 1
             if self.retry_counts[service_name] > 5:
                 logger.error(
-                    f"MindGhost: Ghost Reset of {service_name} FAILED! Max retries exceeded. Escalating."
+                    f"MindGhost: Ghost Reset of {service_name} FAILED! "
+                    "Max retries exceeded. Escalating."
                 )
                 await self.bridge.broadcast(
                     "ghost",
-                    f"ESCALATION: Ghost Reset of {service_name} failed. Emergency shutdown advised.",
+                    f"ESCALATION: Ghost Reset of {service_name} failed. "
+                    "Emergency shutdown advised.",
                 )
             else:
                 logger.error(
-                    f"MindGhost: Ghost Reset of {service_name} FAILED! (Backoff increasing to {self.backoff_base ** (retry_count + 1):.1f}s)"
+                    f"MindGhost: Ghost Reset of {service_name} FAILED! "
+                    f"(Backoff increasing to {self.backoff_base ** (retry_count + 1):.1f}s)"
                 )
 
     async def update_heartbeat(self, service: str) -> None:
@@ -216,19 +226,22 @@ class MindGhost:
         except Exception as e:
             logger.debug(f"MindGhost: Probe error on port {port}: {e}")
             return False
+
+
 # ── LOCAL-ONLY MODULE CONSTANTS ─────────────────────────────────────────
 
 # ── LOCAL-ONLY SOVEREIGN EXTENSIONS ─────────────────────────────────────
 
 
 class GhostExecutionEnvironment:
-    '''
+    """
     Deep Dive: The Ghost Protocol.
     A completely isolated shadow-execution environment. When Sovereign comes up with
     a highly experimental trading strategy (low confidence), it routes it to the Ghost Environment
     instead of the real Broker Arbitrator. The Ghost environment simulates slippage, liquidity
     impact, and queue positions to track how the trade *would* have performed.
-    '''
+    """
+
     def __init__(self, bridge: Any = None, **kwargs):
         self.bridge = bridge
         self.ghost_ledger: Dict[str, dict] = {}
@@ -244,32 +257,39 @@ class GhostExecutionEnvironment:
             self.bridge.register_tool("close_shadow_trade", self.close_shadow_trade)
 
     async def update_heartbeat(self, component: str):
-        '''
+        """
         Records a heartbeat for a specific ghost component.
-        '''
+        """
         self.heartbeats[component] = time.time()
         logger.debug(f"[GHOST] Heartbeat updated for {component}")
 
     async def start(self):
-        '''Launch Agent J (Shadow Environment).'''
+        """Launch Agent J (Shadow Environment)."""
         logger.info("[GHOST] Ghost Protocol ENGAGED. Shadow execution environment online.")
 
     def _calculate_commission(self, size: float) -> float:
         return max(self.min_commission, size * self.commission_per_share)
 
-    def route_shadow_trade(self, symbol: str, action: str, price: float, size: float, logic_signature: str) -> str:
-        '''
+    def route_shadow_trade(
+        self, symbol: str, action: str, price: float, size: float, logic_signature: str
+    ) -> str:
+        """
         Ingests a trade intent and immediately fills it in the local shadow memory.
-        '''
+        """
         trade_id = f"GHOST-{uuid.uuid4().hex[:8]}"
 
         # Simulate slippage based on size (simplified linear impact)
         simulated_slippage = (size / 100.0) * 0.0001
-        fill_price = price * (1.0 + simulated_slippage) if action == "BUY" else price * (1.0 - simulated_slippage)
+        fill_price = (
+            price * (1.0 + simulated_slippage)
+            if action == "BUY"
+            else price * (1.0 - simulated_slippage)
+        )
 
         commission = self._calculate_commission(size)
 
         from time_sync import TimeSync
+
         position = {
             "symbol": symbol,
             "action": action,
@@ -277,18 +297,21 @@ class GhostExecutionEnvironment:
             "size": size,
             "logic_signature": logic_signature,
             "timestamp": TimeSync.now().timestamp(),
-            "unrealized_pnl": -commission, # Start down by commission
-            "entry_commission": commission
+            "unrealized_pnl": -commission,  # Start down by commission
+            "entry_commission": commission,
         }
 
         self.active_ghost_positions[trade_id] = position
-        logger.info(f"[GHOST] Shadow trade {trade_id} executed on {symbol}. Fill: {fill_price:.2f} (Comm: ${commission:.2f})")
+        logger.info(
+            f"[GHOST] Shadow trade {trade_id} executed on {symbol}. "
+            f"Fill: {fill_price:.2f} (Comm: ${commission:.2f})"
+        )
         return trade_id
 
     def update_ghost_pnl(self, current_market_prices: Dict[str, float]):
-        '''
+        """
         Continuously mark-to-market the active shadow positions.
-        '''
+        """
         for trade_id, pos in self.active_ghost_positions.items():
             sym = pos["symbol"]
             if sym in current_market_prices:
@@ -302,7 +325,7 @@ class GhostExecutionEnvironment:
                 pos["unrealized_pnl"] = pnl - pos["entry_commission"]
 
     def close_shadow_trade(self, trade_id: str, current_price: float) -> float:
-        '''Closes a ghost position and permanently logs its realized PnL.'''
+        """Closes a ghost position and permanently logs its realized PnL."""
         if trade_id not in self.active_ghost_positions:
             return 0.0
 
@@ -310,7 +333,11 @@ class GhostExecutionEnvironment:
 
         # Simulate closing slippage
         simulated_slippage = (pos["size"] / 100.0) * 0.0001
-        close_price = current_price * (1.0 - simulated_slippage) if pos["action"] == "BUY" else current_price * (1.0 + simulated_slippage)
+        close_price = (
+            current_price * (1.0 - simulated_slippage)
+            if pos["action"] == "BUY"
+            else current_price * (1.0 + simulated_slippage)
+        )
 
         exit_commission = self._calculate_commission(pos["size"])
 
@@ -334,7 +361,9 @@ class GhostExecutionEnvironment:
             ids_to_prune = list(self.ghost_ledger.keys())[:100]
             for pid in ids_to_prune:
                 self.ghost_ledger.pop(pid, None)
-            logger.debug(f"[GHOST] Pruned 100 entries from ledger. Current size: {len(self.ghost_ledger)}")
+            logger.debug(
+                f"[GHOST] Pruned 100 entries from ledger. Current size: {len(self.ghost_ledger)}"
+            )
 
         return realized_pnl
 
@@ -345,10 +374,8 @@ class GhostExecutionEnvironment:
             "active_count": len(self.active_ghost_positions),
             "unrealized_pnl": total_unrealized,
             "positions": self.active_ghost_positions,
-            "status": "OPERATIONAL"
+            "status": "OPERATIONAL",
         }
-
-
 
 
 class GhostInfrastructureMonitor:
@@ -356,6 +383,7 @@ class GhostInfrastructureMonitor:
     Agent J Extension: The Infrastructure Monitor.
     Detects when a service (like IBKR) is 'Hanging' but hasn't 'Crashed'.
     """
+
     def __init__(self, bridge: Any) -> None:
         self.bridge = bridge
         self.is_running = False
@@ -384,4 +412,5 @@ class GhostInfrastructureMonitor:
         try:
             with socket.create_connection(("127.0.0.1", port), timeout=2.0):
                 return True
-        except: return False
+        except:
+            return False

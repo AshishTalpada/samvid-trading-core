@@ -46,7 +46,10 @@ class MindSystem:
         logger.info("MindSystem (Agent I): Service-level 'Scent' control active.")
 
     async def _tool_find_executable(self, name: str) -> dict[str, Any]:
-        """Sovereign 'Scent' Tool: Autonomously locates executables via Vault -> Filesystem -> Registry."""
+        """
+        Sovereign 'Scent' Tool: Autonomously locates executables via 
+        Vault -> Filesystem -> Registry.
+        """
         found_paths_info = []
 
         def _sync_find_scent():
@@ -129,7 +132,8 @@ class MindSystem:
                     _ml = Vault.get("MT5_LOGIN")
                     if not _ml or "YOUR_MT5" in str(_ml).upper() or str(_ml).lower() == "none":
                         logger.info(
-                            "MindSystem: Scent-Blocker ENGAGED — Skipping MetaTrader 5 search (Disabled)."
+                            "MindSystem: Scent-Blocker ENGAGED — "
+                            "Skipping MetaTrader 5 search (Disabled)."
                         )
                         return
 
