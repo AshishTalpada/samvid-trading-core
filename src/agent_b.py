@@ -9,11 +9,11 @@ Part of a trading system incorporating Project Dhatu principles:
 """
 
 import math
+import time
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
 from typing import TYPE_CHECKING, Any, Dict
-import time
 
 if TYPE_CHECKING:
     from dhatu_oracle import DhatuOracle

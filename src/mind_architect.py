@@ -1,9 +1,9 @@
-import time
 import ast
 import asyncio
 import logging
 import os
 import subprocess
+import time
 from typing import Any
 
 from diagnostic_tracker import DiagnosticTracker
