@@ -549,7 +549,7 @@ class TradingSystem:
                         detect_types=sqlite3.PARSE_DECLTYPES,
                         check_same_thread=False,
                     )
-                    conn.execute("PRAGMA busy_timeout = 5000;")  # 5s SQLite-level busy wait
+                    conn.execute("PRAGMA busy_timeout = 60000;")  # 60s SQLite-level busy wait
                     conn.execute("PRAGMA journal_mode=WAL;")
                     conn.execute("PRAGMA synchronous=NORMAL;")
                     conn.execute(
