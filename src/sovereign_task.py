@@ -203,37 +203,34 @@ class TaskManager:
             def _sync_save():
                 try:
                     import shutil
+                    import time as _time
 
-                    shutil.copy2(self.registry_path, f"{self.registry_path}.bak")
+                    for attempt in range(5):
+                        try:
+                            if os.path.exists(self.registry_path):
+                                shutil.copy2(self.registry_path, backup_path)
 
-                data = {tid: t.to_dict() for tid, t in self.tasks.items()}
-                temp_path = f"{self.registry_path}.tmp"
+                            with open(temp_path, "w", encoding="utf-8") as f:
+                                json.dump(data, f, indent=2)
 
-                import time as _time
-
-                for attempt in range(5):
-                    try:
-                        with open(temp_path, "w", encoding="utf-8") as f:
-                            json.dump(data, f, indent=2)
-
-                        if os.path.exists(self.registry_path):
-                            try:
-                                os.replace(temp_path, self.registry_path)
-                            except PermissionError:
-                                _time.sleep(0.1 * (attempt + 1))
-                                continue
-                        else:
                             os.replace(temp_path, self.registry_path)
-                        return True
-                    except Exception as e:
-                        if attempt == 4:
-                            raise e
-                        _time.sleep(0.1)
-            except Exception as e:
-                logger.error(f"TaskManager: Registry sync-save failed: {e}")
-                return False
+                            return True
+                        except PermissionError as e:
+                            if attempt == 4:
+                                raise
+                            _time.sleep(0.1 * (attempt + 1))
+                            continue
+                        except Exception as e:
+                            if attempt == 4:
+                                raise
+                            _time.sleep(0.1)
+                            continue
+                    return False
+                except Exception as e:
+                    logger.error(f"TaskManager: Registry sync-save failed: {e}")
+                    return False
 
-        await asyncio.to_thread(_sync_save)
+            await asyncio.to_thread(_sync_save)
 
     def purge_dormant_tasks(self, max_age_minutes: int = 15):
         """
