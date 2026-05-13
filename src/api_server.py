@@ -412,17 +412,8 @@ class APIServer:
 
                 # 2. Stay alive and listen for optional client commands
                 while True:
-                    try:
-                        # We just need to keep the connection open and check if client closes
-                        await asyncio.wait_for(websocket.receive_text(), timeout=60.0)
-                    except asyncio.TimeoutError:
-                        # Send a ping to keep alive
-                        await websocket.send_text("ping")
-                    except WebSocketDisconnect:
-                        break
-                    except Exception as e:
-                        logger.debug(f"WS receive error: {e}")
-                        break
+                    # We just need to keep the connection open and check if client closes
+                    await websocket.receive_text()
             except WebSocketDisconnect:
                 logger.info("Frontend disconnected from WS")
             finally:
@@ -435,8 +426,6 @@ class APIServer:
         try:
             if websocket.client_state.name == "CONNECTED":
                 await asyncio.wait_for(websocket.send_json(data), timeout=5.0)
-        except asyncio.TimeoutError:
-            logger.debug("WS send timed out")
         except Exception as _ws_err:
             logger.debug(f"WS send failed (socket closing or timeout): {_ws_err}")
             # The writer task finally block handles deletion from dict
@@ -825,8 +814,6 @@ class APIServer:
             host=self.host,
             port=self.port,
             log_level="error",
-            ws_ping_interval=30.0,
-            ws_ping_timeout=60.0,
         )
         self.server = uvicorn.Server(config)
         # Disable uvicorn's signal handlers — the main TradingSystem handles
