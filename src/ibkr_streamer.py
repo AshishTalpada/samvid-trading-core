@@ -363,8 +363,9 @@ class IBKRStreamer:
     def _on_error(self, reqId: int, errorCode: int, errorString: str, contract: Any) -> None:
         # 2104: Farm connection OK
         # 10167/10168/10089: Informational warnings about delayed data/subscriptions
-        if errorCode in (2104, 2106, 2158, 2157, 10167, 10168, 10089):
-            logger.debug(f"IBKRStreamer [INFO]: {errorCode} - {errorString}")
+        # 1100/1101/1102: Connection lost/restored (expected off-hours behavior)
+        if errorCode in (2104, 2106, 2158, 2157, 10167, 10168, 10089, 1100, 1101, 1102):
+            logger.info(f"IBKRStreamer [STATUS]: {errorCode} - {errorString}")
             return
 
         if errorCode >= 2100 and errorCode <= 2110:
