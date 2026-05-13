@@ -76,8 +76,9 @@ pytest tests/
 | Layer | Technology |
 | :--- | :--- |
 | **Backend** | Python 3.10+ (Asyncio), FastAPI, Uvicorn |
+| **Native Core** | Rust, C, C++, CUDA (libsovereign.dll, Numba JIT, PyO3) |
 | **Frontend** | React 18, Vite, Framer Motion, Lightweight Charts |
-| **Databases** | QuestDB (Time-series Ticks), SQLite3 (System State) |
+| **Databases** | QuestDB (Time-series Ticks), SQLite3 (System State), ChromaDB (Vector Memory) |
 | **Security** | OS Vault (keyring), HMAC-SHA256, WebSocket Handshake |
 
 ---
