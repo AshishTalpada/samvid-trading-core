@@ -832,6 +832,7 @@ class TradingBrain:
 
         self._exit_failure_count: dict[str, int] = {}  # Symbol -> Strike Count
         self._exit_last_attempt: dict[str, datetime] = {}  # Symbol -> Last Re-attempt
+        self._order_submit_times: dict[int, datetime] = {}  # OrderId -> Submission time
 
         # Check if we have a persisted state to recover from after a crash
         # Dispatched as a background task to prevent blocking the boot dashboard
@@ -2288,13 +2289,40 @@ class TradingBrain:
             else:
                 exit_shares = abs(int(pos.qty))
 
-            # --- SOVEREIGN ORDER SHIELD (Anti-Spam) ---
-            # Check if we already have an active order for this symbol at the broker
+            # --- SOVEREIGN ORDER SHIELD (Anti-Spam + Stale Order Escalation) ---
+            # Check if we already have an active order for this symbol at the broker.
+            # PILLAR 15: If the order is >45s old and hasn't filled, cancel it and
+            # allow the Brain to re-submit as a fresh Market Order on this tick.
             if self.ibkr_client and pos.account_type == "ibkr":
-                active_trades = [t for t in self.ibkr_client.trades() if t.contract.symbol == pos.symbol and not t.isDone()]
+                active_trades = [
+                    t for t in self.ibkr_client.trades()
+                    if t.contract.symbol == pos.symbol and not t.isDone()
+                ]
                 if active_trades:
-                    logger.warning(f" ORDER SHIELD: Suppressing {exit_type} for {pos.symbol}. Active order already exists.")
-                    return
+                    # Check staleness — if order is >45 seconds old, cancel and re-submit
+                    STALE_THRESHOLD_SEC = 45
+                    stale_found = False
+                    for stale_trade in active_trades:
+                        order_id = stale_trade.order.orderId
+                        submitted_at = self._order_submit_times.get(order_id, now)
+                        age_sec = (now - submitted_at).total_seconds()
+                        if age_sec > STALE_THRESHOLD_SEC:
+                            logger.warning(
+                                f" STALE ORDER ESCALATION: {pos.symbol} order #{order_id} "
+                                f"is {age_sec:.0f}s old without fill. Cancelling and re-submitting as MKT."
+                            )
+                            try:
+                                self.ibkr_client.cancelOrder(stale_trade.order)
+                                self._order_submit_times.pop(order_id, None)
+                            except Exception as cancel_err:
+                                logger.warning(f"Cancel failed for {pos.symbol} #{order_id}: {cancel_err}")
+                            stale_found = True
+                    if not stale_found:
+                        logger.warning(
+                            f" ORDER SHIELD: Suppressing {exit_type} for {pos.symbol}. Active order already exists."
+                        )
+                        return
+                    # else: stale order cancelled — fall through to re-submit below
 
             logger.warning(
                 f"EXECUTING {exit_type} FOR {pos.symbol} | PRICE: ${exit_price:.2f} (Attempt: {strikes + 1})"
@@ -3452,18 +3480,30 @@ class TradingBrain:
             if urgency == "EMERGENCY":
                 # PILLAR 11: EMERGENCY BYPASS
                 # Force a true Market Order for safety flattens and heartbeat vetos.
-                return await self.ibkr_conn.place_order(
+                oid = await self.ibkr_conn.place_order(
                     symbol, direction, shares, order_type="MKT", **kwargs
                 )
+                if oid:
+                    try:
+                        self._order_submit_times[int(oid)] = datetime.now(timezone.utc)
+                    except (ValueError, TypeError):
+                        pass
+                return oid
 
             if urgency == "LOW" and limit_price > 0:
-                return await self.ibkr_conn.place_order(
+                oid = await self.ibkr_conn.place_order(
                     symbol, direction, shares, order_type="LMT", limit_price=limit_price, **kwargs
                 )
             else:
-                return await self.ibkr_conn.place_order(
+                oid = await self.ibkr_conn.place_order(
                     symbol, direction, shares, order_type="MKT", **kwargs
                 )
+            if oid:
+                try:
+                    self._order_submit_times[int(oid)] = datetime.now(timezone.utc)
+                except (ValueError, TypeError):
+                    pass
+            return oid
         except Exception as e:
             logger.error(f"IBKR order failed: {e}")
             return None
