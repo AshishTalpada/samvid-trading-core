@@ -21,6 +21,7 @@ class MindGhost:
     def __init__(self, bridge: MindBridge) -> None:
         self.bridge = bridge
         self.is_running = False
+        self._stand_down = False  # PILLAR 14: SHUTDOWN AWARENESS
         self.latency_threshold_ms = 500  # 500ms threshold for 'Hanging'
         self.last_api_heartbeat = time.time()
         self.startup_time = time.time()  # For grace period
@@ -36,7 +37,30 @@ class MindGhost:
         """Launch the Ghost Monitor."""
         self.is_running = True
         logger.info("MindGhost (Agent J): Ghost Monitoring active.")
-        task = asyncio.create_task(self._ghost_audit_loop())
+        
+        # Start audit loop
+        asyncio.create_task(self._ghost_audit_loop())
+        
+        # Start shutdown listener
+        if self.bridge.bus:
+            asyncio.create_task(self._shutdown_listener())
+
+        # (Existing callback logic omitted for brevity in replacement)
+
+    async def _shutdown_listener(self) -> None:
+        """Listens for the system shutdown signal to stand down."""
+        if not self.bridge.bus:
+            return
+            
+        q = self.bridge.bus.subscribe("system.status")
+        while self.is_running:
+            try:
+                msg = await q.get()
+                if msg.get("state") == "SHUTDOWN":
+                    logger.info("MindGhost: Shutdown signal received. Standing down.")
+                    self._stand_down = True
+            except Exception:
+                await asyncio.sleep(1)
 
         def _ghost_dead_callback(t: asyncio.Task) -> None:
             if self.is_running:  # If it wasn't a clean stop
@@ -66,6 +90,10 @@ class MindGhost:
 
         while self.is_running:
             try:
+                if self._stand_down:
+                    await asyncio.sleep(1)
+                    continue
+
                 current_time = TimeSync.now().timestamp()
 
                 if current_time - self.startup_time < 120:
