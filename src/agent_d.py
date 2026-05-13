@@ -1269,6 +1269,14 @@ class LiveLearningEngine:
             conn.execute("PRAGMA journal_mode=WAL;")
             conn.execute("PRAGMA busy_timeout = 60000;")
             conn.execute(self.TABLE_DDL)
+
+            # Migration: Ensure trade_id column exists (Fix for Bug #40)
+            cursor = conn.execute("PRAGMA table_info(agent_d_trades)")
+            columns = [row[1] for row in cursor.fetchall()]
+            if "trade_id" not in columns:
+                _lld_logger.info("LiveLearningEngine: Migration - Adding 'trade_id' column to agent_d_trades")
+                conn.execute("ALTER TABLE agent_d_trades ADD COLUMN trade_id TEXT;")
+
             conn.commit()
             conn.close()
         except Exception as e:
