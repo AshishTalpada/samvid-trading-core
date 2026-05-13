@@ -1298,9 +1298,7 @@ class LiveLearningEngine:
     def _load_history(self) -> None:
         """Load historical trade metrics from SQLite without bloating RAM."""
         try:
-            conn = _sqlite3.connect(self.db_path, timeout=60)
-            conn.execute("PRAGMA journal_mode=WAL;")
-            conn.execute("PRAGMA busy_timeout = 60000;")
+            conn = self._connect()
             conn.row_factory = _sqlite3.Row
 
             # 1. Get totals via SQL to avoid loading 1,000,000 rows into RAM
