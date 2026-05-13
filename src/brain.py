@@ -2019,6 +2019,9 @@ class TradingBrain:
         exits_triggered = []
 
         for pos in list(self.positions):  # type: ignore
+            if pos.meta.get("exit_triggered"):
+                continue
+
             try:
                 # Fetch live market data for this position
                 market_data = await self._fetch_market_snapshot(pos.symbol)
@@ -2391,29 +2394,41 @@ class TradingBrain:
                 f"PRICE: ${exit_price:.2f} (Attempt: {strikes + 1})"
             )
 
+            order_result = "SUCCESS"  # Default for paper mode or simulations
             if exit_shares > 0 and self.mode != "paper":
                 if pos.account_type == "ibkr":
                     # Use 'EMERGENCY' urgency for VETOs to force true Market Orders
                     urg_level = (
                         "EMERGENCY" if "VETO" in exit_type or "FLATTEN" in exit_type else "HIGH"
                     )
-                    await self._place_ibkr_order(
+                    order_result = await self._place_ibkr_order(
                         pos.symbol,
                         direction,
                         exit_shares,
                         urgency=urg_level,
                         limit_price=exit_price,
                     )
+                    if order_result in [None, "SHIELDED"]:
+                        logger.info(
+                            f" EXIT SUSPENDED [{symbol}]: Broker order was {order_result}. "
+                            "Retaining position in memory."
+                        )
+                        return
+
                 elif pos.account_type == "mt5" and self.mt5_conn:
                     logger.warning(f"EXECUTING MT5 EXIT FOR {pos.symbol} (Ticket: {pos.trade_id})")
                     ticket_str = str(pos.trade_id).replace("RESTORED-", "")
                     try:
                         ticket = int(ticket_str)
-                        await asyncio.to_thread(self.mt5_conn.close_position, ticket)
+                        success = await asyncio.to_thread(self.mt5_conn.close_position, ticket)
+                        if not success:
+                            logger.error(f"MT5: Failed to close ticket {ticket}. Retaining position.")
+                            return
                     except ValueError:
                         logger.error(
                             f"MT5: Failed to parse ticket ID from '{pos.trade_id}' for {pos.symbol}"
                         )
+                        return
 
             # 2. Mathematical Reflection
             slice_qty = exit_shares if pos.qty > 0 else -exit_shares
@@ -2472,10 +2487,11 @@ class TradingBrain:
                     pos.qty += exit_shares
                 pos.shares_remaining = abs(pos.qty) / old_qty if old_qty > 0 else 0.0
             else:
-                async with self._state_lock:
-                    if pos in self.positions:
-                        self.positions.remove(pos)
-                self.closed_positions.append(pos)
+                if self.mode == "paper":
+                    async with self._state_lock:
+                        if pos in self.positions:
+                            self.positions.remove(pos)
+                    self.closed_positions.append(pos)
 
                 # --- RECORD FOR DASHBOARD ---
                 PORTFOLIO_ANALYZER.record_close(
