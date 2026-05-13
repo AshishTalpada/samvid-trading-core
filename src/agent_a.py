@@ -45,7 +45,8 @@ class SovereignStabilizer:
 
         delay = min(30, 0.5 * (2**attempt)) + (random.uniform(0, 0.1))
         logger.warning(
-            f"SovereignStabilizer: Attempting recovery in {delay:.2f}s (Attempt {attempt + 1}/{max_retries})"
+            f"SovereignStabilizer: Attempting recovery in {delay:.2f}s "
+            f"(Attempt {attempt + 1}/{max_retries})"
         )
         await asyncio.sleep(delay)
         return True
@@ -210,14 +211,16 @@ class ContinuousBudgetMonitor:
         # Using abs() here would incorrectly block trading on profitable days.
         if self.daily_loss_pct >= FTMO_DAILY_LIMIT:
             logger.warning(
-                f"BUDGET VETO: Daily loss {self.daily_loss_pct:.1%} exceeds limit {FTMO_DAILY_LIMIT:.1%}"
+                f"BUDGET VETO: Daily loss {self.daily_loss_pct:.1%} "
+                f"exceeds limit {FTMO_DAILY_LIMIT:.1%}"
             )
             return False
 
         # Check max drawdown — drawdown_pct is always ≥ 0 (max of losses)
         if self.drawdown_pct >= FTMO_DRAWDOWN_LIMIT:
             logger.warning(
-                f"BUDGET VETO: Total drawdown {self.drawdown_pct:.1%} exceeds limit {FTMO_DRAWDOWN_LIMIT:.1%}"
+                f"BUDGET VETO: Total drawdown {self.drawdown_pct:.1%} "
+                f"exceeds limit {FTMO_DRAWDOWN_LIMIT:.1%}"
             )
             return False
 
@@ -238,7 +241,8 @@ class ContinuousBudgetMonitor:
         # Consecutive loss escalation - Relaxed for HFT
         if self.consecutive_losses >= 20:
             logger.warning(
-                f"BUDGET VETO: {self.consecutive_losses} consecutive losses. Emergency cooling active."
+                f"BUDGET VETO: {self.consecutive_losses} consecutive losses. "
+                "Emergency cooling active."
             )
             return False
 
@@ -321,7 +325,8 @@ class PatternDetector:
             return None
 
         # Criteria: Volume Explosion (>3x avg) with near-zero Price Delta (<0.01%).
-        # This signals 'Layering' or 'Spoofing' where orders are being flashed without intention to fill.
+        # This signals 'Layering' or 'Spoofing' where orders are being flashed 
+        # without intention to fill.
         last_vol = float(df["volume"][-1])
         _m_vol = df["volume"][-10:-1].mean()
         avg_vol = float(_m_vol) if _m_vol is not None and _m_vol != 0 else 1.0
@@ -1775,7 +1780,8 @@ class InMemorySovereignAtlas:
         elif "up" in low or "bull" in low or "long" in low or "bottom" in low:
             direction = "Bullish"
         elif "break" in low:
-            # Breakdown is bearish, Breakout is context-dependent (defaulting to Bullish if not specified)
+            # Breakdown is bearish, Breakout is context-dependent 
+            # (defaulting to Bullish if not specified)
             if "down" in low or "fail" in low:
                 direction = "Bearish"
             else:
@@ -2011,7 +2017,8 @@ def agent_a_validate_trade(
     # PHASE 5: RISK/REWARD & FRICTION
     atr = kwargs.get("atr_20", 4.0)
     friction = (max(2.5, shares * 0.005) * 2 / shares) + (pattern.entry * 0.0005)
-    # Scalping patterns don't target 1.5 ATR. Lowering hurdle to 0.1 ATR to allow fast momentum trades.
+    # Scalping patterns don't target 1.5 ATR. Lowering hurdle to 0.1 ATR 
+    # to allow fast momentum trades.
     profit_hurdle = (0.1 * atr) + friction
     if abs(pattern.target - pattern.entry) < profit_hurdle:
         if task:

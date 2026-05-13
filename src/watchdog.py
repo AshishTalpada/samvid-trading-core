@@ -172,7 +172,8 @@ def run_watchdog():
 
             if mem_usage > mem_limit:
                 logger.critical(
-                    f"MEMORY DEPLETION DETECTED: Engine consuming {mem_usage:.1f}MB (Threshold: {mem_limit:.1f}MB)"
+                    f"MEMORY DEPLETION DETECTED: Engine consuming {mem_usage:.1f}MB "
+                    f"(Threshold: {mem_limit:.1f}MB)"
                 )
 
             if should_restart:
@@ -195,20 +196,23 @@ def run_watchdog():
 
                 if now - last_restart < wait_time:
                     logger.warning(
-                        f"RESTART THROTTLED: Backoff active. Next attempt in {wait_time - (now - last_restart):.0f}s."
+                        f"RESTART THROTTLED: Backoff active. Next attempt in "
+                        f"{wait_time - (now - last_restart):.0f}s."
                     )
                     should_restart = False
 
                 if should_restart:
                     if len(recent_restarts) >= 6:  # Hard panic
                         logger.critical(
-                            " WATCHDOG PANIC: Excessive restarts (6+) in 1h. SYSTEM HALTED to protect account."
+                            " WATCHDOG PANIC: Excessive restarts (6+) in 1h. "
+                            "SYSTEM HALTED to protect account."
                         )
                         should_restart = False
 
                     if should_restart:
                         logger.critical(
-                            f"EMERGENCY RESTART INITIATED (Attempt {len(recent_restarts) + 1}): Clearing ghosts..."
+                            f"EMERGENCY RESTART INITIATED (Attempt "
+                            f"{len(recent_restarts) + 1}): Clearing ghosts..."
                         )
                         restart_history.add(now)
 
@@ -225,7 +229,8 @@ def run_watchdog():
                         if pid_to_kill:
                             try:
                                 logger.info(
-                                    f"Watchdog: Terminating stale main process (PID: {pid_to_kill})..."
+                                    "Watchdog: Terminating stale main process "
+                                    f"(PID: {pid_to_kill})..."
                                 )
                                 subprocess.run(
                                     ["taskkill", "/F", "/PID", pid_to_kill], capture_output=True
@@ -240,7 +245,8 @@ def run_watchdog():
                         logger.info("Watchdog: Sovereign Engine REBOOTED.")
                 else:
                     logger.warning(
-                        f"RESTART THROTTLED: Next attempt in {wait_time - (now - last_restart):.0f}s."
+                        f"RESTART THROTTLED: Next attempt in "
+                        f"{wait_time - (now - last_restart):.0f}s."
                     )
 
             time.sleep(CHECK_INTERVAL)
