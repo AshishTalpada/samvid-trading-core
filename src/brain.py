@@ -2022,6 +2022,10 @@ class TradingBrain:
             if pos.meta.get("exit_triggered"):
                 continue
 
+            if abs(pos.qty) < 0.0001:
+                # Ghost position (flattened externally). Skip monitoring to avoid 0-unit finalizations.
+                continue
+
             try:
                 # Fetch live market data for this position
                 market_data = await self._fetch_market_snapshot(pos.symbol)
@@ -2348,6 +2352,13 @@ class TradingBrain:
                 exit_shares = max(1, abs(int(pos.qty * 0.5)))
             else:
                 exit_shares = abs(int(pos.qty))
+
+            if exit_shares == 0:
+                logger.warning(f" SKIPPING EXIT for {symbol}: Position size is already 0.")
+                if pos in self.positions:
+                    self.positions.remove(pos)
+                self._mark_trade_liquidated(symbol, pos.account_type)
+                return
 
             # --- SOVEREIGN ORDER SHIELD (Anti-Spam + Stale Order Escalation) ---
             # Check if we already have an active order for this symbol at the broker.
