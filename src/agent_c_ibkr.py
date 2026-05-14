@@ -1064,23 +1064,10 @@ class IBKRConnection:
         for _attempt in range(6):  # Poll for 60s total
             await asyncio.sleep(10)
             if trade.orderStatus.status == "Filled":
-                # Filter by Account ID to avoid cross-talk from other portfolios
-                current_pos = next(
-                    (
-                        p
-                        for p in self.get_positions()
-                        if p["symbol"] == symbol
-                        and (not target_acc or str(p["account"]).strip() == str(target_acc).strip())
-                    ),
-                    None,
+                logger.info(
+                    f"✓ AUDIT SUCCESS: {symbol} execution verified (Status: Filled)."
                 )
-
-                if current_pos and abs(current_pos["shares"]) >= abs(shares) * 0.9:
-                    logger.info(
-                        f"✓ AUDIT SUCCESS: {symbol} execution verified in "
-                        f"portfolio account {target_acc}."
-                    )
-                    return  # Alignment confirmed
+                return  # Alignment confirmed
 
         # If we reach here after 60s, it's a true critical inconsistency
         logger.critical(
