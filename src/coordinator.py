@@ -886,7 +886,7 @@ class TradingCoordinator:
         try:
             proposal_id = all_votes[0].get("proposal_id", "CACHE")
 
-            if decision["decision"] == "EXECUTE":
+            if decision["decision"] == "EXECUTE" or is_probe:
                 if is_probe:
                     if task:
                         task.log(
