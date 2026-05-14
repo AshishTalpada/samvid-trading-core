@@ -17,7 +17,7 @@ class VIXCircuitBreaker:
 
     def process_vix_tick(self, vix_value: float) -> bool:
         """
-        Ingests a VIX value. Returns True if a catastrophic spike is 
+        Ingests a VIX value. Returns True if a catastrophic spike is
         detected, triggering liquidation.
         """
         current_time = time.time()

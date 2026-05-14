@@ -47,7 +47,7 @@ class MindSystem:
 
     async def _tool_find_executable(self, name: str) -> dict[str, Any]:
         """
-        Sovereign 'Scent' Tool: Autonomously locates executables via 
+        Sovereign 'Scent' Tool: Autonomously locates executables via
         Vault -> Filesystem -> Registry.
         """
         found_paths_info = []
