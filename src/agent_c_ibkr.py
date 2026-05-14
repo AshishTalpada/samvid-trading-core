@@ -742,7 +742,7 @@ class IBKRConnection:
                     await self.ib.qualifyContractsAsync(contract)
 
                 # Bug 30 FIX: Limit Price Bias Guard
-                # If the spread is wider than 0.5%, use the actual Bid/Ask 
+                # If the spread is wider than 0.5%, use the actual Bid/Ask
                 # instead of Mid to ensure fill.
                 # Use the brain's real-time tick cache
                 bid = self.brain.last_tick_bids.get(symbol, 0.0)
@@ -768,7 +768,7 @@ class IBKRConnection:
                 parent.overridePercentageConstraints = True
 
                 # Replaced Stop-Market with Stop-Limit ('Recovery Limit')
-                # A 2% buffer ensures fill in fast markets while capping 
+                # A 2% buffer ensures fill in fast markets while capping
                 # slippage at a tolerable level.
                 opp_direction = "SELL" if direction == "BUY" else "BUY"
                 sl_buffer = 0.02
