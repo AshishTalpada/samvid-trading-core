@@ -325,7 +325,7 @@ class PatternDetector:
             return None
 
         # Criteria: Volume Explosion (>3x avg) with near-zero Price Delta (<0.01%).
-        # This signals 'Layering' or 'Spoofing' where orders are being flashed 
+        # This signals 'Layering' or 'Spoofing' where orders are being flashed
         # without intention to fill.
         last_vol = float(df["volume"][-1])
         _m_vol = df["volume"][-10:-1].mean()
@@ -1780,7 +1780,7 @@ class InMemorySovereignAtlas:
         elif "up" in low or "bull" in low or "long" in low or "bottom" in low:
             direction = "Bullish"
         elif "break" in low:
-            # Breakdown is bearish, Breakout is context-dependent 
+            # Breakdown is bearish, Breakout is context-dependent
             # (defaulting to Bullish if not specified)
             if "down" in low or "fail" in low:
                 direction = "Bearish"
@@ -2017,7 +2017,7 @@ def agent_a_validate_trade(
     # PHASE 5: RISK/REWARD & FRICTION
     atr = kwargs.get("atr_20", 4.0)
     friction = (max(2.5, shares * 0.005) * 2 / shares) + (pattern.entry * 0.0005)
-    # Scalping patterns don't target 1.5 ATR. Lowering hurdle to 0.1 ATR 
+    # Scalping patterns don't target 1.5 ATR. Lowering hurdle to 0.1 ATR
     # to allow fast momentum trades.
     profit_hurdle = (0.1 * atr) + friction
     if abs(pattern.target - pattern.entry) < profit_hurdle:
