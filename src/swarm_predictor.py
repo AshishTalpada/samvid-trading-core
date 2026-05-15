@@ -588,7 +588,7 @@ class SwarmPredictor:
             "vote": vote,
             "confidence": consensus.confidence,
             "signal_strength": consensus.get_confidence_modifier(),
-            "risk_flag": consensus.bias == SwarmBias.NEUTRAL or consensus.confidence < 0.60,
+            "risk_flag": str(consensus.bias == SwarmBias.NEUTRAL or consensus.confidence < 0.60),
             "timestamp": context.get("timestamp", time.time_ns()),
             "reason": reason,
             "bias": consensus.bias.value,

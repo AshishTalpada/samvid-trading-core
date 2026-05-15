@@ -243,7 +243,7 @@ class CorrelationGuard:
             "vote": vote,
             "confidence": confidence,
             "signal_strength": 1.0,
-            "risk_flag": not is_safe or confidence < 0.7,
+            "risk_flag": str(not is_safe or confidence < 0.7),
             "reason": reason,
             "sector": target_sector,
         }

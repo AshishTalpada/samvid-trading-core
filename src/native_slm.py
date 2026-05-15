@@ -66,43 +66,43 @@ class NativeSLM:
 
         prompt = self._build_prompt(context)
         prompt_json = json.dumps(prompt)
-        
+
         try:
             # --- THE NEURAL SANDBOX: Isolated Execution ---
             # Spawning a separate process protects the Main Engine from GGML_ASSERT crashes.
             cmd = [
-                sys.executable, 
-                "src/neural_sandbox.py", 
-                self.model_path, 
+                sys.executable,
+                "src/neural_sandbox.py",
+                self.model_path,
                 prompt_json
             ]
-            
+
             proc = await asyncio.create_subprocess_exec(
                 *cmd,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE
             )
-            
+
             # 15s timeout for the isolated worker
             stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=15.0)
-            
+
             if proc.returncode != 0:
                 err_msg = stderr.decode().strip()
                 logger.error(f"Neural Sandbox CRASHED (code {proc.returncode}): {err_msg}")
                 return self._neutral_vote(context, f"Sandbox Crash: {err_msg}")
-                
+
             result_raw = stdout.decode().strip()
             # Clean terminal noise if any
             if "{" in result_raw:
                 result_raw = result_raw[result_raw.find("{"):]
-            
+
             result_data = json.loads(result_raw)
-            
+
             if result_data.get("status") == "ERROR":
                 return self._neutral_vote(context, f"Sandbox Error: {result_data.get('reason')}")
-                
+
             output_text = result_data.get("text", "NEUTRAL")
-            
+
             bias = "NEUTRAL"
             if "BULLISH" in output_text:
                 bias = "BULLISH"
@@ -162,7 +162,7 @@ class NativeSLM:
             "vote": "YES", # Default pass if SLM is offline
             "confidence": 0.0,
             "signal_strength": 1.0,
-            "risk_flag": True,
+            "risk_flag": "True",
             "timestamp": context.get("timestamp", time.time_ns()),
             "reason": reason,
             "bias": "NEUTRAL",

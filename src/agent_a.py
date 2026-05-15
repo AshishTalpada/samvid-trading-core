@@ -2071,7 +2071,7 @@ def agent_a_validate_trade(
         "confidence": pattern.confidence / 100.0,
         "signal_strength": float(final_lambda) / 100.0,
         "lambda": float(final_lambda) / 100.0,
-        "risk_flag": False,
+        "risk_flag": "False",
         "reason": f"Consensus Reached. Lambda: {final_lambda:.1f}",
         "final_lambda": final_lambda,
         "regime": regime,

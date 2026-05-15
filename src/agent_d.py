@@ -1678,7 +1678,7 @@ class LiveLearningEngine:
             "signal_strength": 1.0
             if rating == "STRONG"
             else (0.5 if rating == "MODERATE" else 0.1),
-            "risk_flag": win_rate < 0.55,
+            "risk_flag": str(win_rate < 0.55),
             "reason": reason,
             "win_rate": win_rate,
             "data_rating": rating,
