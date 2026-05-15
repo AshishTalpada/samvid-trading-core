@@ -39,19 +39,12 @@ class NativeSLM:
             # Increased context window to 8192 to utilize more of the model's training capacity.
             # This provides better 'intelligence' for multi-factor market analysis.
             # Safe Mode: Full CPU execution to prevent GGML_ASSERT memory overflows.
-            # n_gpu_layers=0 eliminates hardware-mismatch crashes on Windows.
-            self.model = Llama(
-                model_path=model_path,
-                n_gpu_layers=0,
-                n_ctx=2048,
-                n_threads=4,
-                n_batch=1, # The 'Ultra-Stable' setting: absolute safest path
-                verbose=False
-            )
+            # n_gpu_layers=0 eliminates hardware-mismatch crashes
             self._available = True
-            logger.info(" Native SLM successfully loaded into VRAM.")
+            logger.info(f"Sovereign-SLM: Neural Sandbox initialized for {model_path}")
         except Exception as e:
-            logger.error(f"Failed to load Native SLM: {e}")
+            logger.error(f"Sovereign-SLM Initialization failed: {e}")
+            self._available = False
 
     @property
     def is_available(self) -> bool:
@@ -63,61 +56,82 @@ class NativeSLM:
 
 
     async def evaluate_proposal(self, context: Dict[str, Any]) -> Dict[str, Any]:
-        """Sovereign-SLM Sentiment Inference with Concurrency Guard."""
-        if not self._available or not self.model:
-            return self._neutral_vote(context, "Native SLM offline or unavailable.")
+        """Sovereign-SLM Neural Sandbox: Isolated Inference Guard."""
+        if not self._available:
+            return self._neutral_vote(context, "Native SLM sandbox unavailable.")
 
-        async with _SLM_LOCK:
-            prompt = self._build_prompt(context)
-            try:
-                # Use a more stable, explicit call for Windows/CPU execution.
-                # We use a 0.05s safety buffer between inferences to prevent process-level locks.
-                await asyncio.sleep(0.05)
+        prompt = self._build_prompt(context)
+        prompt_json = json.dumps(prompt)
+        
+        try:
+            # --- THE NEURAL SANDBOX: Isolated Execution ---
+            # Spawning a separate process protects the Main Engine from GGML_ASSERT crashes.
+            cmd = [
+                sys.executable, 
+                "src/neural_sandbox.py", 
+                self.model_path, 
+                prompt_json
+            ]
+            
+            proc = await asyncio.create_subprocess_exec(
+                *cmd,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE
+            )
+            
+            # 15s timeout for the isolated worker
+            stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=15.0)
+            
+            if proc.returncode != 0:
+                err_msg = stderr.decode().strip()
+                logger.error(f"Neural Sandbox CRASHED (code {proc.returncode}): {err_msg}")
+                return self._neutral_vote(context, f"Sandbox Crash: {err_msg}")
+                
+            result_raw = stdout.decode().strip()
+            # Clean terminal noise if any
+            if "{" in result_raw:
+                result_raw = result_raw[result_raw.find("{"):]
+            
+            result_data = json.loads(result_raw)
+            
+            if result_data.get("status") == "ERROR":
+                return self._neutral_vote(context, f"Sandbox Error: {result_data.get('reason')}")
+                
+            output_text = result_data.get("text", "NEUTRAL")
+            
+            bias = "NEUTRAL"
+            if "BULLISH" in output_text:
+                bias = "BULLISH"
+            elif "BEARISH" in output_text:
+                bias = "BEARISH"
 
-                # Format prompt for basic completion to bypass chat-template overhead
-                full_prompt = f"System: {prompt[0]['content']}\nUser: {prompt[1]['content']}\nAssistant:"
+            entry_side = str(context.get("side", "long")).lower()
 
-                response = await asyncio.to_thread(
-                    self.model,
-                    full_prompt,
-                    max_tokens=15,
-                    temperature=0.1,
-                    stop=["\n", "User:", "System:"]
-                )
+            vote = "YES"
+            reason = f"Neural Sandbox: {bias}"
 
-                output_text = response["choices"][0]["text"].strip().upper()
+            if (entry_side == "long" and bias == "BEARISH") or (entry_side == "short" and bias == "BULLISH"):
+                vote = "NO"
+                reason = f"VETO: Sandbox contradicts direction ({bias} vs {entry_side})"
 
-                bias = "NEUTRAL"
-                if "BULLISH" in output_text:
-                    bias = "BULLISH"
-                elif "BEARISH" in output_text:
-                    bias = "BEARISH"
+            return {
+                "agent": "Native_SLM",
+                "vote": vote,
+                "confidence": 0.85 if bias != "NEUTRAL" else 0.5,
+                "signal_strength": 1.15 if vote == "YES" and bias != "NEUTRAL" else 1.0,
+                "risk_flag": str(bias == "NEUTRAL"),
+                "timestamp": context.get("timestamp", time.time_ns()),
+                "reason": reason,
+                "bias": bias,
+                "agent_count": 1
+            }
 
-                entry_side = context.get("side", "long").lower()
-
-                vote = "YES"
-                reason = f"Native SLM: {bias}"
-
-                # Simple contradiction check
-                if (entry_side == "long" and bias == "BEARISH") or (entry_side == "short" and bias == "BULLISH"):
-                    vote = "NO"
-                    reason = f"VETO: SLM contradicts direction ({bias} vs {entry_side})"
-
-                return {
-                    "agent": "Native_SLM",
-                    "vote": vote,
-                    "confidence": 0.85 if bias != "NEUTRAL" else 0.5, # Static conf since SLM is decisive
-                    "signal_strength": 1.15 if vote == "YES" and bias != "NEUTRAL" else 1.0,
-                    "risk_flag": str(bias == "NEUTRAL"),
-                    "timestamp": context.get("timestamp", time.time_ns()),
-                    "reason": reason,
-                    "bias": bias,
-                    "agent_count": 1 # It's a single brain, not a swarm
-                }
-
-            except Exception as e:
-                logger.error(f"Native SLM Inference failed: {e}")
-                return self._neutral_vote(context, f"Inference Error: {e}")
+        except asyncio.TimeoutError:
+            logger.error("Neural Sandbox TIMEOUT (15s). Moving on.")
+            return self._neutral_vote(context, "Sandbox Timeout")
+        except Exception as e:
+            logger.error(f"Neural Sandbox DISPATCH FAILED: {e}")
+            return self._neutral_vote(context, f"Dispatch Error: {e}")
 
     def _build_prompt(self, context: dict) -> list:
         sys_prompt = "You are Sovereign-SLM, an elite quantitative strategist. Analyze the market context and output exactly one word: BULLISH, BEARISH, or NEUTRAL."
