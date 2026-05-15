@@ -38,13 +38,11 @@ class NativeSLM:
             # n_gpu_layers=-1 attempts to offload entirely to GPU if compiled with cuBLAS/Metal
             # Increased context window to 8192 to utilize more of the model's training capacity.
             # This provides better 'intelligence' for multi-factor market analysis.
-            # n_ctx reduced to 2048 to prevent GGML memory overflows on small models.
-            # n_threads set to 1 to prevent resource contention with the HFT loop.
+            # Safe Mode: Full CPU execution to prevent GGML_ASSERT memory overflows.
+            # n_gpu_layers=0 eliminates hardware-mismatch crashes on Windows.
             self.model = Llama(
                 model_path=model_path,
-                n_gpu_layers=-1,
-                n_ctx=2048,
-                n_threads=1,
+                n_gpu_layers=0,
                 verbose=False
             )
             self._available = True
