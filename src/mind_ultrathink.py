@@ -506,13 +506,13 @@ class MindUltrathink:
 
         return {
             "reasoning": " | ".join(reasoning),
-            "confidence": round(sov_score, 3),
+            "confidence": float(round(sov_score, 3)),
             "self_exit": int(self_exit),
             "meta_data": {
-                "prob": prob_success,
-                "entropy": entropy,
-                "greed": potential_greed,
-                "fear": potential_fear,
+                "prob": float(prob_success),
+                "entropy": float(entropy),
+                "greed": float(potential_greed),
+                "fear": float(potential_fear),
             },
         }
 
@@ -554,7 +554,7 @@ class MindUltrathink:
         return {
             "agent": "Mind_Ultrathink",
             "vote": vote,
-            "confidence": result.get("confidence", 0.0),
+            "confidence": float(result.get("confidence", 0.0)),
             "reason": reason,
             "reasoning": result.get("reasoning", ""),
             "learning_active": 1,

@@ -835,7 +835,7 @@ class CatalystScorer:
             "vote": "YES" if passes_budget else "NO",
             "confidence": min(0.99, score / 100.0) if score > 0 else 0.0,
             "signal_strength": min(2.0, score / budget_min) if budget_min > 0 else 1.0,
-            "risk_flag": score < (budget_min * 1.05),  # Tight margin flag
+            "risk_flag": str(score < (budget_min * 1.05)),  # Tight margin flag
             "reason": (
                 f"Catalyst Score {score:.2f} (Min: {budget_min}) | "
                 f"Dhatu: {dhatu_state.name if dhatu_state else 'None'}"
