@@ -24,6 +24,7 @@ class NativeSLM:
     """
     def __init__(self, model_path: str = "models/sovereign_slm.gguf"):
         self._available = False
+        self.model_path = model_path
         self.model = None
 
         if Llama is None:
