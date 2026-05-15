@@ -224,7 +224,14 @@ class TradingCoordinator:
                 )
                 pattern = proposal["pattern"]
 
-                alpha_val = proposal.get("lambda", pattern.confidence / 100.0)
+                # PILLAR 18: Kelly Fallback Fix
+                # If lambda is 0 or missing, we MUST fall back to base confidence.
+                # Previously, 0 was interpreted as 0% win probability, killing all risk.
+                _lambda = proposal.get("lambda")
+                if _lambda is None or _lambda <= 0:
+                    alpha_val = pattern.confidence / 100.0
+                else:
+                    alpha_val = _lambda
 
                 # Fetch OHLCV early to support Impact Oracle and Agent A
                 ohlcv_1m = await self.brain._fetch_ohlcv(symbol)
