@@ -1838,26 +1838,29 @@ class TradingBrain:
                         )
 
                         # --- DECISION LEDGER: record every approved pattern ---
-                        try:
-                            LEDGER.record_entry(
-                                symbol=symbol,
-                                pattern=best.name,
-                                confidence=best.confidence,
-                                agent_votes={
-                                    "agent_a": (
-                                        f"{best.name} ({best.confidence:.1f}%) — "
-                                        f"R/R {getattr(best, 'r_r_ratio', 0):.1f}x"
-                                    )
-                                },
-                                triggered_by="agent_a",
-                                meta={
-                                    "regime": self.current_regime,
-                                    "dhatu": self._oracle_dhatu,
-                                    "oracle_modifier": self._oracle_risk_modifier,
-                                },
-                            )
-                        except Exception as _le:
-                            logger.debug(f"DecisionLedger entry skipped: {_le}")
+                        # PILLAR 14: Suppressed discovery bloat.
+                        # Logging every scan discovery caused 1.3M row bloat in 12 hours.
+                        # Only real trade attempts and vetos are now logged by the Coordinator.
+                        # try:
+                        #     LEDGER.record_entry(
+                        #         symbol=symbol,
+                        #         pattern=best.name,
+                        #         confidence=best.confidence,
+                        #         agent_votes={
+                        #             "agent_a": (
+                        #                 f"{best.name} ({best.confidence:.1f}%) — "
+                        #                 f"R/R {getattr(best, 'r_r_ratio', 0):.1f}x"
+                        #             )
+                        #         },
+                        #         triggered_by="agent_a",
+                        #         meta={
+                        #             "regime": self.current_regime,
+                        #             "dhatu": self._oracle_dhatu,
+                        #             "oracle_modifier": self._oracle_risk_modifier,
+                        #         },
+                        #     )
+                        # except Exception as _le:
+                        #     logger.debug(f"DecisionLedger entry skipped: {_le}")
 
                         task = self.task_manager.spawn_trade(
                             symbol, {"pattern": best.name, "conf": best.confidence}
@@ -2443,9 +2446,10 @@ class TradingBrain:
 
             # 2. Mathematical Reflection
             slice_qty = exit_shares if pos.qty > 0 else -exit_shares
-            (exit_price - pos.entry_price) * slice_qty
+            # Removed redundant expression
             r_multiple = (
-                (exit_price - pos.entry_price) / abs(pos.entry_price - pos.stop_loss)
+                ((exit_price - pos.entry_price) / abs(pos.entry_price - pos.stop_loss))
+                * (1 if pos.qty > 0 else -1)
                 if abs(pos.entry_price - pos.stop_loss) > 0
                 else 0
             )
