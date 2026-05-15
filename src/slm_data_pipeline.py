@@ -55,7 +55,7 @@ def build_dataset():
             SELECT
                 instrument, direction, pattern, regime, catalyst_score, dhatu_state, belief_at_entry, pnl_dollars, outcome
             FROM trades
-            WHERE outcome IN ('WIN', 'LOSS', 'CLOSED', 'LIQUIDATED', 'EXIT_P1')
+            WHERE outcome IN ('WIN', 'LOSS', 'CLOSED')
         """)
 
         rows = cursor.fetchall()
@@ -85,17 +85,14 @@ def build_dataset():
                 # If PnL > 0, the direction taken was correct.
                 # If PnL < 0, the opposite direction was likely correct.
                 target = "NEUTRAL"
-                if pnl > 0:
+                if pnl >= 5.0:  # PILLAR 18: Significance Threshold
                     target = "BULLISH" if str(direction).lower() == "long" else "BEARISH"
                     win_count += 1
-                elif pnl < 0:
+                elif pnl <= -5.0:
                     target = "BEARISH" if str(direction).lower() == "long" else "BULLISH"
                     loss_count += 1
                 else:
-                    target = "NEUTRAL"
-
-                # Skip neutral or tiny PnL for cleaner training
-                if abs(pnl) < 0.01:
+                    # Skip neutral or tiny PnL for cleaner training (Noise/Commissions)
                     continue
 
                 # Format Context
