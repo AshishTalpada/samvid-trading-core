@@ -507,7 +507,7 @@ class MindUltrathink:
         return {
             "reasoning": " | ".join(reasoning),
             "confidence": round(sov_score, 3),
-            "self_exit": self_exit,
+            "self_exit": int(self_exit),
             "meta_data": {
                 "prob": prob_success,
                 "entropy": entropy,
