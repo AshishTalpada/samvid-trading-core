@@ -66,13 +66,35 @@ class RiskInvariants:
 
     # Hard notional caps per instrument (USD). DEFAULT applies to all unlisted symbols.
     MAX_NOTIONAL_PER_ORDER: dict[str, float] = {
+        # Large-cap ETFs
         "SPY": 50_000,
         "QQQ": 40_000,
+        "DIA": 30_000,
         "IWM": 25_000,
+        # Large-cap tech
         "MSFT": 25_000,
+        "AAPL": 25_000,
+        "GOOGL": 20_000,
+        "AMZN": 20_000,
+        "META": 20_000,
         "NVDA": 20_000,
+        "AVGO": 15_000,
+        "AMD": 15_000,
+        # High-vol / mid-cap — tighter caps
         "TSLA": 15_000,
         "NFLX": 15_000,
+        "COST": 15_000,
+        "GS": 15_000,
+        "JPM": 15_000,
+        "MA": 15_000,
+        "V": 15_000,
+        "WMT": 15_000,
+        "ARM": 10_000,
+        "MU": 10_000,
+        "PLTR": 7_500,  # High volatility
+        "MSTR": 7_500,  # BTC-correlated, extreme volatility
+        "COIN": 5_000,  # Crypto-proxy, extreme intraday swings
+        "SMCI": 5_000,  # Micro-cap, extreme volatility
         "DEFAULT": 10_000,
     }
 
