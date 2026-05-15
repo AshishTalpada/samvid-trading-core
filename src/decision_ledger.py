@@ -61,11 +61,7 @@ class DecisionLedger:
         self._lock = threading.Lock()
         self._init_db()
 
-        # PILLAR 14: HIGH-FREQUENCY PERSISTENCE
-        # Replaced per-write threading with a single background worker queue.
-        # Spawning 30 threads/sec was causing massive entropy and CPU context-switching bloat.
         import queue
-
         self._queue = queue.Queue()
         self._worker = threading.Thread(target=self._worker_loop, daemon=True)
         self._worker.start()
@@ -108,7 +104,6 @@ class DecisionLedger:
                 )
             """)
             conn.commit()
-            # Periodic cleanup: Purge VETOs older than 48h to prevent 1.3M row bloat
             try:
                 # 48 hours ago in nanoseconds
                 cutoff = time.time_ns() - (48 * 3600 * 1_000_000_000)
