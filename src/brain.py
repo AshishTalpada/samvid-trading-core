@@ -3218,8 +3218,8 @@ class TradingBrain:
                 age_seconds = (now_ts - _p_entry).total_seconds()
 
                 # A. The Zero-Sync Purge (Clean up phantom positions)
-                # ONLY purge if: Uptime > 300s, Age > 3600s, and Reality is confirmed FLAT
-                if uptime > 300 and age_seconds > 3600 and abs(broker_qty) < 0.1:
+                # ONLY purge if: Uptime > 300s, Age > 300s (5m), and Reality is confirmed FLAT
+                if uptime > 300 and age_seconds > 300 and abs(broker_qty) < 0.1:
                     logger.warning(
                         f" SYNC PURGE [{broker.upper()}]: {p.symbol} is flat in reality. "
                         "Removing from memory."
