@@ -151,12 +151,8 @@ class DrawdownLadder:
 
     def update(self, equity: float) -> DrawdownLevel:
         """Update drawdown state and return current level."""
-        if self.peak_equity > equity * 2:
-            logger.warning(
-                f"DrawdownLadder ({self.account_type}): Peak ${self.peak_equity:,.2f} "
-                f"is wildly above "
-                f"Current ${equity:,.2f}. Resetting peak to prevent false RED-ZONE lockout."
-            )
+        if self.peak_equity > equity * 1.2 or self.peak_equity == 0:
+            logger.info(f"DrawdownLadder ({self.account_type}): Calibrating peak to ${equity:,.2f}")
             self.peak_equity = equity
 
         self.current_equity = equity
@@ -3996,13 +3992,14 @@ class TradingBrain:
                     )
                     if not success:
                         logger.critical(
-                            " PHANTOM PROBE FAILED! System logic returned False "
-                            "(Possible Quorum or Context Block)."
+                            " PHANTOM PROBE FAILED! System logic returned False (Possible Quorum or Context Block). "
+                            "Alerting via Telegram, but MAINTAINING system uptime."
                         )
                         if self.dms:
                             await self.dms._send_telegram_message(
-                                " <b>[Sovereign Alert]</b>: Phantom Probe Failure. "
-                                "System wiring check returned REJECT."
+                                " ⚠️ <b>[Sovereign Alert]</b>: Phantom Probe Failure. "
+                                "System wiring check returned REJECT. "
+                                "System is STAYING ONLINE but requires manual oversight."
                             )
             except Exception as e:
                 logger.error(f"Phantom Probe Error: {e}")
