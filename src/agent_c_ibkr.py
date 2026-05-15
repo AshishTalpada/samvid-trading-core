@@ -1147,7 +1147,6 @@ class PositionSizingChain:
         # --- SOVEREIGN REALITY ALIGNED HAIRCUT ---
         _raw_nav = kwargs.get("account_value", balance)
         
-        # DEBUG: Reveal the sizing inputs
         if _raw_nav <= 0:
             logger.warning(f"Sizer DEBUG: {instrument} received ZERO balance. Sizing will be 0.")
         
