@@ -999,7 +999,7 @@ class DhatuOracle:
             "vote": vote,
             "confidence": confidence,
             "signal_strength": modifier,
-            "risk_flag": modifier < 0.85,
+            "risk_flag": str(modifier < 0.85),
             "reason": reason,
             "dhatu_state": dhatu_state,
             "risk_modifier": modifier,

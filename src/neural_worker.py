@@ -1,27 +1,22 @@
 import json
-import logging
 import sys
 
 from llama_cpp import Llama
 
-# Minimal logging to avoid terminal pollution
-logging.basicConfig(level=logging.ERROR)
 
-def run_isolated_inference(model_path, prompt_json):
+def run_inference(model_path, prompt):
     try:
-        prompt = json.loads(prompt_json)
-
-        # Load fresh instance in isolation
+        # Load model FRESH for each isolated run to prevent state corruption
         llm = Llama(
             model_path=model_path,
             n_gpu_layers=0,
             n_ctx=2048,
             n_threads=4,
-            n_batch=1,
+            n_batch=8, # Small batch for max stability
             verbose=False
         )
 
-        # Use simple completion for max stability
+        # Raw completion for speed
         full_prompt = f"System: {prompt[0]['content']}\nUser: {prompt[1]['content']}\nAssistant:"
 
         response = llm(
@@ -31,8 +26,8 @@ def run_isolated_inference(model_path, prompt_json):
             stop=["\n", "User:", "System:"]
         )
 
-        text = response["choices"][0]["text"].strip().upper()
-        print(json.dumps({"status": "SUCCESS", "text": text}))
+        result = response["choices"][0]["text"].strip().upper()
+        print(json.dumps({"status": "SUCCESS", "text": result}))
     except Exception as e:
         print(json.dumps({"status": "ERROR", "reason": str(e)}))
 
@@ -41,6 +36,8 @@ if __name__ == "__main__":
         sys.exit(1)
 
     m_path = sys.argv[1]
-    p_json = sys.argv[2]
+    # Expect prompt as a JSON string from stdin to handle complex characters
+    prompt_json = sys.stdin.read()
+    p_list = json.loads(prompt_json)
 
-    run_isolated_inference(m_path, p_json)
+    run_inference(m_path, p_list)
