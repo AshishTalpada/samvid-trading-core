@@ -107,7 +107,7 @@ class NativeSLM:
                     "vote": vote,
                     "confidence": 0.85 if bias != "NEUTRAL" else 0.5, # Static conf since SLM is decisive
                     "signal_strength": 1.15 if vote == "YES" and bias != "NEUTRAL" else 1.0,
-                    "risk_flag": bias == "NEUTRAL",
+                    "risk_flag": str(bias == "NEUTRAL"),
                     "timestamp": context.get("timestamp", time.time_ns()),
                     "reason": reason,
                     "bias": bias,
