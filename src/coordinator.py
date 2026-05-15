@@ -222,7 +222,7 @@ class TradingCoordinator:
                 account_value = await self.brain.get_safe_buying_power(
                     self.brain.active_broker.lower()
                 )
-                
+
                 from config import USD_CAD_RATE
                 if account_value > 500000 and symbol not in ["XAUUSD", "US100"]:
                      account_value = account_value / USD_CAD_RATE
@@ -399,7 +399,7 @@ class TradingCoordinator:
                                 "final_lambda": 99.0,
                                 "signal_strength": 1.0,
                                 "lambda": 1.0,
-                                "risk_flag": False,
+                                "risk_flag": "False",
                                 "regime": self.brain.current_regime,
                                 "metadata": {
                                     "pattern": pattern.name,
