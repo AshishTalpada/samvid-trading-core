@@ -21,7 +21,7 @@ class MindGhost:
     def __init__(self, bridge: MindBridge) -> None:
         self.bridge = bridge
         self.is_running = False
-        self._stand_down = False  # PILLAR 14: SHUTDOWN AWARENESS
+        self._stand_down = False
         self.latency_threshold_ms = 500  # 500ms threshold for 'Hanging'
         self.last_api_heartbeat = time.time()
         self.startup_time = time.time()  # For grace period
@@ -167,10 +167,7 @@ class MindGhost:
                 await asyncio.sleep(1)
 
     async def _trigger_ghost_reset(self, service_name: str) -> None:
-        """
-        Triggers an autonomous service reset with Pillar 4 Exponential Backoff.
-        This is a 'Ghost Reset' because it happens before the system actually crashes.
-        """
+        """Triggers an autonomous service reset."""
         retry_count = self.retry_counts.get(service_name, 0)
         backoff_delay = self.backoff_base**retry_count
 

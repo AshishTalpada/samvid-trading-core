@@ -3497,11 +3497,6 @@ class TradingBrain:
                         if hasattr(self, "ibkr_drawdown") and self.ibkr_drawdown.peak_equity > 0
                         else STARTING_CAPITAL_CAD
                     )
-                    # PILLAR 19: Total Equity Awareness Fix
-                    # We fetch all NetLiquidation values and take the MAX.
-                    # This prevents the system from accidentally picking a small
-                    # negative sub-currency balance (like -$618 USD) instead of
-                    # the primary $1M CAD balance.
                     liq_vals = [float(x.value) for x in acc_vals if x.tag == "NetLiquidation"]
                     val = max(liq_vals) if liq_vals else fallback_val
             elif account_type == "mt5":
