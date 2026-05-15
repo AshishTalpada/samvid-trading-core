@@ -222,6 +222,16 @@ class TradingCoordinator:
                 account_value = await self.brain.get_safe_buying_power(
                     self.brain.active_broker.lower()
                 )
+                
+                # PILLAR 20: Cross-Border Sizing Fix
+                # If the account is CAD-based (>$500k likely CAD) and symbol is US stock, 
+                # we must convert balance to USD for the sizer.
+                from config import USD_CAD_RATE
+                if account_value > 500000 and symbol not in ["XAUUSD", "US100"]: # Heuristic for CAD account
+                     # In your TWS image, we saw $1M CAD. We convert to USD for accurate sizing.
+                     account_value = account_value / USD_CAD_RATE
+                     logger.debug(f"Coordinator: Converted CAD balance to USD for {symbol} sizing: ${account_value:,.2f}")
+
                 pattern = proposal["pattern"]
 
                 # PILLAR 18: Kelly Fallback Fix
