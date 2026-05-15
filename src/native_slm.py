@@ -11,6 +11,9 @@ except ImportError:
 
 logger = logging.getLogger(__name__)
 
+# Global Neural Semaphore: Prevent 'GGML_ASSERT' crash by serializing AI calls
+_SLM_LOCK = asyncio.Lock()
+
 class NativeSLM:
     """
     Blazing-fast, ultra-low latency inference engine running directly in VRAM.
@@ -35,10 +38,13 @@ class NativeSLM:
             # n_gpu_layers=-1 attempts to offload entirely to GPU if compiled with cuBLAS/Metal
             # Increased context window to 8192 to utilize more of the model's training capacity.
             # This provides better 'intelligence' for multi-factor market analysis.
+            # n_ctx reduced to 2048 to prevent GGML memory overflows on small models.
+            # n_threads set to 1 to prevent resource contention with the HFT loop.
             self.model = Llama(
                 model_path=model_path,
                 n_gpu_layers=-1,
-                n_ctx=8192,
+                n_ctx=2048,
+                n_threads=1,
                 verbose=False
             )
             self._available = True
@@ -54,55 +60,56 @@ class NativeSLM:
     def is_available(self, value: bool) -> None:
         pass # Controlled internally
 
+
     async def evaluate_proposal(self, context: Dict[str, Any]) -> Dict[str, Any]:
-        """Drop-in replacement for SwarmPredictor's evaluate_proposal."""
+        """Sovereign-SLM Sentiment Inference with Concurrency Guard."""
         if not self._available or not self.model:
             return self._neutral_vote(context, "Native SLM offline or unavailable.")
 
-        prompt = self._build_prompt(context)
+        async with _SLM_LOCK:
+            prompt = self._build_prompt(context)
+            try:
+                # Run inference in a thread pool so it doesn't block the async HFT event loop
+                response = await asyncio.to_thread(
+                    self.model.create_chat_completion,
+                    messages=prompt,
+                    max_tokens=10,
+                    temperature=0.1 # Very deterministic for trading
+                )
 
-        try:
-            # Run inference in a thread pool so it doesn't block the async HFT event loop
-            response = await asyncio.to_thread(
-                self.model.create_chat_completion,
-                messages=prompt,
-                max_tokens=10,
-                temperature=0.1 # Very deterministic for trading
-            )
+                output_text = response["choices"][0]["message"]["content"].strip().upper()
 
-            output_text = response["choices"][0]["message"]["content"].strip().upper()
+                bias = "NEUTRAL"
+                if "BULLISH" in output_text:
+                    bias = "BULLISH"
+                elif "BEARISH" in output_text:
+                    bias = "BEARISH"
 
-            bias = "NEUTRAL"
-            if "BULLISH" in output_text:
-                bias = "BULLISH"
-            elif "BEARISH" in output_text:
-                bias = "BEARISH"
+                entry_side = context.get("side", "long").lower()
 
-            entry_side = context.get("side", "long").lower()
+                vote = "YES"
+                reason = f"Native SLM: {bias}"
 
-            vote = "YES"
-            reason = f"Native SLM: {bias}"
+                # Simple contradiction check
+                if (entry_side == "long" and bias == "BEARISH") or (entry_side == "short" and bias == "BULLISH"):
+                    vote = "NO"
+                    reason = f"VETO: SLM contradicts direction ({bias} vs {entry_side})"
 
-            # Simple contradiction check
-            if (entry_side == "long" and bias == "BEARISH") or (entry_side == "short" and bias == "BULLISH"):
-                vote = "NO"
-                reason = f"VETO: SLM contradicts direction ({bias} vs {entry_side})"
+                return {
+                    "agent": "Native_SLM",
+                    "vote": vote,
+                    "confidence": 0.85 if bias != "NEUTRAL" else 0.5, # Static conf since SLM is decisive
+                    "signal_strength": 1.15 if vote == "YES" and bias != "NEUTRAL" else 1.0,
+                    "risk_flag": bias == "NEUTRAL",
+                    "timestamp": context.get("timestamp", time.time_ns()),
+                    "reason": reason,
+                    "bias": bias,
+                    "agent_count": 1 # It's a single brain, not a swarm
+                }
 
-            return {
-                "agent": "Native_SLM",
-                "vote": vote,
-                "confidence": 0.85 if bias != "NEUTRAL" else 0.5, # Static conf since SLM is decisive
-                "signal_strength": 1.15 if vote == "YES" and bias != "NEUTRAL" else 1.0,
-                "risk_flag": bias == "NEUTRAL",
-                "timestamp": context.get("timestamp", time.time_ns()),
-                "reason": reason,
-                "bias": bias,
-                "agent_count": 1 # It's a single brain, not a swarm
-            }
-
-        except Exception as e:
-            logger.error(f"Native SLM Inference failed: {e}")
-            return self._neutral_vote(context, f"Inference Error: {e}")
+            except Exception as e:
+                logger.error(f"Native SLM Inference failed: {e}")
+                return self._neutral_vote(context, f"Inference Error: {e}")
 
     def _build_prompt(self, context: dict) -> list:
         sys_prompt = "You are Sovereign-SLM, an elite quantitative strategist. Analyze the market context and output exactly one word: BULLISH, BEARISH, or NEUTRAL."
