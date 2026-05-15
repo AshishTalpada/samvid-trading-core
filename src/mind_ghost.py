@@ -33,17 +33,36 @@ class MindGhost:
         self._probe_next_allowed: dict[str, float] = {}
         self._probe_backoff_sec: dict[str, float] = {"IBKR": 30.0, "MT5": 60.0}
 
+        # FIX: Store task references to allow clean cancellation on shutdown.
+        # Dropping these references causes 'Task was destroyed but it is pending!'
+        self._audit_task: asyncio.Task | None = None
+        self._shutdown_listener_task: asyncio.Task | None = None
+
+    async def stop(self) -> None:
+        """Cleanly cancel all background tasks to prevent asyncio leak on shutdown."""
+        self.is_running = False
+        self._stand_down = True
+        for t in (self._audit_task, self._shutdown_listener_task):
+            if t and not t.done():
+                t.cancel()
+                try:
+                    await t
+                except (asyncio.CancelledError, Exception):
+                    pass
+        logger.info("MindGhost (Agent J): Stopped cleanly.")
+
     async def start(self) -> None:
         """Launch the Ghost Monitor."""
         self.is_running = True
         logger.info("MindGhost (Agent J): Ghost Monitoring active.")
 
-        # Start audit loop
-        task = asyncio.create_task(self._ghost_audit_loop())
+        # Start audit loop — store reference to allow clean cancellation
+        self._audit_task = asyncio.create_task(self._ghost_audit_loop())
 
-        # Start shutdown listener
+        # FIX: Store shutdown listener reference to prevent 'Task destroyed' error on restart.
+        # Previously created with create_task() and reference dropped immediately.
         if self.bridge.bus:
-            asyncio.create_task(self._shutdown_listener())
+            self._shutdown_listener_task = asyncio.create_task(self._shutdown_listener())
 
         def _ghost_dead_callback(t: asyncio.Task) -> None:
             if self.is_running:  # If it wasn't a clean stop
@@ -61,7 +80,7 @@ class MindGhost:
                     self.bridge.broadcast("ghost", msg, {"alert": "TELEGRAM", "urgency": "FATAL"})
                 )
 
-        task.add_done_callback(_ghost_dead_callback)
+        self._audit_task.add_done_callback(_ghost_dead_callback)
 
     async def _shutdown_listener(self) -> None:
         """Listens for the system shutdown signal to stand down."""
@@ -412,5 +431,8 @@ class GhostInfrastructureMonitor:
         try:
             with socket.create_connection(("127.0.0.1", port), timeout=2.0):
                 return True
-        except:
+        except (socket.timeout, ConnectionRefusedError, OSError):
+            return False
+        except Exception as e:
+            logger.debug(f"[GHOST] Probe error on port {port}: {e}")
             return False
