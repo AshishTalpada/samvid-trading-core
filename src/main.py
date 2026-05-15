@@ -1795,12 +1795,23 @@ class TradingSystem:
                 except Exception as e:
                     logger.error(f"Shutdown: DMS stop failed: {e}")
 
+            # FIX: Explicitly stop MindGhost to cancel its background tasks.
+            # Without this, _shutdown_listener and _ghost_audit_loop tasks are leaked,
+            # causing 'Task was destroyed but it is pending!' on every restart.
+            if hasattr(self, "mind_ghost") and self.mind_ghost:
+                try:
+                    logger.info(" -> Stopping MindGhost (Agent J)...")
+                    await self.mind_ghost.stop()
+                except Exception as e:
+                    logger.error(f"Shutdown: MindGhost stop failed: {e}")
+
             if hasattr(self, "api_server") and self.api_server:
                 try:
                     logger.info(" -> Stopping API Server...")
                     await self.api_server.stop()
                 except Exception as e:
                     logger.error(f"Shutdown: API Server stop failed: {e}")
+
 
             # 4. UNLOAD AI MODELS
             logger.info("[SHUTDOWN STEP 4/8] Offloading Neural VRAM weights...")
