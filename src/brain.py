@@ -2542,7 +2542,15 @@ class TradingBrain:
 
                 if not hasattr(self, "_loss_streak"):
                     self._loss_streak = 0
-                if realized_net_pnl < 0:
+
+                # Guard: Do NOT count ghost (0-unit) or broker-veto exits as loss streaks.
+                # These are infrastructure events, not real trading failures. Counting them
+                # would prematurely trigger ABHAVA lockdown based on phantom data.
+                _is_ghost_loss = abs(exit_shares) < 0.0001
+                _is_veto_exit = exit_type in ("HEARTBEAT_VETO", "LIQUIDATED")
+                _is_countable_loss = not _is_ghost_loss and not _is_veto_exit
+
+                if realized_net_pnl < 0 and _is_countable_loss:
                     self._loss_streak += 1
                     if self._loss_streak >= 5:
                         logger.critical(
@@ -2552,7 +2560,7 @@ class TradingBrain:
                         self.current_regime = "RISK_OFF"
                         # Reset streak after triggering so we can eventually recover
                         self._loss_streak = 0
-                else:
+                elif realized_net_pnl >= 0 or not _is_countable_loss:
                     self._loss_streak = 0
 
             if hasattr(self, "recursive_evolution"):

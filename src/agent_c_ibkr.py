@@ -563,9 +563,19 @@ class IBKRConnection:
             logger.error(f"IBKR Recovery Error: {e}")
 
     def get_account_value(self) -> float:
-        """Returns NAV from the real-time cache (No API Polling)."""
+        """Returns NAV from the real-time cache (No API Polling).
+
+        CRITICAL FIX: Returns 0.0 (not fallback capital) when IBKR is offline.
+        A return of 0.0 will cause the sizer to produce 0 shares, which is safe.
+        Returning STARTING_CAPITAL_CAD when offline was causing the sizer to
+        calculate positions based on fake capital, resulting in 1000+ share orders.
+        """
         if not self.is_connected:
-            return STARTING_CAPITAL_CAD
+            logger.warning(
+                "IBKR: get_account_value() called while OFFLINE. "
+                "Returning 0 to block sizer. Will retry once connected."
+            )
+            return 0.0
         try:
             # 1. Check the event-driven cache first (Updated by _on_account_summary)
             val = self._account_summary.get("NetLiquidation")
@@ -580,10 +590,11 @@ class IBKRConnection:
                     self._account_summary["NetLiquidation"] = item.value
                     return float(item.value)
 
-            return STARTING_CAPITAL_CAD
+            logger.warning("IBKR: NAV cache cold. Returning 0 to block sizer until connected.")
+            return 0.0
         except Exception as e:
             logger.error(f"IBKR: NAV Cache Retrieval failed: {e}")
-            return STARTING_CAPITAL_CAD
+            return 0.0
 
     def get_margin_cushion(self) -> float:
         """
@@ -762,10 +773,13 @@ class IBKRConnection:
                 tp = self.round_to_tick(take_profit)
 
                 # 1. Entry Order
+                # FIX: Force tif=DAY on bracket orders (paper mode overrides GTC -> Error 10349)
+                order_tif = "DAY"
                 parent = LimitOrder(direction, shares, lmt)
                 parent.orderId = self.ib.client.getReqId()
                 parent.transmit = False
                 parent.overridePercentageConstraints = True
+                parent.tif = order_tif
 
                 # Replaced Stop-Market with Stop-Limit ('Recovery Limit')
                 # A 2% buffer ensures fill in fast markets while capping
@@ -782,12 +796,14 @@ class IBKRConnection:
                 sl_order.parentId = parent.orderId
                 sl_order.transmit = False
                 sl_order.overridePercentageConstraints = True
+                sl_order.tif = order_tif
 
                 # 3. Take Profit Order
                 tp_order = LimitOrder(opp_direction, shares, tp)
                 tp_order.parentId = parent.orderId
                 tp_order.transmit = True  # Final order in bracket transmits the entire group
                 tp_order.overridePercentageConstraints = True
+                tp_order.tif = order_tif
 
                 ids = []
                 # Resolve the 'Multi-Account Pillage' issue where empty IBKR_ACCOUNT_ID
