@@ -557,7 +557,7 @@ class MindUltrathink:
             "confidence": result.get("confidence", 0.0),
             "reason": reason,
             "reasoning": result.get("reasoning", ""),
-            "learning_active": True,
+            "learning_active": 1,
         }
 
     async def heartbeat_vet(self, pos_dict: dict, market_dict: dict) -> dict:
