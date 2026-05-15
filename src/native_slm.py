@@ -43,6 +43,8 @@ class NativeSLM:
             self.model = Llama(
                 model_path=model_path,
                 n_gpu_layers=0,
+                n_ctx=1024,
+                n_threads=4,
                 verbose=False
             )
             self._available = True
@@ -67,15 +69,22 @@ class NativeSLM:
         async with _SLM_LOCK:
             prompt = self._build_prompt(context)
             try:
-                # Run inference in a thread pool so it doesn't block the async HFT event loop
+                # Use a more stable, explicit call for Windows/CPU execution.
+                # We use a 0.05s safety buffer between inferences to prevent process-level locks.
+                await asyncio.sleep(0.05)
+
+                # Format prompt for basic completion to bypass chat-template overhead
+                full_prompt = f"System: {prompt[0]['content']}\nUser: {prompt[1]['content']}\nAssistant:"
+
                 response = await asyncio.to_thread(
-                    self.model.create_chat_completion,
-                    messages=prompt,
-                    max_tokens=10,
-                    temperature=0.1 # Very deterministic for trading
+                    self.model,
+                    full_prompt,
+                    max_tokens=15,
+                    temperature=0.1,
+                    stop=["\n", "User:", "System:"]
                 )
 
-                output_text = response["choices"][0]["message"]["content"].strip().upper()
+                output_text = response["choices"][0]["text"].strip().upper()
 
                 bias = "NEUTRAL"
                 if "BULLISH" in output_text:
