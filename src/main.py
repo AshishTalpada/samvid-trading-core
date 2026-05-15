@@ -1682,10 +1682,19 @@ class TradingSystem:
                     await asyncio.sleep(delay)
 
                 if retries >= max_retries:
-                    logger.error(
-                        f"Background task '{name}' permanently failed after {max_retries} retries."
+                    logger.critical(
+                        f"Background task '{name}' permanently failed after {max_retries} retries. "
+                        "MAINTAINING system uptime, but this component is now OFFLINE."
                     )
-                    raise RuntimeError(f"Task {name} completely failed")
+                    # Instead of raising and killing the event loop, we alert and exit the supervisor.
+                    try:
+                        await self.send_telegram_notification(
+                            f" ⚠️ <b>[Sovereign Alert]</b>: Task {name} permanently OFFLINE. "
+                            "System remains operational but logic may be impaired."
+                        )
+                    except Exception:
+                        pass
+                    return 
 
         task = asyncio.create_task(supervisor())
         self.background_tasks[name] = task
