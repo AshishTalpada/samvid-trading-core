@@ -582,13 +582,13 @@ class IBKRConnection:
             if val is not None:
                 return float(val)
 
-            # 2. Fallback to active session values if cache is cold (No Request limit hit)
-            # Use accountValues() which is a locally-cached list in ib_insync
-            for item in self.ib.accountValues():
-                if item.tag == "NetLiquidation":
-                    # Populate cache
-                    self._account_summary["NetLiquidation"] = item.value
-                    return float(item.value)
+            # 2. Fallback to active session values if cache is cold
+            acc_vals = self.ib.accountValues()
+            liq_vals = [float(item.value) for item in acc_vals if item.tag == "NetLiquidation"]
+            if liq_vals:
+                val = max(liq_vals)
+                self._account_summary["NetLiquidation"] = val
+                return val
 
             logger.warning("IBKR: NAV cache cold. Returning 0 to block sizer until connected.")
             return 0.0
@@ -1145,16 +1145,13 @@ class PositionSizingChain:
         from risk_invariants import RiskInvariants
 
         # --- SOVEREIGN REALITY ALIGNED HAIRCUT ---
-        # Optimistic suicide is prevented by assuming slightly less capital than we think we have.
         _raw_nav = kwargs.get("account_value", balance)
+        
+        # DEBUG: Reveal the sizing inputs
+        if _raw_nav <= 0:
+            logger.warning(f"Sizer DEBUG: {instrument} received ZERO balance. Sizing will be 0.")
+        
         balance = min(balance, _raw_nav) * 0.99
-
-        if balance > 2000000.0:
-            logger.warning(
-                f" SOVEREIGN GUARD: Detected outlier account value of ${balance:,.2f}. "
-                "Capping at $2M for Safety."
-            )
-            balance = 2000000.0
 
         # Step 1: Raw Kelly Risk (Balanced)
         kelly_pct = win_prob - ((1 - win_prob) / r_r_ratio) if r_r_ratio > 0 else 0
