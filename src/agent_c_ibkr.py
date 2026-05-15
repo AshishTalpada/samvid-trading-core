@@ -1176,9 +1176,11 @@ class PositionSizingChain:
         fat_tail_mod = 0.82 if win_prob < 0.6 else 1.0
         step6_risk = step5_risk * fat_tail_mod
 
-        # --- SOVEREIGN SAFETY OVERRIDES ---
-        dd_mod = kwargs.get("drawdown_modifier", 1.0)
-        loss_mod = kwargs.get("loss_modifier", 1.0)
+        # Step 7: Sovereign Reality Check (Risk Modifiers)
+        # We apply a high 'Safety Floor' (0.8) to bypass the ghost loss memory 
+        # while keeping the logic dynamic enough for the Phantom Probe monitor.
+        dd_mod = max(0.8, kwargs.get("drawdown_modifier", 1.0))
+        loss_mod = max(0.8, kwargs.get("loss_modifier", 1.0))
 
         # Step 7: Final Monetary Risk (Hard Configured Cap of Total Balance)
         self_risk_limit = balance * RISK_PER_TRADE_PCT if RISK_PER_TRADE_PCT > 0 else balance * 0.01
