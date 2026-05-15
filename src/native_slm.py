@@ -43,8 +43,9 @@ class NativeSLM:
             self.model = Llama(
                 model_path=model_path,
                 n_gpu_layers=0,
-                n_ctx=1024,
+                n_ctx=2048,
                 n_threads=4,
+                n_batch=1, # The 'Ultra-Stable' setting: absolute safest path
                 verbose=False
             )
             self._available = True
@@ -119,21 +120,9 @@ class NativeSLM:
                 return self._neutral_vote(context, f"Inference Error: {e}")
 
     def _build_prompt(self, context: dict) -> list:
-        sys_prompt = "You are Sovereign-SLM, an elite quantitative strategist. Analyze the market context and output exactly one word: BULLISH, BEARISH, or NEUTRAL."
-
-        ctx_str = (
-            f"Instrument: {context.get('symbol', 'UNKNOWN')}\n"
-            f"Regime: {context.get('regime', 'UNKNOWN')}\n"
-            f"Dhatu State: {context.get('dhatu_state', 'UNKNOWN')}\n"
-            f"Pattern: {context.get('pattern', 'UNKNOWN')}\n"
-            f"Catalyst Score: {context.get('catalyst_score', 0.5)}\n"
-            f"Belief: {context.get('belief', 0.5)}\n"
-            f"\nDecision?"
-        )
-
         return [
-            {"role": "system", "content": sys_prompt},
-            {"role": "user", "content": f"Context:\n{ctx_str}"}
+            {"role": "system", "content": "You are Sovereign-SLM, an elite quantitative strategist. Answer ONLY with BULLISH, BEARISH, or NEUTRAL."},
+            {"role": "user", "content": f"Audit this {str(context.get('side'))} proposal for {str(context.get('symbol'))}. Pattern: {str(context.get('pattern'))}. Regime: {str(context.get('regime'))}. Decision?"}
         ]
 
     def _neutral_vote(self, context: dict, reason: str) -> dict:
