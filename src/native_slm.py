@@ -120,9 +120,22 @@ class NativeSLM:
                 return self._neutral_vote(context, f"Inference Error: {e}")
 
     def _build_prompt(self, context: dict) -> list:
+        sys_prompt = "You are Sovereign-SLM, an elite quantitative strategist. Analyze the market context and output exactly one word: BULLISH, BEARISH, or NEUTRAL."
+
+        ctx_str = (
+            f"Instrument: {str(context.get('symbol', 'UNKNOWN'))}\n"
+            f"Regime: {str(context.get('regime', 'UNKNOWN'))}\n"
+            f"Dhatu State: {str(context.get('dhatu_state', 'UNKNOWN'))}\n"
+            f"Pattern: {str(context.get('pattern', 'UNKNOWN'))}\n"
+            f"Catalyst Score: {str(context.get('catalyst_score', 0.5))}\n"
+            f"Belief: {str(context.get('belief', 0.5))}\n"
+            f"Side: {str(context.get('side', 'LONG'))}\n"
+            f"\nDecision?"
+        )
+
         return [
-            {"role": "system", "content": "You are Sovereign-SLM, an elite quantitative strategist. Answer ONLY with BULLISH, BEARISH, or NEUTRAL."},
-            {"role": "user", "content": f"Audit this {str(context.get('side'))} proposal for {str(context.get('symbol'))}. Pattern: {str(context.get('pattern'))}. Regime: {str(context.get('regime'))}. Decision?"}
+            {"role": "system", "content": sys_prompt},
+            {"role": "user", "content": f"Context:\n{ctx_str}"}
         ]
 
     def _neutral_vote(self, context: dict, reason: str) -> dict:
