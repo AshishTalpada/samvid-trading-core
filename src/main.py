@@ -557,9 +557,10 @@ class TradingSystem:
                         detect_types=sqlite3.PARSE_DECLTYPES,
                         check_same_thread=False,
                     )
-                    conn.execute("PRAGMA busy_timeout = 60000;")  # 60s SQLite-level busy wait
+                    conn.execute("PRAGMA busy_timeout = 90000;")  # 90s SQLite-level busy wait
                     conn.execute("PRAGMA journal_mode=WAL;")
                     conn.execute("PRAGMA synchronous=NORMAL;")
+                    conn.execute("PRAGMA cache_size = -64000;") # 64MB cache for high-speed reads
                     conn.execute(
                         "PRAGMA wal_checkpoint(TRUNCATE);"
                     )  # Force flush and truncate WAL on boot
@@ -1694,7 +1695,7 @@ class TradingSystem:
                         )
                     except Exception:
                         pass
-                    return 
+                    return
 
         task = asyncio.create_task(supervisor())
         self.background_tasks[name] = task
