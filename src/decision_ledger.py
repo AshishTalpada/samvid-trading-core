@@ -61,6 +61,28 @@ class DecisionLedger:
         self._lock = threading.Lock()
         self._init_db()
 
+        # PILLAR 14: HIGH-FREQUENCY PERSISTENCE
+        # Replaced per-write threading with a single background worker queue.
+        # Spawning 30 threads/sec was causing massive entropy and CPU context-switching bloat.
+        import queue
+
+        self._queue = queue.Queue()
+        self._worker = threading.Thread(target=self._worker_loop, daemon=True)
+        self._worker.start()
+
+    def _worker_loop(self) -> None:
+        """Single background thread consuming the write queue."""
+        while True:
+            try:
+                entry = self._queue.get()
+                if entry is None:
+                    break
+                self._write(entry)
+                self._queue.task_done()
+            except Exception as e:
+                logger.error(f"DecisionLedger Worker Error: {e}")
+                time.sleep(1)
+
     def _init_db(self) -> None:
         """Create the ledger table if it doesn't exist."""
         self._db_path.parent.mkdir(parents=True, exist_ok=True)
@@ -86,38 +108,49 @@ class DecisionLedger:
                 )
             """)
             conn.commit()
+            # Periodic cleanup: Purge VETOs older than 48h to prevent 1.3M row bloat
+            try:
+                # 48 hours ago in nanoseconds
+                cutoff = time.time_ns() - (48 * 3600 * 1_000_000_000)
+                conn.execute(
+                    "DELETE FROM ledger WHERE event_type='VETO' AND timestamp < ?",
+                    (str(cutoff),),
+                )
+                conn.commit()
+                conn.execute("VACUUM")
+            except Exception:
+                pass
         logger.info(f"DecisionLedger: Initialized at {self._db_path}")
 
     def _write(self, entry: LedgerEntry) -> None:
-        """Synchronous write under lock — runs in background thread."""
+        """Synchronous write — called by the background worker thread."""
         try:
-            with self._lock:
-                with sqlite3.connect(str(self._db_path), timeout=60.0) as conn:
-                    conn.execute("PRAGMA journal_mode=WAL;")
-                    conn.execute("PRAGMA busy_timeout=60000;")
-                    conn.execute(
-                        """INSERT INTO ledger
-                           (timestamp, event_type, symbol, action, triggered_by,
-                            agent_votes, pattern, pattern_confidence, pnl_usd,
-                            r_multiple, exit_type, override, meta)
-                           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)""",
-                        (
-                            entry.timestamp,
-                            entry.event_type,
-                            entry.symbol,
-                            entry.action,
-                            entry.triggered_by,
-                            json.dumps(entry.agent_votes),
-                            entry.pattern,
-                            entry.pattern_confidence,
-                            entry.pnl_usd,
-                            entry.r_multiple,
-                            entry.exit_type,
-                            entry.override,
-                            json.dumps(entry.meta),
-                        ),
-                    )
-                    conn.commit()
+            with sqlite3.connect(str(self._db_path), timeout=60.0) as conn:
+                conn.execute("PRAGMA journal_mode=WAL;")
+                conn.execute("PRAGMA busy_timeout=60000;")
+                conn.execute(
+                    """INSERT INTO ledger
+                       (timestamp, event_type, symbol, action, triggered_by,
+                        agent_votes, pattern, pattern_confidence, pnl_usd,
+                        r_multiple, exit_type, override, meta)
+                       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                    (
+                        entry.timestamp,
+                        entry.event_type,
+                        entry.symbol,
+                        entry.action,
+                        entry.triggered_by,
+                        json.dumps(entry.agent_votes),
+                        entry.pattern,
+                        entry.pattern_confidence,
+                        entry.pnl_usd,
+                        entry.r_multiple,
+                        entry.exit_type,
+                        entry.override,
+                        json.dumps(entry.meta),
+                    ),
+                )
+                conn.commit()
         except Exception as e:
             logger.error(f"DecisionLedger: Write failed — {e}")
 
@@ -134,7 +167,7 @@ class DecisionLedger:
     ) -> None:
         """Record a new trade entry or execution decision."""
         entry = LedgerEntry(
-            timestamp=time.time_ns(),
+            timestamp=str(time.time_ns()),
             event_type=event_type,
             symbol=symbol,
             action="BUY" if event_type in ["ENTRY", "EXECUTION"] else "BLOCKED",
@@ -145,8 +178,7 @@ class DecisionLedger:
             override=override,
             meta=meta or {},
         )
-        # Fire-and-forget in a daemon thread — never blocks the trading loop
-        threading.Thread(target=self._write, args=(entry,), daemon=True).start()
+        self._queue.put(entry)
         logger.info(
             f"LEDGER ENTRY [{symbol}] — {pattern} ({confidence:.1f}%) "
             f"| Votes: {agent_votes} | Override: {override or 'None'}"
@@ -166,7 +198,7 @@ class DecisionLedger:
         """Record a position exit decision."""
         action = "WIN" if pnl_usd >= 0 else "LOSS"
         entry = LedgerEntry(
-            timestamp=time.time_ns(),
+            timestamp=str(time.time_ns()),
             event_type="EXIT",
             symbol=symbol,
             action=action,
@@ -178,7 +210,7 @@ class DecisionLedger:
             override=override,
             meta=meta or {},
         )
-        threading.Thread(target=self._write, args=(entry,), daemon=True).start()
+        self._queue.put(entry)
         logger.info(
             f"LEDGER EXIT [{symbol}] — {exit_type} | PnL: ${pnl_usd:+.2f} "
             f"| R: {r_multiple:.2f}x | By: {triggered_by}"
@@ -193,7 +225,7 @@ class DecisionLedger:
     ) -> None:
         """Record a blocked/vetoed trade decision."""
         entry = LedgerEntry(
-            timestamp=time.time_ns(),
+            timestamp=str(time.time_ns()),
             event_type="VETO",
             symbol=symbol,
             action="BLOCKED",
@@ -202,7 +234,7 @@ class DecisionLedger:
             override=reason,
             meta=meta or {},
         )
-        threading.Thread(target=self._write, args=(entry,), daemon=True).start()
+        self._queue.put(entry)
         logger.info(f"LEDGER VETO [{symbol}] — {reason} | By: {triggered_by}")
 
     def recent(self, n: int = 50) -> list[dict[str, Any]]:
