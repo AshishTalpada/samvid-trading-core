@@ -1146,10 +1146,10 @@ class PositionSizingChain:
 
         # --- SOVEREIGN REALITY ALIGNED HAIRCUT ---
         _raw_nav = kwargs.get("account_value", balance)
-        
+
         if _raw_nav <= 0:
             logger.warning(f"Sizer DEBUG: {instrument} received ZERO balance. Sizing will be 0.")
-        
+
         balance = min(balance, _raw_nav) * 0.99
 
         # Step 1: Raw Kelly Risk (Balanced)
@@ -1177,7 +1177,7 @@ class PositionSizingChain:
         step6_risk = step5_risk * fat_tail_mod
 
         # Step 7: Sovereign Reality Check (Risk Modifiers)
-        # We apply a high 'Safety Floor' (0.8) to bypass the ghost loss memory 
+        # We apply a high 'Safety Floor' (0.8) to bypass the ghost loss memory
         # while keeping the logic dynamic enough for the Phantom Probe monitor.
         dd_mod = max(0.8, kwargs.get("drawdown_modifier", 1.0))
         loss_mod = max(0.8, kwargs.get("loss_modifier", 1.0))
@@ -1371,7 +1371,7 @@ class VIXProtocol:
                 f"VIX Spike {vix:.2f} (Dynamic Threshold "
                 f"{safe_threshold:.2f} Exceeded)"
             ),
-            "risk_flag": not v_low,
+            "risk_flag": str(not v_low),
         }
 
     def monitor_intraday(self, current: float, high: float, low: float) -> str:

@@ -447,7 +447,7 @@ class QuantConsensus:
             "position_usd": sizing.meta.get("position_usd", 0),
             "kelly_fraction": sizing.meta.get("safe_fraction", 0),
             "regime": regime_signal.meta.get("regime", "UNKNOWN"),
-            "regime_veto": regime_veto,
+            "regime_veto": int(regime_veto),
             "signals": {
                 "regime": {
                     "score": regime_signal.score,
