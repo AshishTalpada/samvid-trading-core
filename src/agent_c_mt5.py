@@ -382,7 +382,6 @@ class MT5PositionSizer:
 
         lots = risk_amount / risk_per_lot
 
-        # Step 2: Respect Broker Constraints
         min_lot = tick_info.volume_min
         max_lot = tick_info.volume_max
         step_lot = tick_info.volume_step

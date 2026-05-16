@@ -272,7 +272,6 @@ class DataPipeline:
         Robust zero-volume handling.
         """
         try:
-            # --- Tier 1: OpenBB (if available and daily timeframe) ---
             if self.openbb and self.openbb.is_available and tf == "1d":
                 try:
                     pl_df = await self.openbb.fetch_ohlcv(
@@ -290,7 +289,6 @@ class DataPipeline:
                 except Exception as e:
                     logger.debug(f"OpenBB fetch failed for {symbol}: {e}")
 
-            # --- Tier 2: yfinance fallback ---
             # Map timeframe to yfinance interval
             interval_map = {
                 "1m": "1m",
@@ -367,7 +365,6 @@ class DataPipeline:
                         break
 
             if df is None or (hasattr(df, "empty") and df.empty):
-                # --- HEURISTIC RECONSTRUCTION (FINAL FALLBACK) ---
                 logger.warning(
                     f"No historical data for {symbol}. Attempting Heuristic Reconstruction..."
                 )

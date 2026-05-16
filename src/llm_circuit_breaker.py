@@ -113,7 +113,6 @@ class LLMCircuitBreaker:
         """
         timeout = timeout_s or self._timeout
 
-        # --- OPEN: Skip call entirely ---
         if self._state == CircuitState.OPEN:
             self._maybe_recover()
             if self._state == CircuitState.OPEN:
@@ -121,7 +120,6 @@ class LLMCircuitBreaker:
                 logger.warning(f"CB [{label}]: OPEN — returning fallback instantly.")
                 return fallback_fn(), True
 
-        # --- CLOSED or HALF_OPEN: Attempt the call ---
         t0 = time.monotonic()
         try:
             result = await asyncio.wait_for(coro, timeout=timeout)
@@ -177,9 +175,7 @@ class LLMCircuitBreaker:
         }
 
 
-# ---------------------------------------------------------------------------
 # Convenience wrapper
-# ---------------------------------------------------------------------------
 
 
 async def llm_call_with_fallback(
@@ -214,9 +210,7 @@ async def llm_call_with_fallback(
     return result
 
 
-# ---------------------------------------------------------------------------
 # Global breakers — one per "mind class" category
-# ---------------------------------------------------------------------------
 
 # Breaker for high-stakes reasoning (UltraThink, Architect)
 HEAVY_BREAKER = LLMCircuitBreaker(

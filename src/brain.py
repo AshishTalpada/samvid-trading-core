@@ -34,7 +34,6 @@ import pytz
 
 logger = logging.getLogger(__name__)
 
-# --- Agent Imports ---
 from agent_a import (
     ContinuousBudgetMonitor,
     EscapeVelocityClassifier,
@@ -57,7 +56,6 @@ from agent_c_ibkr import (
     VIXProtocol,
 )
 
-# --- MT5 Cognitive Decoupling ---
 # Imports are now lazy-loaded inside initialize_mt5_agents() to prevent unwanted terminal boot.
 from agent_d import (
     EdgeCrowdingDetector,
@@ -180,7 +178,6 @@ class DrawdownLadder:
                 f"Drawdown ladder [{self.account_type}]: {old_level.name} -> {self.level.name} "
                 f"(DD: {dd_pct:.2%}, Peak: ${self.peak_equity:.2f}, Current: ${equity:.2f})"
             )
-            # --- SOVEREIGN WIRING: Enforce global state escalation ---
             from trading_state import TradingStateManager
 
             if self.level == DrawdownLevel.RED:
@@ -198,7 +195,6 @@ class DrawdownLadder:
 
     def get_size_modifier(self) -> float:
         """Return position size modifier based on tapered risk profile."""
-        # SOLUTION 2: Eliminate Martingale (2.0x) and replace with Tapered Risk
         modifiers = {
             DrawdownLevel.NORMAL: 1.0,
             DrawdownLevel.YELLOW: 0.50,  # 50% Reduction
@@ -629,7 +625,6 @@ class TradingBrain:
         self.session_pnl = 0.0
         self.session_stats = {"scanned": 0, "detected": 0, "approved": 0, "rejected": 0}
 
-        # --- Agent A (Gatekeeper) ---
         self.budget_monitor = ContinuousBudgetMonitor()
         self.pattern_detector = PatternDetector()
         self.entropy_calc = SignalEntropyCalculator()
@@ -639,12 +634,10 @@ class TradingBrain:
         self.neural_engine = FactorWeightCalibration()
         self.regime_classifier_neural = NeuralRegimeClassifier()
 
-        # --- Agent B (Dhatu Analyzer) ---
         self.dhatu_classifier = DhatuClassifier(oracle=self.dhatu_oracle)
         self.belief_tracker = BayesianBeliefTracker(prior=0.50)
         self.abhava_detector = ABHAVADetector()
 
-        # --- Agent C IBKR (Executor) ---
         self.ibkr_conn = IBKRConnection(ibkr_client)
         self.ibkr_conn.brain = self
         self.ibkr_sizer = PositionSizingChain()
@@ -653,16 +646,13 @@ class TradingBrain:
         self.blackswan = BlackSwanProtocol()
         self.portfolio_guard = PortfolioGuard()
 
-        # --- Agent C MT5 (Forex) ---
         from agent_c_mt5 import MT5Connection, MT5PositionSizer
 
         self.mt5_conn = MT5Connection()
         self.mt5_sizer = MT5PositionSizer()
-        # --- Broker Selection (Vault Powered) ---
         self.active_broker = (Vault.get("ACTIVE_BROKER") or "IBKR").upper()
         logger.info(f"MindBrain: Active Broker target set to [{self.active_broker}]")
 
-        # --- Agent D (Learning Mind) ---
         self.regime_classifier = RegimeClassifier()
         self.stat_gate = StatisticalSignificanceGate()
         self.crowding_detector = EdgeCrowdingDetector()
@@ -676,18 +666,15 @@ class TradingBrain:
             db_path=_db_path, bus=bus, evolution_engine=self.recursive_evolution, dms=self.dms
         )
 
-        # --- HFT HARDENING ---
         self._qdb_circuit_broken = False
         self._qdb_last_failure_time = 0.0
         self._qdb_failure_count = 0
         self._hot_cache: dict[str, pd.DataFrame] = {}  # symbol -> OHLCV df
         self._hot_cache_time: dict[str, float] = {}  # symbol -> monotonic ts
 
-        # --- Exit Intelligence ---
         self.exit_engine = ExitIntelligence({"belief_threshold": 0.35})
         self._exit_failure_counts: dict[str, int] = {}
 
-        # --- Risk Management ---
         self.ibkr_drawdown = DrawdownLadder(account_type="ibkr", peak_equity=STARTING_CAPITAL_CAD)
         self.prop_drawdown = DrawdownLadder(account_type="prop", peak_equity=STARTING_CAPITAL_CAD)
         self.correlation_guard = CorrelationGuard(max_sector_exposure=0.30)
@@ -695,16 +682,13 @@ class TradingBrain:
         self.morning_budget = MorningBudget()
         self.last_budget_date: datetime | None = None
 
-        # --- Runtime State ---
         self.swarm_predictor = swarm_predictor
         self.bus = bus
 
-        # --- PILLAR 1 & 6: SOVEREIGN WISDOM & SKILLS ---
         self.wisdom = WisdomRepository()
         self.skill_tree = SkillTreeManager()
         self.wisdom_context = "SYSTEM_WARMUP: Wisdom hydration in progress..."
 
-        # --- MATRIX INFRASTRUCTURE (Pillar 2) ---
         self.session_restorer = SessionRestorer()
         self.macros = MindMacros()
         self.mission_manager = WorkloadManager()  # Unified Mission Board
@@ -735,7 +719,6 @@ class TradingBrain:
         self.coordinator = TradingCoordinator(self.bridge, self)
         self.task_manager = TaskManager()
 
-        # --- PHASE 2: CAPSULE HYDRATION (Restore the Vibe) ---
         self.current_regime = "CHOPPY"
         self.is_running = False
         self.conviction_state = {}
@@ -750,7 +733,6 @@ class TradingBrain:
                 f"PnL: ${self.session_pnl:.2f}"
             )
 
-        # --- Cognitive Conviction State (SOLUTION 5: Async Pipeline) ---
         self.conviction_state = {
             "Dhatu_Oracle": {
                 "agent": "Dhatu_Oracle",
@@ -779,7 +761,6 @@ class TradingBrain:
         self.mind_bridge = self.bridge
         self._last_account_value = {"ibkr": 0.0, "mt5": 0.0, "timestamp": 0.0}
 
-        # --- Cognitive Tool Registration: Register the Brain's own Execution Tools ---
         # This MUST be done before agents start or they will fail to find these tools.
         self.bridge.register_tool("get_account_status", self._tool_get_account_status)
         self.bridge.register_tool("get_open_positions", self._tool_get_open_positions)
@@ -813,7 +794,6 @@ class TradingBrain:
         )  # Agent C's learning engine
         self.evolution_manager.load_optimizations()
 
-        # --- DYNAMIC MT5 INJECTION ---
         # Only initialize if MT5 login exists and is not a placeholder
         _ml = Vault.get("MT5_LOGIN")
 
@@ -1054,7 +1034,6 @@ class TradingBrain:
         self.is_running = True
         logger.info(f"Trading Brain started in {self.mode} mode.")
 
-        # --- SOVEREIGN SHIELD: PANIC LIQUIDATION ---
         from config import PANIC_LIQUIDATE
 
         if PANIC_LIQUIDATE:
@@ -1115,7 +1094,6 @@ class TradingBrain:
         # Detects wiring disconnects by running non-destructive trial trades.
         self._phantom_probe_task = asyncio.create_task(self._run_phantom_probe())
 
-        # SOLUTION 5: Background Reasoning to eliminate Live Latency
         self._conviction_task = asyncio.create_task(self._background_conviction_sync())
 
         # Background task for periodic freezing (Safety gate)
@@ -1429,7 +1407,6 @@ class TradingBrain:
 
                         self._oracle_dhatu = new_dhatu
 
-                        # --- BRAIN RE-ARM LOGIC ---
                         # Only un-freeze if the new state is NOT a freeze state
                         if new_dhatu not in ("Abhava", "Viyoga"):
                             self._oracle_freeze = False
@@ -1783,7 +1760,6 @@ class TradingBrain:
                                 stats["too_short"] += 1
                             return None
 
-                        # --- ATR CALCULATION ---
                         # Essential for MindMath deterministic auditing.
                         # Convert to Polars once for high-performance vectorized math
                         if isinstance(df_pd, pl.DataFrame):
@@ -1834,8 +1810,6 @@ class TradingBrain:
                             f" DISCOVERY: {symbol} matched {best.name} ({best.confidence:.1f}%)"
                         )
 
-                        # --- DECISION LEDGER: record every approved pattern ---
-                        # PILLAR 14: Suppressed discovery bloat.
                         # Logging every scan discovery caused 1.3M row bloat in 12 hours.
                         # Only real trade attempts and vetos are now logged by the Coordinator.
                         # try:
@@ -2000,7 +1974,6 @@ class TradingBrain:
             "Parallel Vetting Tasks (Agent M)..."
         )
 
-        # Pillar 3: Spawning concurrent coordinator tasks
         def _task_done(t):
             try:
                 t.result()
@@ -2381,9 +2354,7 @@ class TradingBrain:
                 self._mark_trade_liquidated(symbol, pos.account_type)
                 return
 
-            # --- SOVEREIGN ORDER SHIELD (Anti-Spam + Stale Order Escalation) ---
             # Check if we already have an active order for this symbol at the broker.
-            # PILLAR 15: If the order is >45s old and hasn't filled, cancel it and
             # allow the Brain to re-submit as a fresh Market Order on this tick.
             if self.ibkr_client and pos.account_type == "ibkr":
                 active_trades = [
@@ -2481,7 +2452,6 @@ class TradingBrain:
                     "from target. Trade marked as DIRTY."
                 )
 
-            # --- COMMISSION & SLIPPAGE SIMULATION ---
             commission_cost = max(2.0, exit_shares * 0.005)
             vol_multiplier = 1.0 + (exit_shares / 2000.0)
             slippage_penalty = exit_price * 0.0005 * vol_multiplier
@@ -2526,7 +2496,6 @@ class TradingBrain:
                             self.positions.remove(pos)
                     self.closed_positions.append(pos)
 
-                # --- RECORD FOR DASHBOARD ---
                 PORTFOLIO_ANALYZER.record_close(
                     symbol=pos.symbol,
                     side="LONG" if pos.qty > 0 else "SHORT",
@@ -2538,7 +2507,6 @@ class TradingBrain:
                     ts_exit=now,
                 )
 
-                # --- DECISION LEDGER: immutable exit audit trail ---
                 try:
                     LEDGER.record_exit(
                         symbol=pos.symbol,
@@ -2593,7 +2561,6 @@ class TradingBrain:
                     shares_remaining=getattr(pos, "shares_remaining", 0.0),
                 )
 
-            # --- EVENT PUBLISHING (Neural Bus) ---
             if self.bus:
                 await self.bus.publish(
                     "trade.exit",
@@ -2719,7 +2686,6 @@ class TradingBrain:
                 except Exception as e:
                     logger.debug(f"Regime data fallback (1d): {e}")
 
-            # --- Compute breadth: % of watchlist symbols with positive change ---
             breadth = 0.55  # default
             if self.db_conn:
 
@@ -3574,7 +3540,6 @@ class TradingBrain:
         if not self.ibkr_conn:
             return ""
 
-        # --- SOVEREIGN ORDER SHIELD (Pillar 12) ---
         # Prevent redundant exits for symbols already pending on the book.
         if await asyncio.to_thread(self.ibkr_conn.has_pending_order, symbol):
             logger.info(
@@ -3591,7 +3556,6 @@ class TradingBrain:
             }
             broker_qty = broker_positions.get(symbol, 0)
 
-            # --- THE SOVEREIGN MIRROR SYNC ---
             # If the signs differ or magnitude is way off, fix memory IMMEDIATELY.
             for p in self.positions:
                 if p.symbol == symbol and (
@@ -3638,10 +3602,8 @@ class TradingBrain:
                 )
                 return None
 
-            # --- SOVEREIGN BRACKET ROUTING ---
             # If we have stop/target geometry, we use the bracket executor
             if stop_price > 0 and target_price > 0:
-                # --- SOVEREIGN PRE-FLIGHT ARMOR ---
                 ok, reason = await asyncio.to_thread(
                     self.ibkr_conn.validate_order_pre_flight, symbol, direction, shares, limit_price
                 )
@@ -3668,7 +3630,6 @@ class TradingBrain:
             kwargs["exec_token"] = exec_token
 
             if urgency == "EMERGENCY":
-                # PILLAR 11: EMERGENCY BYPASS
                 # Force a true Market Order for safety flattens and heartbeat vetos.
                 oid = await self.ibkr_conn.place_order(
                     symbol, direction, shares, order_type="MKT", **kwargs
@@ -3958,7 +3919,6 @@ class TradingBrain:
         )
         self.wisdom.write_post_mortem(pos, exit_type, pnl, reasoning)
 
-        # PILLAR 6: EVOLVE SKILL TREE
         if pnl > 0:
             self.skill_tree.skills["pnl_to_next"] -= pnl
             if self.skill_tree.skills["pnl_to_next"] <= 0:

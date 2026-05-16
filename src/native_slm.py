@@ -68,7 +68,6 @@ class NativeSLM:
         prompt_json = json.dumps(prompt)
 
         try:
-            # --- THE NEURAL SANDBOX: Isolated Execution ---
             # Spawning a separate process protects the Main Engine from GGML_ASSERT crashes.
             cmd = [
                 sys.executable,
