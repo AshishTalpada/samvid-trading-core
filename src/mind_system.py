@@ -28,6 +28,7 @@ class MindSystem:
                 "start TWS.exe || start ibgateway.exe",
             ],
             "RESTART_GATEWAY": ["taskkill /F /IM ibgateway.exe", "start ibgateway.exe"],
+            "RESTART_QUESTDB": ["taskkill /F /IM questdb.exe", "start questdb.exe"],
             "CHECK_NETWORK": ["ping -n 1 8.8.8.8"],
             "CHECK_DISK": ["dir /s"],  # No destructive disk commands
             "CLEAN_LOGS": ["del /F /Q logs/*.old"],
@@ -39,6 +40,39 @@ class MindSystem:
         self.bridge.register_tool("find_executable", self._tool_find_executable)
         self.bridge.register_tool("sovereign_flush", self._tool_sovereign_flush)
         self.bridge.register_tool("get_system_metrics", self._tool_get_system_metrics)
+
+    def _is_safe_path(self, path: str) -> bool:
+        """
+        Sovereign 'Patience Gap' Validator:
+        Ensures the path is absolute, exists, and is not a root-level or malformed string.
+        """
+        if not path or not isinstance(path, str):
+            return False
+
+        # 1. Clean and Normalize
+        path = os.path.abspath(os.path.normpath(path))
+
+        # 2. Block Root-level paths (Security Pillar 1)
+        # Windows root is typically 'C:\' or '\\'.
+        # os.path.exists('\\') returns True on Windows!
+        if len(path) < 4:  # Must be longer than 'C:\' or equivalent
+            return False
+
+        # 3. Block known malformed patterns
+        if path.strip() in ("\\", "/", ".", ".."):
+            return False
+
+        # 4. Existence Check
+        if not os.path.exists(path):
+            return False
+
+        # 5. Executable check (if it's not a directory)
+        if os.path.isfile(path):
+            ext = os.path.splitext(path)[1].lower()
+            if ext not in (".exe", ".bat", ".cmd", ".sh", ".py"):
+                return False
+
+        return True
 
     async def start(self) -> None:
         """Launch the System-Level Mind."""
@@ -57,7 +91,7 @@ class MindSystem:
             # Prioritize paths manually set in the Vault to avoid scan fragility.
             vault_key = f"{name.upper()}_PATH"
             val = Vault.get(vault_key)
-            if val and os.path.exists(str(val)):
+            if val and self._is_safe_path(str(val)):
                 logger.info(f"MindSystem: Using Vault-certified path for {name}: {val}")
                 # If it's a directory, try to append the standard exe name
                 if os.path.isdir(str(val)):
@@ -109,7 +143,7 @@ class MindSystem:
                                                             full_path = os.path.join(
                                                                 install_loc, tgt
                                                             )
-                                                            if os.path.exists(full_path):
+                                                            if self._is_safe_path(full_path):
                                                                 found_paths_info.append(
                                                                     {
                                                                         "path": full_path,
@@ -165,9 +199,11 @@ class MindSystem:
                     for target in targets:
                         for dirpath, _, filenames in os.walk(root):
                             if target in [f.lower() for f in filenames]:
-                                found_raw.append(os.path.join(dirpath, target))
-                                if len(found_raw) >= 2:
-                                    break
+                                full_p = os.path.join(dirpath, target)
+                                if self._is_safe_path(full_p):
+                                    found_raw.append(full_p)
+                                    if len(found_raw) >= 2:
+                                        break
                             if dirpath.count(os.sep) - root.count(os.sep) > 3:
                                 break
 
@@ -259,13 +295,31 @@ class MindSystem:
                 target_exe = "ibgateway.exe" if interface == "gateway" else "TWS.exe"
                 verified_path = Vault.get("IBKR_PATH")
                 start_cmd = f"start {target_exe}"
-                if verified_path and os.path.exists(str(verified_path)):
+                if verified_path and self._is_safe_path(str(verified_path)):
                     start_cmd = f'start "" "{verified_path}"'
+                else:
+                    logger.warning(
+                        f"MindSystem: Path validation FAILED for {verified_path}. "
+                        f"Falling back to unpathed '{target_exe}'."
+                    )
 
                 cmds = [
                     'taskkill /F /IM TWS.exe /IM ibgateway.exe /T /FI "STATUS eq NOT RESPONDING"',
                     start_cmd,
                 ]
+            elif service_name == "RESTART_QUESTDB":
+                q_path = Vault.get("QUESTDB_PATH")
+                start_cmd = "start questdb.exe"
+                if q_path:
+                    # If it's a directory, look for questdb.exe
+                    if os.path.isdir(str(q_path)):
+                        q_exe = os.path.join(str(q_path), "questdb.exe")
+                        if self._is_safe_path(q_exe):
+                            start_cmd = f'start "" "{q_exe}"'
+                    elif self._is_safe_path(str(q_path)):
+                        start_cmd = f'start "" "{q_path}"'
+
+                cmds = ["taskkill /F /IM questdb.exe /T", start_cmd]
 
             results = []
             for cmd in cmds:
