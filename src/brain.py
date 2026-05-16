@@ -1950,6 +1950,27 @@ class TradingBrain:
                     for _ in range(50):
                         self.closed_positions.popleft()
 
+                # SOVEREIGN REGISTRY FLUSH: At critical density (≥95%), actively purge
+                # stale PENDING tasks from the TaskManager to free capacity.
+                # Without this, the registry fills to 1000 and the brain stalls.
+                if signal_density >= 0.95 and self.task_manager:
+                    from sovereign_task import TaskStatus
+                    purged = 0
+                    stale_keys = [
+                        k for k, t in list(self.task_manager.tasks.items())
+                        if hasattr(t, "status") and t.status == TaskStatus.PENDING
+                    ]
+                    for k in stale_keys[:200]:  # Purge up to 200 oldest PENDING tasks
+                        task = self.task_manager.tasks.pop(k, None)
+                        if task and hasattr(task, "finalize"):
+                            task.finalize("ENTROPY_FLUSH")
+                        purged += 1
+                    if purged:
+                        logger.warning(
+                            f"SOVEREIGN REGISTRY FLUSH: Purged {purged} stale PENDING tasks "
+                            f"(Registry was at {signal_density:.0%} capacity)."
+                        )
+
             if discoveries:
                 self.pending_signals = discoveries
                 async with self._state_lock:
