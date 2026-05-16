@@ -56,7 +56,7 @@ class NativeSLM:
 
     @is_available.setter
     def is_available(self, value: bool) -> None:
-        pass # Controlled internally
+        self._available = value
 
 
     async def evaluate_proposal(self, context: Dict[str, Any]) -> Dict[str, Any]:

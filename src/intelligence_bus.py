@@ -447,6 +447,20 @@ class SharedIntelligenceBus:
                 return obj.isoformat()
             if isinstance(obj, decimal.Decimal):
                 return float(obj)
+            # Handle numpy scalars (numpy.bool_, numpy.int64, numpy.float64, etc.)
+            # These are NOT handled by json.dumps natively and cause TypeError.
+            try:
+                import numpy as np
+                if isinstance(obj, np.bool_):
+                    return bool(obj)
+                if isinstance(obj, np.integer):
+                    return int(obj)
+                if isinstance(obj, np.floating):
+                    return float(obj)
+                if isinstance(obj, np.ndarray):
+                    return obj.tolist()
+            except ImportError:
+                pass
             if hasattr(obj, "to_dict"):
                 return obj.to_dict()
             if hasattr(obj, "__dict__"):
