@@ -310,6 +310,30 @@ class TradingSystem:
         self._write_pid()
         self.profiler.mark("CONSTRUCTOR_COMPLETE")
 
+    def _is_safe_path(self, path: str) -> bool:
+        """
+        Sovereign 'Patience Gap' Validator (Main Context).
+        Ensures a path is absolute, non-root, non-malformed, and executable-safe.
+        Guards against os.path.exists('\\\\') returning True on Windows.
+        """
+        if not path or not isinstance(path, str):
+            return False
+        path = os.path.abspath(os.path.normpath(path))
+        # Block root-drive paths — 'C:\\' is only 3 chars; '\\\\' normalises to 'C:\\'
+        if len(path) < 4:
+            return False
+        # Belt-and-suspenders: reject known malformed patterns even after normpath
+        if path.strip() in ("\\", "/", ".", ".."):
+            return False
+        if not os.path.exists(path):
+            return False
+        # For files specifically, only allow safe executable extensions
+        if os.path.isfile(path):
+            ext = os.path.splitext(path)[1].lower()
+            if ext not in (".exe", ".bat", ".cmd", ".sh", ".py"):
+                return False
+        return True
+
     def _write_pid(self) -> None:
         """Record PID and verify single instance for the cognitive matrix."""
         # Allow tests and import smoke runs to bypass PID checks by setting
@@ -779,10 +803,21 @@ class TradingSystem:
 
                     ibkr_interface = Vault.get("IBKR_INTERFACE", "gateway").lower()
                     effective_tws_path = tws_path
-                    if ibkr_interface == "gateway" and os.path.exists(
-                        os.path.join(tws_path, "ibgateway")
-                    ):
-                        effective_tws_path = os.path.join(tws_path, "ibgateway")
+                    if ibkr_interface == "gateway":
+                        gw_p = os.path.join(tws_path, "ibgateway")
+                        if self._is_safe_path(gw_p):
+                            effective_tws_path = gw_p
+
+                    # FINAL PATIENCE GAP: Strict Validation
+                    if not self._is_safe_path(str(ibc_path)):
+                        logger.error(f"Sovereign Shield: IBC_PATH validation FAILED ({ibc_path})")
+                        return False
+
+                    if not self._is_safe_path(str(effective_tws_path)):
+                        logger.error(
+                            f"Sovereign Shield: TWS_PATH validation FAILED ({effective_tws_path})"
+                        )
+                        return False
 
                     self.ibc = IBC(
                         twsVersion=tws_version,
@@ -794,6 +829,7 @@ class TradingSystem:
                         ibcPath=ibc_path,
                     )
                     if self.ibc:
+                        logger.info("✓ Launching IBC Shielded Session...")
                         self.ibc.start()
                     logger.info("Waiting 45 seconds for TWS/Gateway to initialize...")
                     await asyncio.sleep(45)
@@ -878,9 +914,20 @@ class TradingSystem:
                 effective_path = str(self.mt5_path)
                 if os.path.isdir(effective_path):
                     potential_exe = os.path.join(effective_path, "terminal64.exe")
-                    if os.path.exists(potential_exe):
+                    if self._is_safe_path(potential_exe):
                         effective_path = potential_exe
-                init_kwargs["path"] = effective_path
+                    else:
+                        logger.warning(
+                            f"Sovereign Shield: MT5 Directory valid but terminal64.exe FAILED "
+                            f"safety check in {effective_path}. Using bare init."
+                        )
+                        effective_path = None
+                elif not self._is_safe_path(effective_path):
+                    logger.warning(f"Sovereign Shield: MT5_PATH validation FAILED ({effective_path})")
+                    effective_path = None
+
+                if effective_path:
+                    init_kwargs["path"] = effective_path
 
             # Attempt 1: bare initialize
             if mt5.initialize(**init_kwargs):
