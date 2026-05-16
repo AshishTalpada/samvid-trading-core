@@ -1452,7 +1452,6 @@ class LiveLearningEngine:
             f"entropy={result['entropy_level']} matrix={result['matrix_active']}"
         )
 
-        # --- HYPER-SOVEREIGN BREAKTHROUGH: LIVE RECURSIVE RE-WIRE (SE-11) ---
         if self.evolution_engine:
             self.evolution_engine.evolve_live(
                 pattern_name=trade["pattern"], pnl=trade["pnl"], regime=trade["regime"]
@@ -1560,7 +1559,6 @@ class LiveLearningEngine:
         if self._matrix.activated:
             await self._publish_calibration()
 
-        # --- PILLAR 7: AUTODREAM REFLECTION (SE-11 Port) ---
         last_dream_at = 0
         DREAM_INTERVAL = 3600 * 2  # dream every 2 hours
 
@@ -1569,7 +1567,6 @@ class LiveLearningEngine:
                 if self.dms:
                     self.dms.record_heartbeat("AGENT_D")
 
-                # ---  DEEP REFLECTION PULSE ---
                 now = time.time()
                 if (now - last_dream_at) > DREAM_INTERVAL and self._n_trades >= 5:
                     _lld_logger.info(

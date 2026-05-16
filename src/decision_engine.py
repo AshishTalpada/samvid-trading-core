@@ -88,7 +88,6 @@ class DecisionEngine:
                     f"Failure Handling: Mandatory Agent '{req}' missing from cycle."
                 )
 
-        # --- QUORUM CALCULATIONS ---
         yes_votes = 0
         no_votes = 0
         abstain_votes = 0
@@ -146,7 +145,6 @@ class DecisionEngine:
             total_confidence / len(self.required_agents) if len(self.required_agents) > 0 else 0.0
         )
 
-        # PHASE 4: QUORUM LOGIC IMPLEMENTATION (Triangulation Protocol)
 
         # 1. HARD VETO CHECK (Risk First)
         if output_map.get("Risk_Guard", {}).get("vote") == "NO":
@@ -202,7 +200,6 @@ class DecisionEngine:
             # Ensure at least 60% of active voters say YES
             vote_ratio = (yes_votes / active_voters) if active_voters > 0 else 0
 
-            # --- PROBE BYPASS ---
             # If it's a probe, we pass if any agent responded YES (wiring test).
             # Otherwise, enforce strict quorum.
             if is_probe:
@@ -229,7 +226,6 @@ class DecisionEngine:
                     votes=agent_outputs,
                 )
 
-        # --- STOP-RUN SHIELD ---
         # If Agent D detects 'Edge Crowding' (M-05), we apply 'Ghost Expansion'.
         d_out = output_map.get("Agent_D", {})
         if d_out.get("metadata", {}).get("edge_crowded", False):
@@ -278,7 +274,6 @@ class DecisionEngine:
         return report
 
 
-# --- ENFORCEMENT GUARD ---
 # This acts as the authorized entry point check for Agent C
 def verify_authorized_caller(frame):
     # This is a runtime check to ensure only the decision engine or brain can call execution

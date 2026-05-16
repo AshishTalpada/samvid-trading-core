@@ -773,18 +773,15 @@ class CatalystScorer:
         Returns:
             Tuple of (final_score, passes_budget_check)
         """
-        # STEP 1: BASE
         # Start with base quality score
         score = base_quality
         # Comment: F3 Step 1 - base quality established
 
-        # STEP 2: MODIFIERS
         # Apply all modifier adjustments additively
         modifier_total = sum(modifiers.values())
         score += modifier_total
         # Comment: F3 Step 2 - modifiers applied (total: {modifier_total})
 
-        # STEP 3: DECAY
         # Apply time-based decay factor
         # Determine if high entropy based on Dhatu state
         if dhatu_state is None:
@@ -795,7 +792,6 @@ class CatalystScorer:
         score *= decay_factor
         # Comment: F3 Step 3 - decay applied (factor: {decay_factor:.3f})
 
-        # STEP 4: DHATU * FRESHNESS
         # Apply Dhatu modifier multiplied by freshness
         # Per F18: dhatu_modifier = base * freshness
         if dhatu_state is None:
@@ -807,7 +803,6 @@ class CatalystScorer:
         score *= dhatu_mod
         # Comment: F3 Step 4 - dhatu*freshness applied (modifier: {dhatu_mod:.3f})
 
-        # STEP 5: ESCAPE
         # Apply escape class multiplier
         escape_multiplier = self.ESCAPE_CLASS_MULTIPLIERS.get(
             escape_class.lower(), self.ESCAPE_CLASS_MULTIPLIERS["default"]
@@ -815,7 +810,6 @@ class CatalystScorer:
         score *= escape_multiplier
         # Comment: F3 Step 5 - escape class '{escape_class}' applied (mult: {escape_multiplier})
 
-        # STEP 5.5: GLOBAL DHATU ORACLE
         # Apply the macro risk modifier from the DhatuOracle
         global_multiplier = 1.0
         oracle: DhatuOracle | None = self.classifier.oracle
@@ -825,7 +819,6 @@ class CatalystScorer:
         score *= global_multiplier
         # Comment: F3 Step 5.5 - global macro oracle applied (mult: {global_multiplier})
 
-        # STEP 6: COMPARE
         # Compare against budget minimum
         passes_budget = score >= budget_min
         # Comment: F3 Step 6 - compare: {score:.2f} vs budget {budget_min} = {passes_budget}
@@ -862,11 +855,9 @@ class CatalystScorer:
             "steps": [],
         }
 
-        # Step 1: BASE
         score = base_quality
         details["steps"].append({"step": 1, "name": "base", "input": base_quality, "output": score})
 
-        # Step 2: MODIFIERS
         modifier_total = sum(modifiers.values())
         score += modifier_total
         details["steps"].append(
@@ -879,7 +870,6 @@ class CatalystScorer:
             }
         )
 
-        # Step 3: DECAY
         high_entropy = dhatu_state.state_type == StateType.VOLATILE
         decay_factor = self.decay_model.decay_factor(age_hours, high_entropy)
         score *= decay_factor
@@ -887,7 +877,6 @@ class CatalystScorer:
             {"step": 3, "name": "decay", "decay_factor": decay_factor, "output": score}
         )
 
-        # Step 4: DHATU * FRESHNESS
         dhatu_mod = self.classifier.dhatu_modifier(
             dhatu_state.base_modifier, dhatu_state.freshness_score
         )
@@ -896,7 +885,6 @@ class CatalystScorer:
             {"step": 4, "name": "dhatu_time", "dhatu_multiplier": dhatu_mod, "output": score}
         )
 
-        # Step 5: ESCAPE
         escape_multiplier = self.ESCAPE_CLASS_MULTIPLIERS.get(
             escape_class.lower(), self.ESCAPE_CLASS_MULTIPLIERS["default"]
         )
@@ -905,7 +893,6 @@ class CatalystScorer:
             {"step": 5, "name": "escape", "escape_multiplier": escape_multiplier, "output": score}
         )
 
-        # Step 6: COMPARE
         passes_budget = score >= budget_min
         details["final_score"] = score
         details["passes_budget"] = passes_budget
