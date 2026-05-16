@@ -2385,8 +2385,17 @@ if __name__ == "__main__":
     finally:
         try:
             # Step 1: Sequential Shutdown of the Sovereign Engine
+            # Guard: only call shutdown() if it wasn't already initiated by the
+            # signal handler (_handle_exit). A double-call causes the supervisor
+            # to log 'trading_brain finished unexpectedly' on a clean exit.
             try:
-                loop.run_until_complete(asyncio.wait_for(s.shutdown(), timeout=45.0))
+                if not s._shutdown_event.is_set():
+                    loop.run_until_complete(asyncio.wait_for(s.shutdown(), timeout=45.0))
+                else:
+                    # Shutdown already in progress — wait for it to complete
+                    loop.run_until_complete(asyncio.wait_for(
+                        s._shutdown_event.wait(), timeout=45.0
+                    ))
             except Exception as e:
                 print(f"[SOVEREIGN] Primary Shutdown Exception: {e}")
 
