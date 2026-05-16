@@ -182,11 +182,11 @@ class DataPipeline:
         """Get a database connection with WAL mode enabled for concurrency."""
         conn = sqlite3.connect(
             self.db_path,
-            timeout=5.0,  # Reduced from 60s to 5s for faster shutdown response
+            timeout=30.0,  # 30s Python-level timeout — matches busy_timeout below
             check_same_thread=False,
             isolation_level=None,
         )
-        conn.execute("PRAGMA busy_timeout = 5000;")
+        conn.execute("PRAGMA busy_timeout = 30000;")  # 30s SQLite-level busy wait
         conn.execute("PRAGMA journal_mode=WAL;")
         conn.execute("PRAGMA synchronous=NORMAL;")
         return conn
