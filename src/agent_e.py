@@ -129,7 +129,6 @@ class CorrelationGuard:
             pos_symbol = (
                 pos.get("symbol", "") if isinstance(pos, dict) else getattr(pos, "symbol", "")
             )
-            # --- RISK ACCURACY UPDATE ---
             # Use current market price if available, otherwise fallback to entry_price
             pos_price = (
                 pos.get("current_price", 0)

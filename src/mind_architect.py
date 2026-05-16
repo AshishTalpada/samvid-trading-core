@@ -106,7 +106,6 @@ class MindArchitect:
             {"severity": "HIGH"},
         )
 
-    # --- AUTONOMOUS TOOLS (Inspired by Claude-Code Tools) ---
 
     async def evaluate_proposal(self, context: dict[str, Any]) -> dict[str, Any]:
         """

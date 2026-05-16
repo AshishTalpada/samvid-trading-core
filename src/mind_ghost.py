@@ -175,7 +175,6 @@ class MindGhost:
             f"MindGhost: Initiating GHOST RESET sequence for {service_name} "
             f"(Attempt {retry_count + 1}, Delay {backoff_delay:.1f}s)..."
         )
-        # Pillar 4: Signal the Matrix + User via Bridge
         await self.bridge.broadcast(
             "ghost",
             f" EMERGENCY RESET WARNING: {service_name} heartbeat failure. "

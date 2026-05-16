@@ -57,7 +57,6 @@ class MindExperiment:
                 logger.error(f"MindExperiment: Audit Error: {e}")
                 await asyncio.sleep(10)
 
-    # --- EXPERIMENT TOOLS ---
 
     async def _tool_run_shadow_test(
         self, feature_name: str, variant_id: str, logic: dict
@@ -142,7 +141,6 @@ class MindExperiment:
         )
         return {"success": True, "evidence_verified": True}
 
-    # --- EVOLUTION LOGIC ---
 
     def init_population(self, base_weights: np.ndarray):
         '''Creates the initial mutated swarm of clones.'''

@@ -35,7 +35,6 @@ class TradingStateManager:
     _state: TradingState = TradingState.ACTIVE
     _reason: str = "System startup"
 
-    # ------------------------------------------------------------------ state queries
 
     @classmethod
     def state(cls) -> TradingState:
@@ -75,7 +74,6 @@ class TradingStateManager:
 
         return True, "PROCEED"
 
-    # ------------------------------------------------------------------ state transitions
 
     @classmethod
     def activate(cls, reason: str = "Manual activation") -> None:
@@ -107,7 +105,6 @@ class TradingStateManager:
             cls._state = TradingState.HALTED
             cls._reason = reason
 
-    # ------------------------------------------------------------------ auto-triggers
 
     @classmethod
     def check_daily_pnl(cls, daily_loss_pct: float, limit_pct: float) -> None:
