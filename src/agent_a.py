@@ -206,7 +206,6 @@ class ContinuousBudgetMonitor:
         Check if trading is permitted under current risk conditions.
         Distinguishes between FTMO Challenge limits and IBKR Performance limits.
         """
-        # --- GLOBAL P&L PROTECTION ---
         # Check daily loss limit — only block on LOSSES (positive daily_loss_pct)
         # Using abs() here would incorrectly block trading on profitable days.
         if self.daily_loss_pct >= FTMO_DAILY_LIMIT:
@@ -224,7 +223,6 @@ class ContinuousBudgetMonitor:
             )
             return False
 
-        # --- ACCOUNT-SPECIFIC ACTIVITY LIMITS ---
         if account_type == "prop":
             # Strict FTMO Challenge Limits
             if self.trades_today >= MAX_TRADES_PER_DAY:
@@ -1943,7 +1941,6 @@ def agent_a_validate_trade(
             "final_lambda": 0.0,
         }
 
-    # Step 0: MACRO ORACLE CHECK
     if oracle:
         try:
             state = oracle.get_current_state()
@@ -1961,7 +1958,6 @@ def agent_a_validate_trade(
         except Exception:
             pass
 
-    # PHASE 1: NEURAL REGIME CLASSIFICATION
     regime = "NEUTRAL"
     regime_mult = 1.0
     if regime_classifier and "ohlcv_df" in kwargs:
@@ -1972,7 +1968,6 @@ def agent_a_validate_trade(
                 task.transition(TaskStatus.FAILED)
             return {"agent": "Agent_A", "vote": "NO", "reason": f"Regime Veto: {regime}"}
 
-    # PHASE 2: PROFIT DENSITY (FTMO $500 Account Protection)
     entry, target = pattern.entry, pattern.target
     shares = kwargs.get("shares", 100)
     expected_gain = abs(target - entry) * shares
@@ -1991,7 +1986,6 @@ def agent_a_validate_trade(
             "reason": f"Expected Gain ${expected_gain:.2f} < ${min_hurdle:.2f} Hurdle",
         }
 
-    # PHASE 3: RESONANCE
     resonance_score = 1.4
     if atlas:
         res = atlas.query_quantum(pattern.name, pattern.confidence, symbol=symbol)
@@ -2001,7 +1995,6 @@ def agent_a_validate_trade(
                 task.transition(TaskStatus.FAILED)
             return {"agent": "Agent_A", "vote": "NO", "reason": "Atlas Survival Veto"}
 
-    # PHASE 4: ALPHA FUSION
     final_lambda = float(pattern.lambda_val or (pattern.confidence / 2.0))
     if neural_engine:
         factors = {
@@ -2014,7 +2007,6 @@ def agent_a_validate_trade(
 
     final_lambda *= regime_mult
 
-    # PHASE 5: RISK/REWARD & FRICTION
     atr = kwargs.get("atr_20", 4.0)
     friction = (max(2.5, shares * 0.005) * 2 / shares) + (pattern.entry * 0.0005)
     # Scalping patterns don't target 1.5 ATR. Lowering hurdle to 0.1 ATR
@@ -2025,7 +2017,6 @@ def agent_a_validate_trade(
             task.transition(TaskStatus.FAILED)
         return {"agent": "Agent_A", "vote": "NO", "reason": "Friction Veto: Hurdle not met."}
 
-    # PHASE 6-10: SECONDARY CALIBRATION
     if pattern.r_r_ratio < 0.2:
         if task:
             task.transition(TaskStatus.FAILED)
@@ -2035,7 +2026,6 @@ def agent_a_validate_trade(
             "reason": f"R:R Veto: {pattern.r_r_ratio:.2f} < 0.2",
         }
 
-    # PHASE 11: SHANNON ENTROPY & ALIGNMENT
     if "entropy_score" in kwargs:
         final_lambda = entropy_calc.entropy_modifier(int(final_lambda), kwargs["entropy_score"])
 
@@ -2048,7 +2038,6 @@ def agent_a_validate_trade(
     if tension > 80.0:
         final_lambda += 15.0
 
-    # PHASE 12: FINAL SOVEREIGN DECISION
     if abs(final_lambda) < 5:
         if task:
             task.transition(TaskStatus.FAILED)

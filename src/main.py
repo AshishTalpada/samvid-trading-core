@@ -769,7 +769,6 @@ class TradingSystem:
 
                 self.ibkr_client = IB()
 
-                # Step 1: Auto-launch IB Gateway/TWS via IBC if configured
                 ibc_path = os.environ.get("IBC_PATH") or Vault.get("IBC_PATH")
                 if await self._is_ibkr_process_active():
                     logger.info("✓ IBKR software active (Bypassing IBC).")
@@ -903,7 +902,6 @@ class TradingSystem:
         try:
             import MetaTrader5 as mt5
 
-            # Step 1: Initialize MT5 terminal
             # First try bare initialize (attach to running terminal)
             # If that fails with auth error, pass credentials to force correct account
             initialized = False
@@ -987,7 +985,6 @@ class TradingSystem:
 
             logger.info("MT5 terminal initialized")
 
-            # Step 2: Check if already logged into the correct account
             account_info = mt5.account_info()
             if account_info is not None and account_info.login == int(self.mt5_login):
                 # Already logged in with the correct account - no need to re-login
@@ -1020,7 +1017,6 @@ class TradingSystem:
                     cursor.close()
                 return True
 
-            # Step 3: Need to login — either not logged in or different account
             logger.info(f"Logging into MT5 account {self.mt5_login} on {self.mt5_server}...")
 
             logger.info("Attempting MT5 login with 15s timeout...")
@@ -1068,7 +1064,6 @@ class TradingSystem:
                 mt5.shutdown()
                 return False
 
-            # Step 4: Verify login
             account_info = mt5.account_info()
             if account_info is None:
                 raise ConnectionError("Failed to get MT5 account info after login")
@@ -1119,7 +1114,6 @@ class TradingSystem:
             # Import DataPipeline component
             from data_pipeline import DataPipeline
 
-            # PILLAR 9.99: Explicit Type-Safety Cast for Handover
             _f_key = Vault.get("FINNHUB_API_KEY", "")
             self.data_pipeline = DataPipeline(
                 db_path=str(self.db_path),
@@ -1355,20 +1349,16 @@ class TradingSystem:
         start_time = datetime.now(timezone.utc)
 
         try:
-            # Step 1: Initialize Sovereign Deterministic Engine
             logger.info("\n[1/10] Initializing Sovereign Deterministic Engine...")
             logger.info(
                 " Sovereign: LLM dependencies purged. High-performance offline mode active."
             )
 
-            # Step 2: Verify paper mode
             logger.info("\n[2/10] Checking trading mode...")
             self.check_paper()
 
-            # Step 3: Database Status (Already init via async_init)
             logger.info("\n[3/10] SQLite Engine Sync Check...")
 
-            # PILLAR 6 & 9.99: MISSION PARALLELIZATION (Harvested from Leaked Goldmine)
             # 1. Instantiate Core Objects first so the Brain has valid references
             if self.requires_ibkr_connection:
                 from ib_insync import IB
@@ -1434,7 +1424,6 @@ class TradingSystem:
                 else:
                     logger.info("Native SLM offline - trading continues with pure math execution.")
 
-            # Step 8.5: Neural Warmup (Pre-cache Institutional Contracts)
             logger.info("\n[8.5/10] Initiating Neural Warmup (Contract Cache)...")
             watchlist = ["SPY", "QQQ", "IWM", "DIA", "XLK", "XLF", "NVDA", "TSLA"]
             if hasattr(self, "ibc") and self.ibc is not None:
@@ -1445,17 +1434,14 @@ class TradingSystem:
                         "IBC: warm_up_contracts not available — skipping contract pre-cache"
                     )
 
-            # Step 9: Start HFT Streamer (0.01s updates)
             # Always start HFT streamer — falls back to Bus-only if QuestDB offline
             logger.info("\n[9/10] Starting HFT Streamer (10ms updates)...")
             # watchlist is already defined in step 8.5
             self._start_supervised_task("hft_streamer", lambda: self.hft_streamer.run(watchlist))
 
-            # Step 10: Send startup notification
             logger.info("\n[10/10] Sending startup notification...")
             (datetime.now(timezone.utc) - start_time).total_seconds()
 
-            # Step 10: Dynamic Status Generation
             ibkr_status = self._get_status_icon("ibkr")
             mt5_status = self._get_status_icon("mt5")
             dhatu_status = self._get_status_icon("dhatu")
@@ -1762,7 +1748,6 @@ class TradingSystem:
 
             self.is_running = False
 
-            # PILLAR 14: SHUTDOWN BROADCAST
             # Signals all autonomous minds (Ghost, Scent, Evolution) to stand down.
             if hasattr(self, "bus") and self.bus:
                 try:
@@ -1977,7 +1962,6 @@ class TradingSystem:
             logging.shutdown()
             self._shutdown_complete = True
 
-            # PILLAR 13: FORCED TERMINATION
             # Ensures dangling background threads (Dhatu, Watchdogs) cannot re-awaken the matrix.
             import os
 
@@ -2075,7 +2059,6 @@ class TradingSystem:
             except Exception as e:
                 logger.error(f"Watchdog Error (Aegis): {e}")
 
-            # --- VRAM SENTINEL (DEPRECATED - LLM Purged) ---
             pass
 
     async def _run_hft_pulse_worker(self) -> None:
@@ -2253,7 +2236,6 @@ class TradingSystem:
 
 async def main(s: TradingSystem) -> None:
     try:
-        # Step 0: Sovereign Handshake (9.99 Parallel Init)
         await s.async_init()
 
         try:
@@ -2268,7 +2250,6 @@ async def main(s: TradingSystem) -> None:
 
         await s.startup()
 
-        # PILLAR 10: PERSISTENCE - Keep the system alive indefinitely
         # This prevents main() from finishing and hitting the 'finally' shutdown block.
         logger.info(" Matrix fully synchronized. System operational.")
         while not s._shutdown_event.is_set():
@@ -2325,7 +2306,6 @@ if __name__ == "__main__":
         except Exception:
             pass  # Fallback for environments where buffer is not available
 
-    # --- SOVEREIGN GHOST KEY PROTOCOL ---
     # Memory-Only Key Injection to retain 100% IQ with zero disk-print.
     import getpass
 
@@ -2384,7 +2364,6 @@ if __name__ == "__main__":
         print(f"\n[SOVEREIGN] Fatal Error: {e}")
     finally:
         try:
-            # Step 1: Sequential Shutdown of the Sovereign Engine
             # Guard: only call shutdown() if it wasn't already initiated by the
             # signal handler (_handle_exit). A double-call causes the supervisor
             # to log 'trading_brain finished unexpectedly' on a clean exit.
@@ -2399,7 +2378,6 @@ if __name__ == "__main__":
             except Exception as e:
                 print(f"[SOVEREIGN] Primary Shutdown Exception: {e}")
 
-            # Step 2: Clean up remaining loose tasks
             pending = [t for t in asyncio.all_tasks(loop) if not t.done()]
 
             if pending:

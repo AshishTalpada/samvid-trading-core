@@ -84,7 +84,6 @@ class IBKRConnection:
         # Financial Advisor (FA) support
         self.managed_accounts = []
         self.current_account_id = None
-        # PILLAR 3: Lock is created lazily inside async context to avoid
         # "no current event loop" errors when instantiated before asyncio.run().
         self._lock: asyncio.Lock | None = None
         self._qualified_contracts: dict[str, Any] = {}
@@ -372,7 +371,6 @@ class IBKRConnection:
                 "last_update": time.time(),
             }
 
-        # --- SOVEREIGN SHIELD: FAILURE FEEDBACK ---
         if status in ["Cancelled", "Inactive"] and trade.contract.symbol:
             # If we were trying to SELL (Exit), increment failure count in brain
             brain = getattr(self, "brain", None)
@@ -680,7 +678,6 @@ class IBKRConnection:
         Place a Bracket Order (Entry + Stop + Profit).
         Now includes SE-11 Ghost Expansion for Stop-Run Protection.
         """
-        # --- SE-11 BREAKTHROUGH: GHOST EXPANSION ---
         if kwargs.get("execution_mode") == "GHOST_EXPANSION":
             stop_mult = kwargs.get("stop_multiplier", 1.35)
             size_mult = kwargs.get("size_multiplier", 0.75)
@@ -951,7 +948,6 @@ class IBKRConnection:
                 # Tick rounding
                 lmt = self.round_to_tick(limit_price)
 
-                # --- HYPER-SOVEREIGN BREAKTHROUGH: WARM-PATH MODIFICATION ---
                 # Attempt to modify an existing dormant order for sub-ms priority
                 warm_id = await self._execute_via_warm_slot(symbol, direction, shares, limit_price)
                 if warm_id:
@@ -1019,7 +1015,6 @@ class IBKRConnection:
                 logger.error(f"IBKR Routing Failure for {symbol}: {e}")
                 return None
 
-        # --- HYPER-SOVEREIGN BREAKTHROUGH: WARM-SLOT EXECUTION (SE-13) ---
 
     async def _maintain_warm_slots(self, symbols: list[str]) -> None:
         """
@@ -1144,7 +1139,6 @@ class PositionSizingChain:
         instrument = kwargs.get("instrument", "UNKNOWN")
         from risk_invariants import RiskInvariants
 
-        # --- SOVEREIGN REALITY ALIGNED HAIRCUT ---
         _raw_nav = kwargs.get("account_value", balance)
 
         if _raw_nav <= 0:
@@ -1152,37 +1146,29 @@ class PositionSizingChain:
 
         balance = min(balance, _raw_nav) * 0.99
 
-        # Step 1: Raw Kelly Risk (Balanced)
         kelly_pct = win_prob - ((1 - win_prob) / r_r_ratio) if r_r_ratio > 0 else 0
         step1_risk = balance * max(0, kelly_pct)
 
-        # Step 2: High-Fidelity Hard Cap (Dynamic System Max Risk)
         from config import CASH_ACCOUNT_MAX_RATIO, RISK_PER_TRADE_PCT, SYSTEM_MAX_RISK
 
         step2_risk = min(step1_risk, balance * SYSTEM_MAX_RISK)
 
-        # Step 3: Cash Availability (Dynamic Cash Ratio)
         step3_risk = min(step2_risk, balance * CASH_ACCOUNT_MAX_RATIO)
 
-        # Step 4: Gap Risk Adjustment (Volatility-weighted)
         gap_mod = kwargs.get("gap_modifier", 1.0)
         step4_risk = step3_risk * max(0.5, min(1.5, gap_mod))
 
-        # Step 5: Regime Intensity Adjustment (Scaling down in Choppy markets)
         regime_mod = kwargs.get("regime_modifier", 1.0)
         step5_risk = step4_risk * max(0.1, min(1.0, regime_mod))
 
-        # Step 6: Fat-Tail Shield (Protective reduction if WinRate < 60%)
         fat_tail_mod = 0.82 if win_prob < 0.6 else 1.0
         step6_risk = step5_risk * fat_tail_mod
 
-        # Step 7: Sovereign Reality Check (Risk Modifiers)
         # We apply a high 'Safety Floor' (0.8) to bypass the ghost loss memory
         # while keeping the logic dynamic enough for the Phantom Probe monitor.
         dd_mod = max(0.8, kwargs.get("drawdown_modifier", 1.0))
         loss_mod = max(0.8, kwargs.get("loss_modifier", 1.0))
 
-        # Step 7: Final Monetary Risk (Hard Configured Cap of Total Balance)
         self_risk_limit = balance * RISK_PER_TRADE_PCT if RISK_PER_TRADE_PCT > 0 else balance * 0.01
 
         # If Kelly says 0, but the Quorum approved, force a small experimental 'Mini-Risk'
@@ -1196,7 +1182,6 @@ class PositionSizingChain:
         if balance < 1000:
             step7_final_risk = max(step7_final_risk, 2.0)
 
-        # Step 8: Discrete Share Quantization
         price = kwargs.get("entry_price", 1.0)
         stop = kwargs.get("stop_price", price * 0.99)
         spread = kwargs.get("spread", 0.0)
@@ -1227,7 +1212,6 @@ class PositionSizingChain:
             )
             return {"shares": 0, "risk_dollars": 0, "proposed_value": 0, "steps": {}}
 
-        # --- SOVEREIGN QUANTIZATION ---
         if step7_final_risk <= 0 or step6_risk <= 0:
             logger.warning(
                 f"Sizer: Risk math resulted in zero exposure for {instrument}. Quashing trade."
@@ -1268,7 +1252,6 @@ class PositionSizingChain:
                 f"Sizer: [SMALL_ACC_FIX] Forcing 1 share for {instrument} despite risk rounding."
             )
 
-        # --- STEP 9: IMPACT ORACLE ---
         ohlcv = kwargs.get("ohlcv_df")
 
         if ohlcv is not None and len(ohlcv) < 50 and not kwargs.get("is_probe"):
@@ -1311,7 +1294,6 @@ class PositionSizingChain:
             )
             return {"shares": 0, "risk_dollars": 0, "proposed_value": 0, "steps": {}}
 
-        # --- PHASE 9: INVARIANT AUDIT ---
         if not RiskInvariants.audit_trade_parameters(step7_final_risk, balance):
             logger.critical(
                 f"Sizer: [INVARIANT VETO] Proposed risk for {instrument} "

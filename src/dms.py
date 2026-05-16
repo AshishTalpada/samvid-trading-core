@@ -254,7 +254,6 @@ class DMSMonitor:
 
         flatten_results = []
 
-        # --- Flatten IBKR positions ---
         ibkr_count = 0
         if self.ibkr_client:
             for attempt in range(1, _retries + 1):
@@ -342,7 +341,6 @@ class DMSMonitor:
                         flatten_results.append(f"IBKR FATAL ERROR: {e}")
                     await asyncio.sleep(2**attempt)
 
-        # --- Flatten MT5 positions ---
         mt5_count = 0
         if self.mt5_client:
             try:
@@ -403,7 +401,6 @@ class DMSMonitor:
                 logger.error(f"DMS MT5 flatten failed: {e}")
                 flatten_results.append(f"MT5 ERROR: {e}")
 
-        # --- Send flatten report ---
         total_flattened = ibkr_count + mt5_count
         report = (
             " <b>[STOP] DMS EMERGENCY FLATTEN EXECUTED [STOP]</b> \n\n"

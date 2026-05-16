@@ -103,7 +103,6 @@ class ExitIntelligence:
         take_profit = position.get("take_profit", 0.0)
         runner_active = position.get("runner_active", False)
 
-        # --- SUB-PRIORITY 2.1: Hard Take Profit ---
         if side == "long" and take_profit > 0 and current_price >= take_profit:
             return ExitDecision(
                 action=ExitAction.EXIT, priority=2, reason=f"Target Hit: ${take_profit}"
@@ -113,7 +112,6 @@ class ExitIntelligence:
                 action=ExitAction.EXIT, priority=2, reason=f"Target Hit: ${take_profit}"
             )
 
-        # --- SUB-PRIORITY 2.2: Partial Scale-Out (Adaptive Runner Setup) ---
         if mfe_r >= partial_r_target and r_multiple >= partial_r_target:
             if is_profitable_enough:
                 if not runner_active:

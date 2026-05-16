@@ -141,7 +141,6 @@ class TaskManager:
         if len(self.tasks) > 500:
             self.purge_completed(max_age_days=1)  # Aggressive purge
 
-        # --- REDUNDANCY PROTECTION ---
         # If a task for this symbol is already PENDING or RUNNING, return it instead of spawning a new one.
         if symbol in self._symbol_index:
             for tid in self._symbol_index[symbol]:

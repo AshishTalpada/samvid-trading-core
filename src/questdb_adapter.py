@@ -84,7 +84,6 @@ class QuestDBAdapter:
             try:
                 # Batch processing
                 batch = []
-                # --- Fix 13: Periodic reconnect from SIMULATED mode ---
                 import time as _time
 
                 if self.is_simulated and _time.monotonic() > getattr(

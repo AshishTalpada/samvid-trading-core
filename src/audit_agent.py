@@ -52,7 +52,6 @@ class AuditAgent:
         confidences = [float(o.get("confidence", 0.0)) for o in agent_outputs if o.get("vote") != "ABSTAIN"]
         agent_ids = [o.get("agent", "UNKNOWN") for o in agent_outputs]
 
-        # --- 1. Herding Detection ---
         vote_dist = Counter(votes)
         dominant_vote, dominant_count = vote_dist.most_common(1)[0]
         herding_ratio = dominant_count / len(votes) if votes else 0.0
@@ -60,7 +59,6 @@ class AuditAgent:
             issues.append(f"HERDING: {herding_ratio*100:.0f}% unanimity on {dominant_vote}. Independent signal loss.")
             risk_score += 0.3
 
-        # --- 2. Confidence Anchoring ---
         if len(confidences) >= 3:
             conf_std = statistics.stdev(confidences) if len(confidences) > 1 else 0.0
             if conf_std < 0.02:
@@ -70,14 +68,12 @@ class AuditAgent:
             mean_conf = statistics.mean(confidences)
             self._confidence_history.append(mean_conf)
 
-            # --- 3. Overconfidence vs Historical Accuracy ---
             if len(self._confidence_history) >= 10:
                 rolling_mean = statistics.mean(self._confidence_history[-20:])
                 if rolling_mean > 0.85:
                     issues.append(f"OVERCONFIDENCE: Rolling mean confidence={rolling_mean:.2f}. Calibration drift suspected.")
                     risk_score += 0.2
 
-        # --- 4. Vote Flip Detection (relative to prior cycle) ---
         flip_count = 0
         for out in agent_outputs:
             agent = out.get("agent", "")
@@ -93,7 +89,6 @@ class AuditAgent:
         # Update prior votes
         self._prior_votes = {o.get("agent", ""): o.get("vote", "") for o in agent_outputs}
 
-        # --- 5. Confidence Distribution Skew ---
         if confidences:
             max_conf = max(confidences)
             min_conf = min(confidences)

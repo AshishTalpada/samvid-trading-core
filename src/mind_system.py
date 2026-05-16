@@ -161,7 +161,6 @@ class MindSystem:
 
             # 2. Filesystem Shallow-Scent (Fallback)
             if not found_paths_info:
-                # --- MT5 Scent-Blocker ---
                 if name.lower() == "mt5":
                     _ml = Vault.get("MT5_LOGIN")
                     if not _ml or "YOUR_MT5" in str(_ml).upper() or str(_ml).lower() == "none":
