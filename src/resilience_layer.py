@@ -217,7 +217,6 @@ class ApexExoskeleton:
                     pattern.name, self.brain.current_regime
                 )
 
-                # --- IMPERIAL GUARD: Internal Stats VETO ---
                 learned = getattr(self.brain, "_learned_win_rates", {})
                 regime_key = f"{pattern.name}:{self.brain.current_regime}"
                 learned_wr = learned.get(regime_key) or learned.get(pattern.name)
@@ -290,7 +289,6 @@ class ApexExoskeleton:
                     if asyncio.iscoroutine(res) or hasattr(res, "__await__"):
                         res = await res
 
-                # --- IDENTITY INJECTION ---
                 if isinstance(res, dict):
                     res["agent"] = name
                 return res

@@ -216,7 +216,6 @@ def run_watchdog():
                         )
                         restart_history.add(now)
 
-                        # --- KILL THE GHOSTS ---
                         pid_file = "data/main.pid"
                         pid_to_kill = None
                         if os.path.exists(pid_file):
@@ -240,7 +239,6 @@ def run_watchdog():
                             except Exception as e:
                                 logger.error(f"Watchdog: Failed to kill process {pid_to_kill}: {e}")
 
-                        # --- SPAWN THE NEW SOVEREIGN ---
                         subprocess.Popen([sys.executable, "src/main.py"], cwd=os.getcwd())
                         logger.info("Watchdog: Sovereign Engine REBOOTED.")
                 else:

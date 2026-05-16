@@ -113,7 +113,6 @@ VOLUME_THRESHOLDS = {
 
 TRADING_INSTRUMENTS = ["SPY", "QQQ", "MSFT", "NVDA", "XAUUSD", "US100"]
 
-# --- EMERGENCY PANIC SWITCH ---
 PANIC_LIQUIDATE = False  # Set to True to force-close all positions on startup
 
 # Capital Calibration: Set to $500 for Live Account Alignment

@@ -539,7 +539,6 @@ class TradingCoordinator:
                         )
                     return False
 
-                # --- LIVE QUORUM STREAM (Agent A Progress) ---
                 if self.brain.bus:
                     await self.brain.bus.publish(
                         "consensus.update",
@@ -564,7 +563,6 @@ class TradingCoordinator:
                             pattern.name, self.brain.current_regime
                         )
 
-                        # --- IMPERIAL GUARD: Internal Stats VETO ---
                         if (
                             learned_wr is not None
                             and isinstance(learned_wr, float)
@@ -737,7 +735,6 @@ class TradingCoordinator:
                         for res in dummy_tail:
                             vote_registry[res["agent"]] = res
 
-                # --- STAGE 1 TELEMETRY ---
                 if self.brain.bus:
                     await self.brain.bus.publish(
                         "consensus.update",
@@ -849,7 +846,6 @@ class TradingCoordinator:
                             }
                             vote_registry[name] = err_vote
 
-                # --- STAGE 2 TELEMETRY ---
                 if self.brain.bus:
                     await self.brain.bus.publish(
                         "consensus.update",
@@ -913,7 +909,6 @@ class TradingCoordinator:
                     )
                 logger.info(f"Coordinator [{proposal_id}] [QUORUM_OK] Executing trade for {symbol}")
 
-                # --- DECISION LEDGER: record the full quorum for the execution decision ---
                 try:
                     ledger_votes = {
                         v.get(
