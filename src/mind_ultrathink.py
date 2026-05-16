@@ -179,7 +179,6 @@ class MindUltrathink:
             try:
                 with open(self.capabilities_path, encoding="utf-8") as f:
                     self.capabilities = json.load(f)
-                # CLAUDE-CODE DISCIPLINE: Ported from D:\Claude
                 logger.info("Mind_Ultrathink: COORDINATOR_MODE [Active]. Logic Depth: 1900+")
             except Exception as e:
                 logger.error(f"Mind_Ultrathink: Failed to load capabilities: {e}")
@@ -199,7 +198,6 @@ class MindUltrathink:
         Removed brittle 'High-Resonance' keyword match.
         Now uses probabilistic verification with noise rejection.
         """
-        # STEP 1: ADVERSARIAL ASSUMPTION
         if outcome_prob < 0.70:
             return False
 
@@ -244,7 +242,6 @@ class MindUltrathink:
         Dream Cycle logic (Ported from D:\Claude memdir.ts)
         NOW WITH STATE-LOCK PROTECTION.
         """
-        # STEP 0: PRESERVE INVARIANTS
         if results:
             open_trades = [r for r in results if r.get("status") == "OPEN"]
             for t in open_trades:
@@ -585,7 +582,6 @@ class MindUltrathink:
         if risk_amt < 0.0001:
             risk_amt = 0.01
 
-        # --- VETO CHECKS ---
 
         # 1. Hard stop breach (price crossed the stop in the wrong direction)
         if side == "long" and price <= current_stop:
@@ -617,7 +613,6 @@ class MindUltrathink:
                 "new_stop": None,
             }
 
-        # --- TRAILING STOP TIGHTEN (Beta Gate) ---
         # After 2R profit, trail the stop to lock in gains
         new_stop = None
         if mfe_r >= 2.0 and risk_amt > 0:

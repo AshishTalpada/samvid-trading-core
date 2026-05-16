@@ -55,7 +55,6 @@ class PositionCache:
         self._positions: dict[str, CachedPosition] = {}
         self._load()
 
-    # ------------------------------------------------------------------ CRUD
 
     def add(self, pos: CachedPosition) -> None:
         """Register a new open position."""
@@ -107,7 +106,6 @@ class PositionCache:
     def count(self) -> int:
         return len(self._positions)
 
-    # ------------------------------------------------------------------ persistence
 
     def _flush(self) -> None:
         os.makedirs(os.path.dirname(self._path), exist_ok=True)

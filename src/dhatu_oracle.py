@@ -983,7 +983,6 @@ class DhatuOracle:
         if self._current_state:
             reason += f" | {self._current_state.causation_summary}"
 
-        # --- PREDATOR RE-WIRE: PROPORTIONAL SCALING ---
         # Instead of blocking everything below 0.70, we allow the system to strike with
         # reduced size. We only VETO in extreme 'Abhava' or Liquidity Collapse.
         if modifier < 0.40:
@@ -1019,7 +1018,6 @@ class DhatuOracle:
         """Main Oracle loop — refreshes state every ~15 minutes."""
         logger.info("DhatuOracle: Starting continuous global synthesis loop")
 
-        # --- Launch News Intelligence (with task tracking to avoid leaks) ---
         for task in self._background_tasks:
             if not task.done():
                 task.cancel()
@@ -1028,7 +1026,6 @@ class DhatuOracle:
         self._background_tasks.append(asyncio.create_task(self._news_scent.run()))
         self._background_tasks.append(asyncio.create_task(self._news_harvester.run()))
 
-        # --- FAST STARTUP: Use persisted state if available to avoid token burn ---
         if self._current_state is not None:
             logger.info(
                 f"DhatuOracle: Using cached state {self._current_state.dhatu_state} for startup."
@@ -1503,7 +1500,6 @@ class DhatuOracle:
                 )
                 macro_score -= 20  # Absolute Veto triggering logic
 
-        # --- BULLISH TRIGGERS ---
         if "NASDAQ_UP" in all_text and "YIELD_DOWN" in all_text:
             macro_score += 8
             edges.append(
@@ -1685,7 +1681,6 @@ class DhatuOracle:
         # Layer 3: Dhatu State Mapping
         state = await self._map_to_dhatu_state(graph, all_signals)
 
-        # --- BAYESIAN CONFIDENCE BLENDING ---
         if state is not None:
             try:
                 # Extract most recent price/vix data from internal cache or synthesis

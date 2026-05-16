@@ -58,7 +58,6 @@ class SovereignDecisionEngine:
 
             self._active_symbols.add(symbol)
             try:
-                # --- PHASE 3: FAST BRAIN DELEGATION ---
                 # Attempt to use the native Rust implementation for zero-allocation speed
                 try:
                     import sovereign_core
@@ -85,12 +84,10 @@ class SovereignDecisionEngine:
         self, context: Dict[str, Any], agent_outputs: List[Dict[str, Any]]
     ) -> Dict[str, Any]:
         """Core quorum evaluation logic (internal)."""
-        # --- TASK 2: SYNCHRONIZED SNAPSHOT GUARANTEE ---
         context_ts = context.get("timestamp")
         if not context_ts:
             return await self._reject("Decision Cycle Fault: Context missing timestamp.")
 
-        # --- TASK 1 & 3: DECISION INTEGRITY CHECK ---
         is_probe = context.get("is_probe", False)
         # Relaxed: allow extra agents (like Native_SLM) but enforce mandatory ones.
         if len(agent_outputs) < len(self.required_agents) and not is_probe:
@@ -98,7 +95,6 @@ class SovereignDecisionEngine:
                 f"Quorum Violation: Expected at least {len(self.required_agents)} agents, got {len(agent_outputs)}."
             )
 
-        # --- TASK 4: FAIL-SAFE HANDLING & VALIDATION ---
         received_agents = [out["agent"] for out in agent_outputs]
         for req in self.required_agents:
             if req not in received_agents and not is_probe:
@@ -106,7 +102,6 @@ class SovereignDecisionEngine:
                     f"Failure Handling: Mandatory Agent '{req}' missing from cycle."
                 )
 
-        # --- QUORUM CALCULATIONS ---
         yes_votes = 0
         no_votes = 0
         abstain_votes = 0
@@ -127,7 +122,6 @@ class SovereignDecisionEngine:
                     f"Data Mismatch: Agent '{agent}' returned NULL confidence."
                 )
 
-            # --- TASK 4.2: SYNC TOLERANCE (±60 seconds) ---
             # If an agent is too slow, we exclude its vote but allow the quorum to proceed.
             agent_ts = out.get("timestamp")
             if agent_ts and context_ts:
@@ -173,7 +167,6 @@ class SovereignDecisionEngine:
         active_voters = len(agent_outputs) - abstain_votes
         avg_confidence = total_confidence / active_voters if active_voters > 0 else 0.0
 
-        # --- PHASE 4: QUORUM LOGIC IMPLEMENTATION (Triangulation Protocol) ---
         is_probe = context.get("is_probe", False)
 
         # 1. HARD VETO CHECK (Risk First)
@@ -229,7 +222,6 @@ class SovereignDecisionEngine:
             # Ensure at least 60% of active voters say YES
             vote_ratio = (yes_votes / active_voters) if active_voters > 0 else 0
 
-            # --- SOVEREIGN PROBE BYPASS ---
             # If it's a probe, we pass if any agent responded YES (wiring test).
             # Otherwise, enforce strict quorum.
             if is_probe:
@@ -304,7 +296,6 @@ class SovereignDecisionEngine:
         return report
 
 
-# --- ENFORCEMENT GUARD ---
 # This acts as the authorized entry point check for Agent C
 def verify_authorized_caller(frame):
     # This is a runtime check to ensure only the decision engine or brain can call execution
