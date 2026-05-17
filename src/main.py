@@ -440,6 +440,11 @@ class TradingSystem:
         ]
         await asyncio.gather(*tasks)
 
+        if os.environ.get("SOVEREIGN_SKIP_PID_CHECK", "0") == "1" and self.is_paper_only:
+            logger.info("Smoke-test paper mode detected - skipping DB and background monitors.")
+            self.profiler.mark("SMOKE_ASYNC_INIT_DONE")
+            return
+
         # Start the worker task after parallel init
         self._start_supervised_task("hft_pulse_worker", self._run_hft_pulse_worker)
 
@@ -1541,6 +1546,9 @@ class TradingSystem:
                             else:
                                 raise
                 self.is_running = True
+            if os.environ.get("SOVEREIGN_SKIP_PID_CHECK", "0") == "1":
+                logger.info("Smoke-test mode detected - startup complete without run loop.")
+                return
             # Keep running
             await self._run_forever()
 

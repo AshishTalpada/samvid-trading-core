@@ -53,12 +53,13 @@ class OpenBBProvider:
     returns ``None`` / empty results so callers can fall back to yfinance.
     """
 
-    def __init__(self, preferred_provider: str = "yfinance") -> None:
+    def __init__(self, pat: str | None = None, preferred_provider: str = "yfinance") -> None:
         """
         Args:
             preferred_provider: Default data provider (yfinance, polygon, tiingo, …).
         """
         self._provider = preferred_provider
+        self._pat = pat if pat is not None else Vault.get("OPENBB_PAT", "")
         self._initialized = False
         import os
 
@@ -79,8 +80,7 @@ class OpenBBProvider:
         # If PAT is provided, we can't login yet because `obb` isn't loaded.
         # We will defer PAT login.
 
-        # Trigger a non-blocking availability check (pre-warms the cache)
-        asyncio.create_task(self._ensure_obb())
+        await self._ensure_obb()
         self._initialized = True
         logger.info(f"✓ OpenBB Provider initialized (pre-warming SDK, provider={self._provider})")
 
@@ -92,7 +92,7 @@ class OpenBBProvider:
         # even if SDK is still loading in background.
         if self._disabled_by_env:
             return False
-        return self._initialized
+        return self._initialized and _OPENBB_AVAILABLE is True
 
     @property
     def status(self) -> str:

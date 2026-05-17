@@ -113,8 +113,14 @@ class ChromaDeepMemory:
     def __init__(
         self, db_dir: str = "data/chroma_db", collection_name: str = "swarm_memory"
     ) -> None:
-        import chromadb
-        from chromadb.config import Settings
+        try:
+            import chromadb
+            from chromadb.config import Settings
+        except ImportError:
+            self.client = None
+            self.collection = None
+            logger.warning("ChromaDB not installed - swarm memory disabled.")
+            return
 
         if ChromaDeepMemory._client_instance is None:
             try:
