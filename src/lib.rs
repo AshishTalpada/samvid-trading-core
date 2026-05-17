@@ -49,13 +49,13 @@ pub mod recovery;
 #[path = "wallets/cold_storage.rs"]
 pub mod cold_storage;
 
-#[path = "crypto/zkp.rs"]
+#[path = "../quarantine/zkp.rs"]
 pub mod zkp;
 
-#[path = "crypto/q_safe.rs"]
+#[path = "../quarantine/q_safe.rs"]
 pub mod q_safe;
 
-#[path = "crypto/lattice.rs"]
+#[path = "../quarantine/lattice.rs"]
 pub mod lattice;
 
 #[pymodule]
