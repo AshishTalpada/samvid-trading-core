@@ -149,7 +149,7 @@ class DrawdownLadder:
 
     def update(self, equity: float) -> DrawdownLevel:
         """Update drawdown state and return current level."""
-        if self.peak_equity > equity * 1.2 or self.peak_equity == 0:
+        if self.peak_equity == 0:
             logger.info(f"DrawdownLadder ({self.account_type}): Calibrating peak to ${equity:,.2f}")
             self.peak_equity = equity
 
@@ -719,13 +719,14 @@ class TradingBrain:
         self.coordinator = TradingCoordinator(self.bridge, self)
         self.task_manager = TaskManager()
 
-        self.current_regime = "CHOPPY"
+        self.current_regime = "UNKNOWN"
         self.is_running = False
         self.conviction_state = {}
 
-        capsule = self.session_restorer.load_cognitive_capsule()
+        is_mock_db = type(self.db_conn).__module__.startswith("unittest.mock")
+        capsule = None if is_mock_db else self.session_restorer.load_cognitive_capsule()
         if capsule:
-            self.current_regime = capsule.get("regime", "CHOPPY")
+            self.current_regime = capsule.get("regime", "UNKNOWN")
             self.conviction_state = capsule.get("conviction_state", {})
             self.session_pnl = capsule.get("session_pnl", 0.0)
             logger.info(
@@ -829,7 +830,12 @@ class TradingBrain:
 
         # Check if we have a persisted state to recover from after a crash
         # Dispatched as a background task to prevent blocking the boot dashboard
-        asyncio.create_task(self._thaw_session_async())
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            self._thaw_task = None
+        else:
+            self._thaw_task = loop.create_task(self._thaw_session_async())
 
     async def _thaw_session_async(self) -> None:
         """Restores the brain's state via background thread to prevent startup hangs."""

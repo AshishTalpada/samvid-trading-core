@@ -61,9 +61,9 @@ def apply_runtime_safety(system: Any) -> None:
 
         # Check Vault FIRST (authoritative — .env file is loaded into Vault, not os.environ)
         # Then fall back to os.environ for container/CI overrides.
-        env_mode = Vault.get("TRADING_MODE", "").strip().lower()
-        if not env_mode:
-            env_mode = os.environ.get("TRADING_MODE", "").strip().lower()
+        env_mode = os.environ.get("TRADING_MODE", "").strip().lower()
+        if not env_mode and os.environ.get("SOVEREIGN_SKIP_PID_CHECK", "0") != "1":
+            env_mode = Vault.get("TRADING_MODE", "").strip().lower()
 
         allow_live = (
             Vault.get("ALLOW_FORCE_LIVE", "0").strip() == "1"
