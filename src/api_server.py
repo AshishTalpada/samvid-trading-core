@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import os
 import socket
 import sqlite3
 import time
@@ -320,11 +321,12 @@ class APIServer:
         """Dependency to check for valid API Key in headers."""
         secret = Vault.get("API_SERVER_KEY")
         if not secret:
-            # If no key is set, we allow local access but warn
-            logger.warning(
-                "API Server: No API_SERVER_KEY found in Vault. Defaulting to OPEN session (Insecure)."
-            )
-            return
+            if os.getenv("SOVEREIGN_ALLOW_OPEN_API", "0") == "1":
+                logger.warning(
+                    "API Server: SOVEREIGN_ALLOW_OPEN_API=1; accepting unauthenticated request."
+                )
+                return
+            raise HTTPException(status_code=503, detail="API_SERVER_KEY is not configured")
 
         if x_sovereign_key != secret:
             raise HTTPException(status_code=403, detail="Invalid Sovereign API Key")
@@ -353,6 +355,10 @@ class APIServer:
             from time_sync import TimeSync
 
             secret = Vault.get("API_SERVER_KEY")
+            if not secret and os.getenv("SOVEREIGN_ALLOW_OPEN_API", "0") != "1":
+                logger.warning("API Server: WebSocket rejected because API_SERVER_KEY is not configured.")
+                await websocket.close(code=1008)
+                return
             if secret:
                 ts = int(TimeSync.now().timestamp()) // 30
                 valid = False
