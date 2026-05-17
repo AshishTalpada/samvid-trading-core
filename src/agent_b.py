@@ -20,6 +20,36 @@ if TYPE_CHECKING:
 # (debug instrumentation removed after verified fix)
 
 
+class AgentB:
+    """Compatibility facade for the Agent B analysis stack."""
+
+    def __init__(
+        self,
+        bus: Any = None,
+        classifier: "DhatuClassifier | None" = None,
+        catalyst_scorer: "CatalystScorer | None" = None,
+        belief_tracker: "BayesianBeliefTracker | None" = None,
+    ) -> None:
+        self.bus = bus
+        self.classifier = classifier or DhatuClassifier()
+        self.catalyst_scorer = catalyst_scorer or CatalystScorer(classifier=self.classifier)
+        self.belief_tracker = belief_tracker or BayesianBeliefTracker()
+        self.abhava_detector = ABHAVADetector()
+
+        if self.bus is not None and hasattr(self.bus, "on"):
+            try:
+                self.bus.on("market.snapshot", self.on_market_snapshot)
+            except Exception:
+                pass
+
+    def on_market_snapshot(self, payload: dict[str, Any]) -> dict[str, Any]:
+        state = self.classifier.classify(payload)
+        return {"agent": "Agent_B", "dhatu_state": state.name, "risk_modifier": state.effective_modifier}
+
+    def score(self, *args: Any, **kwargs: Any) -> dict[str, Any]:
+        return self.catalyst_scorer.score(*args, **kwargs)
+
+
 class StateType(Enum):
     """Dhatu state types representing market conditions."""
 

@@ -38,7 +38,12 @@ class TTLCache:
         self._misses = 0
         self._is_running = True
 
-        self._cleanup_task = asyncio.create_task(self._cleanup_loop())
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            self._cleanup_task = None
+        else:
+            self._cleanup_task = loop.create_task(self._cleanup_loop())
 
     async def _cleanup_loop(self) -> None:
         """Background loop to periodically prune stale entries."""
