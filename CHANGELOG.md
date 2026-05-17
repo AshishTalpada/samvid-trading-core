@@ -2,6 +2,19 @@
 
 All notable changes to the **Samvid Trading Core** will be documented in this file.
 
+## [1.0.1-beta] - 2026-05-17
+### Fixed
+- Prevented `TaskManager` from filling to 1000 tasks (entropy=1.0 stall).
+- Prevented double-shutdown on Ctrl+C (exit code 1 false alarm).
+- Raised `data_pipeline` SQLite `busy_timeout` from 5s to 30s to resolve lock issues.
+- Resolved numpy JSON serialization bug and `native_slm` setter no-op.
+- System-wide JSON sanitization and neural sandbox hardening.
+- Restored `self.model_path` assignment for sandbox dispatcher.
+- Added missing imports to SLM and sanitized boolean in Ultrathink for perfect JSON quorum.
+
+### Style
+- Removed overly verbose banner comments across the project.
+
 ## [1.0.0-beta] - 2026-04-28
 ### Added
 - Official **Samvid v1.0-beta** release.
