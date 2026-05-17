@@ -440,7 +440,10 @@ class OracleState:
     def is_fresh(self) -> bool:
         """Oracle state is considered fresh for 10 minutes."""
         now = datetime.now(timezone.utc)
-        return (now - self.generated_at) < timedelta(minutes=10)
+        generated_at = self.generated_at
+        if generated_at.tzinfo is None:
+            generated_at = generated_at.astimezone()
+        return (now - generated_at) < timedelta(minutes=10)
 
 
 # NEURAL NEWS INTELLIGENCE (AGENT B - THE READER)
@@ -764,6 +767,8 @@ class DhatuOracle:
         self._google_key = google_api_key
         self._anthropic_key = anthropic_api_key
         self._current_state: OracleState | None = None
+        self._legacy_current_state = "NEUTRAL"
+        self._legacy_confidence = 0.0
         self._refresh_interval_minutes = 10  # Reduced
         self._bus: SharedIntelligenceBus | None = bus
         _ob = (ollama_base_url or "http://127.0.0.1:11434/v1").rstrip("/")
@@ -1011,6 +1016,63 @@ class DhatuOracle:
         if state is not None and state.is_fresh:
             return str(state.dhatu_state)
         return "Sthiti"  # Persistence — neutral default
+
+    @property
+    def current_state(self) -> str:
+        """Legacy macro-state facade used by tests and older callers."""
+        return self._legacy_current_state
+
+    @property
+    def confidence(self) -> float:
+        """Legacy confidence facade used by tests and older callers."""
+        return self._legacy_confidence
+
+    def calculate_bias(self, macro_data: dict[str, Any]) -> str:
+        """Synchronous rule-based macro bias for tests and lightweight callers."""
+        vix = float(macro_data.get("vix", 20.0) or 20.0)
+        yield_10y = float(macro_data.get("yield_10y", 0.0) or 0.0)
+        yield_2y = float(macro_data.get("yield_2y", 0.0) or 0.0)
+        oil = float(macro_data.get("oil", 75.0) or 75.0)
+
+        if vix >= 30.0 or (yield_10y and yield_2y and yield_10y < yield_2y) or oil >= 90.0:
+            self._current_state = OracleState(
+                dhatu_state="KSHAYA",
+                action_protocol="REDUCE_RISK",
+                risk_modifier=0.5,
+                causation_summary="Bearish macro synthesis",
+                confidence=0.75,
+            )
+            self._legacy_current_state = "KSHAYA"
+            self._legacy_confidence = 0.75
+            return "BEARISH"
+
+        if vix <= 15.0 and (not yield_10y or not yield_2y or yield_10y >= yield_2y):
+            self._current_state = OracleState(
+                dhatu_state="VRIDDHI",
+                action_protocol="MAX_RISK",
+                risk_modifier=1.25,
+                causation_summary="Bullish macro synthesis",
+                confidence=0.75,
+            )
+            self._legacy_current_state = "VRIDDHI"
+            self._legacy_confidence = 0.75
+            return "BULLISH"
+
+        self._current_state = OracleState(
+            dhatu_state="NEUTRAL",
+            action_protocol="HOLD",
+            risk_modifier=1.0,
+            causation_summary="Neutral macro synthesis",
+            confidence=0.5,
+        )
+        self._legacy_current_state = "NEUTRAL"
+        self._legacy_confidence = 0.5
+        return "NEUTRAL"
+
+    def check_safety(self, macro_data: dict[str, Any]) -> bool:
+        """Return False for macro conditions that should halt new risk."""
+        vix = float(macro_data.get("vix", 20.0) or 20.0)
+        return vix < 80.0
 
     # Continuous Refresh Loop
 

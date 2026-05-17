@@ -44,6 +44,13 @@ class OrderUrgency:
     LOW = "LOW"  # Limit Fill (Patient)
 
 
+class AgentC:
+    """Compatibility facade for Agent C's IBKR execution layer."""
+
+    def __init__(self, connection: "IBKRConnection | None" = None) -> None:
+        self.connection = connection or IBKRConnection()
+
+
 # BROKER ERROR PROTOCOL
 
 
@@ -88,9 +95,10 @@ class IBKRConnection:
         self._lock: asyncio.Lock | None = None
         self._qualified_contracts: dict[str, Any] = {}
         self._warm_slots: dict[str, Any] = {}  # Hyper-Sovereign Warm Path
-        self._exec_secret = (
-            Vault.get("EXEC_SECRET", "SETO_SOVEREIGN_EXEC_V22") or "SETO_SOVEREIGN_EXEC_V22"
-        )
+        self._exec_secret = Vault.get("EXEC_SECRET")
+        if not self._exec_secret and os.getenv("SOVEREIGN_ALLOW_DEV_EXEC_SECRET", "0") == "1":
+            self._exec_secret = "DEV_ONLY_EXEC_SECRET"
+            logger.warning("Using development execution secret because SOVEREIGN_ALLOW_DEV_EXEC_SECRET=1.")
         # NOTE: _setup_callbacks() is NOT called here — it must be called after
         # the event loop is running (i.e. from an async method or connect()).
         self._callbacks_registered = False
@@ -99,6 +107,8 @@ class IBKRConnection:
 
     def generate_exec_token(self, symbol: str) -> str:
         """Generate a time-limited HMAC token for order authorization."""
+        if not self._exec_secret:
+            raise RuntimeError("EXEC_SECRET is not configured")
         current_ts = int(time.time()) // 30
         message = f"{symbol}:{current_ts}"
         return hmac.new(self._exec_secret.encode(), message.encode(), hashlib.sha256).hexdigest()
@@ -108,7 +118,7 @@ class IBKRConnection:
         Verify an HMAC execution token. Checks current and previous 30s
         window for clock drift.
         """
-        if not token:
+        if not self._exec_secret or not token:
             return False
         current_ts = int(time.time()) // 30
         for offset in (0, -1):  # Allow 1 window of clock drift
@@ -1136,7 +1146,19 @@ class PositionSizingChain:
         """
         Calculates position size using the 8-Step SETO Paradox.
         """
-        instrument = kwargs.get("instrument", "UNKNOWN")
+        def zero_size() -> dict[str, Any]:
+            return {
+                "shares": 0,
+                "step8_shares": 0,
+                "position_size": 0,
+                "risk_dollars": 0.0,
+                "balance_used": balance if "balance" in locals() else 0.0,
+                "proposed_value": 0.0,
+                "position_value": 0.0,
+                "steps": {},
+            }
+
+        instrument = kwargs.get("instrument", kwargs.get("symbol", "UNKNOWN"))
         from risk_invariants import RiskInvariants
 
         _raw_nav = kwargs.get("account_value", balance)
@@ -1159,7 +1181,11 @@ class PositionSizingChain:
         step4_risk = step3_risk * max(0.5, min(1.5, gap_mod))
 
         regime_mod = kwargs.get("regime_modifier", 1.0)
-        step5_risk = step4_risk * max(0.1, min(1.0, regime_mod))
+        if regime_mod <= 0:
+            logger.warning(f"Sizer: {instrument} received zero/negative regime modifier. No trade.")
+            return zero_size()
+        bounded_regime_mod = max(0.1, min(1.5, regime_mod))
+        step5_risk = step4_risk * bounded_regime_mod
 
         fat_tail_mod = 0.82 if win_prob < 0.6 else 1.0
         step6_risk = step5_risk * fat_tail_mod
@@ -1169,7 +1195,8 @@ class PositionSizingChain:
         dd_mod = max(0.8, kwargs.get("drawdown_modifier", 1.0))
         loss_mod = max(0.8, kwargs.get("loss_modifier", 1.0))
 
-        self_risk_limit = balance * RISK_PER_TRADE_PCT if RISK_PER_TRADE_PCT > 0 else balance * 0.01
+        base_risk_limit = balance * RISK_PER_TRADE_PCT if RISK_PER_TRADE_PCT > 0 else balance * 0.01
+        self_risk_limit = base_risk_limit * max(1.0, bounded_regime_mod)
 
         # If Kelly says 0, but the Quorum approved, force a small experimental 'Mini-Risk'
         min_viable_risk = 2.0 if balance < 1000 else balance * 0.001
@@ -1182,7 +1209,7 @@ class PositionSizingChain:
         if balance < 1000:
             step7_final_risk = max(step7_final_risk, 2.0)
 
-        price = kwargs.get("entry_price", 1.0)
+        price = kwargs.get("entry_price", kwargs.get("price", 1.0))
         stop = kwargs.get("stop_price", price * 0.99)
         spread = kwargs.get("spread", 0.0)
 
@@ -1210,13 +1237,13 @@ class PositionSizingChain:
                 f"Sizer: [GEOMETRY_VETO] {instrument} risk (${risk_per_share:.4f}) "
                 f"is too tight for price ${price:.2f}. Rejecting."
             )
-            return {"shares": 0, "risk_dollars": 0, "proposed_value": 0, "steps": {}}
+            return zero_size()
 
         if step7_final_risk <= 0 or step6_risk <= 0:
             logger.warning(
                 f"Sizer: Risk math resulted in zero exposure for {instrument}. Quashing trade."
             )
-            return {"shares": 0, "risk_dollars": 0, "proposed_value": 0, "steps": {}}
+            return zero_size()
 
         step8_shares = int(round(step7_final_risk / risk_per_share)) if risk_per_share > 0 else 0
 
@@ -1259,7 +1286,7 @@ class PositionSizingChain:
                 f"Sizer: [IPO_GUARD] {instrument} has < 50 bars of history. "
                 "Rejecting for low-liquidity/high-volatility risk."
             )
-            return {"shares": 0, "risk_dollars": 0, "proposed_value": 0, "steps": {}}
+            return zero_size()
 
         if ohlcv is not None and step8_shares > 0:
             est_slippage = self.impact_oracle.estimate_impact(instrument, step8_shares, ohlcv)
@@ -1292,14 +1319,14 @@ class PositionSizingChain:
                 f"${expected_reward:.2f} < commission ${COMMISSION_PER_ROUND_TRIP:.2f}. "
                 "Quashing trade."
             )
-            return {"shares": 0, "risk_dollars": 0, "proposed_value": 0, "steps": {}}
+            return zero_size()
 
         if not RiskInvariants.audit_trade_parameters(step7_final_risk, balance):
             logger.critical(
                 f"Sizer: [INVARIANT VETO] Proposed risk for {instrument} "
                 "violates hard safety bounds."
             )
-            return {"shares": 0, "risk_dollars": 0, "proposed_value": 0, "steps": {}}
+            return zero_size()
 
         logger.info(
             f"Imperial Sizer: [NAV: ${balance:,.2f}] -> "
@@ -1309,6 +1336,7 @@ class PositionSizingChain:
         return {
             "shares": step8_shares if step8_shares > 0 else 0,
             "step8_shares": step8_shares if step8_shares > 0 else 0,  # Legacy key for Coordinator
+            "position_size": step8_shares if step8_shares > 0 else 0,
             "risk_dollars": step7_final_risk,
             "balance_used": balance,
             "proposed_value": step8_shares * price,
