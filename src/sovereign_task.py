@@ -43,9 +43,18 @@ class SovereignTask:
         # Ensure directory exists
         os.makedirs("data/tasks", exist_ok=True)
 
+    def set_phase(self, phase: str, detail: str | None = None) -> None:
+        """Update the human-readable task phase without changing terminal status."""
+        phase = phase.strip().upper() if phase else "UNKNOWN"
+        self.status_summary = f"{phase}: {detail}" if detail else phase
+        self.log(f"PHASE_{self.status_summary}")
+        self.save()
+
     def transition(self, new_status: TaskStatus):
         logger.info(f"Task {self.id}: {self.status.value} -> {new_status.value}")
         self.status = new_status
+        if self.status_summary == "Initializing":
+            self.status_summary = new_status.value.upper()
         if new_status in [TaskStatus.COMPLETED, TaskStatus.FAILED, TaskStatus.KILLED]:
             from datetime import timezone as _timezone
 
@@ -146,12 +155,18 @@ class TaskManager:
             for tid in self._symbol_index[symbol]:
                 existing_task = self.tasks.get(tid)
                 if existing_task and existing_task.status in [TaskStatus.PENDING, TaskStatus.RUNNING]:
+                    age_sec = time.time() - existing_task.start_time
+                    if age_sec > 180:
+                        existing_task.set_phase("STALE", f"superseded after {age_sec:.0f}s")
+                        existing_task.transition(TaskStatus.KILLED)
+                        continue
                     logger.debug(f"TaskManager: Skipping spawn for {symbol}. Task {tid} is already {existing_task.status.value}.")
                     return existing_task
 
         task_id = f"t_{symbol}_{int(time.time())}"
         task = SovereignTask(task_id, "trade", f"Executing {symbol} Trade", setup)
         task.transition(TaskStatus.RUNNING)
+        task.set_phase("SPAWNED", "awaiting coordinator vetting")
         self.tasks[task_id] = task
 
         if symbol not in self._symbol_index:

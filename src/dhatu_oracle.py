@@ -945,6 +945,15 @@ class DhatuOracle:
                 row = cursor.fetchone()
                 if row:
                     data = json.loads(row[0])
+                    summary = str(data.get("causation_summary", ""))
+                    if summary.upper().startswith("TEST:") or '"TEST:' in row[0].upper():
+                        logger.error(
+                            "DhatuOracle: Ignoring persisted oracle_state because it is marked as test data."
+                        )
+                        conn.execute(
+                            "DELETE FROM system_state WHERE key = 'oracle_state'"
+                        )
+                        return
                     self._current_state = OracleState(
                         dhatu_state=data["dhatu_state"],
                         action_protocol=data["action_protocol"],
