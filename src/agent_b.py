@@ -8,6 +8,7 @@ Part of a trading system incorporating Project Dhatu principles:
 - Anuvṛtti context flow
 """
 
+import logging
 import math
 import time
 from dataclasses import dataclass, field
@@ -18,6 +19,8 @@ from typing import TYPE_CHECKING, Any, Dict
 if TYPE_CHECKING:
     from dhatu_oracle import DhatuOracle
 # (debug instrumentation removed after verified fix)
+
+logger = logging.getLogger(__name__)
 
 
 class AgentB:
@@ -39,8 +42,8 @@ class AgentB:
         if self.bus is not None and hasattr(self.bus, "on"):
             try:
                 self.bus.on("market.snapshot", self.on_market_snapshot)
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.warning("AgentB: failed to subscribe to market snapshots: %s", exc)
 
     def on_market_snapshot(self, payload: dict[str, Any]) -> dict[str, Any]:
         state = self.classifier.classify(payload)
