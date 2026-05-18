@@ -377,9 +377,15 @@ class MindArchitect:
         """Records the AI's healing session in the immutable project history."""
         try:
             msg = f"AI_HEAL: [{os.path.basename(file_path)}] -> Fixed fragment: {target[:20]}..."
-            subprocess.run(["git", "add", file_path], capture_output=True)
-            subprocess.run(["git", "commit", "-m", msg], capture_output=True)
+            subprocess.run(["git", "add", file_path], capture_output=True, text=True, check=True)
+            subprocess.run(["git", "commit", "-m", msg], capture_output=True, text=True, check=True)
             logger.info(f"MindArchitect: Sovereign Git-Guard COMMITTED heal for {file_path}.")
-        except Exception:
+        except subprocess.CalledProcessError as exc:
+            logger.warning(
+                "MindArchitect: Git-Guard could not commit heal for %s: %s",
+                file_path,
+                exc.stderr.strip() if exc.stderr else exc,
+            )
+        except Exception as exc:
             # Git may not be initialized, but we don't stall the system for it
-            pass
+            logger.debug("MindArchitect: Git-Guard skipped for %s: %s", file_path, exc)
