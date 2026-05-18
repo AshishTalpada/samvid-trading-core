@@ -66,8 +66,8 @@ class IpcBus:
         """Non-async publish — safe to call from any thread."""
         try:
             self._q.put_nowait(IpcMessage(topic, payload))
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning("IpcBus: failed to publish topic '%s': %s", topic, exc)
 
     async def publish(self, topic: str, payload: Any) -> None:
         self.publish_sync(topic, payload)

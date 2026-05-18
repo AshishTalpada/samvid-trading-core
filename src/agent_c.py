@@ -141,7 +141,7 @@ class EvolutionManager:
                     "already in use" in str(e).lower()
                     or "database main_db is already attached" in str(e).lower()
                 ):
-                    pass  # Already attached
+                    logger.debug("EvolutionManager: database main_db already attached.")
                 else:
                     raise
             cursor = self.conn.cursor()
@@ -178,7 +178,8 @@ class EvolutionManager:
                         p = DatabaseSecurity.decrypt_float(pnl_raw)
                     else:
                         p = float(pnl_raw)
-                except Exception:
+                except Exception as exc:
+                    logger.debug("EvolutionManager: failed to decode pnl value: %s", exc)
                     continue
 
                 stats_raw[state]["total"] += 1
