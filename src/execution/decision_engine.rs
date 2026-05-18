@@ -38,8 +38,8 @@ impl FastDecisionEngine {
         }
 
         let mut yes_votes = 0.0;
-        let mut no_votes = 0;
-        let mut abstain_votes = 0;
+        let mut _no_votes = 0;
+        let mut _abstain_votes = 0;
         let mut total_confidence = 0.0;
         let mut active_voters = 0;
         let mut agent_d_edge_crowded = false;
@@ -90,9 +90,9 @@ impl FastDecisionEngine {
                     yes_votes += 1.0;
                 }
             } else if vote == "NO" {
-                no_votes += 1;
+                _no_votes += 1;
             } else {
-                abstain_votes += 1;
+                _abstain_votes += 1;
                 continue;
             }
 
