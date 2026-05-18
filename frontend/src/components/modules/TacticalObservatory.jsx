@@ -11,12 +11,19 @@ import { GlassPanel, SectionHeader, StatusBadge } from '../ui/SovereignUI';
 
 /** 🔭 Tactical Observatory v1.0-beta-beta — Center Core */
 
-const SYMBOLS = ['SPY', 'QQQ', 'IWM'];
-
 export default function TacticalObservatory({
   activeSym, setActive, market, activeData,
   oracle, brain, ticks, logs, eventQueue, activityMap, pulseMap, connected, health,
 }) {
+  const symbols = React.useMemo(() => {
+    const ordered = new Set(['SPY', 'QQQ', 'IWM']);
+    Object.keys(market || {}).forEach((symbol) => ordered.add(symbol));
+    Object.keys(ticks || {}).forEach((symbol) => ordered.add(symbol));
+    (brain.positions || []).forEach((pos) => pos?.symbol && ordered.add(pos.symbol));
+    (brain.truth?.open_by_symbol || []).forEach((row) => row?.symbol && ordered.add(row.symbol));
+    return Array.from(ordered).slice(0, 18);
+  }, [market, ticks, brain.positions, brain.truth]);
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
 
@@ -40,7 +47,7 @@ export default function TacticalObservatory({
               sub={`Active: ${activeSym}`}
               right={
                 <div style={{ display: 'flex', gap: '6px' }}>
-                  {SYMBOLS.map(s => (
+                  {symbols.map(s => (
                     <button
                       key={s}
                       onClick={() => setActive(s)}
