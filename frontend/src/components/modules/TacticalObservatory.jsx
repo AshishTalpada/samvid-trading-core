@@ -6,6 +6,7 @@ import StatCards from '../StatCards';
 import SystemFlowchart from '../SystemFlowchart';
 import SovereignArchitecture from '../architecture/SovereignArchitecture';
 import QuorumMatrix from '../QuorumMatrix';
+import { TruthLayer } from '../TruthLayer';
 import { GlassPanel, SectionHeader, StatusBadge } from '../ui/SovereignUI';
 
 /** 🔭 Tactical Observatory v1.0-beta-beta — Center Core */
@@ -24,6 +25,8 @@ export default function TacticalObservatory({
 
       {/* ── QUORUM HUD (COMMERCIAL SHOWCASE) ── */}
       <QuorumMatrix eventQueue={eventQueue} activityMap={activityMap} brain={brain} />
+
+      <TruthLayer truth={brain.truth} />
 
       {/* ── MIDDLE INTELLIGENCE LAYER ── */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(12, 1fr)', gap: '12px', minHeight: '550px' }}>
