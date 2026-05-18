@@ -222,22 +222,26 @@ def run_watchdog():
                             try:
                                 with open(pid_file, "r") as f:
                                     pid_to_kill = f.read().strip()
-                            except Exception:
-                                pass
+                            except Exception as exc:
+                                logger.debug("Watchdog: Failed to read PID file %s: %s", pid_file, exc)
 
-                        if pid_to_kill:
+                        if pid_to_kill and pid_to_kill.isdigit():
                             try:
                                 logger.info(
                                     "Watchdog: Terminating stale main process "
                                     f"(PID: {pid_to_kill})..."
                                 )
                                 subprocess.run(
-                                    ["taskkill", "/F", "/PID", pid_to_kill], capture_output=True
+                                    ["taskkill", "/F", "/PID", pid_to_kill],
+                                    capture_output=True,
+                                    check=True,
                                 )
                                 logger.info("Watchdog: Waiting 10s for port release...")
                                 time.sleep(10)
                             except Exception as e:
                                 logger.error(f"Watchdog: Failed to kill process {pid_to_kill}: {e}")
+                        elif pid_to_kill:
+                            logger.warning("Watchdog: Ignoring invalid PID file content: %r", pid_to_kill)
 
                         subprocess.Popen([sys.executable, "src/main.py"], cwd=os.getcwd())
                         logger.info("Watchdog: Sovereign Engine REBOOTED.")
