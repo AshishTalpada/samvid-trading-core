@@ -70,6 +70,7 @@ class TradingCoordinator:
         pattern = proposal.get("pattern")
         if pattern:
             if task:
+                task.set_phase("RR_CHECK", symbol)
                 task.log(f"PHASE_RR: Analyzing Risk/Reward for {symbol}. Pattern: {pattern.name}")
             balance = await self.brain.get_safe_buying_power("ibkr")
             from config import COMMISSION_PER_ROUND_TRIP, USD_CAD_RATE
@@ -139,6 +140,8 @@ class TradingCoordinator:
 
         self._pending_vets.add(symbol)
         try:
+            if task:
+                task.set_phase("VETTING", "checking cache and agent quorum")
             cache = await self.exoskeleton.check_cortex_cache(symbol, proposal["pattern"].entry)
             if cache and not is_probe:
                 if task:
@@ -940,9 +943,39 @@ class TradingCoordinator:
                     )
                     return False
 
+                if getattr(self.brain, "db_conn", None):
+                    try:
+                        broker_key = self.brain.active_broker.lower()
+                        row = self.brain.db_conn.execute(
+                            "SELECT id FROM trades WHERE instrument=? AND broker=? "
+                            "AND outcome='OPEN' ORDER BY id DESC LIMIT 1",
+                            (symbol, broker_key),
+                        ).fetchone()
+                        if row:
+                            open_id = row[0]
+                            if task:
+                                task.set_phase(
+                                    "OPEN_DUPLICATE_BLOCK",
+                                    f"existing trade id {open_id}",
+                                )
+                                task.finalize("VETOED")
+                            logger.warning(
+                                "Coordinator [%s] duplicate OPEN guard blocked %s on %s "
+                                "(trade id=%s)",
+                                proposal_id,
+                                symbol,
+                                broker_key,
+                                open_id,
+                            )
+                            return False
+                    except Exception as guard_err:
+                        logger.debug("Duplicate OPEN guard skipped for %s: %s", symbol, guard_err)
+
                 # Execution with SE-11 Brackets & Ghost Expansion
                 order_id = None
                 if self.brain.active_broker == "IBKR":
+                    if task:
+                        task.set_phase("ORDER_SUBMIT", "IBKR")
                     order_id = await self.brain._place_ibkr_order(
                         symbol=symbol,
                         direction=order_side,
@@ -954,6 +987,8 @@ class TradingCoordinator:
                         **decision,
                     )
                 elif self.brain.active_broker == "MT5":
+                    if task:
+                        task.set_phase("ORDER_SUBMIT", "MT5")
                     order_id = await self.brain._place_mt5_order(
                         symbol=symbol,
                         direction=order_side,
@@ -965,6 +1000,7 @@ class TradingCoordinator:
                     )
                 if order_id:
                     if task:
+                        task.set_phase("ORDER_ACCEPTED", str(order_id))
                         task.log(f"EXECUTION_CONFIRMED: Order {order_id} active.")
                         task.finalize("SUCCESS")
 
@@ -1021,6 +1057,7 @@ class TradingCoordinator:
                     return True
                 else:
                     if task:
+                        task.set_phase("ORDER_REJECTED", "broker returned no order id")
                         task.log("EXECUTION_FAILURE: Order rejected by broker.")
                         task.finalize("FAILED")
                     if shares < 1:
@@ -1076,6 +1113,7 @@ class TradingCoordinator:
                     logger.debug(f"Shadow Trade Logging failed: {shadow_e}")
 
                 if task:
+                    task.set_phase("QUORUM_REJECT", reason)
                     task.log(f"QUORUM_REJECT: {reason}")
                     task.finalize("VETOED")
                 logger.info(f"Coordinator [{proposal_id}] [QUORUM_REJECT] {reason}")

@@ -3831,12 +3831,34 @@ class TradingBrain:
                         default=str,
                     )
 
+                    outcome = str(getattr(pos, "status", "OPEN") or "OPEN")
+                    broker = pos.account_type
+                    account_id = pos.account_id or "UNKNOWN"
+                    if outcome == "OPEN":
+                        cursor.execute(
+                            "SELECT id FROM trades WHERE instrument=? AND broker=? "
+                            "AND account_id=? AND outcome='OPEN' ORDER BY id DESC LIMIT 1",
+                            (pos.symbol, broker, account_id),
+                        )
+                        existing = cursor.fetchone()
+                        if existing:
+                            pos.db_id = existing[0]
+                            logger.warning(
+                                "Trade entry skipped for %s: existing OPEN trade id=%s on %s/%s",
+                                pos.symbol,
+                                pos.db_id,
+                                broker,
+                                account_id,
+                            )
+                            cursor.close()
+                            return
+
                     cursor.execute(
                         "INSERT INTO trades (timestamp, instrument, direction, pattern, regime, "
                         "entry_price, stop_price, target_price, shares, r_r_ratio, catalyst_score, "
                         "dhatu_state, belief_at_entry, broker, account_id, trading_mode, outcome, "
-                        "net_pnl, intel_snapshot) "
-                        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                        "commission, slippage, net_pnl, intel_snapshot) "
+                        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                         (
                             pos.entry_time.isoformat(),
                             pos.symbol,
@@ -3851,16 +3873,19 @@ class TradingBrain:
                             pos.catalyst_score,  # REMOVED ENCRYPTION FOR LEARNING ENGINE
                             pos.dhatu_state,
                             pos.initial_belief,  # REMOVED ENCRYPTION FOR LEARNING ENGINE
-                            pos.account_type,
-                            pos.account_id,
+                            broker,
+                            account_id,
                             self.mode,
-                            "OPEN",
+                            outcome,
+                            getattr(pos, "commission_cost", 0.0),
+                            getattr(pos, "slippage_cost", 0.0),
                             0.0,
                             intel_snap,
                         ),
                     )
                     # Capture the RowID for precise exit tracking (Stop the Race Condition)
                     pos.db_id = cursor.lastrowid
+                    self.db_conn.commit()
                     cursor.close()
             except Exception as e:
                 logger.debug(f"Could not log trade entry: {e}")
@@ -3914,6 +3939,45 @@ class TradingBrain:
                             getattr(pos, "db_id", 0),  # Use the specific ID
                         ),
                     )
+                    cursor.execute("""
+                        CREATE TABLE IF NOT EXISTS performance_summary (
+                            key TEXT PRIMARY KEY,
+                            value TEXT,
+                            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                        )
+                    """)
+                    cursor.execute("PRAGMA table_info(performance_summary)")
+                    summary_cols = {row[1] for row in cursor.fetchall()}
+                    if {"key", "value"}.issubset(summary_cols):
+                        cursor.execute("""
+                            SELECT
+                                COUNT(*) AS closed_count,
+                                SUM(CASE WHEN COALESCE(net_pnl, pnl_dollars, 0) > 0 THEN 1 ELSE 0 END) AS wins,
+                                SUM(CASE WHEN COALESCE(net_pnl, pnl_dollars, 0) < 0 THEN 1 ELSE 0 END) AS losses,
+                                SUM(COALESCE(net_pnl, pnl_dollars, 0)) AS net_pnl,
+                                AVG(r_multiple) AS avg_r
+                            FROM trades
+                            WHERE outcome NOT IN ('OPEN', 'ORPHANED')
+                        """)
+                        row = cursor.fetchone()
+                        closed_count = int(row[0] or 0)
+                        wins = int(row[1] or 0)
+                        losses = int(row[2] or 0)
+                        summary = {
+                            "closed_count": closed_count,
+                            "wins": wins,
+                            "losses": losses,
+                            "win_rate": (wins / closed_count) if closed_count else 0.0,
+                            "net_pnl": float(row[3] or 0.0),
+                            "avg_r": float(row[4] or 0.0),
+                            "updated_from": "brain._log_trade_exit",
+                        }
+                        cursor.execute(
+                            "INSERT OR REPLACE INTO performance_summary (key, value, updated_at) "
+                            "VALUES (?, ?, ?)",
+                            ("latest", json.dumps(summary), datetime.now(timezone.utc)),
+                        )
+                    self.db_conn.commit()
                     cursor.close()
             except Exception as e:
                 logger.debug(f"Could not log trade exit: {e}")
