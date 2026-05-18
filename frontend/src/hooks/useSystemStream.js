@@ -13,6 +13,7 @@ export function useSystemStream(url) {
   const [data, setData] = useState({ brain: {}, health: {}, oracle: {}, market: {}, ticks: {}, activityMap: {}, latestEvent: null });
   const [eventQueue, setEventQueue] = useState([]);
   const [connected, setConnected] = useState(false);
+  const [stateStatus, setStateStatus] = useState({ hydrated: false, error: null, lastSync: null });
 
   const wsRef = useRef(null);
   const reconnectRef = useRef(null);
@@ -75,7 +76,10 @@ export function useSystemStream(url) {
       if (secret) headers['X-Sovereign-Key'] = secret;
 
       const res = await fetch(stateUrl.toString(), { headers });
-      if (!res.ok) return;
+      if (!res.ok) {
+        setStateStatus({ hydrated: false, error: `state ${res.status}`, lastSync: null });
+        return;
+      }
       const d = await res.json();
       if (d.brain && Object.keys(d.brain).length > 0) batchState.current.brain = { ...d.brain };
       if (d.health && Object.keys(d.health).length > 0) batchState.current.health = { ...d.health };
@@ -89,7 +93,9 @@ export function useSystemStream(url) {
       };
       batchState.current.event = event;
       localQueue.current.push(event);
+      setStateStatus({ hydrated: true, error: null, lastSync: new Date().toLocaleTimeString('en-US', { hour12: false }) });
     } catch (err) {
+      setStateStatus({ hydrated: false, error: err?.message || 'state unavailable', lastSync: null });
       console.warn("State hydrate skipped:", err?.message || err);
     }
   }, [url]);
@@ -305,5 +311,5 @@ export function useSystemStream(url) {
     };
   }, [connect, hydrateState]);
 
-  return { data, eventQueue, connected };
+  return { data, eventQueue, connected, stateStatus };
 }
