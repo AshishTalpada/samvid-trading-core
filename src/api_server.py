@@ -1,4 +1,5 @@
 import asyncio
+import json
 import logging
 import os
 import socket
@@ -527,6 +528,14 @@ class APIServer:
 
             # 3. Trading Brain State & Real-Time Agent Telemetry
             brain_data = {}
+            trading_truth = {
+                "performance": {},
+                "outcomes": [],
+                "recent_trades": [],
+                "open_by_symbol": [],
+                "order_health": {"persistent_orders": 0, "stale_orders": 0, "failures": 0},
+                "tasks": {"total": 0, "by_status": {}, "by_phase": {}, "recent": []},
+            }
             if self.system.trading_brain:
                 brain = self.system.trading_brain
                 # Extract Agent C (Executor) safety values
@@ -559,6 +568,134 @@ class APIServer:
 
                 # Extract Agent A logic already collected
                 scan_stats = getattr(brain, "last_scan_stats", {})
+                if self.system.db_conn:
+                    try:
+                        cursor = self.system.db_conn.cursor()
+                        cursor.execute(
+                            "SELECT outcome, trading_mode, COUNT(*) AS count, "
+                            "SUM(COALESCE(net_pnl, pnl_dollars, 0)) AS pnl "
+                            "FROM trades GROUP BY outcome, trading_mode ORDER BY count DESC"
+                        )
+                        trading_truth["outcomes"] = [
+                            {
+                                "outcome": row[0] or "UNKNOWN",
+                                "mode": row[1] or "UNKNOWN",
+                                "count": int(row[2] or 0),
+                                "pnl": float(row[3] or 0.0),
+                            }
+                            for row in cursor.fetchall()
+                        ]
+
+                        cursor.execute(
+                            "SELECT instrument, COUNT(*) AS count, SUM(COALESCE(shares, 0)) AS shares, "
+                            "MIN(timestamp) AS first_ts, MAX(timestamp) AS last_ts "
+                            "FROM trades WHERE outcome='OPEN' "
+                            "GROUP BY instrument ORDER BY count DESC LIMIT 20"
+                        )
+                        trading_truth["open_by_symbol"] = [
+                            {
+                                "symbol": row[0] or "UNKNOWN",
+                                "count": int(row[1] or 0),
+                                "shares": float(row[2] or 0.0),
+                                "first_ts": row[3],
+                                "last_ts": row[4],
+                            }
+                            for row in cursor.fetchall()
+                        ]
+
+                        cursor.execute(
+                            "SELECT id, timestamp, instrument, direction, pattern, regime, entry_price, "
+                            "shares, outcome, broker, trading_mode, COALESCE(net_pnl, pnl_dollars, 0) AS pnl "
+                            "FROM trades ORDER BY id DESC LIMIT 25"
+                        )
+                        trading_truth["recent_trades"] = [
+                            {
+                                "id": row[0],
+                                "timestamp": row[1],
+                                "symbol": row[2],
+                                "direction": row[3],
+                                "pattern": row[4],
+                                "regime": row[5],
+                                "entry": float(row[6] or 0.0),
+                                "shares": float(row[7] or 0.0),
+                                "outcome": row[8] or "UNKNOWN",
+                                "broker": row[9] or "UNKNOWN",
+                                "mode": row[10] or "UNKNOWN",
+                                "pnl": float(row[11] or 0.0),
+                            }
+                            for row in cursor.fetchall()
+                        ]
+
+                        cursor.execute(
+                            "SELECT name FROM sqlite_master WHERE type='table' AND name='performance_summary'"
+                        )
+                        if cursor.fetchone():
+                            cursor.execute("PRAGMA table_info(performance_summary)")
+                            summary_cols = {row[1] for row in cursor.fetchall()}
+                            if {"key", "value"}.issubset(summary_cols):
+                                cursor.execute(
+                                    "SELECT value, updated_at FROM performance_summary "
+                                    "WHERE key='latest' LIMIT 1"
+                                )
+                                row = cursor.fetchone()
+                                if row:
+                                    payload = json.loads(row[0])
+                                    payload["updated_at"] = row[1]
+                                    trading_truth["performance"] = payload
+
+                        cursor.execute(
+                            "SELECT name FROM sqlite_master WHERE type='table' AND name='persistent_orders'"
+                        )
+                        if cursor.fetchone():
+                            cursor.execute("SELECT COUNT(*) FROM persistent_orders")
+                            trading_truth["order_health"]["persistent_orders"] = int(
+                                cursor.fetchone()[0] or 0
+                            )
+                            cursor.execute(
+                                "SELECT COUNT(*) FROM persistent_orders "
+                                "WHERE status NOT IN ('Filled', 'Cancelled', 'Inactive')"
+                            )
+                            trading_truth["order_health"]["stale_orders"] = int(
+                                cursor.fetchone()[0] or 0
+                            )
+
+                        cursor.execute(
+                            "SELECT name FROM sqlite_master WHERE type='table' AND name='failure_post_mortem'"
+                        )
+                        if cursor.fetchone():
+                            cursor.execute("SELECT COUNT(*) FROM failure_post_mortem")
+                            trading_truth["order_health"]["failures"] = int(
+                                cursor.fetchone()[0] or 0
+                            )
+                        cursor.close()
+                    except Exception as exc:
+                        logger.debug("API Server: trading truth fetch skipped: %s", exc)
+
+                try:
+                    task_path = os.path.join("data", "active_tasks.json")
+                    if os.path.exists(task_path):
+                        with open(task_path, "r", encoding="utf-8") as f:
+                            task_data = json.load(f)
+                        by_status: dict[str, int] = {}
+                        by_phase: dict[str, int] = {}
+                        for task in task_data.values():
+                            status = str(task.get("status", "unknown"))
+                            by_status[status] = by_status.get(status, 0) + 1
+                            phase = str(task.get("status_summary", "UNKNOWN")).split(":")[0]
+                            by_phase[phase] = by_phase.get(phase, 0) + 1
+                        recent_tasks = sorted(
+                            task_data.values(),
+                            key=lambda t: float(t.get("start_time") or 0),
+                            reverse=True,
+                        )[:20]
+                        trading_truth["tasks"] = {
+                            "total": len(task_data),
+                            "by_status": by_status,
+                            "by_phase": by_phase,
+                            "recent": recent_tasks,
+                        }
+                except Exception as exc:
+                    logger.debug("API Server: task truth fetch skipped: %s", exc)
 
                 brain_data = {
                     "state": brain.state.name if hasattr(brain, "state") else "UNKNOWN",
@@ -663,6 +800,7 @@ class APIServer:
                         },
                         "evolution": {},
                     },
+                    "truth": trading_truth,
                 }
 
                 # 4. Populate Evolutionary Data
