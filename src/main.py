@@ -750,15 +750,19 @@ class TradingSystem:
         """Sovereign Shield: Checks if IBKR software is already running."""
         for target in ["tws.exe", "ibgateway.exe"]:
             try:
-                # Use Windows tasklist (Pillar 6 optimized)
-                cmd = f'tasklist /FI "IMAGENAME eq {target}" /NH'
-                proc = await asyncio.create_subprocess_shell(
-                    cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
+                proc = await asyncio.create_subprocess_exec(
+                    "tasklist",
+                    "/FI",
+                    f"IMAGENAME eq {target}",
+                    "/NH",
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE,
                 )
                 stdout, _ = await proc.communicate()
                 if target.lower() in stdout.decode().lower():
                     return True
-            except Exception:
+            except Exception as exc:
+                logger.debug("IBKR process probe failed for %s: %s", target, exc)
                 continue
         return False
 
