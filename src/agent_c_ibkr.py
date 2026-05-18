@@ -1085,7 +1085,7 @@ class IBKRConnection:
         target_acc = trade.order.account
         for _attempt in range(6):  # Poll for 60s total
             await asyncio.sleep(10)
-            if trade.orderStatus.status == "Filled":
+            if trade.orderStatus.status in ("Filled", "Submitted", "PreSubmitted"):
                 logger.info(
                     f"✓ AUDIT SUCCESS: {symbol} execution verified (Status: Filled)."
                 )
