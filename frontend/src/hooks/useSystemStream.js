@@ -16,6 +16,7 @@ export function useSystemStream(url) {
 
   const wsRef = useRef(null);
   const reconnectRef = useRef(null);
+  const statePollRef = useRef(null);
 
   // High-performance mutable storage for batching — v1.0-beta-beta: Immutable deep-cloning
   const batchState = useRef({ brain: null, health: null, oracle: null, market: null, event: null, ticks: null, activityMap: null });
@@ -61,6 +62,38 @@ export function useSystemStream(url) {
     return () => clearInterval(t);
   }, [processBatch]);
 
+  const hydrateState = useCallback(async () => {
+    if (!url || url.includes('null')) return;
+    try {
+      const stateUrl = new URL(url);
+      stateUrl.protocol = stateUrl.protocol === 'wss:' ? 'https:' : 'http:';
+      stateUrl.pathname = '/state';
+      stateUrl.search = '';
+
+      const headers = {};
+      const secret = import.meta.env.VITE_API_SERVER_KEY;
+      if (secret) headers['X-Sovereign-Key'] = secret;
+
+      const res = await fetch(stateUrl.toString(), { headers });
+      if (!res.ok) return;
+      const d = await res.json();
+      if (d.brain && Object.keys(d.brain).length > 0) batchState.current.brain = { ...d.brain };
+      if (d.health && Object.keys(d.health).length > 0) batchState.current.health = { ...d.health };
+      if (d.oracle && Object.keys(d.oracle).length > 0) batchState.current.oracle = { ...d.oracle };
+      if (d.market && Object.keys(d.market).length > 0) batchState.current.market = { ...d.market };
+      const event = {
+        type: 'state.snapshot',
+        id: `state-${Date.now()}`,
+        data: d,
+        timestamp: Date.now(),
+      };
+      batchState.current.event = event;
+      localQueue.current.push(event);
+    } catch (err) {
+      console.warn("State hydrate skipped:", err?.message || err);
+    }
+  }, [url]);
+
   const connect = useCallback(() => {
     if (!url || url.includes('null')) return;
     
@@ -80,6 +113,7 @@ export function useSystemStream(url) {
       ws.onopen = () => {
         setConnected(true);
         console.log("🌌 [Matrix Engine] Neural Link Synchronized.");
+        hydrateState();
       };
 
       ws.onmessage = (e) => {
@@ -257,15 +291,19 @@ export function useSystemStream(url) {
       if (reconnectRef.current) clearTimeout(reconnectRef.current);
       reconnectRef.current = setTimeout(connect, 3000);
     }
-  }, [url]);
+  }, [url, hydrateState]);
 
   useEffect(() => {
     connect();
+    hydrateState();
+    if (statePollRef.current) clearInterval(statePollRef.current);
+    statePollRef.current = setInterval(hydrateState, 10000);
     return () => {
       if (wsRef.current) wsRef.current.close();
       if (reconnectRef.current) clearTimeout(reconnectRef.current);
+      if (statePollRef.current) clearInterval(statePollRef.current);
     };
-  }, [connect]);
+  }, [connect, hydrateState]);
 
   return { data, eventQueue, connected };
 }
