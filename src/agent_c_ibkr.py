@@ -319,8 +319,8 @@ class IBKRConnection:
                         ),
                     },
                 )
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.warning("IBKR: failed to publish disconnect alert: %s", exc)
 
     def _on_position(self, pos) -> None:
         self._positions_cache[pos.contract.symbol] = pos.position
@@ -1125,7 +1125,8 @@ class IBKRConnection:
                 }
                 for p in positions
             ]
-        except Exception:
+        except Exception as exc:
+            logger.debug("IBKR: failed to fetch open positions: %s", exc)
             return []
 
 
