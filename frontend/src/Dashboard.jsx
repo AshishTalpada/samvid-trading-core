@@ -38,7 +38,14 @@ const COMPONENT_COLORS = {
 };
 
 // ── Health Components Bar (v1.0-beta-beta Memoized) ──
-const HealthBar = React.memo(({ components = {}, health = {} }) => (
+const HealthBar = React.memo(({ components = {}, health = {}, truth = {} }) => {
+  const outcomes = truth.outcomes || [];
+  const openCount = outcomes.find((row) => row.outcome === 'OPEN')?.count || 0;
+  const orphaned = outcomes.find((row) => row.outcome === 'ORPHANED')?.count || 0;
+  const taskLoad = truth.tasks?.total || 0;
+  const measured = truth.performance?.closed_count || 0;
+
+  return (
   <GlassPanel style={{ padding: '8px 16px' }}>
     <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
       <span className="fw-900 c-dim uppercase ls-w" style={{ fontSize: '0.5rem', marginRight: '4px' }}>
@@ -62,9 +69,13 @@ const HealthBar = React.memo(({ components = {}, health = {} }) => (
       <span style={{ marginLeft: 'auto', fontSize: '0.5rem', color: 'var(--dim)', fontFamily: 'JetBrains Mono, monospace' }}>
         MODE: {health.mode ?? '---'} · DMS: {health.dms ?? '---'} · LAT: {health.latency_ms ?? 0}ms
       </span>
+      <span style={{ fontSize: '0.5rem', color: orphaned > 0 ? 'var(--amber)' : 'var(--dim)', fontFamily: 'JetBrains Mono, monospace' }}>
+        OPEN: {openCount} | ORPHANED: {orphaned} | TASKS: {taskLoad} | MEASURED: {measured}
+      </span>
     </div>
   </GlassPanel>
-));
+  );
+});
 
 export default function Dashboard({
   data, ticks, eventQueue, activityMap, pulseMap,
@@ -81,7 +92,7 @@ export default function Dashboard({
       <SidebarHeader connected={connected} sysTime={sysTime} uptime={health.up_time ?? 0} />
 
       {/* Health summary */}
-      <HealthBar components={components} health={health} />
+      <HealthBar components={components} health={health} truth={brain.truth} />
 
       {/* Autonomous Agent Mesh */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
