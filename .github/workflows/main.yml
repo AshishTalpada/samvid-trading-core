@@ -43,6 +43,9 @@ jobs:
       - name: Test Rust
         run: cargo test
 
+      - name: Build native library
+        run: make
+
       - name: Set up Node
         uses: actions/setup-node@v4
         with:
