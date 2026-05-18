@@ -778,9 +778,15 @@ class TradingSystem:
 
                 self.ibkr_client = IB()
 
+                auto_launch_ibkr = Vault.get("IBKR_AUTO_LAUNCH", "0").strip() == "1"
                 ibc_path = os.environ.get("IBC_PATH") or Vault.get("IBC_PATH")
                 if await self._is_ibkr_process_active():
                     logger.info("✓ IBKR software active (Bypassing IBC).")
+                    ibc_path = None
+                elif not auto_launch_ibkr:
+                    logger.info(
+                        "IBKR auto-launch disabled. Will connect to an existing TWS/Gateway only."
+                    )
                     ibc_path = None
 
                 default_tws = "C:\\Jts" if os.name == "nt" else "/opt/ibgateway"
