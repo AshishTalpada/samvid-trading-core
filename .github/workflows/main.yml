@@ -37,6 +37,9 @@ jobs:
       - name: Compile Python
         run: uv run python -m compileall -q src tests scripts tools
 
+      - name: Check Python import cycles
+        run: uv run python scripts/detect_cycles.py
+
       - name: Set up Rust
         uses: dtolnay/rust-toolchain@stable
 
