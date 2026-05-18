@@ -75,7 +75,7 @@ function getTag(type) {
 
 export default function App() {
   const [wsUrl, setWsUrl] = useState(null);
-  const { data: stream, eventQueue, connected } = useSystemStream(wsUrl);
+  const { data: stream, eventQueue, connected, stateStatus } = useSystemStream(wsUrl);
   const { activityMap, pulseMap } = useEventEngine(eventQueue, 100);
 
   const [logs, setLogs] = useState([]);
@@ -151,6 +151,7 @@ export default function App() {
       activityMap={activityMap}
       pulseMap={pulseMap}
       connected={connected}
+      stateStatus={stateStatus}
       logs={logs}
       activeSym={activeSym}
       setActive={setActive}
