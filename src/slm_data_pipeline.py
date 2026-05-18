@@ -45,7 +45,8 @@ def build_dataset():
 
     logger.info("Extracting historical trades for SLM Fine-Tuning...")
 
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(DB_PATH, timeout=60.0)
+    conn.execute("PRAGMA busy_timeout=60000;")
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
 
