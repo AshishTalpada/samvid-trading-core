@@ -275,6 +275,36 @@ class MindSystem:
             "status": "HEALTHY" if cpu < 85 and mem < 85 else "STRESSED",
         }
 
+    async def _run_process(self, args: list[str], timeout: float = 10.0) -> dict[str, Any]:
+        """Run a fixed command without shell expansion."""
+        try:
+            proc = await asyncio.create_subprocess_exec(
+                *args,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+            )
+            stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=timeout)
+            output = stdout.decode(errors="replace") or stderr.decode(errors="replace")
+            return {
+                "cmd": " ".join(args),
+                "stdout": output[:250],
+                "status": "OK" if proc.returncode == 0 else "FAIL",
+            }
+        except Exception as exc:
+            return {"cmd": " ".join(args), "error": str(exc), "status": "FAIL"}
+
+    async def _start_executable(self, executable: str) -> dict[str, Any]:
+        """Start a validated executable without shell string construction."""
+        try:
+            if os.name == "nt":
+                await asyncio.to_thread(os.startfile, executable)  # type: ignore[attr-defined]
+                return {"cmd": f"start {executable}", "stdout": "", "status": "OK"}
+
+            proc = await asyncio.create_subprocess_exec(executable)
+            return {"cmd": executable, "stdout": f"pid={proc.pid}", "status": "OK"}
+        except Exception as exc:
+            return {"cmd": f"start {executable}", "error": str(exc), "status": "FAIL"}
+
     async def _tool_reboot_service(self, service_name: str, **kwargs) -> dict[str, Any]:
         """Performs a deep service reboot when the API is unresponsive."""
         async with self.lock:
@@ -285,60 +315,70 @@ class MindSystem:
                 return {"error": "Unauthorized Service"}
 
             logger.warning(f"MindSystem: CRITICAL SERVICE REBOOT: {service_name}...")
-            cmds = self.CERTIFIED_COMMANDS[service_name]
 
             from vault import Vault
 
             interface = Vault.get("IBKR_INTERFACE", "gateway").lower()
+            actions: list[tuple[str, list[str] | str]] = []
             if service_name == "RESTART_IBKR":
                 target_exe = "ibgateway.exe" if interface == "gateway" else "TWS.exe"
                 verified_path = Vault.get("IBKR_PATH")
-                start_cmd = f"start {target_exe}"
+                start_target = target_exe
                 if verified_path and self._is_safe_path(str(verified_path)):
-                    start_cmd = f'start "" "{verified_path}"'
+                    start_target = str(verified_path)
                 else:
                     logger.warning(
                         f"MindSystem: Path validation FAILED for {verified_path}. "
                         f"Falling back to unpathed '{target_exe}'."
                     )
 
-                cmds = [
-                    'taskkill /F /IM TWS.exe /IM ibgateway.exe /T /FI "STATUS eq NOT RESPONDING"',
-                    start_cmd,
+                actions = [
+                    (
+                        "run",
+                        [
+                            "taskkill",
+                            "/F",
+                            "/IM",
+                            "TWS.exe",
+                            "/IM",
+                            "ibgateway.exe",
+                            "/T",
+                            "/FI",
+                            "STATUS eq NOT RESPONDING",
+                        ],
+                    ),
+                    ("start", start_target),
+                ]
+            elif service_name == "RESTART_GATEWAY":
+                actions = [
+                    ("run", ["taskkill", "/F", "/IM", "ibgateway.exe", "/T"]),
+                    ("start", "ibgateway.exe"),
                 ]
             elif service_name == "RESTART_QUESTDB":
                 q_path = Vault.get("QUESTDB_PATH")
-                start_cmd = "start questdb.exe"
+                start_target = "questdb.exe"
                 if q_path:
                     # If it's a directory, look for questdb.exe
                     if os.path.isdir(str(q_path)):
                         q_exe = os.path.join(str(q_path), "questdb.exe")
                         if self._is_safe_path(q_exe):
-                            start_cmd = f'start "" "{q_exe}"'
+                            start_target = q_exe
                     elif self._is_safe_path(str(q_path)):
-                        start_cmd = f'start "" "{q_path}"'
+                        start_target = str(q_path)
 
-                cmds = ["taskkill /F /IM questdb.exe /T", start_cmd]
+                actions = [
+                    ("run", ["taskkill", "/F", "/IM", "questdb.exe", "/T"]),
+                    ("start", start_target),
+                ]
+            else:
+                return {"error": f"Alias '{service_name}' is not a rebootable service"}
 
             results = []
-            for cmd in cmds:
-                try:
-                    # Use asyncio for non-blocking sub-second execution
-                    proc = await asyncio.create_subprocess_shell(
-                        cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
-                    )
-                    stdout, _stderr = await proc.communicate()
-                    status = "OK" if proc.returncode == 0 else "FAIL"
-                    # Use errors="replace" for safe decoding on Windows
-                    results.append(
-                        {
-                            "cmd": cmd,
-                            "stdout": stdout.decode(errors="replace")[:150],
-                            "status": status,
-                        }
-                    )
-                except Exception as e:
-                    results.append({"cmd": cmd, "error": str(e), "status": "FAIL"})
+            for action, payload in actions:
+                if action == "start":
+                    results.append(await self._start_executable(str(payload)))
+                else:
+                    results.append(await self._run_process(list(payload)))
 
             return {"service": service_name, "actions": results}
 
@@ -348,20 +388,21 @@ class MindSystem:
             if alias not in self.CERTIFIED_COMMANDS:
                 return {"error": "Alias not certified"}
 
-            cmd = self.CERTIFIED_COMMANDS[alias][0]  # First cmd only for check aliases
-            try:
-                # Non-blocking shell check
-                proc = await asyncio.create_subprocess_shell(
-                    cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
-                )
-                stdout, _stderr = await proc.communicate()
+            if alias == "CHECK_NETWORK":
+                result = await self._run_process(["ping", "-n", "1", "8.8.8.8"])
                 return {
                     "alias": alias,
-                    "success": proc.returncode == 0,
-                    "output": stdout.decode(errors="replace")[:250],
+                    "success": result["status"] == "OK",
+                    "output": result.get("stdout", ""),
                 }
-            except Exception as e:
-                return {"alias": alias, "error": str(e)}
+            if alias == "CHECK_DISK":
+                metrics = await self._tool_get_system_metrics()
+                return {
+                    "alias": alias,
+                    "success": True,
+                    "output": f"disk_usage={metrics['disk_usage']}%",
+                }
+            return {"alias": alias, "error": "Alias is not a read-only check command"}
 
     async def _tool_sovereign_flush(self) -> dict[str, Any]:
         """Sovereign Purification: Non-destructively flushes zombie processes to recover ports."""
@@ -372,18 +413,12 @@ class MindSystem:
             killed_count = 0
 
             for target in targets:
-                try:
-                    # /F = Force, /IM = ImageName, /T = Tree kill (includes children)
-                    cmd = f"taskkill /F /IM {target} /T"
-                    proc = await asyncio.create_subprocess_shell(
-                        cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
-                    )
-                    await proc.communicate()
-                    if proc.returncode == 0:
-                        killed_count += 1
-                        logger.info(f"MindSystem: Successfully flushed {target}")
-                except Exception:
-                    continue
+                result = await self._run_process(["taskkill", "/F", "/IM", target, "/T"])
+                if result["status"] == "OK":
+                    killed_count += 1
+                    logger.info(f"MindSystem: Successfully flushed {target}")
+                else:
+                    logger.debug("MindSystem: Flush skipped/failed for %s: %s", target, result)
 
             return {
                 "success": True,
