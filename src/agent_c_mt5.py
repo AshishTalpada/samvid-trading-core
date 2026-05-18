@@ -164,7 +164,8 @@ class MT5ConnectionLegacy:
                     deviation = max(10, int(atr_5 * 1.5 / info.point))
                 else:
                     deviation = 10
-        except Exception:
+        except Exception as exc:
+            logger.debug("MT5: volatility-adjusted slippage fallback for %s: %s", sym, exc)
             deviation = 10
 
         # Bug 35 FIX: Order ID Collision Guard
@@ -285,8 +286,7 @@ class FTMOComplianceLayer:
         # simplistic CET check
         prague_now = utc_now + timedelta(hours=1)
         if prague_now.time() >= dt_time(23, 59):
-            # Code to perform any reset logic needed
-            pass
+            logger.debug("MT5BudgetGuard: Prague midnight reset window reached.")
 
     def is_trading_allowed(self, account: dict, trade_count: int = 0) -> tuple[bool, str]:
         """Determine if trading is allowed based on account state."""
@@ -522,7 +522,8 @@ class MetaTrader5Agent:
                 info = mt5.symbol_info(symbol)
                 if info and info.point > 0:
                     deviation = max(slippage_pts, int(atr_5 * 1.5 / info.point))
-        except Exception:
+        except Exception as exc:
+            logger.debug("MT5: volatility-adjusted slippage fallback for %s: %s", symbol, exc)
             deviation = slippage_pts
 
         # 3. MAGIC ID COLLISION GUARD

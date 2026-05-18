@@ -1628,7 +1628,10 @@ class LiveLearningEngine:
                 # Reset Bayesian Alpha to be more aggressive for recovery
                 if self.evolution_engine:
                     # Logic shift: increased learning rate during crisis
-                    pass
+                    _lld_logger.debug(
+                        "LiveLearningEngine: evolution engine present, but emergency "
+                        "weight anchoring hook is not implemented yet."
+                    )
 
             # Persist the Dream result
             save_path = Path("data/wisdom.json")
