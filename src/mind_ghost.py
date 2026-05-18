@@ -132,7 +132,10 @@ class MindGhost:
                 if int(current_time) % 30 == 0:
                     if getattr(self, "_last_probe_tick", 0) != int(current_time):
                         self._last_probe_tick = int(current_time)
-                        for service, port in [("IBKR", 7497)]:
+                        from vault import Vault
+
+                        ibkr_port = int(Vault.get("IBKR_PORT", "7497"))
+                        for service, port in [("IBKR", ibkr_port)]:
                             next_ok = self._probe_next_allowed.get(service, 0)
                             if current_time < next_ok:
                                 continue
@@ -168,6 +171,15 @@ class MindGhost:
 
     async def _trigger_ghost_reset(self, service_name: str) -> None:
         """Triggers an autonomous service reset."""
+        from vault import Vault
+
+        auto_restart = Vault.get("IBKR_AUTO_RESTART", "0").strip() == "1"
+        if service_name == "IBKR" and not auto_restart:
+            logger.warning(
+                "MindGhost: IBKR reset suppressed because IBKR_AUTO_RESTART is disabled."
+            )
+            return
+
         retry_count = self.retry_counts.get(service_name, 0)
         backoff_delay = self.backoff_base**retry_count
 
