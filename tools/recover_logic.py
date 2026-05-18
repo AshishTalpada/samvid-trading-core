@@ -5,8 +5,8 @@ Compares every Python file in the D-drive reference against the local C-drive
 and produces a detailed diff report, a list of D-drive-only files (to be copied),
 and a list of local-only files (to be preserved untouched).
 """
-import os
 import difflib
+import os
 import shutil
 from pathlib import Path
 
@@ -23,7 +23,7 @@ c_only  = sorted(c_files - d_files)   # In C, not in D  → LOCAL EXCLUSIVE (pre
 both    = sorted(d_files & c_files)   # In both          → need DIFF
 
 print(f"\n{'='*70}")
-print(f"  SOVEREIGN RECOVERY SCAN")
+print("  SOVEREIGN RECOVERY SCAN")
 print(f"{'='*70}")
 print(f"  D-drive files : {len(d_files)}")
 print(f"  C-drive files : {len(c_files)}")
@@ -75,7 +75,7 @@ for name in both:
 print(f"\n  ✅ Identical files : {len(identical_files)}")
 print(f"  ⚠️  Files with diffs: {len(changed_files)}")
 print(f"\nDiff files saved to: {REPORT_DIR}")
-print(f"\nFILES WITH DIFFS:")
+print("\nFILES WITH DIFFS:")
 for name in changed_files:
     print(f"  → {name}")
 
@@ -84,16 +84,16 @@ summary_path = REPORT_DIR / "RECOVERY_SUMMARY.txt"
 with open(summary_path, "w", encoding="utf-8") as f:
     f.write("SOVEREIGN RECOVERY SUMMARY\n")
     f.write("="*60 + "\n\n")
-    f.write(f"D-ONLY (COPIED to local):\n")
+    f.write("D-ONLY (COPIED to local):\n")
     for n in d_only:
         f.write(f"  {n}\n")
-    f.write(f"\nC-ONLY (PRESERVED - local exclusive):\n")
+    f.write("\nC-ONLY (PRESERVED - local exclusive):\n")
     for n in c_only:
         f.write(f"  {n}\n")
-    f.write(f"\nFILES WITH DIFFS (need manual review):\n")
+    f.write("\nFILES WITH DIFFS (need manual review):\n")
     for n in changed_files:
         f.write(f"  {n}\n")
-    f.write(f"\nIDENTICAL FILES:\n")
+    f.write("\nIDENTICAL FILES:\n")
     for n in identical_files:
         f.write(f"  {n}\n")
 

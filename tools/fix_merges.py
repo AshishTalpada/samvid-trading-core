@@ -14,9 +14,9 @@ causing IndentationError. This script:
        using a proper indentation-aware approach.
 """
 import ast
+import difflib
 import re
 import shutil
-import difflib
 from pathlib import Path
 
 D_SRC   = Path(r"D:\Claude\samvid-trading-core-main\samvid-trading-core-main\src")
@@ -155,7 +155,7 @@ def smart_merge(name: str, d_code: str, c_code: str) -> str:
 files_to_fix = [f.name for f in C_SRC.glob("*.py") if (D_SRC / f.name).exists()]
 
 print(f"\n{'='*70}")
-print(f"  POST-MERGE SYNTAX FIX (Smart Merge v2)")
+print("  POST-MERGE SYNTAX FIX (Smart Merge v2)")
 print(f"{'='*70}\n")
 
 ok_count = 0
