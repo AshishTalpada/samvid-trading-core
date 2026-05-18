@@ -15,7 +15,8 @@ class CoolingThrottler:
                 encoding="utf-8"
             )
             return int(output.strip())
-        except Exception:
+        except Exception as exc:
+            logger.debug("CoolingThrottler: GPU temperature unavailable, using safe fallback: %s", exc)
             return 50 # Default safe fallback
 
     def adjust_intelligence_depth(self, current_depth: int) -> int:

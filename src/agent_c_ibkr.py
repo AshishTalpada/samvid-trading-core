@@ -296,7 +296,8 @@ class IBKRConnection:
             return False
         try:
             return self.ib.isConnected()
-        except Exception:
+        except Exception as exc:
+            logger.debug("IBKR: connection status check failed: %s", exc)
             return False
 
     def _on_error(self, reqId: int, errorCode: int, errorString: str, contract: Any) -> None:
