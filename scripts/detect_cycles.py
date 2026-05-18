@@ -5,6 +5,29 @@ import os
 logger = logging.getLogger(__name__)
 
 
+def _is_type_checking_guard(node: ast.stmt) -> bool:
+    if not isinstance(node, ast.If):
+        return False
+    test = node.test
+    return (
+        isinstance(test, ast.Name)
+        and test.id == "TYPE_CHECKING"
+        or isinstance(test, ast.Attribute)
+        and test.attr == "TYPE_CHECKING"
+    )
+
+
+def _collect_imports_from_stmt(node: ast.stmt) -> list[str]:
+    imports = []
+    if isinstance(node, ast.Import):
+        imports.extend(alias.name for alias in node.names)
+    elif isinstance(node, ast.ImportFrom) and node.module:
+        imports.append(node.module)
+    elif _is_type_checking_guard(node):
+        return []
+    return imports
+
+
 def find_imports(filepath):
     with open(filepath, "r", encoding="utf-8") as f:
         try:
@@ -14,13 +37,8 @@ def find_imports(filepath):
             return []
 
     imports = []
-    for node in ast.walk(tree):
-        if isinstance(node, ast.Import):
-            for n in node.names:
-                imports.append(n.name)
-        elif isinstance(node, ast.ImportFrom):
-            if node.module:
-                imports.append(node.module)
+    for node in tree.body:
+        imports.extend(_collect_imports_from_stmt(node))
     return imports
 
 
