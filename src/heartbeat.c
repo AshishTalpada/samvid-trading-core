@@ -74,3 +74,7 @@ void close_heartbeat() {
     }
 #endif
 }
+
+#ifdef __cplusplus
+}
+#endif

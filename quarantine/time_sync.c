@@ -1,3 +1,7 @@
+#ifndef _WIN32
+#define _POSIX_C_SOURCE 199309L
+#endif
+
 #include <stdio.h>
 #include <time.h>
 #include <stdint.h>
@@ -63,3 +67,7 @@ int verify_timing_precision(int64_t max_skew_ns) {
     }
     return 0;
 }
+
+#ifdef __cplusplus
+}
+#endif

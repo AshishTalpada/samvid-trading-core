@@ -1,6 +1,20 @@
-FROM nvidia/cuda:12.1.0-base-ubuntu22.04
-# Multi-OS Support
-RUN apt-get update && apt-get install -y python3 rustc
-COPY . /app
+FROM python:3.11-slim
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    UV_SYSTEM_PYTHON=1
+
 WORKDIR /app
-CMD ["python3", "src/main.py"]
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends build-essential ca-certificates curl \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY pyproject.toml uv.lock .python-version ./
+
+RUN python -m pip install --no-cache-dir --upgrade pip uv \
+    && uv sync --locked --no-install-project
+
+COPY src ./src
+
+CMD ["python", "-m", "src.main"]
