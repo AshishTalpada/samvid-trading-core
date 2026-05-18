@@ -3,8 +3,9 @@ tools/deep_bug_check.py
 Sovereign Runtime Bug Scanner
 Checks all critical files for common runtime failure patterns.
 """
+import ast
+import re
 from pathlib import Path
-import re, ast
 
 SRC = Path("src")
 issues = []
@@ -78,7 +79,7 @@ for fname in CRITICAL:
         issues.append((fname, 0, "FILE MISSING"))
 
 print(f"\n{'='*60}")
-print(f"  SOVEREIGN RUNTIME BUG SCANNER")
+print("  SOVEREIGN RUNTIME BUG SCANNER")
 print(f"  Files checked: {len(CRITICAL)}")
 print(f"  Issues found: {len(issues)}")
 print(f"{'='*60}\n")
