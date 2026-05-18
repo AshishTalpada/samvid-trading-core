@@ -88,5 +88,4 @@ Thumbs.db
 !/.env.example
 !/README.md
 !/CHANGELOG.md
-!/package.json
 !/pyproject.toml
