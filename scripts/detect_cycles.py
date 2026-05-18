@@ -1,12 +1,16 @@
 import ast
+import logging
 import os
+
+logger = logging.getLogger(__name__)
 
 
 def find_imports(filepath):
     with open(filepath, "r", encoding="utf-8") as f:
         try:
             tree = ast.parse(f.read())
-        except Exception:
+        except SyntaxError as exc:
+            logger.warning("Skipping unparsable file %s: %s", filepath, exc)
             return []
 
     imports = []
