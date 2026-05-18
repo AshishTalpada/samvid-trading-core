@@ -36,6 +36,7 @@ minversion = "8.0"
 testpaths = ["tests"]
 python_files = "test_*.py"
 addopts = "-ra -q --strict-markers --disable-warnings"
+asyncio_default_fixture_loop_scope = "function"
 
 [tool.ruff]
 line-length = 100
