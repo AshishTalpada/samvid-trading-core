@@ -92,7 +92,7 @@ class Task:
         state = self.to_dict()
         import time as _time
 
-        for attempt in range(5):
+        for attempt in range(10):
             try:
                 temp_file = f"{state_file}.tmp"
                 with open(temp_file, "w", encoding="utf-8") as f:
@@ -103,14 +103,14 @@ class Task:
                         os.replace(temp_file, state_file)
                     except PermissionError:
                         # Fallback: Windows sometimes holds the handle too long
-                        _time.sleep(0.05 * (attempt + 1))
+                        _time.sleep(0.5)
                         continue
                 else:
                     os.replace(temp_file, state_file)
                 break
             except Exception as e:
-                if attempt == 4:
-                    logger.error(f"Task {self.id}: Save failed after 5 attempts: {e}")
+                if attempt == 9:
+                    logger.error(f"Task {self.id}: Save failed after 10 attempts: {e}")
                 _time.sleep(0.05)
 
     def to_dict(self) -> dict:
@@ -217,7 +217,7 @@ class TaskManager:
 
             import time as _time
 
-            for attempt in range(5):
+            for attempt in range(10):
                 try:
                     with open(temp_path, "w", encoding="utf-8") as f:
                         json.dump(data, f, indent=2)
@@ -226,13 +226,13 @@ class TaskManager:
                         try:
                             os.replace(temp_path, self.registry_path)
                         except PermissionError:
-                            _time.sleep(0.1 * (attempt + 1))
+                            _time.sleep(0.5)
                             continue
                     else:
                         os.replace(temp_path, self.registry_path)
                     break
                 except Exception as e:
-                    if attempt == 4:
+                    if attempt == 9:
                         raise e
                     _time.sleep(0.1)
         except Exception as e:
