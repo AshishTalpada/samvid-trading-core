@@ -82,9 +82,9 @@ class DecisionLedger:
     def _init_db(self) -> None:
         """Create the ledger table if it doesn't exist."""
         self._db_path.parent.mkdir(parents=True, exist_ok=True)
-        with sqlite3.connect(str(self._db_path)) as conn:
+        with sqlite3.connect(str(self._db_path), timeout=60.0) as conn:
             conn.execute("PRAGMA journal_mode=WAL;")
-            conn.execute("PRAGMA busy_timeout=5000;")
+            conn.execute("PRAGMA busy_timeout=60000;")
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS ledger (
                     id          INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -113,8 +113,8 @@ class DecisionLedger:
                 )
                 conn.commit()
                 conn.execute("VACUUM")
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("DecisionLedger: Retention cleanup skipped: %s", exc)
         logger.info(f"DecisionLedger: Initialized at {self._db_path}")
 
     def _write(self, entry: LedgerEntry) -> None:
@@ -235,7 +235,8 @@ class DecisionLedger:
     def recent(self, n: int = 50) -> list[dict[str, Any]]:
         """Return the last N ledger entries for the dashboard."""
         try:
-            with sqlite3.connect(str(self._db_path)) as conn:
+            with sqlite3.connect(str(self._db_path), timeout=60.0) as conn:
+                conn.execute("PRAGMA busy_timeout=60000;")
                 conn.row_factory = sqlite3.Row
                 rows = conn.execute(
                     "SELECT * FROM ledger ORDER BY id DESC LIMIT ?", (n,)
@@ -254,7 +255,8 @@ class DecisionLedger:
     def summary_stats(self) -> dict[str, Any]:
         """Aggregate stats for the dashboard — total wins, losses, avg R."""
         try:
-            with sqlite3.connect(str(self._db_path)) as conn:
+            with sqlite3.connect(str(self._db_path), timeout=60.0) as conn:
+                conn.execute("PRAGMA busy_timeout=60000;")
                 row = conn.execute("""
                     SELECT
                         COUNT(*) as total_decisions,
