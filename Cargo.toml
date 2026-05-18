@@ -7,6 +7,10 @@ edition = "2021"
 name = "sovereign_core"
 crate-type = ["cdylib"]
 
+[features]
+default = []
+experimental_crypto = []
+
 [dependencies]
 pyo3 = { version = "0.20", features = ["extension-module", "abi3-py310"] }
 tokio = { version = "1.36", features = ["full"] }
