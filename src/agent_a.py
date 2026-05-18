@@ -1489,8 +1489,12 @@ class PatternDetector:
                 result = fn(df)
                 if isinstance(result, PatternResult):
                     results.append(result)
-            except Exception:
-                pass  # Fault-isolated: never let one detector kill the scan
+            except Exception as exc:
+                logger.debug(
+                    "Pattern detector %s failed during isolated scan: %s",
+                    getattr(fn, "__name__", repr(fn)),
+                    exc,
+                )
         return results
 
 
@@ -1955,8 +1959,8 @@ def agent_a_validate_trade(
                     "reason": f" Sovereign Chaos VETO: {state.dhatu_state}",
                     "final_lambda": 0.0,
                 }
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning("Agent A: oracle veto check failed open: %s", exc)
 
     regime = "NEUTRAL"
     regime_mult = 1.0
