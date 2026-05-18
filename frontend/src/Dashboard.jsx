@@ -38,7 +38,7 @@ const COMPONENT_COLORS = {
 };
 
 // ── Health Components Bar (v1.0-beta-beta Memoized) ──
-const HealthBar = React.memo(({ components = {}, health = {}, truth = {} }) => {
+const HealthBar = React.memo(({ components = {}, health = {}, truth = {}, stateStatus = {} }) => {
   const outcomes = truth.outcomes || [];
   const openCount = outcomes.find((row) => row.outcome === 'OPEN')?.count || 0;
   const orphaned = outcomes.find((row) => row.outcome === 'ORPHANED')?.count || 0;
@@ -72,6 +72,9 @@ const HealthBar = React.memo(({ components = {}, health = {}, truth = {} }) => {
       <span style={{ fontSize: '0.5rem', color: orphaned > 0 ? 'var(--amber)' : 'var(--dim)', fontFamily: 'JetBrains Mono, monospace' }}>
         OPEN: {openCount} | ORPHANED: {orphaned} | TASKS: {taskLoad} | MEASURED: {measured}
       </span>
+      <span style={{ fontSize: '0.5rem', color: stateStatus.error ? 'var(--red)' : 'var(--emerald)', fontFamily: 'JetBrains Mono, monospace' }}>
+        STATE: {stateStatus.error || stateStatus.lastSync || 'WAITING'}
+      </span>
     </div>
   </GlassPanel>
   );
@@ -79,7 +82,7 @@ const HealthBar = React.memo(({ components = {}, health = {}, truth = {} }) => {
 
 export default function Dashboard({
   data, ticks, eventQueue, activityMap, pulseMap,
-  connected, logs, activeSym, setActive, sysTime,
+  connected, logs, activeSym, setActive, sysTime, stateStatus,
 }) {
   const { brain = {}, oracle = {}, health = {}, market = {} } = data || {};
   const activeData = market[activeSym] ?? [];
@@ -92,7 +95,7 @@ export default function Dashboard({
       <SidebarHeader connected={connected} sysTime={sysTime} uptime={health.up_time ?? 0} />
 
       {/* Health summary */}
-      <HealthBar components={components} health={health} truth={brain.truth} />
+      <HealthBar components={components} health={health} truth={brain.truth} stateStatus={stateStatus} />
 
       {/* Autonomous Agent Mesh */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
