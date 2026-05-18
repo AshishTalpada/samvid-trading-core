@@ -66,7 +66,8 @@ class ChaosAgent:
             diffs = np.abs(np.diff(np.log(p)))
             # Very crude approximation: if volatility is structured, LLE is higher
             return float(np.mean(diffs) / np.std(diffs)) if np.std(diffs) > 0 else 0.0
-        except Exception:
+        except Exception as exc:
+            logger.debug("ChaosAgent: Python LLE fallback failed: %s", exc)
             return 0.0
 
     async def inject_shadow_fault(self, data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
