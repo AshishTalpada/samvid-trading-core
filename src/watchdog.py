@@ -1,9 +1,11 @@
 import logging
 import os
 import sqlite3
+import subprocess
 import sys
 import time
 from datetime import datetime, timezone
+from pathlib import Path
 
 # Setup minimal logging
 logging.basicConfig(
@@ -42,11 +44,11 @@ def check_heartbeat() -> bool:
         return True
 
     try:
-        conn = sqlite3.connect(DB_PATH)
-        cursor = conn.cursor()
-        cursor.execute("SELECT value FROM system_state WHERE key='last_heartbeat'")
-        row = cursor.fetchone()
-        conn.close()
+        with sqlite3.connect(DB_PATH, timeout=60.0) as conn:
+            conn.execute("PRAGMA busy_timeout=60000;")
+            cursor = conn.cursor()
+            cursor.execute("SELECT value FROM system_state WHERE key='last_heartbeat'")
+            row = cursor.fetchone()
 
         if row:
             last_hb_str = row[0]
@@ -159,8 +161,6 @@ def run_watchdog():
         f"Silence threshold: {SILENCE_TIMEOUT}s | Live-lock threshold: {LIVENESS_TIMEOUT}s"
     )
 
-    import subprocess
-
     while True:
         try:
             is_alive = check_heartbeat()
@@ -243,8 +243,20 @@ def run_watchdog():
                         elif pid_to_kill:
                             logger.warning("Watchdog: Ignoring invalid PID file content: %r", pid_to_kill)
 
-                        subprocess.Popen([sys.executable, "src/main.py"], cwd=os.getcwd())
-                        logger.info("Watchdog: Sovereign Engine REBOOTED.")
+                        project_root = Path(__file__).resolve().parent.parent
+                        main_script = project_root / "src" / "main.py"
+                        if not main_script.exists():
+                            logger.critical("Watchdog: Cannot reboot, missing %s", main_script)
+                            continue
+
+                        reboot_proc = subprocess.Popen(
+                            [sys.executable, str(main_script)],
+                            cwd=str(project_root),
+                            stdout=subprocess.DEVNULL,
+                            stderr=subprocess.DEVNULL,
+                            close_fds=os.name != "nt",
+                        )
+                        logger.info("Watchdog: Sovereign Engine REBOOTED as PID %s.", reboot_proc.pid)
                 else:
                     logger.warning(
                         f"RESTART THROTTLED: Next attempt in "

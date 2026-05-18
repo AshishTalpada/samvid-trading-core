@@ -2085,7 +2085,7 @@ class TradingSystem:
                 await self._on_hft_pulse(data)
                 self._hft_pulse_queue.task_done()
             except asyncio.CancelledError:
-                break
+                raise
             except Exception as e:
                 logger.error(f"Main: HFT Worker Error: {e}")
                 await asyncio.sleep(0.1)
@@ -2193,14 +2193,29 @@ class TradingSystem:
                                 )
                                 return True
 
-                        script_path = os.path.join("scripts", script_name)
-                        subprocess.Popen([sys.executable, script_path])
+                        script_path = Path(_root) / "scripts" / script_name
+                        if not script_path.exists():
+                            logger.error("Sentinel: Trainer script missing: %s", script_path)
+                            return False
 
-                        conn = sqlite3.connect(self.db_path)
-                        conn.execute("PRAGMA journal_mode=WAL;")
-                        conn.execute("VACUUM")
-                        conn.execute("ANALYZE")
-                        conn.close()
+                        with sqlite3.connect(self.db_path, timeout=60.0) as conn:
+                            conn.execute("PRAGMA journal_mode=WAL;")
+                            conn.execute("PRAGMA busy_timeout=60000;")
+                            conn.execute("VACUUM")
+                            conn.execute("ANALYZE")
+
+                        trainer_proc = subprocess.Popen(
+                            [sys.executable, str(script_path)],
+                            cwd=_root,
+                            stdout=subprocess.DEVNULL,
+                            stderr=subprocess.DEVNULL,
+                            close_fds=os.name != "nt",
+                        )
+                        logger.info(
+                            "Sentinel: Spawned deep trainer PID %s from %s",
+                            trainer_proc.pid,
+                            script_path,
+                        )
                         return True
                     except Exception as e:
                         logger.error(f"Sentinel: Optimization/Training failed: {e}")
@@ -2212,7 +2227,7 @@ class TradingSystem:
                 if success:
                     logger.info("Sentinel: Deep Training Pulse & DB Integrity: 100%.")
             except asyncio.CancelledError:
-                break
+                raise
             except Exception as e:
                 logger.error(f"Sentinel: Unexpected error: {e}")
                 await asyncio.sleep(3600)  # Wait an hour before retrying on error
@@ -2365,8 +2380,8 @@ if __name__ == "__main__":
             # Fallback to standard signal handler for compatibility
             try:
                 signal.signal(sig, lambda sn, f: _handle_exit())
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("Sovereign: signal fallback registration failed: %s", exc)
 
     try:
         loop.run_until_complete(main(s))
