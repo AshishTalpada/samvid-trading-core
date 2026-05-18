@@ -99,7 +99,7 @@ class SovereignTask:
         state = self.to_dict()
         import time as _time
 
-        for attempt in range(5):
+        for attempt in range(10):
             try:
                 temp_file = f"{state_file}.tmp"
                 with open(temp_file, "w", encoding="utf-8") as f:
@@ -109,14 +109,14 @@ class SovereignTask:
                         os.replace(temp_file, state_file)
                     except PermissionError:
                         # Fallback: Windows sometimes holds the handle too long
-                        _time.sleep(0.05 * (attempt + 1))
+                        _time.sleep(0.5)
                         continue
                 else:
                     os.replace(temp_file, state_file)
                 break
             except Exception as e:
-                if attempt == 4:
-                    logger.error(f"Task {self.id}: Save failed after 5 attempts: {e}")
+                if attempt == 9:
+                    logger.error(f"Task {self.id}: Save failed after 10 attempts: {e}")
                 _time.sleep(0.05)
 
     def to_dict(self) -> dict:
@@ -229,7 +229,7 @@ class TaskManager:
                     import shutil
                     import time as _time
 
-                    for attempt in range(5):
+                    for attempt in range(10):
                         try:
                             if os.path.exists(self.registry_path):
                                 shutil.copy2(self.registry_path, backup_path)
@@ -240,12 +240,12 @@ class TaskManager:
                             os.replace(temp_path, self.registry_path)
                             return True
                         except PermissionError as e:
-                            if attempt == 4:
+                            if attempt == 9:
                                 raise
-                            _time.sleep(0.1 * (attempt + 1))
+                            _time.sleep(0.5)
                             continue
                         except Exception as e:
-                            if attempt == 4:
+                            if attempt == 9:
                                 raise
                             _time.sleep(0.1)
                             continue
