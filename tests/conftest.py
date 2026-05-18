@@ -1,9 +1,34 @@
+import asyncio
 import sys
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock  # pyre-ignore[21]
 
 import pandas as pd  # pyre-ignore[21]
 import pytest  # pyre-ignore[21]
+
+if sys.platform == "win32":
+    asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+
+
+def _close_idle_event_loop() -> None:
+    try:
+        loop = asyncio.get_event_loop_policy().get_event_loop()
+    except RuntimeError:
+        return
+    if not loop.is_closed() and not loop.is_running():
+        loop.close()
+    asyncio.get_event_loop_policy().set_event_loop(None)
+
+
+def pytest_runtest_teardown(item, nextitem):
+    """Close pytest-asyncio's fallback event loop before warning collection."""
+    _close_idle_event_loop()
+
+
+def pytest_sessionfinish(session, exitstatus):
+    """Close any remaining fallback event loop at final shutdown."""
+    _close_idle_event_loop()
+
 
 # -- Samvid v1.0-beta-beta-beta: Cognitive Path Alignment --
 # Ensure 'src' is in sys.path so tests can import modules directly
