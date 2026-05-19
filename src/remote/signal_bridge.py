@@ -5,11 +5,13 @@ import time
 
 logger = logging.getLogger(__name__)
 
+
 class SignalBridge:
     """
     Biometric-verified remote command bridge for Telegram/Signal integration.
     All remote commands require a HMAC-SHA3 signature to prevent replay attacks.
     """
+
     def __init__(self, shared_secret: str):
         self._secret = shared_secret.encode()
         self._used_nonces: set[str] = set()
@@ -21,7 +23,12 @@ class SignalBridge:
     def issue_token(self, command: str) -> dict:
         nonce = hashlib.sha3_256(str(time.time_ns()).encode()).hexdigest()[:16]
         sig = self._sign(command, nonce)
-        return {"command": command, "nonce": nonce, "signature": sig, "expires_at": time.time() + 30}
+        return {
+            "command": command,
+            "nonce": nonce,
+            "signature": sig,
+            "expires_at": time.time() + 30,
+        }
 
     def verify_and_execute(self, token: dict) -> bool:
         if time.time() > token.get("expires_at", 0):

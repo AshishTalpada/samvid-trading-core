@@ -3,8 +3,10 @@ from typing import Any, Dict
 
 logger = logging.getLogger(__name__)
 
+
 class ApexDirective:
     """Self-enforcing system laws that cannot be overridden by any agent."""
+
     def __init__(self, rules: Dict[str, Any] | None = None):
         self.rules = rules or {
             "max_daily_loss_pct": 0.02,
@@ -13,11 +15,14 @@ class ApexDirective:
             "require_positive_expectancy": True,
         }
 
-    def validate(self, daily_loss_pct: float, position_pct: float,
-                 drawdown_pct: float, expectancy: float) -> tuple[bool, list[str]]:
+    def validate(
+        self, daily_loss_pct: float, position_pct: float, drawdown_pct: float, expectancy: float
+    ) -> tuple[bool, list[str]]:
         violations = []
         if daily_loss_pct > self.rules["max_daily_loss_pct"]:
-            violations.append(f"Daily loss {daily_loss_pct:.1%} exceeds limit {self.rules['max_daily_loss_pct']:.1%}")
+            violations.append(
+                f"Daily loss {daily_loss_pct:.1%} exceeds limit {self.rules['max_daily_loss_pct']:.1%}"
+            )
         if position_pct > self.rules["max_position_pct"]:
             violations.append(f"Position size {position_pct:.1%} exceeds limit")
         if drawdown_pct > self.rules["max_drawdown_pct"]:

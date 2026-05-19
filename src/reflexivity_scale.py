@@ -38,8 +38,8 @@ class ReflexivityScale:
             logger.warning("[REFLEXIVITY] Insufficient data. Returning neutral 0.0.")
             return 0.0
 
-        p = np.array(prices[-self.lookback:])
-        pos = np.array(positioning[-self.lookback:])
+        p = np.array(prices[-self.lookback :])
+        pos = np.array(positioning[-self.lookback :])
 
         # Price momentum: rate of change over the window
         price_roc = (p[-1] - p[0]) / (p[0] if p[0] != 0 else 1.0)
@@ -58,6 +58,8 @@ class ReflexivityScale:
 
         return float(index)
 
-    def is_spiral_forming(self, prices: List[float], positioning: List[float], threshold: float = 0.6) -> bool:
+    def is_spiral_forming(
+        self, prices: List[float], positioning: List[float], threshold: float = 0.6
+    ) -> bool:
         idx = self.compute_reflexivity_index(prices, positioning)
         return abs(idx) >= threshold

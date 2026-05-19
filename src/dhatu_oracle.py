@@ -950,9 +950,7 @@ class DhatuOracle:
                         logger.error(
                             "DhatuOracle: Ignoring persisted oracle_state because it is marked as test data."
                         )
-                        conn.execute(
-                            "DELETE FROM system_state WHERE key = 'oracle_state'"
-                        )
+                        conn.execute("DELETE FROM system_state WHERE key = 'oracle_state'")
                         return
                     self._current_state = OracleState(
                         dhatu_state=data["dhatu_state"],

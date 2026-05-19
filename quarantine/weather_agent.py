@@ -5,12 +5,14 @@ import requests
 
 logger = logging.getLogger(__name__)
 
+
 class WeatherCorrelationAgent:
     """
     Correlates weather anomalies with retail, energy, and agricultural sectors.
     Cold snaps -> NatGas spike. Drought -> Crop futures bull. Heavy rain -> Retail miss.
     Uses OpenWeatherMap or NOAA Climate API.
     """
+
     NOAA_BASE = "https://www.ncei.noaa.gov/cdo-web/api/v2/data"
     SECTOR_MAP = {
         "cold_snap": ["UNG", "CHK", "EQT"],
@@ -20,9 +22,12 @@ class WeatherCorrelationAgent:
     }
 
     def classify_anomaly(self, temp_deviation_c: float, precip_deviation_mm: float) -> str:
-        if temp_deviation_c < -5: return "cold_snap"
-        if temp_deviation_c > 5 and precip_deviation_mm < -20: return "drought"
-        if temp_deviation_c > 5: return "heat_wave"
+        if temp_deviation_c < -5:
+            return "cold_snap"
+        if temp_deviation_c > 5 and precip_deviation_mm < -20:
+            return "drought"
+        if temp_deviation_c > 5:
+            return "heat_wave"
         return "normal"
 
     def get_affected_tickers(self, anomaly: str) -> list[str]:

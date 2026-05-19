@@ -19,8 +19,8 @@ class IsomorphicPatternMapper:
         dtw[0, 0] = 0.0
         for i in range(1, n + 1):
             for j in range(1, m + 1):
-                cost = abs(s1[i-1] - s2[j-1])
-                dtw[i, j] = cost + min(dtw[i-1, j], dtw[i, j-1], dtw[i-1, j-1])
+                cost = abs(s1[i - 1] - s2[j - 1])
+                dtw[i, j] = cost + min(dtw[i - 1, j], dtw[i, j - 1], dtw[i - 1, j - 1])
         return float(dtw[n, m])
 
     def normalise(self, series: List[float]) -> List[float]:

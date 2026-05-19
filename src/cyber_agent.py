@@ -18,11 +18,13 @@ THREAT_TICKERS: dict[str, list[str]] = {
     "TSLA": ["tesla", "autopilot", "canbus"],
 }
 
+
 class CyberRiskAgent:
     """
     Monitors cybersecurity news feeds and maps breach reports to affected tickers.
     A major breach can cause -5% to -25% moves before official disclosure.
     """
+
     def scan_feeds(self, ticker: str) -> dict:
         keywords = THREAT_TICKERS.get(ticker.upper(), [ticker.lower()])
         hits = []

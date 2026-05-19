@@ -125,21 +125,24 @@ class DiagnosticTracker:
             sym = "" if d.severity == "Error" else ""
             summary.append(f"  {sym} [Line {d.line}] {d.message} ({d.source})")
         return "\n".join(summary)
+
+
 # ── LOCAL-ONLY SOVEREIGN EXTENSIONS ─────────────────────────────────────
 
 
 class SovereignDiagnosticTracker:
-    '''
+    """
     Hardware & Logic Diagnostic Engine.
     Exposes raw system telemetry (CPU temps, RAM consumption, ZMQ message latencies)
     into a structured format designed to be scraped by Prometheus and visualized in Grafana.
-    '''
+    """
+
     def __init__(self):
         self.metrics: Dict[str, Any] = {
             "total_trades_executed": 0,
             "arbitrations_won": 0,
             "quorum_deadlocks": 0,
-            "uptime_seconds": 0.0
+            "uptime_seconds": 0.0,
         }
         self.process = psutil.Process(os.getpid())
 

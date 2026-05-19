@@ -7,6 +7,7 @@ class FractalAgent:
     """
     Distinguish between a "Real Trend" and a "Fake-out" by measuring the Fractal Dimension.
     """
+
     def higuchi_fd(self, data: list[float], k_max: int = 10) -> float:
         """
         Calculates the Higuchi Fractal Dimension (HFD) of a time series.
@@ -25,7 +26,7 @@ class FractalAgent:
         x = []
         N = len(data)
         if N < k_max * 2:
-            return 1.5 # Default random walk if not enough data
+            return 1.5  # Default random walk if not enough data
 
         data_arr = np.array(data)
 
@@ -66,5 +67,5 @@ class FractalAgent:
         return {
             "fractal_dimension": fd,
             "market_state": state,
-            "trade_recommended": state == "STRONG_TREND"
+            "trade_recommended": state == "STRONG_TREND",
         }

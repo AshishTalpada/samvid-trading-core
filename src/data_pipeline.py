@@ -1015,7 +1015,9 @@ class DataPipeline:
                 except sqlite3.OperationalError as e:
                     if "locked" in str(e).lower() and attempt < 9:
                         if not self.is_running:
-                            logger.info(f"DataPipeline: Shutdown detected for {symbol}. Aborting retry.")
+                            logger.info(
+                                f"DataPipeline: Shutdown detected for {symbol}. Aborting retry."
+                            )
                             return
 
                         # Exponential backoff with jitter
@@ -1031,7 +1033,9 @@ class DataPipeline:
                         sleep_start = time.time()
                         while time.time() - sleep_start < wait_time:
                             if not self.is_running:
-                                logger.info(f"DataPipeline: Shutdown detected during jitter for {symbol}. Aborting.")
+                                logger.info(
+                                    f"DataPipeline: Shutdown detected during jitter for {symbol}. Aborting."
+                                )
                                 return
                             time.sleep(0.1)
                     else:
@@ -1457,11 +1461,15 @@ class DataPipeline:
         # Wait for all in-flight database threads to complete
         wait_start = time.time()
         while self._active_db_tasks > 0 and (time.time() - wait_start) < 10.0:
-            logger.info(f"DataPipeline: Waiting for {self._active_db_tasks} storage threads to finish...")
+            logger.info(
+                f"DataPipeline: Waiting for {self._active_db_tasks} storage threads to finish..."
+            )
             await asyncio.sleep(0.5)
 
         if self._active_db_tasks > 0:
-            logger.warning(f"DataPipeline: {self._active_db_tasks} storage threads still active after 10s timeout.")
+            logger.warning(
+                f"DataPipeline: {self._active_db_tasks} storage threads still active after 10s timeout."
+            )
 
         # Cancel any lingering enrichment tasks
 

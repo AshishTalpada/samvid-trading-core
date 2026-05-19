@@ -6,20 +6,43 @@ logger = logging.getLogger(__name__)
 
 # Sentiment weights calibrated from cross-asset backtesting
 ASSET_SENTIMENT_WEIGHTS: Dict[str, float] = {
-    "crypto":    1.5,   # Crypto is hyper-sensitive to social sentiment
-    "equities":  0.8,
-    "forex":     0.5,
+    "crypto": 1.5,  # Crypto is hyper-sensitive to social sentiment
+    "equities": 0.8,
+    "forex": 0.5,
     "commodities": 0.6,
 }
 
 BULLISH_KEYWORDS = [
-    "bullish", "breakout", "moon", "surge", "rally", "buy", "long", "ath",
-    "strong", "accumulate", "undervalued", "beat", "record",
+    "bullish",
+    "breakout",
+    "moon",
+    "surge",
+    "rally",
+    "buy",
+    "long",
+    "ath",
+    "strong",
+    "accumulate",
+    "undervalued",
+    "beat",
+    "record",
 ]
 
 BEARISH_KEYWORDS = [
-    "bearish", "crash", "sell", "short", "dump", "fear", "panic", "rug",
-    "scam", "correction", "overvalued", "miss", "warning", "crisis",
+    "bearish",
+    "crash",
+    "sell",
+    "short",
+    "dump",
+    "fear",
+    "panic",
+    "rug",
+    "scam",
+    "correction",
+    "overvalued",
+    "miss",
+    "warning",
+    "crisis",
 ]
 
 
@@ -52,7 +75,7 @@ def aggregate_sentiment(texts: List[str], asset_class: str = "equities") -> Dict
     scores = [score_text(t, asset_class) for t in texts]
     mean = sum(scores) / len(scores)
     variance = sum((s - mean) ** 2 for s in scores) / len(scores)
-    std = variance ** 0.5
+    std = variance**0.5
 
     if mean > 0.25:
         signal = "BULLISH"

@@ -29,10 +29,12 @@ class SparseAttentionEngine:
             output[i] = weights @ V[start:end]
         return output
 
-    def global_token_attention(self, Q: np.ndarray, K: np.ndarray, V: np.ndarray, global_indices: list[int]) -> np.ndarray:
+    def global_token_attention(
+        self, Q: np.ndarray, K: np.ndarray, V: np.ndarray, global_indices: list[int]
+    ) -> np.ndarray:
         d = Q.shape[-1]
         output = np.zeros_like(Q)
-        for i, idx in enumerate(global_indices[:self.n_global]):
+        for i, idx in enumerate(global_indices[: self.n_global]):
             scores = Q[idx] @ K.T / np.sqrt(d)
             weights = np.exp(scores - scores.max())
             weights /= weights.sum() + 1e-9

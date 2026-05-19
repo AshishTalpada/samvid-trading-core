@@ -181,9 +181,7 @@ class TelegramRemote:
 
     async def _send_status(self, chat_id: str):
         """Ask the bus for current telemetry and reply."""
-        await self.bus.publish(
-            "command.remote", {"cmd": "status", "ts": time.time_ns()}
-        )
+        await self.bus.publish("command.remote", {"cmd": "status", "ts": time.time_ns()})
         await asyncio.sleep(0.5)
 
         from time_sync import TimeSync

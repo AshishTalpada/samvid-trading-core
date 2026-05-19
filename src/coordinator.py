@@ -176,6 +176,7 @@ class TradingCoordinator:
                     task.log(f"REDUNDANCY_VETO: Position already active for {symbol}.")
                     # Transition to KILLED so it doesn't stay 'RUNNING' in TaskManager
                     from sovereign_task import TaskStatus
+
                     task.transition(TaskStatus.KILLED)
                 return False
 
@@ -242,9 +243,12 @@ class TradingCoordinator:
                 )
 
                 from config import USD_CAD_RATE
+
                 if account_value > 500000 and symbol not in ["XAUUSD", "US100"]:
-                     account_value = account_value / USD_CAD_RATE
-                     logger.debug(f"Coordinator: Converted CAD balance to USD for {symbol} sizing: ${account_value:,.2f}")
+                    account_value = account_value / USD_CAD_RATE
+                    logger.debug(
+                        f"Coordinator: Converted CAD balance to USD for {symbol} sizing: ${account_value:,.2f}"
+                    )
 
                 pattern = proposal["pattern"]
 

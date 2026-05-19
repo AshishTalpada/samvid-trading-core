@@ -5,12 +5,14 @@ import numpy as np
 
 logger = logging.getLogger(__name__)
 
+
 class MixtureOfExpertsController:
     """
     Routes inference tasks to specialized SLM experts (e.g. Macro, News, Technicals).
     A gating network dynamically weights the contribution of each expert
     based on the current market regime (e.g. News expert gets 90% weight on CPI day).
     """
+
     def __init__(self):
         self.experts: Dict[str, Callable] = {}
         self.gating_weights: Dict[str, float] = {}

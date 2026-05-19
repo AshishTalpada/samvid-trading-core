@@ -4,12 +4,14 @@ import numpy as np
 
 logger = logging.getLogger(__name__)
 
+
 class SpikingNeuralInference:
     """
     Bio-inspired Spiking Neural Network inference gate.
     Uses Leaky Integrate-and-Fire (LIF) population coding to convert
     continuous market signals into discrete spike trains for ultrafast decisions.
     """
+
     def __init__(self, n_neurons: int = 100, tau: float = 20.0, threshold: float = 1.0):
         self.n = n_neurons
         self.tau = tau
@@ -35,9 +37,12 @@ class SpikingNeuralInference:
         for s in signal_series:
             spike_counts += self.step(s)
         total = spike_counts.sum()
-        if total == 0: return "HOLD"
+        if total == 0:
+            return "HOLD"
         positive_side = spike_counts[self.tuning_centers > 0].sum()
         negative_side = spike_counts[self.tuning_centers < 0].sum()
-        if positive_side > negative_side * 1.3: return "BUY"
-        if negative_side > positive_side * 1.3: return "SELL"
+        if positive_side > negative_side * 1.3:
+            return "BUY"
+        if negative_side > positive_side * 1.3:
+            return "SELL"
         return "HOLD"

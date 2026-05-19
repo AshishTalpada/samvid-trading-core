@@ -47,7 +47,11 @@ class AgentB:
 
     def on_market_snapshot(self, payload: dict[str, Any]) -> dict[str, Any]:
         state = self.classifier.classify(payload)
-        return {"agent": "Agent_B", "dhatu_state": state.name, "risk_modifier": state.effective_modifier}
+        return {
+            "agent": "Agent_B",
+            "dhatu_state": state.name,
+            "risk_modifier": state.effective_modifier,
+        }
 
     def score(self, *args: Any, **kwargs: Any) -> dict[str, Any]:
         return self.catalyst_scorer.score(*args, **kwargs)

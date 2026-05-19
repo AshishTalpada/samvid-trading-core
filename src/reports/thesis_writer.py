@@ -40,8 +40,8 @@ RATIONALE
 
 QUORUM BREAKDOWN
 ----------------
-YES ({len(yes_agents)}): {', '.join(yes_agents) or 'None'}
-NO  ({len(no_agents)}): {', '.join(no_agents) or 'None'}
+YES ({len(yes_agents)}): {", ".join(yes_agents) or "None"}
+NO  ({len(no_agents)}): {", ".join(no_agents) or "None"}
 
 RISK FACTORS
 ------------

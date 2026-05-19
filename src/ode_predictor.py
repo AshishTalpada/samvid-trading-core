@@ -8,12 +8,14 @@ from scipy.integrate import solve_ivp
 
 logger = logging.getLogger(__name__)
 
+
 class ContinuousNeuralODE:
-    '''
+    """
     Deep Dive: Continuous-time price prediction using Ordinary Differential Equations.
     Unlike discrete RNNs/LSTMs which struggle with irregularly sampled HFT ticks,
     Neural ODEs model the continuous derivative field: dp/dt = f(p, t, \theta).
-    '''
+    """
+
     def __init__(self, hidden_dim: int = 16):
         self.hidden_dim = hidden_dim
         # Initialize pseudo-network weights mapping state -> hidden -> derivative
@@ -25,10 +27,10 @@ class ContinuousNeuralODE:
         self.b_out = np.zeros(3)
 
     def _neural_vector_field(self, t: float, state: np.ndarray) -> np.ndarray:
-        '''
+        """
         The learned continuous vector field.
         Defines the derivative of the state at any exact continuous time `t`.
-        '''
+        """
         # Linear transform -> Tanh -> Linear transform
         hidden = np.tanh(np.dot(state, self.W_in) + self.b_in)
         derivative = np.dot(hidden, self.W_out) + self.b_out
@@ -38,11 +40,13 @@ class ContinuousNeuralODE:
 
         return derivative + friction  # type: ignore
 
-    def predict_trajectory(self, current_state: List[float], dt_forward_seconds: float) -> Tuple[float, float, float]:
-        '''
+    def predict_trajectory(
+        self, current_state: List[float], dt_forward_seconds: float
+    ) -> Tuple[float, float, float]:
+        """
         Uses explicit numerical integration (Runge-Kutta 4/5) to push the state forward through continuous time.
         Returns the exact predicted (price, volume_velocity, imbalance) at t + dt_forward_seconds.
-        '''
+        """
         if len(current_state) != 3:
             logger.error("[ODE] State must be a 3D vector.")
             return (0.0, 0.0, 0.0)
@@ -55,9 +59,9 @@ class ContinuousNeuralODE:
             fun=self._neural_vector_field,
             t_span=t_span,
             y0=initial_state,
-            method='RK45',
+            method="RK45",
             rtol=1e-3,
-            atol=1e-5
+            atol=1e-5,
         )
 
         if solution.success:

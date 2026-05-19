@@ -5,12 +5,14 @@ import numpy as np
 
 logger = logging.getLogger(__name__)
 
+
 class OnlineLiveTrainer:
     """
     Real-time online learning loop. Updates agent weights immediately after
     every closed trade, effectively giving the Sovereign System a learning rate
     that compounds on every single execution (The Singularity engine driver).
     """
+
     def __init__(self, learning_rate: float = 0.001):
         self.lr = learning_rate
         self.agent_weights: Dict[str, float] = {}

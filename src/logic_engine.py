@@ -114,7 +114,6 @@ class SovereignLogicEngine:
         # Return impact 0.0 to prevent blind SUCCESS state.
         return {"status": "PURE_COGNITION", "node": node["name"], "mode": "DORMANT", "impact": 0.0}
 
-
     def _logic_151_kelly(self, ctx: Dict[str, Any]) -> Dict[str, Any]:
         """Fee-Aware Kelly Criterion (Bug #20 FIX)."""
         from vault import Vault

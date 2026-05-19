@@ -71,7 +71,9 @@ class OrderObfuscator:
 
         return obfuscated_size, delay_seconds
 
-    def slice_iceberg(self, total_size: int, min_slice: int = 10, max_slice: int = 200) -> list[Tuple[int, float]]:
+    def slice_iceberg(
+        self, total_size: int, min_slice: int = 10, max_slice: int = 200
+    ) -> list[Tuple[int, float]]:
         """
         Splits a large order into iceberg child orders with randomized sizes and delays.
         Each child order gets independently Poisson-jittered timing to prevent detection.
@@ -91,7 +93,9 @@ class OrderObfuscator:
 
         return slices
 
-    def generate_noise_orders(self, real_ticker: str, real_size: int, decoy_count: int = 3) -> list[dict]:
+    def generate_noise_orders(
+        self, real_ticker: str, real_size: int, decoy_count: int = 3
+    ) -> list[dict]:
         """
         Generates decoy orders on correlated assets to mask the real trade.
         Decoy orders are intentionally small and immediately cancelled (spoofing-safe via IOC).
@@ -106,12 +110,14 @@ class OrderObfuscator:
         for i in range(min(decoy_count, len(correlated_tickers))):
             decoy_size = max(1, random.randint(1, real_size // 10))
             _, delay = self.obfuscate_order(decoy_size)
-            decoys.append({
-                "ticker": correlated_tickers[i],
-                "size": decoy_size,
-                "order_type": "IOC",
-                "is_decoy": True,
-                "delay_seconds": delay,
-            })
+            decoys.append(
+                {
+                    "ticker": correlated_tickers[i],
+                    "size": decoy_size,
+                    "order_type": "IOC",
+                    "is_decoy": True,
+                    "delay_seconds": delay,
+                }
+            )
 
         return decoys

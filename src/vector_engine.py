@@ -9,6 +9,7 @@ class HyperdimensionalEncoder:
     Encodes market signals as 10,000-bit binary hypervectors.
     Similarity measured via Hamming distance — O(1) inference on CPU.
     """
+
     DIM = 10_000
 
     def __init__(self):

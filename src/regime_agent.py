@@ -5,12 +5,14 @@ import numpy as np
 
 logger = logging.getLogger(__name__)
 
+
 class BayesianRegimeAgent:
     """
     Probabilistic modeling of BULL/BEAR/CHOP transitions using
     Bayesian Inference over recent returns and volatility.
     Outputs the probability distribution over all possible regimes.
     """
+
     def __init__(self):
         self.regimes = ["BULL", "BEAR", "CHOP"]
         self.prior = np.array([0.33, 0.33, 0.34])
@@ -23,9 +25,9 @@ class BayesianRegimeAgent:
 
         # Likelihoods given data (mocked Gaussian PDF evaluation)
         # Bull: positive returns, low vol. Bear: neg returns, high vol. Chop: zero returns, low vol.
-        l_bull = np.exp(-(avg_ret - 0.001)**2 / (2 * 0.005**2)) / recent_vol
-        l_bear = np.exp(-(avg_ret + 0.002)**2 / (2 * 0.010**2)) * recent_vol
-        l_chop = np.exp(-(avg_ret - 0.0)**2 / (2 * 0.002**2)) / recent_vol
+        l_bull = np.exp(-((avg_ret - 0.001) ** 2) / (2 * 0.005**2)) / recent_vol
+        l_bear = np.exp(-((avg_ret + 0.002) ** 2) / (2 * 0.010**2)) * recent_vol
+        l_chop = np.exp(-((avg_ret - 0.0) ** 2) / (2 * 0.002**2)) / recent_vol
 
         likelihoods = np.array([l_bull, l_bear, l_chop]) + 1e-9
 

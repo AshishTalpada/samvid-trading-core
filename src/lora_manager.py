@@ -10,8 +10,10 @@ SECTOR_ADAPTER_MAP: Dict[str, str] = {
     "DEFAULT": "adapters/base_lora.bin",
 }
 
+
 class LoRAManager:
     """Manages dynamic LoRA adapter swapping based on ticker sector."""
+
     def __init__(self):
         self.current_adapter: Optional[str] = None
 

@@ -5,12 +5,14 @@ import pyttsx3
 
 logger = logging.getLogger(__name__)
 
+
 class AudioJournal:
     """Psychology edge: System talks to you at the end of the day."""
+
     def __init__(self):
         self.engine = pyttsx3.init()
-        self.engine.setProperty('rate', 170)
-        self.engine.setProperty('voice', 'english-us')
+        self.engine.setProperty("rate", 170)
+        self.engine.setProperty("voice", "english-us")
 
     def narrate_day(self, pnl: float, trades: int, mistakes: int):
         date_str = datetime.now().strftime("%A, %B %d")

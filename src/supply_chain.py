@@ -3,11 +3,13 @@ from collections import deque
 
 logger = logging.getLogger(__name__)
 
+
 class SupplyChainGraph:
     """
     Directed Graph tracking tier-N supply chain relationships.
     Tracks how events in one region cascade to correlated assets.
     """
+
     def __init__(self):
         # node -> [(target_node, impact_weight)]
         self.graph = {}

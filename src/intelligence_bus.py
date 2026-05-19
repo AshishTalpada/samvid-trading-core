@@ -451,6 +451,7 @@ class SharedIntelligenceBus:
             # These are NOT handled by json.dumps natively and cause TypeError.
             try:
                 import numpy as np
+
                 if isinstance(obj, np.bool_):
                     return bool(obj)
                 if isinstance(obj, np.integer):

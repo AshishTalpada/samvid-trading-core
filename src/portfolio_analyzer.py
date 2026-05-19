@@ -59,7 +59,6 @@ class LivePortfolioAnalyzer:
         self._by_symbol: dict[str, list[ClosedTrade]] = defaultdict(list)
         self._session_start: datetime = datetime.utcnow()
 
-
     def record_close(
         self,
         symbol: str,
@@ -106,7 +105,6 @@ class LivePortfolioAnalyzer:
             f"Portfolio: [{symbol}] closed | P&L ${pnl_usd:+.2f} ({pnl_pct:+.2%}) | "
             f"Running: ${self.total_pnl_usd:+.2f} | Sharpe: {self.live_sharpe:.2f}"
         )
-
 
     @property
     def n_trades(self) -> int:
@@ -161,7 +159,6 @@ class LivePortfolioAnalyzer:
     def current_equity(self) -> float:
         return self._equity_curve[-1]
 
-
     def symbol_summary(self, symbol: str) -> dict:
         trades = self._by_symbol.get(symbol, [])
         if not trades:
@@ -174,7 +171,6 @@ class LivePortfolioAnalyzer:
             "pnl_usd": round(total, 2),
             "win_rate": f"{wins / len(trades):.1%}",
         }
-
 
     def summary(self) -> dict:
         """Full session summary — expose on dashboard endpoint."""

@@ -3,17 +3,24 @@ from typing import Any
 
 logger = logging.getLogger(__name__)
 
+
 class HedgingAgent:
     """
     Auto-buys Puts when the SLM or tail-risk model senses a crash coming.
     """
+
     def __init__(self, bridge: Any = None, hedge_ratio: float = 0.05):
         # Default: spend 5% of portfolio value on hedges during high risk
         self.bridge = bridge
         self.hedge_ratio = hedge_ratio
 
-    def evaluate_hedge_requirements(self, portfolio_value: float, vix_level: float,
-                                  slm_crash_probability: float, tail_risk_var: float) -> dict[str, Any]:
+    def evaluate_hedge_requirements(
+        self,
+        portfolio_value: float,
+        vix_level: float,
+        slm_crash_probability: float,
+        tail_risk_var: float,
+    ) -> dict[str, Any]:
         """
         Determine if the portfolio needs protective puts based on market conditions.
         """
@@ -27,7 +34,7 @@ class HedgingAgent:
         elif slm_crash_probability > 0.80:
             needs_hedge = True
             reason = "SLM predicts high crash probability"
-        elif tail_risk_var < -0.15: # Expecting > 15% drop
+        elif tail_risk_var < -0.15:  # Expecting > 15% drop
             needs_hedge = True
             reason = "Severe Tail Risk detected"
 
@@ -41,15 +48,17 @@ class HedgingAgent:
 
             # MINIMUM CHECK: Don't suggest allocations too small to execute (< $100 for premium)
             if allocation < 100.0:
-                 allocation = 0.0
-                 needs_hedge = False
-                 reason = "Hedge requirement below execution threshold ($100)"
+                allocation = 0.0
+                needs_hedge = False
+                reason = "Hedge requirement below execution threshold ($100)"
             else:
-                 logger.info(f"Hedging Agent triggered! Reason: {reason}. Suggested Allocation: ${allocation:.2f}")
+                logger.info(
+                    f"Hedging Agent triggered! Reason: {reason}. Suggested Allocation: ${allocation:.2f}"
+                )
 
         return {
             "needs_hedge": needs_hedge,
             "reason": reason,
             "suggested_put_allocation": allocation,
-            "target_delta": -0.30 if needs_hedge else 0.0 # Target 30-delta OTM puts
+            "target_delta": -0.30 if needs_hedge else 0.0,  # Target 30-delta OTM puts
         }

@@ -343,7 +343,9 @@ class SessionRestorer:
                             )
                             continue
                     except Exception as _ghost_err:
-                        logger.debug(f"Reconciler: Ghost age check error (non-critical): {_ghost_err}")
+                        logger.debug(
+                            f"Reconciler: Ghost age check error (non-critical): {_ghost_err}"
+                        )
 
                     logger.info(
                         f" Reconciler: GHOST DETECTED [{symbol}]. Closing record (Terminal discrepancy)."

@@ -12,7 +12,9 @@ class GameTheoryPositionSizer:
     how market-makers and other HFTs will react to our order flow.
     """
 
-    def minimax_regret_size(self, expected_alpha_bps: float, impact_bps_per_unit: float, max_units: int) -> int:
+    def minimax_regret_size(
+        self, expected_alpha_bps: float, impact_bps_per_unit: float, max_units: int
+    ) -> int:
         best_size, min_max_regret = 1, float("inf")
         for size in range(1, max_units + 1):
             impact = size * impact_bps_per_unit
@@ -34,5 +36,7 @@ class GameTheoryPositionSizer:
         kelly = alpha_bps / 10_000
         max_pct = 0.15
         sizing = min(kelly, max_pct) * account_usd
-        logger.info(f"[GAME THEORY] Optimal size: ${sizing:,.0f} (alpha={alpha_bps:.1f}bps, kelly={kelly:.3f})")
+        logger.info(
+            f"[GAME THEORY] Optimal size: ${sizing:,.0f} (alpha={alpha_bps:.1f}bps, kelly={kelly:.3f})"
+        )
         return sizing
