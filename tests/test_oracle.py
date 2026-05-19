@@ -1,4 +1,5 @@
 # pyright: reportMissingImports=false
+import asyncio
 from unittest.mock import AsyncMock, MagicMock, patch  # type: ignore
 
 import pytest  # pyre-ignore[21]
@@ -16,7 +17,15 @@ def oracle():
     o = DhatuOracle(google_api_key="mock", anthropic_api_key="mock")
     # We don't want the infinite loop running during unit tests
     o.is_running = False
-    return o
+    yield o
+    try:
+        loop = asyncio.get_event_loop()
+        if loop.is_running():
+            loop.create_task(o.stop())
+        else:
+            loop.run_until_complete(o.stop())
+    except RuntimeError:
+        pass
 
 
 @pytest.mark.asyncio
@@ -33,7 +42,11 @@ async def test_oracle_classification(oracle) -> None:
         patch.object(oracle, "_ingest_corporate", new_callable=AsyncMock, return_value=[]),
         patch.object(oracle, "_ingest_tech", new_callable=AsyncMock, return_value=[]),
         patch.object(oracle, "_ingest_market_mechanics", new_callable=AsyncMock, return_value=[]),
+        patch("yfinance.Ticker") as mock_ticker,
     ):
+        import pandas as pd
+
+        mock_ticker.return_value.history.return_value = pd.DataFrame()
         try:
             from src.dhatu_oracle import OracleState  # type: ignore
         except ImportError:
