@@ -997,11 +997,10 @@ class IBKRConnection:
                             else:
                                 price = self.brain.last_tick_bids.get(symbol, 0.0) or self.brain.last_tick_prices.get(symbol, 0.0)
 
-                            # If still 0, try to get from ib.tickers
+                            # If still 0, try to get from ib.ticker
                             if price <= 0.0:
-                                tickers = self.ib.tickers(contract)
-                                if tickers:
-                                    t = tickers[0]
+                                t = self.ib.ticker(contract)
+                                if t:
                                     if direction == "BUY":
                                         price = t.ask if t.ask > 0 else t.last if t.last > 0 else t.close or 0.0
                                     else:
