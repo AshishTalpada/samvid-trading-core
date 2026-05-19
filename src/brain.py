@@ -1005,6 +1005,16 @@ class TradingBrain:
         is_hft_impact = any(k in headline for k in IMPACT_KEYWORDS) or impact > 0.6
 
         if is_hft_impact:
+            if self._is_oracle_entry_frozen():
+                logger.debug(
+                    "BRAIN: News action ignored during oracle freeze "
+                    "(%s, modifier=%.2f): %s",
+                    self._oracle_dhatu,
+                    self._oracle_risk_modifier,
+                    headline[:80],
+                )
+                return
+
             logger.info(
                 f" BRAIN: News Action Triggered -> {headline[:60]}... "
                 f"(Sent: {sentiment:.2f}, Imp: {impact:.2f})"
@@ -1024,6 +1034,14 @@ class TradingBrain:
 
             # Force an immediate scan of the watchlist
             self.new_candle_event.set()
+
+    def _is_oracle_entry_frozen(self) -> bool:
+        """Return True when the oracle forbids new scan/trade cognition."""
+        return (
+            bool(getattr(self, "_oracle_freeze", False))
+            or str(getattr(self, "_oracle_dhatu", "")) in ("Abhava", "Viyoga")
+            or float(getattr(self, "_oracle_risk_modifier", 1.0)) <= 0.0
+        )
 
     async def _decay_risk_modifier(self):
         """Gradually decays the oracle risk modifier back towards baseline (Oracle State)."""
@@ -1470,6 +1488,14 @@ class TradingBrain:
                         # Pulse the state machine that new data is available
                         count = payload.get("count", 0)
                         logger.info(f" BUS → candle.batch: {count} symbols Pulse Detected.")
+                        if self._is_oracle_entry_frozen():
+                            logger.debug(
+                                "BUS → candle.batch: scan wake suppressed during oracle freeze "
+                                "(%s, modifier=%.2f)",
+                                self._oracle_dhatu,
+                                self._oracle_risk_modifier,
+                            )
+                            continue
                         self.new_candle_event.set()
 
                     elif label == "tick.hft":
@@ -1483,6 +1509,11 @@ class TradingBrain:
                     elif label == "macro.impact":
                         # Direct Macro Influence on Brain Risk
                         impact = payload.get("impact", "NEUTRAL")
+                        if self._is_oracle_entry_frozen():
+                            logger.debug(
+                                "BUS → macro.impact ignored during oracle freeze: %s", impact
+                            )
+                            continue
                         if impact == "BEARISH":
                             self._oracle_risk_modifier *= 0.8
                         elif impact == "BULLISH":
@@ -4127,6 +4158,16 @@ class TradingBrain:
         await asyncio.sleep(60)  # Initial grace period
         while self.is_running:
             try:
+                if self._is_oracle_entry_frozen():
+                    logger.info(
+                        "Brain: Phantom probe skipped during oracle freeze "
+                        "(%s, modifier=%.2f).",
+                        self._oracle_dhatu,
+                        self._oracle_risk_modifier,
+                    )
+                    await asyncio.sleep(3600)
+                    continue
+
                 if hasattr(self, "coordinator"):
                     logger.info(" Brain: Initiating PHANTOM PROBE (System Wiring Check)...")
                     # Construct a fake proposal
