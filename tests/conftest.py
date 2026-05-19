@@ -10,6 +10,26 @@ if sys.platform == "win32":
     asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
 
+def pytest_configure(config):
+    """Ensure sensitive environment variables are populated for testing to avoid Vault blocks in CI."""
+    import os
+
+    test_secrets = {
+        "SESSION_SECRET": "TEST_SESSION_SECRET_UNSECURE_MOCK_FOR_TESTS_ONLY",
+        "MT5_LOGIN": "999999",
+        "MT5_PASSWORD": "test_password",
+        "MT5_SERVER": "MetaQuotes-Demo",
+        "MT5_PATH": "/mock/path/to/terminal64.exe",
+        "TELEGRAM_BOT_TOKEN": "123456789:ABCdefGhIJKlmNoPQRsTUVwxyZ",
+        "TELEGRAM_CHAT_ID": "987654321",
+    }
+
+    for key, val in test_secrets.items():
+        if not os.environ.get(key):
+            os.environ[key] = val
+
+
+
 def _close_idle_event_loop() -> None:
     try:
         loop = asyncio.get_event_loop_policy().get_event_loop()
