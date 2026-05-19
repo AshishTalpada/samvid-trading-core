@@ -4,15 +4,19 @@ import numpy as np
 
 logger = logging.getLogger(__name__)
 
+
 class MonteCarloRisk:
     """
     Runs fast vectorized Monte Carlo simulations to calculate Ruin Probability.
     """
+
     def __init__(self, simulations: int = 10000, horizon_steps: int = 100):
         self.simulations = simulations
         self.horizon_steps = horizon_steps
 
-    def simulate_ruin_probability(self, returns: list[float], current_equity: float, ruin_level: float) -> float:
+    def simulate_ruin_probability(
+        self, returns: list[float], current_equity: float, ruin_level: float
+    ) -> float:
         """
         Runs Monte Carlo simulations to find the probability of equity dropping below ruin_level.
 

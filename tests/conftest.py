@@ -29,7 +29,6 @@ def pytest_configure(config):
             os.environ[key] = val
 
 
-
 def _close_idle_event_loop() -> None:
     try:
         loop = asyncio.get_event_loop_policy().get_event_loop()

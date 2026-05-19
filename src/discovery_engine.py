@@ -5,12 +5,14 @@ import numpy as np
 
 logger = logging.getLogger(__name__)
 
+
 class AlphaDiscoveryEngine:
     """
     Continuously mines for new market edges using Genetic Algorithms.
     Generates and tests mutated trading rules against recent history,
     promoting those with high out-of-sample Sharpe to the active ensemble.
     """
+
     def __init__(self, population_size: int = 50):
         self.population_size = population_size
         self.active_alphas: List[Dict[str, Any]] = []
@@ -33,7 +35,9 @@ class AlphaDiscoveryEngine:
         simulated_sharpe = float(np.random.normal(1.2, 0.4))
 
         if simulated_sharpe > baseline_sharpe:
-            logger.info(f"[DISCOVERY] Found new alpha rule with Sharpe {simulated_sharpe:.2f}. Adding to ensemble.")
+            logger.info(
+                f"[DISCOVERY] Found new alpha rule with Sharpe {simulated_sharpe:.2f}. Adding to ensemble."
+            )
             self.active_alphas.append({"sharpe": simulated_sharpe, "weight": 1.0})
 
         # Prune weak alphas

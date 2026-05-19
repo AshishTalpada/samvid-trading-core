@@ -14,8 +14,16 @@ class Form8949Generator:
     Separates short-term and long-term lots per IRS requirements.
     """
 
-    HEADER = ["Description", "Date Acquired", "Date Sold", "Proceeds", "Cost Basis",
-              "Adjustment Code", "Adjustment Amount", "Gain or Loss"]
+    HEADER = [
+        "Description",
+        "Date Acquired",
+        "Date Sold",
+        "Proceeds",
+        "Cost Basis",
+        "Adjustment Code",
+        "Adjustment Amount",
+        "Gain or Loss",
+    ]
 
     def generate(self, closed_lots: List[Dict]) -> Dict[str, str]:
         short_term, long_term = [], []
@@ -43,5 +51,7 @@ class Form8949Generator:
             w.writerows(rows)
             return buf.getvalue()
 
-        logger.info(f"[TAX FORM] Generated Form 8949: {len(short_term)} ST, {len(long_term)} LT lots")
+        logger.info(
+            f"[TAX FORM] Generated Form 8949: {len(short_term)} ST, {len(long_term)} LT lots"
+        )
         return {"short_term_csv": to_csv(short_term), "long_term_csv": to_csv(long_term)}

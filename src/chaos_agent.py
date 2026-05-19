@@ -10,12 +10,14 @@ from config import PROJECT_PATH
 
 logger = logging.getLogger(__name__)
 
+
 class ChaosAgent:
     """
     Sovereign Chaos Agent.
     1. Lyapunov Exponent (LLE) calculation for market randomness detection.
     2. Chaos Monkey functionality for shadow environment stress testing.
     """
+
     def __init__(self, failure_probability: float = 0.01):
         self.failure_prob = failure_probability
         self.faults_injected = 0
@@ -35,12 +37,14 @@ class ChaosAgent:
                     ctypes.POINTER(ctypes.c_double),
                     ctypes.c_int,
                     ctypes.c_int,
-                    ctypes.c_int
+                    ctypes.c_int,
                 ]
                 self._lib.compute_lyapunov_exponent.restype = ctypes.c_double
                 logger.info(f" Chaos Metrics library ({ext}) loaded successfully.")
             else:
-                logger.warning(f"Chaos Metrics library (libsovereign{ext}) not found. Falling back to Python metrics (slow).")
+                logger.warning(
+                    f"Chaos Metrics library (libsovereign{ext}) not found. Falling back to Python metrics (slow)."
+                )
         except Exception as e:
             logger.error(f"Failed to load Chaos Metrics library: {e}")
 
@@ -90,10 +94,10 @@ class ChaosAgent:
             faulty_data = copy.deepcopy(data)
 
             if fault_type == "CORRUPT" and "price" in faulty_data:
-                faulty_data["price"] *= (1.0 + (random.random() - 0.5) * 0.1) # 5% corruption
+                faulty_data["price"] *= 1.0 + (random.random() - 0.5) * 0.1  # 5% corruption
                 return faulty_data
             elif fault_type == "LATENCY":
-                await asyncio.sleep(0.05) # 50ms artificial lag
+                await asyncio.sleep(0.05)  # 50ms artificial lag
                 return faulty_data
 
         return data

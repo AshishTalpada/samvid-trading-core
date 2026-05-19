@@ -15,9 +15,24 @@ logger = logging.getLogger(__name__)
 HN_API = "https://hacker-news.firebaseio.com/v0"
 
 THREAT_KEYWORDS = [
-    "hack", "exploit", "zero-day", "breach", "stolen", "rug", "exit scam",
-    "sec", "doj", "seizure", "bankruptcy", "insolvency", "fraud", "ponzi",
-    "vulnerability", "ransomware", "defi exploit", "bridge attack",
+    "hack",
+    "exploit",
+    "zero-day",
+    "breach",
+    "stolen",
+    "rug",
+    "exit scam",
+    "sec",
+    "doj",
+    "seizure",
+    "bankruptcy",
+    "insolvency",
+    "fraud",
+    "ponzi",
+    "vulnerability",
+    "ransomware",
+    "defi exploit",
+    "bridge attack",
 ]
 
 

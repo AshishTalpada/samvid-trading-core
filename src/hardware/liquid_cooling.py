@@ -4,6 +4,7 @@ logger = logging.getLogger(__name__)
 
 try:
     import psutil
+
     HAS_PSUTIL = True
 except ImportError:
     HAS_PSUTIL = False

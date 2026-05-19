@@ -4,12 +4,14 @@ import numpy as np
 
 logger = logging.getLogger(__name__)
 
+
 class ModelQuantizer:
     """
     Dynamic model precision switcher.
     Drops to INT8 quantization for latency-critical fast trades,
     restores FP32 for deep fundamental analysis where precision matters.
     """
+
     def __init__(self):
         self.current_precision = "FP32"
 
@@ -19,7 +21,9 @@ class ModelQuantizer:
         quantized = np.round((weights - w_min) / scale).astype(np.int32)
         return quantized  # type: ignore
 
-    def dequantize(self, quantized: np.ndarray, w_min: float, w_max: float, bits: int = 8) -> np.ndarray:
+    def dequantize(
+        self, quantized: np.ndarray, w_min: float, w_max: float, bits: int = 8
+    ) -> np.ndarray:
         scale = (w_max - w_min) / (2**bits - 1)
         return quantized.astype(np.float32) * scale + w_min  # type: ignore
 

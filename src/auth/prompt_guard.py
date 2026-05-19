@@ -15,6 +15,7 @@ INJECTION_PATTERNS = [
     r"\[INST\]",
 ]
 
+
 class PromptGuard:
     """
     Adversarial prompt injection shield.
@@ -22,6 +23,7 @@ class PromptGuard:
     before passing them to the SLM to prevent jailbreaks that could cause
     the AI to recommend catastrophic trades.
     """
+
     def __init__(self):
         self._patterns = [re.compile(p, re.IGNORECASE) for p in INJECTION_PATTERNS]
 

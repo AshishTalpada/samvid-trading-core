@@ -41,5 +41,7 @@ class DarkFiberLatencyMonitor:
                 self._latency_history[key] = []
             self._latency_history[key].append(lat)
             if lat > self.ALERT_THRESHOLD_US:
-                logger.warning(f"[DARK FIBER] Link {key} degraded: {lat:.1f}μs > {self.ALERT_THRESHOLD_US}μs")
+                logger.warning(
+                    f"[DARK FIBER] Link {key} degraded: {lat:.1f}μs > {self.ALERT_THRESHOLD_US}μs"
+                )
         return results

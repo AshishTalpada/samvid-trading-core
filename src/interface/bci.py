@@ -12,7 +12,13 @@ class BCIGateway:
     Gates trading authorization based on cognitive clarity score.
     """
 
-    BANDS = {"delta": (0.5, 4), "theta": (4, 8), "alpha": (8, 13), "beta": (13, 30), "gamma": (30, 100)}
+    BANDS = {
+        "delta": (0.5, 4),
+        "theta": (4, 8),
+        "alpha": (8, 13),
+        "beta": (13, 30),
+        "gamma": (30, 100),
+    }
     CLARITY_THRESHOLD = 0.55
 
     def compute_band_power(self, eeg_signal: List[float], sampling_rate: float, band: str) -> float:
@@ -22,8 +28,11 @@ class BCIGateway:
             return 0.0
         dt = 1.0 / sampling_rate
         freqs = [i / (n * dt) for i in range(n // 2)]
-        fft_mag = [abs(sum(eeg_signal[j] * math.cos(2 * math.pi * freqs[k] * j * dt)
-                          for j in range(n))) / n for k in range(len(freqs))]
+        fft_mag = [
+            abs(sum(eeg_signal[j] * math.cos(2 * math.pi * freqs[k] * j * dt) for j in range(n)))
+            / n
+            for k in range(len(freqs))
+        ]
         band_power = sum(fft_mag[i] ** 2 for i, f in enumerate(freqs) if low <= f <= high)
         return round(band_power, 6)
 

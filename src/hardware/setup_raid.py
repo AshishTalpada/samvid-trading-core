@@ -16,7 +16,9 @@ class RAIDSetupManager:
         if os.name != "posix":
             return {"status": "UNAVAILABLE", "reason": "Non-Linux system"}
         try:
-            result = subprocess.run(["mdadm", "--detail", device], capture_output=True, text=True, timeout=5)
+            result = subprocess.run(
+                ["mdadm", "--detail", device], capture_output=True, text=True, timeout=5
+            )
             state_line = next((l for l in result.stdout.splitlines() if "State :" in l), "")
             state = state_line.split(":")[-1].strip() if state_line else "UNKNOWN"
             healthy = "clean" in state.lower() or "active" in state.lower()

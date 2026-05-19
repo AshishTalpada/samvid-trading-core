@@ -6,12 +6,16 @@ from typing import List, Tuple
 
 logger = logging.getLogger(__name__)
 
+
 class ExecutionRandomizer:
     """
     Execution stealth randomizer. Applies Poisson-distributed inter-order delays
     and randomizes TWAP/VWAP slice sizes within +/-15% to prevent HFT pattern detection.
     """
-    def randomize_slices(self, total_shares: int, n_slices: int, jitter_pct: float = 0.15) -> List[int]:
+
+    def randomize_slices(
+        self, total_shares: int, n_slices: int, jitter_pct: float = 0.15
+    ) -> List[int]:
         base = total_shares // n_slices
         slices = []
         allocated = 0

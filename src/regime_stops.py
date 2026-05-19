@@ -15,6 +15,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class RegimeStopConfig:
     """Configuration for regime-based stops."""
+
     bull_multiplier: float = 2.0
     bear_multiplier: float = 1.5
     choppy_multiplier: float = 3.0
@@ -105,9 +106,15 @@ class RegimeStopEngine:
             elif any(r in regime_upper for r in ["BEAR", "DOWN", "KSHAYA"]):
                 return "BEAR"
 
-        if vix < self.REGIME_THRESHOLDS["BULL"]["vix_max"] and momentum > self.REGIME_THRESHOLDS["BULL"]["mom_min"]:  # type: ignore
+        if (
+            vix < self.REGIME_THRESHOLDS["BULL"]["vix_max"]
+            and momentum > self.REGIME_THRESHOLDS["BULL"]["mom_min"]
+        ):  # type: ignore
             return "BULL"
-        elif vix > self.REGIME_THRESHOLDS["BEAR"]["vix_min"] or momentum < self.REGIME_THRESHOLDS["BEAR"]["mom_max"]:  # type: ignore
+        elif (
+            vix > self.REGIME_THRESHOLDS["BEAR"]["vix_min"]
+            or momentum < self.REGIME_THRESHOLDS["BEAR"]["mom_max"]
+        ):  # type: ignore
             return "BEAR"
         else:
             return "CHOPPY"

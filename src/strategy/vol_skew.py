@@ -2,14 +2,18 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+
 class VolatilitySkewAnalyzer:
     """
     Trades the difference between historical stock volatility and implied option volatility.
     """
+
     def __init__(self, min_skew_threshold: float = 0.15):
         self.min_skew_threshold = min_skew_threshold
 
-    def calculate_skew_edge(self, historical_vol: float, implied_vol: float) -> dict[str, str | float]:
+    def calculate_skew_edge(
+        self, historical_vol: float, implied_vol: float
+    ) -> dict[str, str | float]:
         """
         Compares realized/historical volatility with market-priced implied volatility.
 
@@ -30,16 +34,18 @@ class VolatilitySkewAnalyzer:
 
         if relative_skew > self.min_skew_threshold:
             # Options are extremely expensive compared to actual stock movement
-            action = "SELL_VOLATILITY" # e.g., Sell Straddles / Iron Condors
+            action = "SELL_VOLATILITY"  # e.g., Sell Straddles / Iron Condors
             logger.info(f"Vol Skew Edge: Options heavily overpriced. Premium: {vol_premium:.2f}")
         elif relative_skew < -self.min_skew_threshold:
             # Options are extremely cheap compared to actual stock movement
-            action = "BUY_VOLATILITY" # e.g., Buy Straddles
-            logger.info(f"Vol Skew Edge: Options heavily underpriced. Discount: {abs(vol_premium):.2f}")
+            action = "BUY_VOLATILITY"  # e.g., Buy Straddles
+            logger.info(
+                f"Vol Skew Edge: Options heavily underpriced. Discount: {abs(vol_premium):.2f}"
+            )
 
         return {
             "action": action,
             "historical_vol": historical_vol,
             "implied_vol": implied_vol,
-            "skew_edge": relative_skew
+            "skew_edge": relative_skew,
         }

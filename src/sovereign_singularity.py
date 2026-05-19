@@ -38,6 +38,9 @@ class SovereignSingularityTracker:
         crossed = ratio > 1.0
         if crossed:
             logger.critical(f"[SINGULARITY]  THRESHOLD CROSSED! Ratio={ratio:.4f}")
-        return {"ratio": round(ratio, 6), "crossed": crossed,
-                "learning_rate": round(float(learning_rate), 4),
-                "market_entropy": round(float(market_noise), 4)}
+        return {
+            "ratio": round(ratio, 6),
+            "crossed": crossed,
+            "learning_rate": round(float(learning_rate), 4),
+            "market_entropy": round(float(market_noise), 4),
+        }

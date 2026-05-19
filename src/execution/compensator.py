@@ -4,12 +4,14 @@ import time
 
 logger = logging.getLogger(__name__)
 
+
 class LatencyCompensator:
     """
     Predictive order pre-submission compensator.
     Measures round-trip latency to the broker and submits orders N ms early
     so they arrive at the exchange at the exact intended time.
     """
+
     def __init__(self, broker_host: str = "localhost", broker_port: int = 4001):
         self.host = broker_host
         self.port = broker_port
@@ -18,13 +20,15 @@ class LatencyCompensator:
 
     def measure_rtt(self) -> float:
         import socket
+
         try:
             t0 = time.perf_counter()
             s = socket.create_connection((self.host, self.port), timeout=0.5)
             s.close()
             rtt = (time.perf_counter() - t0) * 1000
             self._history.append(rtt)
-            if len(self._history) > 20: self._history.pop(0)
+            if len(self._history) > 20:
+                self._history.pop(0)
             self._rtt_ms = sum(self._history) / len(self._history)
             return self._rtt_ms
         except OSError:

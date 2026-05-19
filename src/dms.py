@@ -232,9 +232,7 @@ class DMSMonitor:
         try:
             fd = os.open(lock_file, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
             with os.fdopen(fd, "w") as f:
-                f.write(
-                    f"LATENCY_CRITICAL node={socket.gethostname()} ts={time.time_ns()}"
-                )
+                f.write(f"LATENCY_CRITICAL node={socket.gethostname()} ts={time.time_ns()}")
         except FileExistsError:
             # Check if the lock is stale (> 30 mins)
             if (time.time() - os.path.getmtime(lock_file)) < 1800:

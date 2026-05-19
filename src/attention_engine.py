@@ -14,11 +14,11 @@ class RegimeAttentionEngine:
     """
 
     REGIME_FINGERPRINTS: Dict[str, Dict[str, float]] = {
-        "2008_GFC":     {"vol": 0.9, "credit_spread": 0.9, "correlation": 0.95},
-        "2020_COVID":   {"vol": 0.8, "credit_spread": 0.6, "correlation": 0.85},
-        "2000_DOTCOM":  {"vol": 0.7, "credit_spread": 0.3, "correlation": 0.4},
-        "2022_RATES":   {"vol": 0.5, "credit_spread": 0.5, "correlation": 0.6},
-        "NORMAL_BULL":  {"vol": 0.2, "credit_spread": 0.1, "correlation": 0.3},
+        "2008_GFC": {"vol": 0.9, "credit_spread": 0.9, "correlation": 0.95},
+        "2020_COVID": {"vol": 0.8, "credit_spread": 0.6, "correlation": 0.85},
+        "2000_DOTCOM": {"vol": 0.7, "credit_spread": 0.3, "correlation": 0.4},
+        "2022_RATES": {"vol": 0.5, "credit_spread": 0.5, "correlation": 0.6},
+        "NORMAL_BULL": {"vol": 0.2, "credit_spread": 0.1, "correlation": 0.3},
     }
 
     def compute_attention(self, current: Dict[str, float]) -> Dict[str, float]:

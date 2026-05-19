@@ -3,33 +3,41 @@ from typing import Dict, List
 
 logger = logging.getLogger(__name__)
 
+
 class TrapDetector:
     """
     Detects institutional 'Spoofing' and 'Baiting' maneuvers in the L2 order book.
     Identifies large limit orders that are repeatedly placed and canceled.
     """
+
     def __init__(self, cancel_threshold_ms: int = 500, spoof_size_multiplier: float = 10.0):
         self.cancel_threshold_ms = cancel_threshold_ms
         self.spoof_size_multiplier = spoof_size_multiplier
         self.recent_cancels: List[Dict] = []
 
-    def log_order_cancel(self, order_id: str, size: float, duration_ms: int, price: float, side: str) -> None:
+    def log_order_cancel(
+        self, order_id: str, size: float, duration_ms: int, price: float, side: str
+    ) -> None:
         """
         Logs a canceled limit order for spoofing analysis.
         """
-        self.recent_cancels.append({
-            "order_id": order_id,
-            "size": size,
-            "duration_ms": duration_ms,
-            "price": price,
-            "side": side
-        })
+        self.recent_cancels.append(
+            {
+                "order_id": order_id,
+                "size": size,
+                "duration_ms": duration_ms,
+                "price": price,
+                "side": side,
+            }
+        )
 
         # Keep window small to prevent memory bloat
         if len(self.recent_cancels) > 1000:
             self.recent_cancels = self.recent_cancels[-500:]
 
-    def analyze_spoofing_risk(self, current_top_size: float, current_price: float, side: str) -> float:
+    def analyze_spoofing_risk(
+        self, current_top_size: float, current_price: float, side: str
+    ) -> float:
         """
         Analyzes recent cancel behavior to determine if a resting order is likely a trap.
 
@@ -59,7 +67,9 @@ class TrapDetector:
                         total_spoofed_size += cancel["size"]
 
         if spoof_matches >= 3:
-            logger.warning(f"Spoofing trap detected on {side}! {spoof_matches} rapid massive cancels observed.")
+            logger.warning(
+                f"Spoofing trap detected on {side}! {spoof_matches} rapid massive cancels observed."
+            )
             return min(1.0, spoof_matches / 10.0)
 
         return 0.0

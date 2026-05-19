@@ -46,6 +46,7 @@ class LiveAudioDubber:
     def _worker(self) -> None:
         try:
             import pyttsx3
+
             engine = pyttsx3.init()
             engine.setProperty("rate", self._rate)
             engine.setProperty("volume", self._volume)

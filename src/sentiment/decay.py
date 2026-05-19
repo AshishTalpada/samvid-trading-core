@@ -6,15 +6,21 @@ import numpy as np
 
 logger = logging.getLogger(__name__)
 
+
 class SentimentDecayModel:
     """
     Models the half-life of news sentiment impact on price.
     Earnings beat: ~72h half-life. Analyst upgrade: ~48h. Tweet: ~2h.
     Uses exponential decay: impact(t) = S0 * exp(-lambda * t)
     """
+
     HALF_LIVES = {
-        "earnings": 72.0, "analyst_upgrade": 48.0, "macro_data": 24.0,
-        "tweet": 2.0, "news_article": 8.0, "sec_filing": 120.0,
+        "earnings": 72.0,
+        "analyst_upgrade": 48.0,
+        "macro_data": 24.0,
+        "tweet": 2.0,
+        "news_article": 8.0,
+        "sec_filing": 120.0,
     }
 
     def decay(self, initial_sentiment: float, event_type: str, hours_elapsed: float) -> float:

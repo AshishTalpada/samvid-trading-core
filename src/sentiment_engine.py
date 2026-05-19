@@ -22,9 +22,9 @@ class MultiLingualSentimentEngine:
     """
 
     def detect_language(self, text: str) -> str:
-        if re.search(r'[\u4e00-\u9fff]', text):
+        if re.search(r"[\u4e00-\u9fff]", text):
             return "zh"
-        if re.search(r'\b(der|die|das|und|ist|für|von)\b', text, re.IGNORECASE):
+        if re.search(r"\b(der|die|das|und|ist|für|von)\b", text, re.IGNORECASE):
             return "de"
         return "en"
 

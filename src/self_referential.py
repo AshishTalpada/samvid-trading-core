@@ -23,7 +23,7 @@ class SelfReferentialReasoningEngine:
             self._decision_history.pop(0)
 
     def self_similarity_score(self) -> float:
-        recent = self._decision_history[-self.lookback:]
+        recent = self._decision_history[-self.lookback :]
         if not recent:
             return 0.0
         dominant = max(set(recent), key=recent.count)
@@ -32,7 +32,9 @@ class SelfReferentialReasoningEngine:
     def is_loop_detected(self) -> bool:
         score = self.self_similarity_score()
         if score >= self.threshold:
-            logger.critical(f"[SELF-REF] Reasoning loop detected! Self-similarity={score:.2f}. Triggering reset.")
+            logger.critical(
+                f"[SELF-REF] Reasoning loop detected! Self-similarity={score:.2f}. Triggering reset."
+            )
             return True
         return False
 

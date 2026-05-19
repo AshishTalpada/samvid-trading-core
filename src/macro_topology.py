@@ -3,12 +3,14 @@ from typing import Dict, List, Set
 
 logger = logging.getLogger(__name__)
 
+
 class MacroTopologyGraph:
     """
     Maps nth-degree macro ripple effects.
     e.g. "TSMC Earnings Miss" -> "Nvidia Drops" -> "S&P 500 Drops" -> "Volatility Spikes" -> "Bonds Rally".
     Calculates the shortest topological path between a breaking news event and an asset.
     """
+
     def __init__(self):
         self.nodes: Set[str] = set()
         self.adjacency: Dict[str, Dict[str, float]] = {}
@@ -20,7 +22,9 @@ class MacroTopologyGraph:
             self.adjacency[source] = {}
         self.adjacency[source][target] = impact_weight
 
-    def calculate_ripple_impact(self, event_node: str, target_asset: str, max_depth: int = 3) -> float:
+    def calculate_ripple_impact(
+        self, event_node: str, target_asset: str, max_depth: int = 3
+    ) -> float:
         if event_node not in self.adjacency:
             return 0.0
 
@@ -41,6 +45,8 @@ class MacroTopologyGraph:
         dfs(event_node, 0, 1.0)
 
         if best_impact > 0:
-            logger.info(f"[TOPOLOGY] {event_node} -> {target_asset} ripple impact: {best_impact:.3f}")
+            logger.info(
+                f"[TOPOLOGY] {event_node} -> {target_asset} ripple impact: {best_impact:.3f}"
+            )
 
         return best_impact

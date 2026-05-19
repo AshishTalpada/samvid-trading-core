@@ -27,7 +27,9 @@ class GarbageCollectorTuner:
     def tune_for_hft(self) -> None:
         # Raise thresholds: collect gen0 every 2000 allocs (default=700), gen1/2 rarely
         gc.set_threshold(2000, 20, 10)
-        logger.info(f"[GC TUNER] Thresholds set to {gc.get_threshold()} (was {self._original_thresholds})")
+        logger.info(
+            f"[GC TUNER] Thresholds set to {gc.get_threshold()} (was {self._original_thresholds})"
+        )
 
     def force_collect_non_critical(self) -> int:
         before = gc.get_count()
@@ -36,4 +38,8 @@ class GarbageCollectorTuner:
         return collected
 
     def get_stats(self) -> dict:
-        return {"threshold": gc.get_threshold(), "counts": gc.get_count(), "enabled": gc.isenabled()}
+        return {
+            "threshold": gc.get_threshold(),
+            "counts": gc.get_count(),
+            "enabled": gc.isenabled(),
+        }

@@ -26,9 +26,7 @@ async def typewriter_print(text, delay=0.02, color=Colors.END):
 
 
 async def run_demonstration():
-    print(
-        f"\n{Colors.BOLD}{Colors.CYAN} SAMVID TRADING CORE: SOVEREIGN DEMONSTRATION{Colors.END}"
-    )
+    print(f"\n{Colors.BOLD}{Colors.CYAN} SAMVID TRADING CORE: SOVEREIGN DEMONSTRATION{Colors.END}")
     print(f"{Colors.BLUE}Version: v1.0-beta | Release: 2026-04-28{Colors.END}")
     print("=" * 60)
 

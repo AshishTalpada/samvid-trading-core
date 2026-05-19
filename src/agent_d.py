@@ -1287,7 +1287,9 @@ class LiveLearningEngine:
             cursor = conn.execute("PRAGMA table_info(agent_d_trades)")
             columns = [row[1] for row in cursor.fetchall()]
             if "trade_id" not in columns:
-                _lld_logger.info("LiveLearningEngine: Migration - Adding 'trade_id' column to agent_d_trades")
+                _lld_logger.info(
+                    "LiveLearningEngine: Migration - Adding 'trade_id' column to agent_d_trades"
+                )
                 conn.execute("ALTER TABLE agent_d_trades ADD COLUMN trade_id TEXT;")
 
             conn.commit()
@@ -1569,9 +1571,7 @@ class LiveLearningEngine:
 
                 now = time.time()
                 if (now - last_dream_at) > DREAM_INTERVAL and self._n_trades >= 5:
-                    _lld_logger.info(
-                        " [Agent D]: Initiating Sovereign Dream (Deep Reflection)..."
-                    )
+                    _lld_logger.info(" [Agent D]: Initiating Sovereign Dream (Deep Reflection)...")
                     await self._deep_reflection()
                     last_dream_at = now
 

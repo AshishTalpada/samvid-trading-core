@@ -33,6 +33,7 @@ def _try_load_openbb():
     try:
         import importlib
         import warnings
+
         # Suppress Pydantic warnings about non-Python types in OpenBB
         with warnings.catch_warnings():
             warnings.filterwarnings("ignore", category=UserWarning, module="pydantic.*")

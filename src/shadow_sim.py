@@ -5,20 +5,23 @@ from typing import Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
+
 @dataclass
 class ShadowTrade:
     symbol: str
     entry_price: float
-    side: str # "BUY" | "SELL"
+    side: str  # "BUY" | "SELL"
     timestamp: datetime
     pnl: float = 0.0
     is_closed: bool = False
+
 
 class GhostShadowSim:
     """
     Forks live ticks into a virtual PnL tracker.
     Used to measure signal quality without risking capital.
     """
+
     def __init__(self):
         self.active_trades: Dict[str, ShadowTrade] = {}
         self.history: List[ShadowTrade] = []
@@ -27,7 +30,7 @@ class GhostShadowSim:
     def fork_signal(self, symbol: str, price: float, side: str):
         """Creates a shadow trade for a signal."""
         if symbol in self.active_trades:
-            return # Already tracking
+            return  # Already tracking
 
         trade = ShadowTrade(symbol=symbol, entry_price=price, side=side, timestamp=datetime.now())
         self.active_trades[symbol] = trade
@@ -65,5 +68,5 @@ class GhostShadowSim:
         return {
             "total_pnl": self.total_shadow_pnl,
             "win_rate": win_rate,
-            "active_count": len(self.active_trades)
+            "active_count": len(self.active_trades),
         }

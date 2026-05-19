@@ -106,7 +106,6 @@ class MindArchitect:
             {"severity": "HIGH"},
         )
 
-
     async def evaluate_proposal(self, context: dict[str, Any]) -> dict[str, Any]:
         """
         Provides Agent G's 'Healing Mind' structural integrity vote.

@@ -20,7 +20,7 @@ class BCISignalProcessor:
         "delta": (0.5, 4.0),
         "theta": (4.0, 8.0),
         "alpha": (8.0, 13.0),
-        "beta":  (13.0, 30.0),
+        "beta": (13.0, 30.0),
         "gamma": (30.0, 100.0),
     }
 
@@ -87,7 +87,9 @@ class BCISignalProcessor:
             state = "NEUTRAL"
             confidence_modifier = 0.9
 
-        logger.info(f"[BCI] Cognitive state: {state} | α={alpha_ratio:.2f} β={beta_ratio:.2f} θ={theta_ratio:.2f}")
+        logger.info(
+            f"[BCI] Cognitive state: {state} | α={alpha_ratio:.2f} β={beta_ratio:.2f} θ={theta_ratio:.2f}"
+        )
         return {
             "state": state,
             "confidence_modifier": confidence_modifier,
