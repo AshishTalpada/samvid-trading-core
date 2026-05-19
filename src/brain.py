@@ -586,16 +586,7 @@ class TradingBrain:
         self._oracle_dhatu: str = "Sthiti"
         self._oracle_freeze: bool = False
 
-        if self.dhatu_oracle:
-            initial_state = self.dhatu_oracle.get_current_state()
-            if initial_state and initial_state.is_fresh:
-                self._oracle_risk_modifier = float(initial_state.risk_modifier)
-                self._oracle_dhatu = str(initial_state.dhatu_state)
-                self._oracle_freeze = self._oracle_dhatu in ("Abhava", "Viyoga")
-                logger.info(
-                    f"TradingBrain: Initialized with recovered Oracle state: {self._oracle_dhatu} "
-                    f"(Modifier: {self._oracle_risk_modifier:.2f}, Freezed: {self._oracle_freeze})"
-                )
+        self.sync_oracle_state()
 
         self._last_reconciliation = 0.0
 
@@ -836,6 +827,26 @@ class TradingBrain:
             self._thaw_task = None
         else:
             self._thaw_task = loop.create_task(self._thaw_session_async())
+
+    def sync_oracle_state(self) -> bool:
+        """Hydrate the brain's macro freeze state from the attached DhatuOracle."""
+        if not self.dhatu_oracle:
+            return False
+
+        state = self.dhatu_oracle.get_current_state()
+        if not state:
+            return False
+
+        self._oracle_risk_modifier = float(state.risk_modifier)
+        self._oracle_dhatu = str(state.dhatu_state)
+        self._oracle_freeze = (
+            self._oracle_dhatu in ("Abhava", "Viyoga") or self._oracle_risk_modifier <= 0.0
+        )
+        logger.info(
+            f"TradingBrain: Synced Oracle state: {self._oracle_dhatu} "
+            f"(Modifier: {self._oracle_risk_modifier:.2f}, Freeze: {self._oracle_freeze})"
+        )
+        return True
 
     async def _thaw_session_async(self) -> None:
         """Restores the brain's state via background thread to prevent startup hangs."""
