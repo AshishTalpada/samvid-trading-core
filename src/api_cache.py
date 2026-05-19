@@ -37,13 +37,8 @@ class TTLCache:
         self._hits = 0
         self._misses = 0
         self._is_running = True
-
-        try:
-            loop = asyncio.get_running_loop()
-        except RuntimeError:
-            self._cleanup_task = None
-        else:
-            self._cleanup_task = loop.create_task(self._cleanup_loop())
+        self._cleanup_task = None
+        self._last_prune = time.monotonic()
 
     async def _cleanup_loop(self) -> None:
         """Background loop to periodically prune stale entries."""
@@ -82,6 +77,7 @@ class TTLCache:
 
     async def get(self, key: str) -> Any | None:
         """Return cached value if it exists and hasn't expired, else None."""
+        await self._prune_if_due()
         async with self._lock:
             entry = self._store.get(key)
             if entry is None:
@@ -97,6 +93,7 @@ class TTLCache:
 
     async def set(self, key: str, value: Any, ttl: float | None = None) -> None:
         """Store a value with an optional per-key TTL override."""
+        await self._prune_if_due()
         effective_ttl = ttl if ttl is not None else self._default_ttl
         async with self._lock:
             # Evict oldest if at capacity
@@ -124,6 +121,12 @@ class TTLCache:
         if result is not None:
             await self.set(key, result, ttl)
         return result
+
+    async def _prune_if_due(self) -> None:
+        if time.monotonic() - self._last_prune < 60:
+            return
+        self._last_prune = time.monotonic()
+        await self.prune()
 
     async def invalidate(self, key: str) -> None:
         """Remove a specific key from the cache."""
