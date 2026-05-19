@@ -1409,8 +1409,9 @@ class TradingBrain:
 
                         self._oracle_dhatu = new_dhatu
 
-                        # Only un-freeze if the new state is NOT a freeze state
-                        if new_dhatu not in ("Abhava", "Viyoga"):
+                        if new_dhatu in ("Abhava", "Viyoga") or self._oracle_risk_modifier <= 0.0:
+                            self._oracle_freeze = True
+                        else:
                             self._oracle_freeze = False
 
                         logger.info(
@@ -3113,6 +3114,10 @@ class TradingBrain:
         valid = []
         for p in self.positions:
             if hasattr(p, "symbol") and not isinstance(p, dict):
+                try:
+                    p.__post_init__()
+                except Exception:
+                    pass
                 valid.append(p)
             elif isinstance(p, dict) and "symbol" in p:
                 try:
