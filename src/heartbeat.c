@@ -68,7 +68,9 @@ void close_heartbeat() {
 #ifdef __linux__
     if (heartbeat_fd >= 0) {
         // Magic character 'V' tells the watchdog driver we are closing intentionally
-        write(heartbeat_fd, "V", 1);
+        if (write(heartbeat_fd, "V", 1) < 0) {
+            perror("[HEARTBEAT] WARNING: Failed to write magic close character to watchdog");
+        }
         close(heartbeat_fd);
         heartbeat_fd = -1;
     }
