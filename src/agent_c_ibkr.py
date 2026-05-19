@@ -937,7 +937,7 @@ class IBKRConnection:
             )
 
             try:
-                from ib_insync import Future, LimitOrder, Stock
+                from ib_insync import Future, LimitOrder, MarketOrder, Stock
 
                 if "=F" in symbol:
                     root = symbol.split("=")[0].upper()
@@ -981,31 +981,52 @@ class IBKRConnection:
                 target_accounts = [target_acc] if target_acc else [None]
 
                 for i, acc in enumerate(target_accounts):
-                    if urgency == "HIGH" or order_type == "MKT":
+                    if urgency == "EMERGENCY":
+                        o = MarketOrder(direction, shares)
+                    elif urgency == "HIGH" or order_type == "MKT":
                         # Replaced MarketOrder with 'Aggressive Limit' to prevent
                         # flash-crash slippage. We use a 1.5% buffer for entries
                         # and exits; if it doesn't fill, we prefer a miss
                         # over a ruinous price.
                         buffer = 0.015
-                        price = (
-                            limit_price  # Fallback to limit_price for buffering if lmt is not set
-                        )
-                        if direction == "BUY":
-                            lmt_buffered = (
-                                self.round_to_tick(lmt * (1 + buffer))
-                                if lmt
-                                else self.round_to_tick(price * (1 + buffer))
-                            )
-                        else:
-                            lmt_buffered = (
-                                self.round_to_tick(lmt * (1 - buffer))
-                                if lmt
-                                else self.round_to_tick(price * (1 - buffer))
-                            )
+                        price = limit_price
+                        if price <= 0.0:
+                            # Try to get real-time price from the brain's tick cache
+                            if direction == "BUY":
+                                price = self.brain.last_tick_asks.get(symbol, 0.0) or self.brain.last_tick_prices.get(symbol, 0.0)
+                            else:
+                                price = self.brain.last_tick_bids.get(symbol, 0.0) or self.brain.last_tick_prices.get(symbol, 0.0)
 
-                        o = LimitOrder(direction, shares, lmt_buffered)
-                        o.outsideRth = self.is_extended_hours()
-                        o.overridePercentageConstraints = True
+                            # If still 0, try to get from ib.tickers
+                            if price <= 0.0:
+                                tickers = self.ib.tickers(contract)
+                                if tickers:
+                                    t = tickers[0]
+                                    if direction == "BUY":
+                                        price = t.ask if t.ask > 0 else t.last if t.last > 0 else t.close or 0.0
+                                    else:
+                                        price = t.bid if t.bid > 0 else t.last if t.last > 0 else t.close or 0.0
+
+                        if price <= 0.0:
+                            # Fallback to MarketOrder if price cannot be resolved
+                            o = MarketOrder(direction, shares)
+                        else:
+                            if direction == "BUY":
+                                lmt_buffered = (
+                                    self.round_to_tick(lmt * (1 + buffer))
+                                    if lmt
+                                    else self.round_to_tick(price * (1 + buffer))
+                                )
+                            else:
+                                lmt_buffered = (
+                                    self.round_to_tick(lmt * (1 - buffer))
+                                    if lmt
+                                    else self.round_to_tick(price * (1 - buffer))
+                                )
+
+                            o = LimitOrder(direction, shares, lmt_buffered)
+                            o.outsideRth = self.is_extended_hours()
+                            o.overridePercentageConstraints = True
                     else:
                         o = LimitOrder(direction, shares, lmt)
                         o.outsideRth = self.is_extended_hours()
