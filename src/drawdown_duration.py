@@ -5,6 +5,7 @@ import numpy as np
 
 logger = logging.getLogger(__name__)
 
+
 class DrawdownDurationModel:
     """
     Advanced Psychological & Risk Modeling for Drawdowns.
@@ -12,6 +13,7 @@ class DrawdownDurationModel:
     of a drawdown (Time to Recovery / TTR), factoring in the system's empirical
     Sharpe Ratio and trade autocorrelation.
     """
+
     def __init__(self, risk_free_rate: float = 0.04):
         self.rf = risk_free_rate
 
@@ -20,7 +22,7 @@ class DrawdownDurationModel:
         current_drawdown_pct: float,
         annualized_return: float,
         annualized_volatility: float,
-        trades_per_day: int
+        trades_per_day: int,
     ) -> dict:
         """
         Calculates the mathematically expected time required to recover from the current drawdown,
@@ -44,11 +46,13 @@ class DrawdownDurationModel:
         drift_adj = mu - (sigma**2) / 2.0
 
         if drift_adj <= 0:
-            logger.warning("System has negative expected drift. Theoretical Time to Recovery is INFINITE.")
-            return {"expected_days": float('inf'), "probability_1_month": 0.0}
+            logger.warning(
+                "System has negative expected drift. Theoretical Time to Recovery is INFINITE."
+            )
+            return {"expected_days": float("inf"), "probability_1_month": 0.0}
 
         expected_years = a / drift_adj
-        expected_days = expected_years * 252 # Trading days
+        expected_days = expected_years * 252  # Trading days
 
         # Calculate the probability of recovering within 1 month (21 trading days)
         # Using the CDF of the Inverse Gaussian Distribution
@@ -56,13 +60,16 @@ class DrawdownDurationModel:
 
         # Standard brownian motion first passage probability approximation
         import scipy.stats as stats
+
         term1 = (drift_adj * t_1mo - a) / (sigma * math.sqrt(t_1mo))
         term2 = (-drift_adj * t_1mo - a) / (sigma * math.sqrt(t_1mo))
 
-        prob_recovery = stats.norm.cdf(term1) + math.exp(2 * drift_adj * a / (sigma**2)) * stats.norm.cdf(term2)
+        prob_recovery = stats.norm.cdf(term1) + math.exp(
+            2 * drift_adj * a / (sigma**2)
+        ) * stats.norm.cdf(term2)
 
         return {
             "required_gain_pct": required_return * 100,
             "expected_days": expected_days,
-            "probability_1_month": prob_recovery
+            "probability_1_month": prob_recovery,
         }

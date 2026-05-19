@@ -3,8 +3,10 @@ from typing import Dict, List
 
 logger = logging.getLogger(__name__)
 
+
 class DebateEngine:
     """Forces agents to justify their votes before a quorum decision is made."""
+
     def __init__(self, required_confidence: float = 0.6):
         self.required_confidence = required_confidence
 

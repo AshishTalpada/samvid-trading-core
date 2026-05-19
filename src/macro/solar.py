@@ -7,6 +7,7 @@ logger = logging.getLogger(__name__)
 
 NOAA_SOLAR_API = "https://services.swpc.noaa.gov/json/planetary_k_index_1m.json"
 
+
 class SolarActivityMonitor:
     """
     Monitors solar geomagnetic activity (Kp-index) from NOAA SWPC.
@@ -14,6 +15,7 @@ class SolarActivityMonitor:
     shortwave radio — all used by HFT firms for nanosecond arbitrage.
     Sovereign reduces satellite-dependent data weight during solar storms.
     """
+
     def fetch_kp_index(self) -> float:
         try:
             r = requests.get(NOAA_SOLAR_API, timeout=5)
@@ -27,7 +29,10 @@ class SolarActivityMonitor:
             return 0.0
 
     def satellite_data_weight(self, kp: float) -> float:
-        if kp >= 7.0: return 0.0
-        if kp >= 5.0: return 0.5
-        if kp >= 3.0: return 0.8
+        if kp >= 7.0:
+            return 0.0
+        if kp >= 5.0:
+            return 0.5
+        if kp >= 3.0:
+            return 0.8
         return 1.0

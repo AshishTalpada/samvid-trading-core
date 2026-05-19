@@ -14,6 +14,7 @@ For every file in the D-drive that also exists locally, this script:
 
 This is NON-DESTRUCTIVE. All local logic is preserved. All D-drive logic is added.
 """
+
 import difflib
 import os
 import re
@@ -30,16 +31,20 @@ SHARED_FILES = sorted({f.name for f in D_SRC.glob("*.py")} & {f.name for f in C_
 
 # ── helpers ──────────────────────────────────────────────────────────────────
 
+
 def read_file(path: Path) -> list[str]:
     return path.read_text(encoding="utf-8", errors="replace").splitlines(keepends=True)
 
+
 def write_file(path: Path, lines: list[str]) -> None:
     path.write_text("".join(lines), encoding="utf-8")
+
 
 def backup(path: Path) -> None:
     dst = BACKUP_DIR / path.name
     if not dst.exists():
         shutil.copy2(path, dst)
+
 
 def extract_local_only_blocks(d_lines, c_lines) -> list[str]:
     """
@@ -53,6 +58,7 @@ def extract_local_only_blocks(d_lines, c_lines) -> list[str]:
             # These lines exist in C but not (or differently) in D
             local_only.extend(c_lines[j1:j2])
     return local_only
+
 
 def merge_files(name: str, d_lines: list[str], c_lines: list[str]) -> list[str]:
     """
@@ -99,11 +105,12 @@ def merge_files(name: str, d_lines: list[str], c_lines: list[str]) -> list[str]:
     merged[insert_at:insert_at] = separator + local_only + ["\n"]
     return merged
 
+
 # ── Main merge loop ───────────────────────────────────────────────────────────
 
-print(f"\n{'='*70}")
+print(f"\n{'=' * 70}")
 print("  SOVEREIGN SURGICAL MERGER")
-print(f"{'='*70}\n")
+print(f"{'=' * 70}\n")
 
 merged_count = 0
 identical_count = 0
@@ -128,9 +135,11 @@ for name in SHARED_FILES:
 
     additions = len(extract_local_only_blocks(d_lines, c_lines))
     d_net = len(merged) - len(c_lines)
-    print(f"  🔀 MERGED          {name:50s}  local_preserved={additions:4d}  net_d_additions={d_net:+5d}")
+    print(
+        f"  🔀 MERGED          {name:50s}  local_preserved={additions:4d}  net_d_additions={d_net:+5d}"
+    )
 
-print(f"\n{'='*70}")
+print(f"\n{'=' * 70}")
 print(f"  COMPLETE: {merged_count} files merged, {identical_count} already identical.")
 print(f"  Backups saved to: {BACKUP_DIR}")
-print(f"{'='*70}\n")
+print(f"{'=' * 70}\n")

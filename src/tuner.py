@@ -4,16 +4,20 @@ import random
 
 logger = logging.getLogger(__name__)
 
+
 class QuantumTuner:
     """
     Simulated Quantum Annealing for finding global hyperparameter optima.
     Uses quantum tunneling probabilities to escape local minima, outperforming
     standard Simulated Annealing.
     """
-    def __init__(self, transverse_field_strength: float = 1.0):
-        self.gamma = transverse_field_strength # Represents quantum fluctuation
 
-    def search_optima(self, current_params: list[float], cost_func, iterations: int = 1000) -> list[float]:
+    def __init__(self, transverse_field_strength: float = 1.0):
+        self.gamma = transverse_field_strength  # Represents quantum fluctuation
+
+    def search_optima(
+        self, current_params: list[float], cost_func, iterations: int = 1000
+    ) -> list[float]:
         best_params = current_params[:]
         best_cost = cost_func(best_params)
 
@@ -23,7 +27,7 @@ class QuantumTuner:
         # Annealing schedule
         for i in range(iterations):
             temp = 1.0 / math.log(i + 2)
-            self.gamma = self.gamma * 0.99 # Decay the transverse field
+            self.gamma = self.gamma * 0.99  # Decay the transverse field
 
             # Mutate params
             candidate = [p + random.gauss(0, temp) for p in current]

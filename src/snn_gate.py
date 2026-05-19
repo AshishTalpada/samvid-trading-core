@@ -4,12 +4,14 @@ import numpy as np
 
 logger = logging.getLogger(__name__)
 
+
 class LeakyIntegrateFireGate:
     """
     Spiking Neural Network gate using LIF neuron model.
     Fires a spike (trade signal) only when membrane potential crosses threshold.
     Bio-inspired: mimics how biological neurons filter noise from signal.
     """
+
     def __init__(self, threshold: float = 1.0, tau: float = 20.0, dt: float = 1.0):
         self.V_thresh = threshold
         self.tau = tau

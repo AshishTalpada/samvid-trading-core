@@ -26,13 +26,21 @@ class CognitiveDiversityEnforcer:
         trial[new_vote] = trial.get(new_vote, 0) + 1
         hhi = self.compute_hhi(trial)
         if hhi > self.MAX_HHI:
-            logger.warning(f"[DIVERSITY] Vote '{new_vote}' blocked — HHI={hhi:.2f} exceeds max {self.MAX_HHI}.")
+            logger.warning(
+                f"[DIVERSITY] Vote '{new_vote}' blocked — HHI={hhi:.2f} exceeds max {self.MAX_HHI}."
+            )
             return False
         return True
 
     def diversity_report(self, votes: Dict[str, int]) -> Dict:
         hhi = self.compute_hhi(votes)
-        entropy = -sum((v / max(sum(votes.values()), 1)) * math.log(v / max(sum(votes.values()), 1) + 1e-9)
-                       for v in votes.values())
-        return {"hhi": round(hhi, 4), "entropy": round(entropy, 4),
-                "is_diverse": hhi <= self.MAX_HHI, "votes": votes}
+        entropy = -sum(
+            (v / max(sum(votes.values()), 1)) * math.log(v / max(sum(votes.values()), 1) + 1e-9)
+            for v in votes.values()
+        )
+        return {
+            "hhi": round(hhi, 4),
+            "entropy": round(entropy, 4),
+            "is_diverse": hhi <= self.MAX_HHI,
+            "votes": votes,
+        }

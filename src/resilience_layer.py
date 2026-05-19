@@ -268,12 +268,18 @@ class ApexExoskeleton:
         fast_voting_map = {
             "Agent_B": lambda: self.brain.belief_tracker.evaluate_proposal(shared_context),
             "Agent_C": lambda: (
-                self.brain.dms.record_heartbeat("AGENT_C") if (hasattr(self.brain, "dms") and self.brain.dms) else None,
-                self.brain.portfolio_guard.evaluate_proposal(shared_context, "Agent_C")
+                self.brain.dms.record_heartbeat("AGENT_C")
+                if (hasattr(self.brain, "dms") and self.brain.dms)
+                else None,
+                self.brain.portfolio_guard.evaluate_proposal(shared_context, "Agent_C"),
             )[1],
-            "Risk_Guard": lambda: self.brain.correlation_guard.evaluate_proposal(shared_context, "Risk_Guard"),
+            "Risk_Guard": lambda: self.brain.correlation_guard.evaluate_proposal(
+                shared_context, "Risk_Guard"
+            ),
             "Agent_D": poll_agent_d,
-            "Agent_E": lambda: self.brain.correlation_guard.evaluate_proposal(shared_context, "Agent_E"),
+            "Agent_E": lambda: self.brain.correlation_guard.evaluate_proposal(
+                shared_context, "Agent_E"
+            ),
             "Agent_F": lambda: self.brain.vix_protocol.evaluate_proposal(shared_context, "Agent_F"),
             "Agent_G": lambda: self.brain.mind_architect.evaluate_proposal(shared_context),
         }
@@ -348,6 +354,8 @@ class ApexExoskeleton:
                 },
             ]
         return None
+
+
 # ── LOCAL-ONLY SOVEREIGN EXTENSIONS ─────────────────────────────────────
 
 

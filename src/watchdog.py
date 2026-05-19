@@ -223,7 +223,9 @@ def run_watchdog():
                                 with open(pid_file, "r") as f:
                                     pid_to_kill = f.read().strip()
                             except Exception as exc:
-                                logger.debug("Watchdog: Failed to read PID file %s: %s", pid_file, exc)
+                                logger.debug(
+                                    "Watchdog: Failed to read PID file %s: %s", pid_file, exc
+                                )
 
                         if pid_to_kill and pid_to_kill.isdigit():
                             try:
@@ -241,7 +243,9 @@ def run_watchdog():
                             except Exception as e:
                                 logger.error(f"Watchdog: Failed to kill process {pid_to_kill}: {e}")
                         elif pid_to_kill:
-                            logger.warning("Watchdog: Ignoring invalid PID file content: %r", pid_to_kill)
+                            logger.warning(
+                                "Watchdog: Ignoring invalid PID file content: %r", pid_to_kill
+                            )
 
                         project_root = Path(__file__).resolve().parent.parent
                         main_script = project_root / "src" / "main.py"
@@ -256,7 +260,9 @@ def run_watchdog():
                             stderr=subprocess.DEVNULL,
                             close_fds=os.name != "nt",
                         )
-                        logger.info("Watchdog: Sovereign Engine REBOOTED as PID %s.", reboot_proc.pid)
+                        logger.info(
+                            "Watchdog: Sovereign Engine REBOOTED as PID %s.", reboot_proc.pid
+                        )
                 else:
                     logger.warning(
                         f"RESTART THROTTLED: Next attempt in "

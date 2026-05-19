@@ -30,8 +30,6 @@ class LatencyWatchdog:
             _LAST_LATENCY_SPIKE = duration
 
 
-
-
 import re
 from typing import Any, Dict
 
@@ -537,7 +535,7 @@ class MindUltrathink:
                 "r_r_ratio": float(context.get("r_r_ratio", 0.0)),
                 "shares": int(shares),
             },
-            default=str
+            default=str,
         )
 
         result = await self._tool_pause_and_reason(task_prompt, context.get("intensity", "RAINBOW"))
@@ -582,7 +580,6 @@ class MindUltrathink:
         risk_amt = abs(entry - initial_stop)
         if risk_amt < 0.0001:
             risk_amt = 0.01
-
 
         # 1. Hard stop breach (price crossed the stop in the wrong direction)
         if side == "long" and price <= current_stop:
@@ -639,6 +636,8 @@ class MindUltrathink:
 
     async def _tool_simulate_outcome(self, patch: str, ctx: dict | None = None) -> dict[str, Any]:
         return {"status": "SUCCESS", "predicted_impact": 0.05}
+
+
 # ── LOCAL-ONLY MODULE CONSTANTS ─────────────────────────────────────────
 
 # ── LOCAL-ONLY SOVEREIGN EXTENSIONS ─────────────────────────────────────
@@ -647,6 +646,7 @@ class MindUltrathink:
 @dataclass
 class CognitiveTrace:
     """Represents a single 'Thought' or 'Simulation' node in the UltraThink process."""
+
     trace_id: str
     timestamp: float
     depth: int

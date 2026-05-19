@@ -39,7 +39,9 @@ class LinuxKernelOptimiser:
 
     def pin_cpu_affinity(self, pid: int, cpu_id: int) -> bool:
         try:
-            subprocess.run(["taskset", "-p", f"{1 << cpu_id}", str(pid)], check=True, capture_output=True)
+            subprocess.run(
+                ["taskset", "-p", f"{1 << cpu_id}", str(pid)], check=True, capture_output=True
+            )
             logger.info(f"[KERNEL OPT] Pinned PID {pid} to CPU {cpu_id}")
             return True
         except Exception as e:

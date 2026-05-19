@@ -5,12 +5,14 @@ import numpy as np
 
 logger = logging.getLogger(__name__)
 
+
 class ShadowTrader:
     """
     Recursive Self-Play Engine. Agents trade against their own historical "ghosts".
     By competing against a snapshot of its own weights from 1 week ago,
     the model continuously forces parameter evolution and prevents strategy decay.
     """
+
     def __init__(self):
         self.ghost_pnl = 0.0
         self.current_pnl = 0.0

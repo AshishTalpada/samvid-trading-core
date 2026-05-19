@@ -3,12 +3,14 @@ from typing import Any, Dict, List
 
 logger = logging.getLogger(__name__)
 
+
 class DSPyPromptOptimizer:
     """
     Uses DSPy-inspired loops to automatically optimize the instructions given
     to the AI agents. Tests different phrasing on historical data to find
     the exact words that produce the highest Sharpe ratio.
     """
+
     def __init__(self):
         self.best_prompt = "Analyze the data carefully."
         self.best_score = 0.0

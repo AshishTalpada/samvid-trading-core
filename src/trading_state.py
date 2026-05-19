@@ -35,7 +35,6 @@ class TradingStateManager:
     _state: TradingState = TradingState.ACTIVE
     _reason: str = "System startup"
 
-
     @classmethod
     def state(cls) -> TradingState:
         return cls._state
@@ -74,7 +73,6 @@ class TradingStateManager:
 
         return True, "PROCEED"
 
-
     @classmethod
     def activate(cls, reason: str = "Manual activation") -> None:
         """Restore full trading. Use after a halt/reduce-only period has passed."""
@@ -104,7 +102,6 @@ class TradingStateManager:
             logger.critical(f" TradingState: HALTED ← {cls._state.value} | Reason: {reason}")
             cls._state = TradingState.HALTED
             cls._reason = reason
-
 
     @classmethod
     def check_daily_pnl(cls, daily_loss_pct: float, limit_pct: float) -> None:

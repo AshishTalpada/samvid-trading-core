@@ -13,12 +13,14 @@ COMMAND_MAP = {
     "go flat": {"action": "FLATTEN_ALL"},
 }
 
+
 class VoiceInterface:
     """
     Natural language voice command interface.
     Listens via microphone (speech_recognition), parses commands,
     and dispatches to the trading system's control bus.
     """
+
     def __init__(self):
         self._cmd_queue: queue.Queue[dict] = queue.Queue()
         self._running = False
@@ -35,6 +37,7 @@ class VoiceInterface:
     def listen_loop(self) -> None:
         try:
             import speech_recognition as sr
+
             recognizer = sr.Recognizer()
             mic = sr.Microphone()
             logger.info("[VOICE] Microphone active. Listening...")
@@ -45,7 +48,8 @@ class VoiceInterface:
                     try:
                         text = recognizer.recognize_google(audio)
                         cmd = self.parse_command(text)
-                        if cmd: self._cmd_queue.put(cmd)
+                        if cmd:
+                            self._cmd_queue.put(cmd)
                     except Exception:
                         pass
         except ImportError:
@@ -56,5 +60,7 @@ class VoiceInterface:
         threading.Thread(target=self.listen_loop, daemon=True).start()
 
     def get_command(self) -> dict | None:
-        try: return self._cmd_queue.get_nowait()
-        except queue.Empty: return None
+        try:
+            return self._cmd_queue.get_nowait()
+        except queue.Empty:
+            return None

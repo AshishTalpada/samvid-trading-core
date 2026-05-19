@@ -5,12 +5,14 @@ import numpy as np
 
 logger = logging.getLogger(__name__)
 
+
 class NeuralScentDetector:
     """
     Detects the 'smell' of a breakout before volume arrives.
     Analyzes micro-structure anomalies (e.g. shrinking bid-ask spread combined
     with tiny aggressive sweeps) that precede a massive institutional order.
     """
+
     def __init__(self, sensitivity: float = 2.0):
         self.sensitivity = sensitivity
 
@@ -27,4 +29,4 @@ class NeuralScentDetector:
         if scent_score > 3.0:
             logger.info(f"[SCENT] High breakout probability detected. Scent={scent_score:.2f}")
 
-        return float(min(1.0, scent_score / 5.0)) # Normalize 0 to 1
+        return float(min(1.0, scent_score / 5.0))  # Normalize 0 to 1

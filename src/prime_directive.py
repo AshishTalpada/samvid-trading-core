@@ -3,6 +3,7 @@ from typing import Any, Callable
 
 logger = logging.getLogger(__name__)
 
+
 class BiometricPrimeDirective:
     """
     Core safety protocol enforcing that fundamental system rule changes
@@ -10,13 +11,10 @@ class BiometricPrimeDirective:
     verification (FaceID/TouchID via mobile link) to prevent remote hijack
     or AI-hallucinated parameter drift.
     """
+
     def __init__(self):
         self._biometric_verifier: Callable[[], bool] = lambda: False
-        self._prime_rules = {
-            "max_daily_loss_pct": 2.0,
-            "max_leverage": 3.0,
-            "allow_crypto": False
-        }
+        self._prime_rules = {"max_daily_loss_pct": 2.0, "max_leverage": 3.0, "allow_crypto": False}
 
     def register_verifier(self, verifier_fn: Callable[[], bool]) -> None:
         self._biometric_verifier = verifier_fn
@@ -26,12 +24,16 @@ class BiometricPrimeDirective:
             logger.error(f"[PRIME DIRECTIVE] Cannot change unknown rule: {rule}")
             return False
 
-        logger.warning(f"[PRIME DIRECTIVE] Requesting change to {rule} -> {new_value}. Awaiting BIOMETRIC VERIFICATION.")
+        logger.warning(
+            f"[PRIME DIRECTIVE] Requesting change to {rule} -> {new_value}. Awaiting BIOMETRIC VERIFICATION."
+        )
 
         if self._biometric_verifier():
             old_val = self._prime_rules[rule]
             self._prime_rules[rule] = new_value
-            logger.critical(f"[PRIME DIRECTIVE] BIOMETRIC VERIFIED. {rule} changed from {old_val} to {new_value}.")
+            logger.critical(
+                f"[PRIME DIRECTIVE] BIOMETRIC VERIFIED. {rule} changed from {old_val} to {new_value}."
+            )
             return True
 
         logger.error("[PRIME DIRECTIVE] BIOMETRIC VERIFICATION FAILED. Rule change rejected.")

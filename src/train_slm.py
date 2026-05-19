@@ -32,13 +32,37 @@ def generate_synthetic_expert_data():
 
     rules = [
         # Dhatu: Vriddhi (Growth) -> BULLISH
-        {"dhatu": "Vriddhi (Growth)", "regime": "Trending", "catalyst": 0.9, "side": "long", "target": "BULLISH"},
+        {
+            "dhatu": "Vriddhi (Growth)",
+            "regime": "Trending",
+            "catalyst": 0.9,
+            "side": "long",
+            "target": "BULLISH",
+        },
         # Dhatu: Kshaya (Decay) -> BEARISH
-        {"dhatu": "Kshaya (Decay)", "regime": "Distribution", "catalyst": 0.2, "side": "short", "target": "BEARISH"},
+        {
+            "dhatu": "Kshaya (Decay)",
+            "regime": "Distribution",
+            "catalyst": 0.2,
+            "side": "short",
+            "target": "BEARISH",
+        },
         # Dhatu: Chala (Volatility) -> NEUTRAL
-        {"dhatu": "Chala (Volatile)", "regime": "Sideways", "catalyst": 0.5, "side": "long", "target": "NEUTRAL"},
+        {
+            "dhatu": "Chala (Volatile)",
+            "regime": "Sideways",
+            "catalyst": 0.5,
+            "side": "long",
+            "target": "NEUTRAL",
+        },
         # Contradiction: Bullish pattern but Fear Dhatu -> VETO (NEUTRAL)
-        {"dhatu": "Viyoga (Fear)", "regime": "Bearish", "catalyst": 0.8, "side": "long", "target": "NEUTRAL"},
+        {
+            "dhatu": "Viyoga (Fear)",
+            "regime": "Bearish",
+            "catalyst": 0.8,
+            "side": "long",
+            "target": "NEUTRAL",
+        },
     ]
 
     system_prompt = "You are Sovereign-SLM, an elite quantitative strategist. Analyze the market context and output exactly one word: BULLISH, BEARISH, or NEUTRAL."
@@ -54,13 +78,15 @@ def generate_synthetic_expert_data():
                 f"Belief: 0.9\n"
                 f"\nDecision?"
             )
-            synthetic.append({
-                "messages": [
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": f"Context:\n{context}"},
-                    {"role": "assistant", "content": rule["target"]},
-                ]
-            })
+            synthetic.append(
+                {
+                    "messages": [
+                        {"role": "system", "content": system_prompt},
+                        {"role": "user", "content": f"Context:\n{context}"},
+                        {"role": "assistant", "content": rule["target"]},
+                    ]
+                }
+            )
     return Dataset.from_list(synthetic)
 
 
@@ -85,7 +111,15 @@ def train():
     lora_config = LoraConfig(
         r=32,
         lora_alpha=64,
-        target_modules=["q_proj", "v_proj", "k_proj", "o_proj", "gate_proj", "up_proj", "down_proj"],
+        target_modules=[
+            "q_proj",
+            "v_proj",
+            "k_proj",
+            "o_proj",
+            "gate_proj",
+            "up_proj",
+            "down_proj",
+        ],
         lora_dropout=0.1,
         bias="none",
         task_type="CAUSAL_LM",
@@ -114,19 +148,21 @@ def train():
         tokenized["labels"] = [ids.copy() for ids in tokenized["input_ids"]]
         return tokenized
 
-    tokenized_dataset = dataset.map(tokenize_function, batched=True, remove_columns=dataset.column_names)
+    tokenized_dataset = dataset.map(
+        tokenize_function, batched=True, remove_columns=dataset.column_names
+    )
 
     # Optimized Training Arguments for CPU Stability
     training_args = TrainingArguments(
         output_dir=OUTPUT_DIR,
         per_device_train_batch_size=4,
-        learning_rate=1e-4, # Slightly lower for deeper learning
+        learning_rate=1e-4,  # Slightly lower for deeper learning
         num_train_epochs=2,  # More epochs for the higher rank
         logging_steps=5,
         save_strategy="no",
         fp16=False,
         optim="adamw_torch",
-        gradient_checkpointing=True, # Saves RAM
+        gradient_checkpointing=True,  # Saves RAM
         report_to="none",
     )
 

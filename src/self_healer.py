@@ -21,8 +21,15 @@ class SelfHealingAgent:
         self._running = False
         self._thread: threading.Thread | None = None
 
-    def register(self, name: str, health_fn: Callable[[], bool], restart_fn: Callable[[], None]) -> None:
-        self._modules[name] = {"health": health_fn, "restart": restart_fn, "failures": 0, "last_ok": time.time()}
+    def register(
+        self, name: str, health_fn: Callable[[], bool], restart_fn: Callable[[], None]
+    ) -> None:
+        self._modules[name] = {
+            "health": health_fn,
+            "restart": restart_fn,
+            "failures": 0,
+            "last_ok": time.time(),
+        }
         logger.info(f"[SELF HEALER] Registered module: {name}")
 
     def _check_loop(self) -> None:
@@ -37,7 +44,9 @@ class SelfHealingAgent:
                         raise RuntimeError("Health check returned False")
                 except Exception as e:
                     info["failures"] += 1
-                    logger.error(f"[SELF HEALER] Module '{name}' UNHEALTHY (failure #{info['failures']}): {e}")
+                    logger.error(
+                        f"[SELF HEALER] Module '{name}' UNHEALTHY (failure #{info['failures']}): {e}"
+                    )
                     if info["failures"] <= 3:
                         try:
                             info["restart"]()
@@ -45,7 +54,9 @@ class SelfHealingAgent:
                         except Exception as re:
                             logger.critical(f"[SELF HEALER] Restart of '{name}' FAILED: {re}")
                     else:
-                        logger.critical(f"[SELF HEALER] '{name}' exceeded max retries — escalating to kill switch.")
+                        logger.critical(
+                            f"[SELF HEALER] '{name}' exceeded max retries — escalating to kill switch."
+                        )
             time.sleep(self._interval)
 
     def start(self) -> None:

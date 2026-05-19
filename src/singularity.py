@@ -7,6 +7,7 @@ import numpy as np
 
 logger = logging.getLogger(__name__)
 
+
 class UniversalSingularity:
     """
     Infinite Alpha Engine: The point where Sovereign's Learning Rate exceeds Market Randomness.
@@ -14,6 +15,7 @@ class UniversalSingularity:
     measured Shannon Entropy (Information density) and Hurst Exponent (Trend vs Mean-reversion)
     of the underlying market stream.
     """
+
     def __init__(self, window_size: int = 1000):
         self.window_size = window_size
         self.price_history: Deque[float] = deque(maxlen=window_size)
@@ -22,7 +24,7 @@ class UniversalSingularity:
         # State variables
         self.current_learning_rate = 0.001
         self.market_entropy = 1.0
-        self.hurst_exponent = 0.5 # 0.5 = Random Walk
+        self.hurst_exponent = 0.5  # 0.5 = Random Walk
         self.singularity_achieved = False
 
     def ingest_price(self, price: float):
@@ -39,7 +41,7 @@ class UniversalSingularity:
         hist, _ = np.histogram(data, bins=bins, density=True)
         # Convert density to probabilities
         probs = hist * (np.max(data) - np.min(data)) / bins
-        probs = probs[probs > 0] # Filter zeros
+        probs = probs[probs > 0]  # Filter zeros
 
         entropy = -np.sum(probs * np.log2(probs))
         # Normalize between 0 and 1 (approximate)
@@ -80,7 +82,7 @@ class UniversalSingularity:
         # If the market has structural inefficiency (Low Entropy, Hurst > 0.6 or < 0.4),
         # we INCREASE the learning rate to aggressively capture the alpha.
 
-        structural_inefficiency = abs(self.hurst - 0.5) * 2.0 # 0 to 1 scale
+        structural_inefficiency = abs(self.hurst - 0.5) * 2.0  # 0 to 1 scale
         clarity = 1.0 - self.market_entropy
 
         # Base LR modified by market clarity and structural trends
@@ -92,7 +94,9 @@ class UniversalSingularity:
         # Singularity Condition: The system's predictive clarity exceeds the market's randomness
         if clarity > 0.8 and self.current_learning_rate > self.market_entropy:
             if not self.singularity_achieved:
-                logger.critical(f"UNIVERSAL SINGULARITY ACHIEVED. System learning rate ({self.current_learning_rate:.5f}) exceeds market entropy ({self.market_entropy:.5f}).")
+                logger.critical(
+                    f"UNIVERSAL SINGULARITY ACHIEVED. System learning rate ({self.current_learning_rate:.5f}) exceeds market entropy ({self.market_entropy:.5f})."
+                )
             self.singularity_achieved = True
         else:
             self.singularity_achieved = False
@@ -101,5 +105,5 @@ class UniversalSingularity:
             "entropy": self.market_entropy,
             "hurst": self.hurst,
             "learning_rate": self.current_learning_rate,
-            "singularity": self.singularity_achieved
+            "singularity": self.singularity_achieved,
         }

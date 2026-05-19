@@ -3,12 +3,14 @@ from typing import Any
 
 logger = logging.getLogger(__name__)
 
+
 class TintOrchestrator:
     """
     Transformer-in-Transformer (TinT) architecture.
     A master transformer that routes sub-tasks to specialised sub-agent transformers.
     Each sub-agent processes one domain: macro, microstructure, sentiment, or technicals.
     """
+
     DOMAINS = ["macro", "microstructure", "sentiment", "technicals"]
 
     def __init__(self, sub_agents: dict[str, Any] | None = None):

@@ -19,11 +19,19 @@ class RLHFOnlineTrainer:
         self._preferences: list[dict] = []
         self._agent_scores: Dict[str, float] = {}
 
-    def record_feedback(self, decision_id: str, agents_voted_yes: List[str],
-                        agents_voted_no: List[str], outcome: str, human_rating: float) -> None:
+    def record_feedback(
+        self,
+        decision_id: str,
+        agents_voted_yes: List[str],
+        agents_voted_no: List[str],
+        outcome: str,
+        human_rating: float,
+    ) -> None:
         entry = {
-            "decision_id": decision_id, "yes_agents": agents_voted_yes,
-            "no_agents": agents_voted_no, "outcome": outcome,
+            "decision_id": decision_id,
+            "yes_agents": agents_voted_yes,
+            "no_agents": agents_voted_no,
+            "outcome": outcome,
             "human_rating": human_rating,  # -1.0 (terrible) to +1.0 (excellent)
         }
         self._preferences.append(entry)
