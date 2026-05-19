@@ -3772,7 +3772,7 @@ class TradingBrain:
             if urgency == "EMERGENCY":
                 # Force a true Market Order for safety flattens and heartbeat vetos.
                 oid = await self.ibkr_conn.place_order(
-                    symbol, direction, shares, order_type="MKT", **kwargs
+                    symbol, direction, shares, order_type="MKT", urgency="EMERGENCY", **kwargs
                 )
                 if oid:
                     try:
@@ -3783,11 +3783,11 @@ class TradingBrain:
 
             if urgency == "LOW" and limit_price > 0:
                 oid = await self.ibkr_conn.place_order(
-                    symbol, direction, shares, order_type="LMT", limit_price=limit_price, **kwargs
+                    symbol, direction, shares, order_type="LMT", limit_price=limit_price, urgency=urgency, **kwargs
                 )
             else:
                 oid = await self.ibkr_conn.place_order(
-                    symbol, direction, shares, order_type="MKT", **kwargs
+                    symbol, direction, shares, order_type="MKT", urgency=urgency, **kwargs
                 )
             if oid:
                 try:
