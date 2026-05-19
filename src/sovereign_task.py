@@ -130,6 +130,7 @@ class SovereignTask:
             "start_time": self.start_time,
             "end_time": self.end_time,
             "status_summary": self.status_summary,
+            "phase": self.status_summary,
             "delta_metrics": self.delta_metrics,
         }
 
@@ -198,6 +199,9 @@ class TaskManager:
                         task.start_time = state.get("start_time", time.time())
                         task.end_time = state.get("end_time")
                         task.delta_metrics = state.get("delta_metrics", {})
+                        task.status_summary = state.get(
+                            "status_summary", state.get("phase", "Initializing")
+                        )
                         self.tasks[tid] = task
 
                         # Rebuild index
