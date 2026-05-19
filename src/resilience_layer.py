@@ -243,9 +243,9 @@ class ApexExoskeleton:
                 logger.error(f"Exoskeleton: Agent D poll failed: {e}")
                 return {
                     "agent": "Agent_D",
-                    "vote": "YES",
-                    "confidence": 0.5,
-                    "reason": "Fallback",
+                    "vote": "ABSTAIN",
+                    "confidence": 0.0,
+                    "reason": f"Fallback abstain: {e}",
                     "timestamp": timestamp,
                 }
 
@@ -296,9 +296,10 @@ class ApexExoskeleton:
                 logger.warning(f"Exoskeleton: {name} poll failed: {e}")
                 return {
                     "agent": name,
-                    "vote": "YES",
-                    "confidence": 0.5,
-                    "reason": f"Exoskeleton Fallback: {e}",
+                    "vote": "ABSTAIN",
+                    "confidence": 0.0,
+                    "reason": f"Exoskeleton fallback abstain: {e}",
+                    "timestamp": timestamp,
                 }
 
         logger.info("Apex Exoskeleton: Launching Stage 1 Parallel Quorum (7-Guards Tier)...")

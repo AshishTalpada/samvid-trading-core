@@ -158,7 +158,7 @@ class NativeSLM:
     def _neutral_vote(self, context: dict, reason: str) -> dict:
         return {
             "agent": "Native_SLM",
-            "vote": "YES", # Default pass if SLM is offline
+            "vote": "ABSTAIN",
             "confidence": 0.0,
             "signal_strength": 1.0,
             "risk_flag": "True",

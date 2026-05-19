@@ -58,6 +58,39 @@ class SovereignDecisionEngine:
 
             self._active_symbols.add(symbol)
             try:
+                output_map = {out.get("agent"): out for out in agent_outputs}
+                is_probe = bool(context.get("is_probe", False))
+                if not is_probe:
+                    if context.get("oracle_freeze") or float(
+                        context.get("oracle_risk_modifier", 1.0) or 0.0
+                    ) <= 0.0:
+                        return await self._final_report(
+                            decision="REJECT",
+                            confidence=0.0,
+                            reason=(
+                                " ORACLE HARD VETO: freeze/risk-zero state blocks new entries."
+                            ),
+                            votes=agent_outputs,
+                        )
+
+                    for hard_agent, label in (
+                        ("Risk_Guard", "RISK"),
+                        ("Mind_Ultrathink", "COGNITIVE"),
+                        ("Agent_D", "EDGE"),
+                        ("Dhatu_Oracle", "ORACLE"),
+                    ):
+                        vote = output_map.get(hard_agent, {})
+                        if vote.get("vote") == "NO":
+                            return await self._final_report(
+                                decision="REJECT",
+                                confidence=float(vote.get("confidence", 0.0) or 0.0),
+                                reason=(
+                                    f" {label} HARD VETO: {hard_agent} rejected the trade. "
+                                    f"Reason: {vote.get('reason', 'No reason supplied')}"
+                                ),
+                                votes=agent_outputs,
+                            )
+
                 # Attempt to use the native Rust implementation for zero-allocation speed
                 try:
                     import sovereign_core
