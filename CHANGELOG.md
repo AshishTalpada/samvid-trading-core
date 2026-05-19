@@ -2,6 +2,24 @@
 
 All notable changes to the **Samvid Trading Core** will be documented in this file.
 
+## [1.1.0-beta] - 2026-05-19
+### Added
+- Integrated `hmmlearn` for HMM market regime filtering.
+- Expanded scanning watchlist to top 25 tickers and aggressively decreased brain scan intervals.
+- Loosened opposing confidence thresholds in Agent D to optimize execution throughput.
+- Optimized NativeSLM for full GPU-accelerated execution and custom timeout horizons.
+- Added a robust trading truth telemetry API and hydrated dashboard frontend views from active backend states.
+
+### Fixed
+- **Mathematical Validation**: Corrected time-scaling bug in Monte Carlo outcome simulations, restoring dynamic and accurate `Stat-Prob` calculations.
+- **State Reliability**: Integrated custom neutral safety filters to eliminate false-positive `Abhava`/`Viyoga` freezes.
+- **Robust Daemon Process**: Fixed Windows process locks (`WinError 5`), closed blank cmd popups, and added a 90s watchdog boot grace period.
+- **Idempotent Shutdown**: Ensured single-signal graceful exit sequences to prevent double-signals and SQLite WAL database corruption.
+- **Task & Session Integrity**: Addressed timezone-naive datetime conflicts, fixed resource/task leaks in embedding and trade loops, and hardened database position flat states.
+
+### Style
+- Cleaned and sorted all source and test imports using Ruff.
+
 ## [1.0.1-beta] - 2026-05-17
 ### Fixed
 - Prevented `TaskManager` from filling to 1000 tasks (entropy=1.0 stall).
