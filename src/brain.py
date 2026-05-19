@@ -1820,6 +1820,19 @@ class TradingBrain:
             async def _scan_symbol(symbol: str):
                 from mind_ultrathink import LatencyWatchdog
 
+                last_vet = self._vetting_cooldowns.get(symbol)
+                if last_vet:
+                    if last_vet.tzinfo is None:
+                        last_vet = last_vet.replace(tzinfo=timezone.utc)
+                    cooldown_age = (datetime.now(timezone.utc) - last_vet).total_seconds()
+                    if cooldown_age < 30:
+                        logger.debug(
+                            "Scan [%s]: skipped during post-vetting cooldown (%.1fs remaining).",
+                            symbol,
+                            30 - cooldown_age,
+                        )
+                        return None
+
                 async with stats_lock:
                     stats["scanned"] += 1
 
