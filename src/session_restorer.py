@@ -43,8 +43,17 @@ class SessionRestorer:
             now_ts = TimeSync.now()
             bundle = {"timestamp": now_ts.isoformat(), "state": state, "version": "6.0"}
 
+            import dataclasses
+
+            def _custom_json_default(obj):
+                if dataclasses.is_dataclass(obj):
+                    return dataclasses.asdict(obj)
+                if isinstance(obj, set):
+                    return list(obj)
+                return str(obj)
+
             # 2. Serialize and Sign
-            data = json.dumps(bundle, default=str).encode("utf-8")
+            data = json.dumps(bundle, default=_custom_json_default).encode("utf-8")
             signature = hashlib.sha256(data + self.secret_key.encode()).hexdigest()
 
             # 3. Write Atomic (Safe-Write pattern)
