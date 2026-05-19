@@ -2758,6 +2758,7 @@ dependencies = [
  "env_logger",
  "futures",
  "hex",
+ "libc",
  "libp2p",
  "log",
  "pqcrypto-kyber",
