@@ -102,6 +102,35 @@ from vault import Vault
 from wisdom import SkillTreeManager, WisdomRepository
 from workload_manager import WorkloadManager
 
+
+def _safe_entry_time(entry_time_value: Any) -> datetime:
+    """Safely convert any entry_time (str, int, float, datetime) to tz-aware datetime.
+
+    Prevents 'str' object has no attribute 'tzinfo' errors during reconciliation.
+    """
+    if isinstance(entry_time_value, str):
+        try:
+            cleaned = entry_time_value.replace("Z", "+00:00")
+            dt = datetime.fromisoformat(cleaned)
+        except Exception:
+            return datetime.now(timezone.utc)
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt
+    if isinstance(entry_time_value, (int, float)):
+        try:
+            ts = int(entry_time_value)
+            if ts > 10_000_000_000_000_000:
+                return datetime.fromtimestamp(ts / 1_000_000_000, tz=timezone.utc)
+            return datetime.fromtimestamp(ts, tz=timezone.utc)
+        except Exception:
+            return datetime.now(timezone.utc)
+    if isinstance(entry_time_value, datetime):
+        if entry_time_value.tzinfo is None:
+            return entry_time_value.replace(tzinfo=timezone.utc)
+        return entry_time_value
+    return datetime.now(timezone.utc)
+
 if TYPE_CHECKING:
     import sqlite3
 
@@ -818,6 +847,10 @@ class TradingBrain:
         self._exit_failure_count: dict[str, int] = {}  # Symbol -> Strike Count
         self._exit_last_attempt: dict[str, datetime] = {}  # Symbol -> Last Re-attempt
         self._order_submit_times: dict[int, datetime] = {}  # OrderId -> Submission time
+
+        # Background task registry — prevents 'Task was destroyed but it is pending!' errors
+        # by maintaining strong references to fire-and-forget asyncio tasks.
+        self._background_tasks: set[asyncio.Task] = set()
 
         self._thaw_task = None
 
@@ -2381,9 +2414,7 @@ class TradingBrain:
             # Prevent "Wash Trades" by enforcing a 15-minute minimum hold time
             # unless it is an emergency or hard-stop hit.
             # Guard: ensure entry_time is timezone-aware before subtraction
-            entry_time = pos.entry_time
-            if entry_time.tzinfo is None:
-                entry_time = entry_time.replace(tzinfo=timezone.utc)
+            entry_time = _safe_entry_time(pos.entry_time)
             age_seconds = (now - entry_time).total_seconds()
 
             # (Emergency bypass logic handled at top)
@@ -2660,12 +2691,7 @@ class TradingBrain:
 
             # Duration Formatting
             duration_min = (
-                now
-                - (
-                    pos.entry_time
-                    if pos.entry_time.tzinfo
-                    else pos.entry_time.replace(tzinfo=timezone.utc)
-                )
+                now - _safe_entry_time(pos.entry_time)
             ).total_seconds() / 60
             duration_str = (
                 f"{duration_min:.1f}m" if duration_min < 60 else f"{duration_min / 60:.1f}h"
@@ -3251,11 +3277,7 @@ class TradingBrain:
                     if not polled:
                         continue
 
-                    _p_entry = (
-                        p.entry_time
-                        if p.entry_time.tzinfo
-                        else p.entry_time.replace(tzinfo=timezone.utc)
-                    )
+                    _p_entry = _safe_entry_time(p.entry_time)
                     age_seconds = (now_ts - _p_entry).total_seconds()
 
                     # Even with a poll, give young trades 2 minutes of grace for fill reflection
@@ -3265,11 +3287,7 @@ class TradingBrain:
                 else:
                     broker_qty = reality[p.symbol]
 
-                _p_entry = (
-                    p.entry_time
-                    if p.entry_time.tzinfo
-                    else p.entry_time.replace(tzinfo=timezone.utc)
-                )
+                _p_entry = _safe_entry_time(p.entry_time)
                 age_seconds = (now_ts - _p_entry).total_seconds()
 
                 # A. The Zero-Sync Purge (Clean up phantom positions)
@@ -3831,9 +3849,12 @@ class TradingBrain:
                     "session_stats": self.session_stats,
                 }
                 # Use to_thread to avoid blocking the event loop on Windows file I/O
-                asyncio.create_task(
+                _freeze_task = asyncio.create_task(
                     asyncio.to_thread(self.session_restorer.freeze_state, state_to_freeze)
                 )
+                self._background_tasks.discard(None)  # Prune any None refs
+                self._background_tasks.add(_freeze_task)
+                _freeze_task.add_done_callback(self._background_tasks.discard)
 
         mt5_equity = await self._get_account_value("mt5")
         self.prop_drawdown.update(mt5_equity)
@@ -4053,11 +4074,7 @@ class TradingBrain:
 
                 if self.db_conn:
                     cursor = self.db_conn.cursor()
-                    _entry_ts = (
-                        pos.entry_time
-                        if pos.entry_time.tzinfo
-                        else pos.entry_time.replace(tzinfo=timezone.utc)
-                    )
+                    _entry_ts = _safe_entry_time(pos.entry_time)
                     hold_hours = (datetime.now(timezone.utc) - _entry_ts).total_seconds() / 3600
                     cursor.execute(
                         "UPDATE trades SET exit_price=?, outcome=?, pnl_dollars=?, r_multiple=?, "
