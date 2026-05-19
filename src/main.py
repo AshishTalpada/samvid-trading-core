@@ -245,6 +245,7 @@ class TradingSystem:
         self.ibkr_host = Vault.get("IBKR_HOST", "localhost")
         self.ibkr_port = int(Vault.get("IBKR_PORT", "7497"))
         self.ibkr_client_id = int(Vault.get("IBKR_CLIENT_ID", "500"))
+        self.ibkr_account_id = Vault.get("IBKR_ACCOUNT_ID", "")
 
         self.mt5_login = Vault.get("MT5_LOGIN")
         self.mt5_password = Vault.get("MT5_PASSWORD")
@@ -854,7 +855,7 @@ class TradingSystem:
                 ports_to_try = [self.ibkr_port, 4002 if self.ibkr_port == 7497 else 7497]
                 connected = False
                 base_client_id = self.ibkr_client_id
-                Vault.get("IBKR_ACCOUNT_ID")
+                self.ibkr_account_id = Vault.get("IBKR_ACCOUNT_ID", "")
                 client = self.ibkr_client
 
                 # Optimized Range: 10 attempts (10s each) to avoid massive hangs
@@ -1463,10 +1464,14 @@ class TradingSystem:
             # Always start HFT streamer — falls back to Bus-only if QuestDB offline
             logger.info("\n[9/10] Starting HFT Streamer (10ms updates)...")
             # watchlist is already defined in step 8.5
-            self._start_supervised_task("hft_streamer", lambda: self.hft_streamer.run(watchlist))
+            if self.hft_streamer:
+                self._start_supervised_task(
+                    "hft_streamer", lambda: self.hft_streamer.run(watchlist)
+                )
+            else:
+                logger.warning("HFT Streamer not initialized. Skipping supervised task.")
 
             logger.info("\n[10/10] Sending startup notification...")
-            (datetime.now(timezone.utc) - start_time).total_seconds()
 
             ibkr_status = self._get_status_icon("ibkr")
             mt5_status = self._get_status_icon("mt5")
