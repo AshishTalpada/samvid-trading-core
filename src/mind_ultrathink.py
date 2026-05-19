@@ -44,11 +44,14 @@ def _monte_carlo_outcome_simulation(vix: float, roi: float) -> float:
     Runs deterministic simulations of price paths based on current volatility.
     Returns the 'Success Probability' of hitting target before stop-loss.
     """
+    import math
     import random
 
-    # Volatility is 'step size', ROI is 'distance to target'
-    vol = (vix / 100.0) / 1440.0  # Per-minute volatility
-    target = 0.005 * roi  # Target move based on ROI
+    # Annualized VIX to daily standard deviation (252 trading days)
+    daily_vol = (vix / 100.0) / math.sqrt(252)
+    # Volatility per minute over 390 minutes (1 trading day)
+    vol = daily_vol / math.sqrt(390)
+    target = 0.005 * roi  # Target move based on ROI (e.g. 1.0% for 2.0 ROI)
     stop = 0.005  # Baseline 0.5% stop
 
     successes = 0
@@ -56,8 +59,10 @@ def _monte_carlo_outcome_simulation(vix: float, roi: float) -> float:
     for seed in seeds:
         random.seed(int(seed))
         price = 1.0
-        for _minute in range(60):  # Simulate 1 hour
-            change = (random.random() - 0.5) * 2 * vol
+        for _minute in range(390):
+            # A uniform step in [-sqrt(3)*vol, sqrt(3)*vol] has standard deviation = vol
+            step_limit = math.sqrt(3) * vol
+            change = (random.random() - 0.5) * 2 * step_limit
             price += change
             if price >= 1.0 + target:
                 successes += 1
@@ -65,6 +70,7 @@ def _monte_carlo_outcome_simulation(vix: float, roi: float) -> float:
             if price <= 1.0 - stop:
                 break
     return successes / 100.0
+
 
 
 def _calculate_epistemic_entropy(ctx: str) -> float:
