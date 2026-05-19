@@ -3304,7 +3304,14 @@ class TradingBrain:
                     )
 
             report_lines.append("=" * 80 + "\n")
-            logger.info("\n".join(report_lines))
+            drift_found = any("DRIFT" in line for line in report_lines)
+            last_report = getattr(self, "_last_reality_report_ts", 0.0)
+            if drift_found or time.monotonic() - last_report > 60:
+                logger.info("\n".join(report_lines))
+                self._last_reality_report_ts = time.monotonic()
+
+            self._reconcile_open_trade_rows("ibkr", ibkr_reality, ibkr_polled, now_ts)
+            self._reconcile_open_trade_rows("mt5", mt5_reality, mt5_polled, now_ts)
 
             # 4. Adoption Protocol (Discover unmanaged positions)
             all_managed = {(p.symbol, p.account_type) for p in self.positions}
@@ -3321,6 +3328,71 @@ class TradingBrain:
 
         except Exception as e:
             logger.error(f"Sovereign Reconciliation Failed: {e}", exc_info=True)
+
+    def _reconcile_open_trade_rows(
+        self,
+        broker: str,
+        reality: dict[str, float],
+        polled: bool,
+        now_ts: datetime,
+    ) -> None:
+        """Close stale OPEN rows when a fresh broker poll proves the broker is flat."""
+        if not self.db_conn or not polled:
+            return
+
+        try:
+            cursor = self.db_conn.cursor()
+            cursor.execute(
+                "SELECT id, timestamp, instrument FROM trades "
+                "WHERE broker = ? AND outcome = 'OPEN'",
+                (broker,),
+            )
+            stale_ids: list[int] = []
+            for tid, ts_str, symbol in cursor.fetchall():
+                if abs(float(reality.get(symbol, 0.0) or 0.0)) >= 0.1:
+                    continue
+
+                age_seconds = 999999.0
+                try:
+                    raw_str = str(ts_str)
+                    if isinstance(ts_str, (int, float)) or raw_str.isdigit():
+                        raw_ts = int(ts_str)
+                        if raw_ts > 10_000_000_000_000_000:
+                            opened_at = datetime.fromtimestamp(
+                                raw_ts / 1_000_000_000,
+                                tz=timezone.utc,
+                            )
+                        else:
+                            opened_at = datetime.fromtimestamp(raw_ts, tz=timezone.utc)
+                    else:
+                        opened_at = datetime.fromisoformat(raw_str.replace("Z", "+00:00"))
+                        if opened_at.tzinfo is None:
+                            opened_at = opened_at.replace(tzinfo=timezone.utc)
+                    age_seconds = (now_ts - opened_at).total_seconds()
+                except Exception:
+                    pass
+
+                if age_seconds >= 120:
+                    stale_ids.append(int(tid))
+
+            if stale_ids:
+                placeholders = ",".join("?" for _ in stale_ids)
+                cursor.execute(
+                    "UPDATE trades SET outcome = 'LIQUIDATED', "
+                    "notes = COALESCE(notes || ' | ', '') || ? "
+                    f"WHERE id IN ({placeholders})",
+                    ("broker reality flat during reconciliation", *stale_ids),
+                )
+                self.db_conn.commit()
+                logger.warning(
+                    "Reconciliation: marked %s stale %s OPEN trade row(s) "
+                    "LIQUIDATED after fresh broker poll.",
+                    len(stale_ids),
+                    broker.upper(),
+                )
+            cursor.close()
+        except Exception as exc:
+            logger.debug("DB open-trade reconciliation failed for %s: %s", broker, exc)
 
     async def _adopt_orphan(self, symbol: str, qty: float, broker: str) -> None:
         """Absorb an unmanaged broker position into the Matrix."""
