@@ -37,7 +37,7 @@ def get_dynamic_memory_threshold() -> float:
 TASK_HEARTBEAT_FILE = "data/task_heartbeats.json"
 
 
-def check_heartbeat() -> bool:
+def check_heartbeat(watchdog_start_time: datetime) -> bool:
     """Returns True if the system is alive, False if silent/crashed."""
     if not os.path.exists(DB_PATH):
         logger.warning(f"Database {DB_PATH} not found. Waiting...")
@@ -56,6 +56,23 @@ def check_heartbeat() -> bool:
             if last_hb is None:
                 logger.warning("Invalid heartbeat value found in database: %r", last_hb_str)
                 return True
+
+            # Ignore legacy heartbeat from prior sessions during initial phase
+            if last_hb < watchdog_start_time:
+                seconds_since_start = (
+                    datetime.now(timezone.utc) - watchdog_start_time
+                ).total_seconds()
+                if seconds_since_start > 120:
+                    logger.critical(
+                        f"SYSTEM STARTUP SILENCE DETECTED! No heartbeat written since watchdog started "
+                        f"{seconds_since_start:.1f}s ago. Main engine may have failed during startup."
+                    )
+                    return False
+                logger.info(
+                    f"Prior session heartbeat ignored. Waiting for startup... ({seconds_since_start:.1f}s elapsed)"
+                )
+                return True
+
             seconds_since = (datetime.now(timezone.utc) - last_hb).total_seconds()
 
             if seconds_since > SILENCE_TIMEOUT:
@@ -188,9 +205,18 @@ def run_watchdog():
         f"Silence threshold: {SILENCE_TIMEOUT}s | Live-lock threshold: {LIVENESS_TIMEOUT}s"
     )
 
+    watchdog_start_time = datetime.now(timezone.utc)
+    watchdog_start_ts = time.time()
+
     while True:
         try:
-            is_alive = check_heartbeat()
+            uptime = time.time() - watchdog_start_ts
+            if uptime < 90:
+                logger.info(f"Watchdog startup grace period: {90 - uptime:.0f}s remaining...")
+                time.sleep(CHECK_INTERVAL)
+                continue
+
+            is_alive = check_heartbeat(watchdog_start_time)
             stale = check_task_liveness()
             mem_usage = check_memory_usage()
 
