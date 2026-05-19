@@ -71,6 +71,24 @@ class Position:
     meta: dict[str, Any] = field(default_factory=dict)
 
     def __post_init__(self):
+        if isinstance(self.entry_time, str):
+            try:
+                cleaned = self.entry_time.replace("Z", "+00:00")
+                self.entry_time = datetime.fromisoformat(cleaned)
+            except Exception:
+                self.entry_time = datetime.now(timezone.utc)
+        if self.entry_time.tzinfo is None:
+            self.entry_time = self.entry_time.replace(tzinfo=timezone.utc)
+
+        if isinstance(self.target_exit_time, str):
+            try:
+                cleaned = self.target_exit_time.replace("Z", "+00:00")
+                self.target_exit_time = datetime.fromisoformat(cleaned)
+            except Exception:
+                self.target_exit_time = datetime.now(timezone.utc) + timedelta(days=5)
+        if self.target_exit_time.tzinfo is None:
+            self.target_exit_time = self.target_exit_time.replace(tzinfo=timezone.utc)
+
         # If the position is live (qty != 0) but tracking is 0, sync them.
         if self.shares_remaining == 0.0 and self.qty != 0.0:
             self.shares_remaining = abs(self.qty)
