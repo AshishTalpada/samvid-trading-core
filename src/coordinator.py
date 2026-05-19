@@ -140,6 +140,20 @@ class TradingCoordinator:
 
         self._pending_vets.add(symbol)
         try:
+            oracle_freeze = bool(getattr(self.brain, "_oracle_freeze", False))
+            oracle_modifier = float(getattr(self.brain, "_oracle_risk_modifier", 1.0) or 0.0)
+            oracle_dhatu = str(getattr(self.brain, "_oracle_dhatu", "UNKNOWN"))
+            if not is_probe and (oracle_freeze or oracle_modifier <= 0.0):
+                reason = (
+                    f"ORACLE_FREEZE: {oracle_dhatu} "
+                    f"(risk_modifier={oracle_modifier:.2f}) blocks new entries."
+                )
+                logger.warning("Coordinator [%s] %s", symbol, reason)
+                if task:
+                    task.set_phase("ORACLE_FREEZE", reason)
+                    task.finalize("VETOED")
+                return False
+
             if task:
                 task.set_phase("VETTING", "checking cache and agent quorum")
             cache = await self.exoskeleton.check_cortex_cache(symbol, proposal["pattern"].entry)
@@ -183,9 +197,10 @@ class TradingCoordinator:
                         logger.warning(f"Coordinator: {name} poll failed: {poll_err}")
                         return {
                             "agent": name,
-                            "vote": "YES",
-                            "confidence": 0.5,
-                            "reason": "Fallback",
+                            "vote": "ABSTAIN",
+                            "confidence": 0.0,
+                            "reason": f"Fallback abstain: {poll_err}",
+                            "timestamp": time.time_ns(),
                         }
 
                 async def _poll_neural_safe(name, func):
@@ -330,6 +345,11 @@ class TradingCoordinator:
                     "proposal_id": proposal_id,
                     "is_long": pattern.entry > pattern.stop,
                     "vix": await self.brain._get_vix(),
+                    "dhatu_state": getattr(self.brain, "_oracle_dhatu", "UNKNOWN"),
+                    "oracle_freeze": bool(getattr(self.brain, "_oracle_freeze", False)),
+                    "oracle_risk_modifier": float(
+                        getattr(self.brain, "_oracle_risk_modifier", 1.0) or 0.0
+                    ),
                     "potential_profit": abs(pattern.target - pattern.entry),
                     "commission": max(COMMISSION_PER_ROUND_TRIP, (shares or 1) * 0.01),
                 }
@@ -581,9 +601,9 @@ class TradingCoordinator:
                         logger.error(f"Coordinator: Agent D poll failed: {e}")
                         return {
                             "agent": "Agent_D",
-                            "vote": "YES",
-                            "confidence": 0.5,
-                            "reason": f"Fallback: {str(e)[:50]}",
+                            "vote": "ABSTAIN",
+                            "confidence": 0.0,
+                            "reason": f"Fallback abstain: {str(e)[:80]}",
                             "timestamp": timestamp,
                         }
 
@@ -614,9 +634,9 @@ class TradingCoordinator:
                         logger.warning(f"Coordinator: Oracle Live Fallback failed: {e}")
                         return {
                             "agent": "Dhatu_Oracle",
-                            "vote": "YES",
-                            "confidence": 0.5,
-                            "reason": "Oracle Offline (Deferred to Quorum)",
+                            "vote": "ABSTAIN",
+                            "confidence": 0.0,
+                            "reason": "Oracle Offline (abstained)",
                             "timestamp": timestamp,
                         }
 
@@ -645,9 +665,9 @@ class TradingCoordinator:
                         logger.warning(f"Coordinator: Swarm Live Fallback failed: {e}")
                         return {
                             "agent": "Swarm_Predictor",
-                            "vote": "YES",
-                            "confidence": 0.5,
-                            "reason": "Swarm Offline (Deferred to Quorum)",
+                            "vote": "ABSTAIN",
+                            "confidence": 0.0,
+                            "reason": "Swarm Offline (abstained)",
                             "timestamp": timestamp,
                         }
 
@@ -823,9 +843,10 @@ class TradingCoordinator:
                                     gated_votes.append(
                                         {
                                             "agent": name,
-                                            "vote": "YES",
-                                            "confidence": 0.4,
-                                            "reason": "Latency/Error Fallback",
+                                            "vote": "ABSTAIN",
+                                            "confidence": 0.0,
+                                            "reason": "Latency/Error abstain",
+                                            "timestamp": timestamp,
                                         }
                                     )
                                 else:
@@ -842,9 +863,9 @@ class TradingCoordinator:
                         for name, _ in gated_agents:
                             err_vote = {
                                 "agent": name,
-                                "vote": "YES",
-                                "confidence": 0.5,
-                                "reason": "Neural Error Fallback",
+                                "vote": "ABSTAIN",
+                                "confidence": 0.0,
+                                "reason": "Neural Error abstain",
                                 "timestamp": timestamp,
                             }
                             vote_registry[name] = err_vote
@@ -1091,24 +1112,36 @@ class TradingCoordinator:
                 try:
                     from system_types import Position
 
-                    shadow_pos = Position(
-                        symbol=symbol,
-                        qty=shares if shares > 0 else 0,
-                        entry_price=pattern.entry,
-                        entry_time=datetime.now(timezone.utc),
-                        pattern=pattern.name,
-                        initial_belief=0.0,  # Shadow trade has no belief
-                        current_belief=0.0,
-                        initial_stop=pattern.stop,
-                        stop_loss=pattern.stop,
-                        take_profit=pattern.target,
-                        trade_id=f"SHADOW_{proposal_id}",
-                        task_id=task.id if task else "N/A",
-                        status="SHADOW_REJECTED",
-                        meta={"reason": reason, "votes": all_votes},
-                    )
-                    # We only log to DB, don't add to brain.positions (not a real trade)
-                    await self.brain._log_trade_entry(shadow_pos)
+                    shadow_key = (symbol, reason)
+                    shadow_log = getattr(self.brain, "_shadow_reject_log", {})
+                    now_mono = time.monotonic()
+                    last_log = float(shadow_log.get(shadow_key, 0.0))
+                    log_shadow_reject = now_mono - last_log >= 300.0
+                    if not log_shadow_reject:
+                        if task:
+                            task.log("SHADOW_REJECT_SUPPRESSED: duplicate reject within 5m.")
+                    else:
+                        shadow_log[shadow_key] = now_mono
+                        self.brain._shadow_reject_log = shadow_log
+
+                        shadow_pos = Position(
+                            symbol=symbol,
+                            qty=shares if shares > 0 else 0,
+                            entry_price=pattern.entry,
+                            entry_time=datetime.now(timezone.utc),
+                            pattern=pattern.name,
+                            initial_belief=0.0,  # Shadow trade has no belief
+                            current_belief=0.0,
+                            initial_stop=pattern.stop,
+                            stop_loss=pattern.stop,
+                            take_profit=pattern.target,
+                            trade_id=f"SHADOW_{proposal_id}",
+                            task_id=task.id if task else "N/A",
+                            status="SHADOW_REJECTED",
+                            meta={"reason": reason, "votes": all_votes},
+                        )
+                        # We only log to DB, don't add to brain.positions (not a real trade)
+                        await self.brain._log_trade_entry(shadow_pos)
                 except Exception as shadow_e:
                     logger.debug(f"Shadow Trade Logging failed: {shadow_e}")
 
