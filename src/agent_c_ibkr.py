@@ -106,6 +106,7 @@ class IBKRConnection:
         self._callbacks_registered = False
 
         self._recovered_orders: set[int] = set()
+        self._background_tasks: set[asyncio.Task] = set()  # Prevent GC of pending tasks
 
     def generate_exec_token(self, symbol: str) -> str:
         """Generate a time-limited HMAC token for order authorization."""
@@ -516,7 +517,9 @@ class IBKRConnection:
             self._setup_callbacks()
 
         if self.is_connected and not self._recovered_orders:
-            asyncio.create_task(self.recover_orphaned_orders())
+            _t = asyncio.create_task(self.recover_orphaned_orders())
+            self._background_tasks.add(_t)
+            _t.add_done_callback(self._background_tasks.discard)
 
         return True
 
@@ -1038,7 +1041,9 @@ class IBKRConnection:
                     trade = self.ib.placeOrder(contract, o)
                     if i == 0:
                         primary_id = trade.order.orderId
-                        asyncio.create_task(self._audit_execution(trade, symbol, shares))
+                        _audit_t = asyncio.create_task(self._audit_execution(trade, symbol, shares))
+                        self._background_tasks.add(_audit_t)
+                        _audit_t.add_done_callback(self._background_tasks.discard)
 
                 self._last_trade_time = datetime.now()  # Update Discipline Lock
                 return primary_id

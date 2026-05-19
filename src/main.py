@@ -1545,7 +1545,7 @@ class TradingSystem:
                         },
                     )
 
-                asyncio.create_task(_awaken())
+                self._awaken_task = asyncio.create_task(_awaken())
 
             # Store startup info (Hardened with Retry Matrix)
             async with self.db_lock:
