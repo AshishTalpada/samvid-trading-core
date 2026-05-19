@@ -34,12 +34,21 @@ def brain(mock_db_conn):
         # Disable the infinite loop so we can test discrete states
         tb.is_running = False
 
-        # Mock external network queries
+        import asyncio
         tb._get_vix = AsyncMock(return_value=15.0)  # pyre-ignore[21]
         tb._detect_regime = AsyncMock(return_value="BULL")  # pyre-ignore[21]
         tb._update_drawdowns = AsyncMock()  # pyre-ignore[21]
 
-        return tb
+        yield tb
+
+        try:
+            loop = asyncio.get_event_loop()
+            if loop.is_running():
+                loop.create_task(tb.stop())
+            else:
+                loop.run_until_complete(tb.stop())
+        except RuntimeError:
+            pass
 
 
 @pytest.mark.asyncio
