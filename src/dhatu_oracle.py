@@ -968,6 +968,34 @@ class DhatuOracle:
 
     # Public API — consumed by Agent B
 
+    async def stop(self) -> None:
+        """Gracefully stop the Dhatu Oracle and its sub-components."""
+        logger.info("DhatuOracle: Stopping background systems...")
+
+        # Stop sub-services
+        if hasattr(self, "_news_scent") and self._news_scent:
+            self._news_scent._running = False
+            if hasattr(self._news_scent, "_ws") and self._news_scent._ws:
+                try:
+                    await self._news_scent._ws.close()
+                except Exception:
+                    pass
+        if hasattr(self, "_news_harvester") and self._news_harvester:
+            self._news_harvester._running = False
+
+        # Cancel internal background tasks
+        for task in self._background_tasks:
+            if not task.done():
+                task.cancel()
+
+        # Stop TTL caches
+        if hasattr(self, "_ticker_cache") and self._ticker_cache:
+            await self._ticker_cache.stop()
+        if hasattr(self, "_graph_cache") and self._graph_cache:
+            await self._graph_cache.stop()
+
+        logger.info("✓ DhatuOracle background systems stopped.")
+
     def get_current_state(self) -> OracleState | None:
         """Return the current Oracle state (or None if not yet initialised)."""
         return self._current_state
