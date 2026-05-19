@@ -1712,6 +1712,16 @@ class TradingBrain:
                 await asyncio.sleep(5)
                 return
 
+            if self._oracle_freeze or self._oracle_risk_modifier <= 0.0:
+                if self._scan_cycle % 10 == 1:
+                    logger.warning(
+                        "SCAN SUSPENDED: Oracle freeze active "
+                        f"({self._oracle_dhatu}, modifier={self._oracle_risk_modifier:.2f})."
+                    )
+                self.pending_signals.clear()
+                await asyncio.sleep(self.scan_interval)
+                return
+
             # Diagnostics
             stats = {
                 "scanned": 0,
