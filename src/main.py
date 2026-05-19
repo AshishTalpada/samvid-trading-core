@@ -1800,7 +1800,7 @@ class TradingSystem:
 
         try:
             # 1. COMPUTE DAILY PERFORMANCE
-            logger.info("[SHUTDOWN STEP 1/8] Calculating daily performance...")
+            logger.info("[SHUTDOWN STEP 1/9] Calculating daily performance...")
             daily_pnl = 0.0
             trades_today = 0
             if hasattr(self, "db_conn") and self.db_conn:
@@ -1824,9 +1824,9 @@ class TradingSystem:
                     logger.error(f"Shutdown: Performance tally failed: {e}")
 
             # 2. SEND TELEGRAM SUMMARY
-            logger.info("[SHUTDOWN STEP 2/8] Dispatching final Telegram report...")
+            logger.info("[SHUTDOWN STEP 2/9] Dispatching final Telegram report...")
             try:
-                sign = "" if daily_pnl > 0 else "" if daily_pnl < 0 else ""
+                sign = "📈" if daily_pnl > 0 else "📉" if daily_pnl < 0 else "➖"
                 summary_msg = (
                     f" <b>Sovereign System Offline</b>\n\n"
                     f" {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')} UTC\n"
@@ -1845,7 +1845,7 @@ class TradingSystem:
                 logger.warning(f"Shutdown: Telegram report failed/timed out: {tg_err}")
 
             # 3. STOP COMPONENTS (Sequential for deterministic cleanup)
-            logger.info("[SHUTDOWN STEP 3/8] Stopping active minds and streams...")
+            logger.info("[SHUTDOWN STEP 3/9] Stopping active minds and streams...")
             if hasattr(self, "trading_brain") and self.trading_brain:
                 try:
                     logger.info(" -> Stopping Trading Brain...")
@@ -1899,7 +1899,7 @@ class TradingSystem:
                     logger.error(f"Shutdown: Dhatu Oracle stop failed: {e}")
 
             # 4. UNLOAD AI MODELS
-            logger.info("[SHUTDOWN STEP 4/8] Offloading Neural VRAM weights...")
+            logger.info("[SHUTDOWN STEP 4/9] Offloading Neural VRAM weights...")
             if hasattr(self, "native_slm") and self.native_slm:
                 try:
                     await self.native_slm.close()
@@ -1915,7 +1915,7 @@ class TradingSystem:
                     logger.error(f"Shutdown: Bus stop failed: {e}")
 
             # 5. CANCEL REMAINING BACKGROUND TASKS
-            logger.info("[SHUTDOWN STEP 5/8] Clearing background supervisors...")
+            logger.info("[SHUTDOWN STEP 5/9] Clearing background supervisors...")
             to_cancel = []
             for name, task in list(self.background_tasks.items()):
                 if not task.done():
@@ -1933,7 +1933,7 @@ class TradingSystem:
             self.background_tasks.clear()
 
             # 6. DISCONNECT BROKERS
-            logger.info("[SHUTDOWN STEP 6/8] Disconnecting Broker Matrix...")
+            logger.info("[SHUTDOWN STEP 6/9] Disconnecting Broker Matrix...")
             if (
                 hasattr(self, "_telegram_session")
                 and self._telegram_session
@@ -1961,7 +1961,7 @@ class TradingSystem:
                     logger.debug(f"MT5 shutdown error: {e}")
 
             # 7. PERSIST FINAL STATE
-            logger.info("[SHUTDOWN STEP 7/8] Persisting final state to registry...")
+            logger.info("[SHUTDOWN STEP 7/9] Persisting final state to registry...")
             if self.db_conn:
                 try:
                     cursor = self.db_conn.cursor()
@@ -1987,7 +1987,7 @@ class TradingSystem:
                     logger.error(f"Shutdown: Task Registry flush failed: {e}")
 
             # 8. FINAL DB CLOSURE
-            logger.info("[SHUTDOWN STEP 8/8] Finalizing Persistence...")
+            logger.info("[SHUTDOWN STEP 8/9] Finalizing Persistence...")
             if self.db_conn:
                 try:
                     self.db_conn.close()
@@ -1996,8 +1996,8 @@ class TradingSystem:
                 except Exception as e:
                     logger.error(f"Shutdown: DB closure error: {e}")
 
-            # 8. EXIT
-            logger.info("[SHUTDOWN STEP 8/8] Finalizing logs...")
+            # 9. EXIT
+            logger.info("[SHUTDOWN STEP 9/9] Finalizing logs...")
             logger.info("\n" + "" * 30)
             logger.info("SOVEREIGN: SHUTDOWN SEQUENCE COMPLETE")
             logger.info("" * 30 + "\n")
