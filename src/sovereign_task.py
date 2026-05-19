@@ -190,6 +190,8 @@ class TaskManager:
             return
 
         try:
+            stale_restored = 0
+            now = time.time()
             with open(self.registry_path, "r", encoding="utf-8") as f:
                 data = json.load(f)
                 for tid, state in data.items():
@@ -207,6 +209,14 @@ class TaskManager:
                         task.status_summary = state.get(
                             "status_summary", state.get("phase", "Initializing")
                         )
+                        if (
+                            task.status in [TaskStatus.PENDING, TaskStatus.RUNNING]
+                            and now - float(task.start_time or now) > 900
+                        ):
+                            task.status = TaskStatus.KILLED
+                            task.end_time = now
+                            task.status_summary = "STALE: killed during startup registry recovery"
+                            stale_restored += 1
                         self.tasks[tid] = task
 
                         # Rebuild index
@@ -217,53 +227,56 @@ class TaskManager:
                     except Exception as e:
                         logger.error(f"TaskManager: Failed to restore task {tid}: {e}")
             logger.info(f"✓ Task Registry restored ({len(self.tasks)} tasks).")
+            if stale_restored:
+                logger.warning(
+                    "TaskManager: Killed %s stale pending/running task(s) during startup recovery.",
+                    stale_restored,
+                )
+                self._save_registry_sync(allow_empty=True)
         except Exception as e:
             logger.error(f"TaskManager: Registry load failed: {e}")
+
+    def _save_registry_sync(self, allow_empty: bool = False) -> bool:
+        if not self.tasks and os.path.exists(self.registry_path) and not allow_empty:
+            logger.error(
+                "TaskManager: SAFETY VETO! Attempted to save empty registry over existing data. Standing down."
+            )
+            return False
+
+        data = {tid: t.to_dict() for tid, t in self.tasks.items()}
+        temp_path = f"{self.registry_path}.tmp"
+        backup_path = f"{self.registry_path}.bak"
+
+        try:
+            import shutil
+            import time as _time
+
+            for attempt in range(10):
+                try:
+                    if os.path.exists(self.registry_path):
+                        shutil.copy2(self.registry_path, backup_path)
+
+                    with open(temp_path, "w", encoding="utf-8") as f:
+                        json.dump(data, f, indent=2)
+
+                    os.replace(temp_path, self.registry_path)
+                    return True
+                except PermissionError:
+                    if attempt == 9:
+                        raise
+                    _time.sleep(0.5)
+                except Exception:
+                    if attempt == 9:
+                        raise
+                    _time.sleep(0.1)
+        except Exception as e:
+            logger.error(f"TaskManager: Registry sync-save failed: {e}")
+        return False
 
     async def save_registry(self, allow_empty: bool = False):
         """Atomically save task registry with Windows-safe retry logic (Async)."""
         async with self._save_lock:
-            if not self.tasks and os.path.exists(self.registry_path) and not allow_empty:
-                logger.error(
-                    "TaskManager: SAFETY VETO! Attempted to save empty registry over existing data. Standing down."
-                )
-                return
-
-            data = {tid: t.to_dict() for tid, t in self.tasks.items()}
-            temp_path = f"{self.registry_path}.tmp"
-            backup_path = f"{self.registry_path}.bak"
-
-            def _sync_save():
-                try:
-                    import shutil
-                    import time as _time
-
-                    for attempt in range(10):
-                        try:
-                            if os.path.exists(self.registry_path):
-                                shutil.copy2(self.registry_path, backup_path)
-
-                            with open(temp_path, "w", encoding="utf-8") as f:
-                                json.dump(data, f, indent=2)
-
-                            os.replace(temp_path, self.registry_path)
-                            return True
-                        except PermissionError as e:
-                            if attempt == 9:
-                                raise
-                            _time.sleep(0.5)
-                            continue
-                        except Exception as e:
-                            if attempt == 9:
-                                raise
-                            _time.sleep(0.1)
-                            continue
-                    return False
-                except Exception as e:
-                    logger.error(f"TaskManager: Registry sync-save failed: {e}")
-                    return False
-
-            await asyncio.to_thread(_sync_save)
+            await asyncio.to_thread(self._save_registry_sync, allow_empty)
 
     def purge_dormant_tasks(self, max_age_minutes: int = 15):
         """
