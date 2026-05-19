@@ -305,9 +305,7 @@ class TradingSystem:
             try:
                 loop = asyncio.get_event_loop()
                 for sig in (signal.SIGINT, signal.SIGTERM):
-                    loop.add_signal_handler(
-                        sig, lambda: asyncio.create_task(self.shutdown())
-                    )
+                    loop.add_signal_handler(sig, lambda: asyncio.create_task(self.shutdown()))
             except RuntimeError:
                 # Event loop not available (e.g., during synchronous tests)
                 pass
@@ -1263,23 +1261,25 @@ class TradingSystem:
         """
         allowed_prefixes = [
             "[EXECUTION]",
-            "",
-            "",
-            "",
-            "",
-            "",
-            "",
-            "",
-            "",
-            "",
+            "[SOVEREIGN ALERT]",
+            "[TRADE]",
+            "[RISK]",
+            "[DMS]",
+            "[EMERGENCY]",
+            "[SHUTDOWN]",
+            "[STARTUP]",
+            "[DRAWDOWN]",
             "SYSTEM CRITICAL",
             "TRADE FULLY CLOSED",
             "DAILY WRAP-UP",
+            "SOVEREIGN SYSTEM OFFLINE",
+            "SOVEREIGN TRADING SYSTEM ONLINE",
+            "BACKGROUND TASK CRASHED",
         ]
 
         logger.info(f"Telegram: Attempting to send message (Prefix check: {message[:10]}...)")
         msg_upper = message.upper()
-        if not any(prefix.upper() in msg_upper for prefix in allowed_prefixes):
+        if not any(prefix.upper() in msg_upper for prefix in allowed_prefixes if prefix):
             logger.info(
                 "Sterilization: Suppressing non-elite main notification "
                 f"(No allowed prefix found): {message[:50]}..."
