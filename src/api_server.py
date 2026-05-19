@@ -379,8 +379,9 @@ class APIServer:
                 if not valid:
                     msg0 = str(ts).encode()
                     exp0 = hmac.new(secret.encode(), msg0, hashlib.sha256).hexdigest()
+                    token_str = token or ""
                     logger.warning(
-                        f"API Server: WebSocket REJECTED. Recv: {token[:8]}... Exp(0): {exp0[:8]}... (TS: {ts})"
+                        f"API Server: WebSocket REJECTED. Recv: {token_str[:8]}... Exp(0): {exp0[:8]}... (TS: {ts})"
                     )
                     await websocket.close(code=1008)
                     return
