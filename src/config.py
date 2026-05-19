@@ -111,7 +111,13 @@ VOLUME_THRESHOLDS = {
     "US100": {"normal": 1.15, "elevated": 1.30, "breakout": 1.50},
 }
 
-TRADING_INSTRUMENTS = ["SPY", "QQQ", "MSFT", "NVDA", "XAUUSD", "US100"]
+TRADING_INSTRUMENTS = [
+    "SPY", "QQQ", "DIA", "IWM", 
+    "MSFT", "AAPL", "NVDA", "GOOGL", "AMZN", "META", "AVGO", "AMD",
+    "TSLA", "NFLX", "COST", "GS", "JPM", "MA", "V", "WMT",
+    "ARM", "MU", "PLTR", "MSTR", "COIN", "SMCI",
+    "XAUUSD", "US100"
+]
 
 PANIC_LIQUIDATE = False  # Set to True to force-close all positions on startup
 
@@ -137,7 +143,7 @@ IBKR_MAX_RECONNECT_ATTEMPTS = 5
 
 DATA_INGESTION_INTERVAL = int(Vault.get("DATA_INGESTION_INTERVAL", "40"))
 DATA_MAINTENANCE_INTERVAL = int(Vault.get("DATA_MAINTENANCE_INTERVAL", "300"))
-BRAIN_SCAN_INTERVAL = float(Vault.get("BRAIN_SCAN_INTERVAL", "0.05"))
+BRAIN_SCAN_INTERVAL = 0.01
 
 QUESTDB_ENABLED = True  # Activated after successful installation
 QUESTDB_HOST = "localhost"
