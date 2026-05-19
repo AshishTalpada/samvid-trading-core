@@ -112,7 +112,7 @@ VOLUME_THRESHOLDS = {
 }
 
 TRADING_INSTRUMENTS = [
-    "SPY", "QQQ", "DIA", "IWM", 
+    "SPY", "QQQ", "DIA", "IWM",
     "MSFT", "AAPL", "NVDA", "GOOGL", "AMZN", "META", "AVGO", "AMD",
     "TSLA", "NFLX", "COST", "GS", "JPM", "MA", "V", "WMT",
     "ARM", "MU", "PLTR", "MSTR", "COIN", "SMCI",
@@ -145,7 +145,7 @@ DATA_INGESTION_INTERVAL = int(Vault.get("DATA_INGESTION_INTERVAL", "40"))
 DATA_MAINTENANCE_INTERVAL = int(Vault.get("DATA_MAINTENANCE_INTERVAL", "300"))
 BRAIN_SCAN_INTERVAL = 0.01
 
-QUESTDB_ENABLED = False  # Disabled — QuestDB not running locally (port 9009 unreachable)
+QUESTDB_ENABLED = True  # Activated after successful installation
 QUESTDB_HOST = "localhost"
 QUESTDB_PORT = 9009  # ILP (Influx Line Protocol over TCP)
 QUESTDB_PG_PORT = 8812  # psycopg2 queries for brain OHLCV reads
