@@ -1336,7 +1336,11 @@ class TradingSystem:
         # Start Dhatu Oracle
         if Vault.get("GOOGLE_API_KEY") or Vault.get("ANTHROPIC_API_KEY"):
             logger.info("\n[8/9] Starting Dhatu Oracle...")
-            await self._start_dhatu_oracle()
+            started = await self._start_dhatu_oracle()
+            if started and self.trading_brain and self.dhatu_oracle:
+                self.trading_brain.dhatu_oracle = self.dhatu_oracle
+                if self.trading_brain.sync_oracle_state():
+                    logger.info("Dhatu Oracle state synchronized into Trading Brain.")
         else:
             logger.info("\n[8/9] Dhatu Oracle disabled or not configured.")
 
