@@ -683,7 +683,7 @@ class DataPipeline:
                                     "source": f"Finnhub ({article.get('source', '')})",
                                     "url": article.get("url", ""),
                                     "published_at": datetime.fromtimestamp(
-                                        article.get("datetime", 0)
+                                        article.get("datetime", 0), tz=timezone.utc
                                     ).isoformat(),
                                     "sentiment": self._calculate_sentiment(
                                         article.get("headline", ""), article.get("summary", "")
