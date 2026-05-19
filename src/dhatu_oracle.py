@@ -1846,6 +1846,26 @@ class DhatuOracle:
                     logger.info(
                         f"DhatuOracle: Bayesian confidence blended. {state.dhatu_state} (New Conf: {state.confidence:.1%})"
                     )
+
+                    # Safe Guard: Veto false-positive semantic freezes
+                    if state.dhatu_state in ("Abhava", "Viyoga") and vix < 25.0:
+                        mapped_dhatu = {
+                            "SIDEWAYS": "Sthira",
+                            "BULL": "Samyoga",
+                            "BEAR": "Kshaya",
+                            "HIGH_VOL": "Chala",
+                        }.get(bayes_state.regime, "Sthira")
+
+                        logger.info(
+                            f"DhatuOracle: Vetoing false-positive semantic freeze. "
+                            f"Semantic Resonance suggested {state.dhatu_state}, but Bayesian Oracle "
+                            f"calculates mathematical regime as {bayes_state.regime} (Dhatu: {mapped_dhatu}) "
+                            f"with VIX={vix:.2f} (healthy). Overriding to {mapped_dhatu}."
+                        )
+                        state.dhatu_state = mapped_dhatu
+                        protocol = DHATU_PROTOCOL_MAP.get(mapped_dhatu, DHATU_PROTOCOL_MAP["Sthiti"])
+                        state.action_protocol = protocol["action"]
+                        state.risk_modifier = protocol["risk_modifier"]
             except Exception as be:
                 logger.debug(f"DhatuOracle: Bayesian blending skipped: {be}")
 
