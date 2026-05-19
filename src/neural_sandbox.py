@@ -14,9 +14,9 @@ def run_isolated_inference(model_path, prompt_json):
         # Load fresh instance in isolation
         llm = Llama(
             model_path=model_path,
-            n_gpu_layers=0,
+            n_gpu_layers=-1,
             n_ctx=2048,
-            n_threads=4,
+            n_threads=16,
             n_batch=1,
             verbose=False
         )
