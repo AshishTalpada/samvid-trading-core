@@ -31,11 +31,12 @@ def test_openbb_provider_initializes_with_pat() -> None:
 @pytest.mark.asyncio
 async def test_openbb_provider_is_available_property() -> None:
     """is_available should be False when openbb is not installed, True otherwise."""
-    from src.openbb_provider import _OPENBB_AVAILABLE, OpenBBProvider  # type: ignore
+    import src.openbb_provider as openbb_mod
+    from src.openbb_provider import OpenBBProvider  # type: ignore
 
     provider = OpenBBProvider(pat="")
     await provider.initialize()
-    if _OPENBB_AVAILABLE:
+    if openbb_mod._OPENBB_AVAILABLE:
         assert provider.is_available is True
     else:
         assert provider.is_available is False
