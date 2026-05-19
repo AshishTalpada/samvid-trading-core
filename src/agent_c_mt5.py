@@ -232,7 +232,7 @@ class MT5ConnectionLegacy:
     def get_all_positions(self) -> dict[str, float]:
         """Return a symbol-to-quantity map of all open positions."""
         mt5 = _get_mt5_module()
-        if not mt5 or not hasattr(mt5, 'positions_get') or not callable(mt5.positions_get):
+        if not mt5 or not hasattr(mt5, "positions_get") or not callable(mt5.positions_get):
             return {}
         positions = mt5.positions_get()
         if not positions:
@@ -408,6 +408,7 @@ class DrawdownHysteresis:
         recovery_time_threshold = timedelta(hours=1)  # example threshold
         return current_dd < 0.05 and time_since_dd > recovery_time_threshold
 
+
 class MetaTrader5Agent:
     """
     Deep Integration with MetaTrader 5 Terminal.
@@ -415,8 +416,16 @@ class MetaTrader5Agent:
     high-speed retail/institutional order flow. Includes safety checks,
     slippage controls, and magic number tracking.
     """
-    def __init__(self, account: Optional[int] = None, password: Optional[str] = None, server: Optional[str] = None, magic_number: int = 777777):
+
+    def __init__(
+        self,
+        account: Optional[int] = None,
+        password: Optional[str] = None,
+        server: Optional[str] = None,
+        magic_number: int = 777777,
+    ):
         from vault import Vault
+
         self.account = account or int(Vault.get("MT5_ACCOUNT") or 0)
         self.password = password or Vault.get("MT5_PASSWORD") or ""
         self.server = server or Vault.get("MT5_SERVER") or ""
@@ -436,7 +445,9 @@ class MetaTrader5Agent:
 
         authorized = mt5.login(self.account, password=self.password, server=self.server)
         if not authorized:
-            logger.critical(f"[MT5] Login failed for account {self.account}. Error code: {mt5.last_error()}")
+            logger.critical(
+                f"[MT5] Login failed for account {self.account}. Error code: {mt5.last_error()}"
+            )
             mt5.shutdown()
             return False
 
@@ -455,13 +466,11 @@ class MetaTrader5Agent:
             logger.error(f"[MT5] Failed to fetch tick for {symbol}")
             return None
 
-        return {
-            "bid": float(tick.bid),
-            "ask": float(tick.ask),
-            "time_ms": tick.time_msc
-        }
+        return {"bid": float(tick.bid), "ask": float(tick.ask), "time_ms": tick.time_msc}
 
-    def execute_market_order(self, symbol: str, action: str, lot_size: float, slippage_pts: int = 10) -> Dict[str, Any]:
+    def execute_market_order(
+        self, symbol: str, action: str, lot_size: float, slippage_pts: int = 10
+    ) -> Dict[str, Any]:
         """
         Executes a direct market order with Sovereign Security Guards.
         Action must be 'BUY' or 'SELL'.
@@ -469,9 +478,17 @@ class MetaTrader5Agent:
         import inspect
 
         from trading_state import TradingStateManager
-        if not TradingStateManager.allow_order(True): # MT5 orders are usually new entries in this context
-            logger.warning(f"[MT5] SAFETY GATE: Market order for {symbol} REJECTED due to TradingState.")
-            return {"status": "error", "message": f"TradingState {TradingStateManager.state.value} blocks entries"}
+
+        if not TradingStateManager.allow_order(
+            True
+        ):  # MT5 orders are usually new entries in this context
+            logger.warning(
+                f"[MT5] SAFETY GATE: Market order for {symbol} REJECTED due to TradingState."
+            )
+            return {
+                "status": "error",
+                "message": f"TradingState {TradingStateManager.state.value} blocks entries",
+            }
 
         # 1. WHITELIST SIGNATURE GUARD (Ported from D: drive logic)
         AUTHORIZED_CALLERS = {
@@ -492,12 +509,19 @@ class MetaTrader5Agent:
             caller_name = caller_frame.f_code.co_name if caller_frame else "unknown"
 
         caller_module = caller_frame.f_globals.get("__name__", "unknown")
-        AUTHORIZED_MODULES = {"brain", "sovereign_decision_engine", "trading_system", "agent_c_ibkr"}
+        AUTHORIZED_MODULES = {
+            "brain",
+            "sovereign_decision_engine",
+            "trading_system",
+            "agent_c_ibkr",
+        }
 
         if caller_name not in AUTHORIZED_CALLERS or (
             caller_module not in AUTHORIZED_MODULES and not caller_module.startswith("src.")
         ):
-            logger.critical(f"UNAUTHORIZED EXECUTION ATTEMPT! Caller '{caller_module}.{caller_name}' bypassed Sovereign Engine! REJECTING ORDER.")
+            logger.critical(
+                f"UNAUTHORIZED EXECUTION ATTEMPT! Caller '{caller_module}.{caller_name}' bypassed Sovereign Engine! REJECTING ORDER."
+            )
             return {"status": "error", "message": "Unauthorized execution caller."}
 
         if not self.connected:
@@ -528,6 +552,7 @@ class MetaTrader5Agent:
 
         # 3. MAGIC ID COLLISION GUARD
         import uuid as _uuid
+
         magic_id = _uuid.uuid4().int % 2147483647
 
         # Define MT5 Request Dictionary
@@ -548,7 +573,9 @@ class MetaTrader5Agent:
         }
 
         # Send the order to the server
-        logger.info(f"[MT5] Sending {action} {lot_size} lots on {symbol} at {price} (Dev: {deviation})")
+        logger.info(
+            f"[MT5] Sending {action} {lot_size} lots on {symbol} at {price} (Dev: {deviation})"
+        )
         result = mt5.order_send(request)
 
         if result is None or result.retcode != mt5.TRADE_RETCODE_DONE:
@@ -564,7 +591,7 @@ class MetaTrader5Agent:
             "ticket": result.order,
             "volume": result.volume,
             "price": result.price,
-            "comment": result.comment
+            "comment": result.comment,
         }
 
     def close_all_positions(self, symbol: Optional[str] = None):
@@ -579,7 +606,7 @@ class MetaTrader5Agent:
 
         for pos in positions:
             if pos.magic == self.magic_number:
-                action = "BUY" if pos.type == 1 else "SELL" # Reverse the position type to close it
+                action = "BUY" if pos.type == 1 else "SELL"  # Reverse the position type to close it
                 logger.warning(f"[MT5] Liquidating Position {pos.ticket} ({pos.symbol})")
                 self.execute_market_order(pos.symbol, action, pos.volume, slippage_pts=50)
 
@@ -607,6 +634,7 @@ class MetaTrader5Agent:
             mt5.shutdown()
             logger.info("[MT5] Terminal connection cleanly severed.")
             self.connected = False
+
 
 # Final Sovereign Aliases
 MT5Connection = MetaTrader5Agent

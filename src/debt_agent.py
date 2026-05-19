@@ -7,12 +7,14 @@ logger = logging.getLogger(__name__)
 
 FRED_API = "https://fred.stlouisfed.org/graph/fredgraph.json"
 
+
 class DebtCycleTracker:
     """
     Tracks Ray Dalio's long-term debt cycle metrics via FRED economic data.
     Key indicators: Total credit / GDP ratio, debt service ratio, M2 growth.
     When credit/GDP > 200% and M2 growth decelerates -> major deleveraging risk.
     """
+
     FRED_SERIES = {
         "total_credit_gdp": "TCMDO",
         "household_debt_service": "TDSP",

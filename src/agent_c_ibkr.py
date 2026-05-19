@@ -98,7 +98,9 @@ class IBKRConnection:
         self._exec_secret = Vault.get("EXEC_SECRET")
         if not self._exec_secret and os.getenv("SOVEREIGN_ALLOW_DEV_EXEC_SECRET", "0") == "1":
             self._exec_secret = "DEV_ONLY_EXEC_SECRET"
-            logger.warning("Using development execution secret because SOVEREIGN_ALLOW_DEV_EXEC_SECRET=1.")
+            logger.warning(
+                "Using development execution secret because SOVEREIGN_ALLOW_DEV_EXEC_SECRET=1."
+            )
         # NOTE: _setup_callbacks() is NOT called here — it must be called after
         # the event loop is running (i.e. from an async method or connect()).
         self._callbacks_registered = False
@@ -315,9 +317,7 @@ class IBKRConnection:
                     {
                         "type": "BROKER_DISCONNECTED",
                         "source": "AgentC_IBKR",
-                        "message": (
-                            "IBKR Connection Severed. Please check TWS/Gateway login."
-                        ),
+                        "message": ("IBKR Connection Severed. Please check TWS/Gateway login."),
                     },
                 )
             except Exception as exc:
@@ -1027,7 +1027,6 @@ class IBKRConnection:
                 logger.error(f"IBKR Routing Failure for {symbol}: {e}")
                 return None
 
-
     async def _maintain_warm_slots(self, symbols: list[str]) -> None:
         """
         Maintains 'Dormant Orders' on the exchange to preserve a 'Warm Path'.
@@ -1069,8 +1068,7 @@ class IBKRConnection:
 
         self.ib.placeOrder(trade.contract, trade.order)
         logger.info(
-            " HYPER-SOVEREIGN: Warm-Slot MODIFICATION executed for "
-            f"{symbol} (Sub-ms path)."
+            f" HYPER-SOVEREIGN: Warm-Slot MODIFICATION executed for {symbol} (Sub-ms path)."
         )
 
         # Remove from warm-slots so a new one can be pre-loaded
@@ -1087,9 +1085,7 @@ class IBKRConnection:
         for _attempt in range(6):  # Poll for 60s total
             await asyncio.sleep(10)
             if trade.orderStatus.status in ("Filled", "Submitted", "PreSubmitted"):
-                logger.info(
-                    f"✓ AUDIT SUCCESS: {symbol} execution verified (Status: Filled)."
-                )
+                logger.info(f"✓ AUDIT SUCCESS: {symbol} execution verified (Status: Filled).")
                 return  # Alignment confirmed
 
         # If we reach here after 60s, it's a true critical inconsistency
@@ -1149,6 +1145,7 @@ class PositionSizingChain:
         """
         Calculates position size using the 8-Step SETO Paradox.
         """
+
         def zero_size() -> dict[str, Any]:
             return {
                 "shares": 0,
@@ -1380,10 +1377,7 @@ class VIXProtocol:
             "confidence": 0.8 if v_low else 0.4,
             "reason": f"VIX at {vix:.2f} (Threshold: {safe_threshold:.2f})"
             if v_low
-            else (
-                f"VIX Spike {vix:.2f} (Dynamic Threshold "
-                f"{safe_threshold:.2f} Exceeded)"
-            ),
+            else (f"VIX Spike {vix:.2f} (Dynamic Threshold {safe_threshold:.2f} Exceeded)"),
             "risk_flag": str(not v_low),
         }
 

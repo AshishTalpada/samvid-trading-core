@@ -3,6 +3,7 @@ tools/deep_bug_check.py
 Sovereign Runtime Bug Scanner
 Checks all critical files for common runtime failure patterns.
 """
+
 import ast
 import re
 from pathlib import Path
@@ -11,12 +12,26 @@ SRC = Path("src")
 issues = []
 
 CRITICAL = [
-    "brain.py", "coordinator.py", "data_pipeline.py", "intelligence_bus.py",
-    "resilience_layer.py", "mind_ultrathink.py", "swarm_predictor.py",
-    "dhatu_oracle.py", "trading_state.py", "agent_h_skeptic.py",
-    "shadow_sim.py", "system_types.py", "main.py", "quant_math.py",
-    "ibkr_streamer.py", "execution_router.py", "vix_circuit_breaker.py",
-    "stress_veto.py", "time_sync.py", "session_restorer.py",
+    "brain.py",
+    "coordinator.py",
+    "data_pipeline.py",
+    "intelligence_bus.py",
+    "resilience_layer.py",
+    "mind_ultrathink.py",
+    "swarm_predictor.py",
+    "dhatu_oracle.py",
+    "trading_state.py",
+    "agent_h_skeptic.py",
+    "shadow_sim.py",
+    "system_types.py",
+    "main.py",
+    "quant_math.py",
+    "ibkr_streamer.py",
+    "execution_router.py",
+    "vix_circuit_breaker.py",
+    "stress_veto.py",
+    "time_sync.py",
+    "session_restorer.py",
 ]
 
 
@@ -29,7 +44,7 @@ def check_file(fpath):
         stripped = line.strip()
 
         # 1. Silent bare except:pass
-        if (stripped == "except Exception:" or stripped == "except:"):
+        if stripped == "except Exception:" or stripped == "except:":
             if i < len(lines) and lines[i].strip() == "pass":
                 issues.append((fname, i, "Silent except:pass — errors swallowed without logging"))
 
@@ -44,19 +59,32 @@ def check_file(fpath):
 
         # 4. Mutable default arguments in dataclass / function signatures
         if re.search(r"def \w+\(.*=\[\]", stripped) or re.search(r"def \w+\(.*=\{\}", stripped):
-            issues.append((fname, i, "Mutable default argument (list/dict) — use field(default_factory=...) instead"))
+            issues.append(
+                (
+                    fname,
+                    i,
+                    "Mutable default argument (list/dict) — use field(default_factory=...) instead",
+                )
+            )
 
         # 5. Unreachable return after return
         # (simple heuristic: two consecutive return lines at same indent)
         if stripped.startswith("return ") and i < len(lines):
             next_stripped = lines[i].strip()
-            if next_stripped.startswith("return ") and len(line) - len(line.lstrip()) == len(lines[i]) - len(lines[i].lstrip()):
+            if next_stripped.startswith("return ") and len(line) - len(line.lstrip()) == len(
+                lines[i]
+            ) - len(lines[i].lstrip()):
                 issues.append((fname, i + 1, "Unreachable return statement after preceding return"))
 
         # 6. Non-awaited known coroutines stored but never awaited
         for coro_name in ["bus.publish", "bus.subscribe", "asyncio.sleep"]:
             if coro_name + "(" in stripped:
-                if not stripped.startswith("await ") and not stripped.startswith("#") and "def " not in stripped and "lambda" not in stripped:
+                if (
+                    not stripped.startswith("await ")
+                    and not stripped.startswith("#")
+                    and "def " not in stripped
+                    and "lambda" not in stripped
+                ):
                     if "= " in stripped and not stripped.startswith("task"):
                         pass  # Assignment form is OK (might be awaited later)
 
@@ -78,11 +106,11 @@ for fname in CRITICAL:
     else:
         issues.append((fname, 0, "FILE MISSING"))
 
-print(f"\n{'='*60}")
+print(f"\n{'=' * 60}")
 print("  SOVEREIGN RUNTIME BUG SCANNER")
 print(f"  Files checked: {len(CRITICAL)}")
 print(f"  Issues found: {len(issues)}")
-print(f"{'='*60}\n")
+print(f"{'=' * 60}\n")
 
 if issues:
     for fname, line, msg in issues:

@@ -37,5 +37,6 @@ class SentimentGraphAgent:
 
     def breakout_probability(self) -> float:
         import math
+
         score = self.propagated_score()
         return 1.0 / (1.0 + math.exp(-score * 5))

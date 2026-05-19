@@ -6,11 +6,11 @@ logger = logging.getLogger(__name__)
 
 # Tax jurisdiction rates
 TAX_RATES = {
-    "us_short_term": 0.37,    # Ordinary income rate for <1yr holds
-    "us_long_term":  0.20,    # LTCG rate for >1yr holds
-    "uk_cgt":        0.20,
-    "india_stcg":    0.15,
-    "india_ltcg":    0.10,
+    "us_short_term": 0.37,  # Ordinary income rate for <1yr holds
+    "us_long_term": 0.20,  # LTCG rate for >1yr holds
+    "uk_cgt": 0.20,
+    "india_stcg": 0.15,
+    "india_ltcg": 0.10,
 }
 
 
@@ -73,7 +73,7 @@ class TaxBot:
         blended_rate = (total_tax / gross_pnl) if gross_pnl > 0 else 0.0
 
         logger.info(
-            f"[TAX BOT] Gross: ${gross_pnl:.2f} | Tax: ${total_tax:.2f} | Net: ${net_pnl:.2f} | Rate: {blended_rate*100:.1f}%"
+            f"[TAX BOT] Gross: ${gross_pnl:.2f} | Tax: ${total_tax:.2f} | Net: ${net_pnl:.2f} | Rate: {blended_rate * 100:.1f}%"
         )
 
         return TaxEstimate(

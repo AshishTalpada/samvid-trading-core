@@ -589,7 +589,7 @@ class TradingSystem:
                     conn.execute("PRAGMA busy_timeout = 90000;")  # 90s SQLite-level busy wait
                     conn.execute("PRAGMA journal_mode=WAL;")
                     conn.execute("PRAGMA synchronous=NORMAL;")
-                    conn.execute("PRAGMA cache_size = -64000;") # 64MB cache for high-speed reads
+                    conn.execute("PRAGMA cache_size = -64000;")  # 64MB cache for high-speed reads
                     conn.execute(
                         "PRAGMA wal_checkpoint(TRUNCATE);"
                     )  # Force flush and truncate WAL on boot
@@ -936,7 +936,9 @@ class TradingSystem:
                         )
                         effective_path = None
                 elif not self._is_safe_path(effective_path):
-                    logger.warning(f"Sovereign Shield: MT5_PATH validation FAILED ({effective_path})")
+                    logger.warning(
+                        f"Sovereign Shield: MT5_PATH validation FAILED ({effective_path})"
+                    )
                     effective_path = None
 
                 if effective_path:
@@ -1876,7 +1878,6 @@ class TradingSystem:
                 except Exception as e:
                     logger.error(f"Shutdown: API Server stop failed: {e}")
 
-
             # 4. UNLOAD AI MODELS
             logger.info("[SHUTDOWN STEP 4/8] Offloading Neural VRAM weights...")
             if hasattr(self, "native_slm") and self.native_slm:
@@ -2409,9 +2410,9 @@ if __name__ == "__main__":
                     loop.run_until_complete(asyncio.wait_for(s.shutdown(), timeout=45.0))
                 else:
                     # Shutdown already in progress — wait for it to complete
-                    loop.run_until_complete(asyncio.wait_for(
-                        s._shutdown_event.wait(), timeout=45.0
-                    ))
+                    loop.run_until_complete(
+                        asyncio.wait_for(s._shutdown_event.wait(), timeout=45.0)
+                    )
             except Exception as e:
                 print(f"[SOVEREIGN] Primary Shutdown Exception: {e}")
 

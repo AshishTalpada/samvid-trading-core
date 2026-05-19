@@ -14,13 +14,18 @@ class TaxOptimisedExitStrategy:
     STCG_RATE = 0.37
     LTCG_RATE = 0.20
 
-    def select_lot_to_sell(self, open_lots: List[Dict], target_qty: float, objective: str = "min_tax") -> List[Dict]:
+    def select_lot_to_sell(
+        self, open_lots: List[Dict], target_qty: float, objective: str = "min_tax"
+    ) -> List[Dict]:
         import time
+
         now = time.time()
         for lot in open_lots:
             lot["hold_days"] = (now - lot.get("opened_at", now)) / 86400
             lot["rate"] = self.LTCG_RATE if lot["hold_days"] >= 365 else self.STCG_RATE
-            lot["after_tax_loss"] = (lot.get("current_price", lot["basis"]) - lot["basis"]) * (1 - lot["rate"])
+            lot["after_tax_loss"] = (lot.get("current_price", lot["basis"]) - lot["basis"]) * (
+                1 - lot["rate"]
+            )
 
         if objective == "min_tax":
             sorted_lots = sorted(open_lots, key=lambda x: x["rate"])
@@ -37,5 +42,7 @@ class TaxOptimisedExitStrategy:
             selected.append({**lot, "sell_qty": take})
             filled += take
 
-        logger.info(f"[TAX STRATEGY] Selected {len(selected)} lots ({objective}) for {filled:.0f} shares")
+        logger.info(
+            f"[TAX STRATEGY] Selected {len(selected)} lots ({objective}) for {filled:.0f} shares"
+        )
         return selected

@@ -15,6 +15,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class TradeRecord:
     """Record of a single trade for analysis."""
+
     timestamp: float
     symbol: str
     pnl: float
@@ -26,6 +27,7 @@ class TradeRecord:
 @dataclass
 class StressAnalysis:
     """Result of stress/veto analysis."""
+
     stress_detected: bool
     stress_type: str
     severity: float
@@ -180,15 +182,16 @@ class StressVeto:
 
     def _check_rapid_trading(self, trades: list[TradeRecord]) -> tuple[Optional[str], float]:
         """Check for excessive trade frequency."""
-        hour_trades = [t for t in self.trade_history
-                      if time.time() - t.timestamp < 3600]
+        hour_trades = [t for t in self.trade_history if time.time() - t.timestamp < 3600]
 
         if len(hour_trades) > self.MAX_TRADES_PER_HOUR:
             return "RAPID_TRADING", min(1.0, len(hour_trades) / self.MAX_TRADES_PER_HOUR)
 
         return None, 0.0
 
-    def _check_manual_override_spike(self, trades: list[TradeRecord]) -> tuple[Optional[str], float]:
+    def _check_manual_override_spike(
+        self, trades: list[TradeRecord]
+    ) -> tuple[Optional[str], float]:
         """Check for increasing manual override frequency."""
         recent_trades = list(self.trade_history)[-20:]
 
@@ -204,9 +207,7 @@ class StressVeto:
         return None, 0.0
 
     def _check_hours_anomaly(
-        self,
-        trades: list[TradeRecord],
-        current_hour: int | None = None
+        self, trades: list[TradeRecord], current_hour: int | None = None
     ) -> tuple[Optional[str], float]:
         """Check for trading at unusual hours (emotional state)."""
         if current_hour is None:
@@ -231,19 +232,15 @@ class StressVeto:
         trades_after_loss = [t for t in trades if t.timestamp > last_loss_time]
 
         if len(trades_after_loss) >= 2:
-            same_symbol_trades = sum(1 for t in trades_after_loss
-                                   if t.symbol == loss_trades[-1].symbol)
+            same_symbol_trades = sum(
+                1 for t in trades_after_loss if t.symbol == loss_trades[-1].symbol
+            )
             if same_symbol_trades >= 2:
                 return "MARKET_CHASING", 0.6
 
         return None, 0.0
 
-    def _trigger_veto(
-        self,
-        stress_type: str,
-        severity: float,
-        reason: str
-    ) -> StressAnalysis:
+    def _trigger_veto(self, stress_type: str, severity: float, reason: str) -> StressAnalysis:
         """Trigger a veto lockout."""
         self.veto_count += 1
         self.last_veto_time = time.time()

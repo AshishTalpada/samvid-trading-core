@@ -27,10 +27,14 @@ class MultiHorizonHedger:
             strike_pct = 0.90
             dte = 90
         strike = round(spot * strike_pct, 2)
-        logger.info(f"[HEDGER] {horizon} hedge: {dte}DTE {strike_pct:.0%} strike={strike} at VIX={vix:.1f}")
+        logger.info(
+            f"[HEDGER] {horizon} hedge: {dte}DTE {strike_pct:.0%} strike={strike} at VIX={vix:.1f}"
+        )
         return {"strike": strike, "dte": dte, "instrument": "PUT", "horizon": horizon}
 
-    def hedge_ratio(self, position_delta: float, put_delta: float, coverage_pct: float = 0.5) -> int:
+    def hedge_ratio(
+        self, position_delta: float, put_delta: float, coverage_pct: float = 0.5
+    ) -> int:
         if abs(put_delta) < 1e-6:
             return 0
         contracts = int(-position_delta * coverage_pct / (put_delta * 100))

@@ -11,8 +11,11 @@ class ExplainabilityEngine:
     Shapley value approximation via sampling-based marginal contribution.
     """
 
-    def shapley_values(self, features: Dict[str, float], predict_fn, n_samples: int = 50) -> Dict[str, float]:
+    def shapley_values(
+        self, features: Dict[str, float], predict_fn, n_samples: int = 50
+    ) -> Dict[str, float]:
         import random
+
         feature_names = list(features.keys())
         shapley: Dict[str, float] = {k: 0.0 for k in feature_names}
 

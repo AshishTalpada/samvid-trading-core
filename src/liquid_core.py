@@ -5,12 +5,14 @@ import numpy as np
 
 logger = logging.getLogger(__name__)
 
+
 class LiquidNeuralCore:
     """
     Continuous-time ODE Liquid Neural Network core for fluid reasoning.
     Adjusts its internal time-constants dynamically based on market volatility,
     allowing it to sample faster during chaos and slower during consolidation.
     """
+
     def __init__(self, hidden_dim: int = 64):
         self.hidden_dim = hidden_dim
         self.state = np.zeros(hidden_dim)

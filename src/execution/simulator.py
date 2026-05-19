@@ -7,6 +7,7 @@ import numpy as np
 
 logger = logging.getLogger(__name__)
 
+
 @dataclass
 class MarketImpactResult:
     temporary_impact_bps: float
@@ -15,6 +16,7 @@ class MarketImpactResult:
     optimal_slices: int
     optimal_time_horizon_minutes: float
 
+
 class ImpactSimulator:
     """
     Advanced Market Impact Simulator for High-Frequency and Institutional Execution.
@@ -22,6 +24,7 @@ class ImpactSimulator:
     preventing the system from crushing its own alpha through careless execution sizing.
     Uses an adaptation of the Almgren-Chriss (2000) and Kyle's Lambda (1985) models.
     """
+
     def __init__(self, adv_data: Dict[str, float], daily_volatility_data: Dict[str, float]):
         """
         :param adv_data: Dictionary mapping ticker to Average Daily Volume (shares)
@@ -32,14 +35,14 @@ class ImpactSimulator:
 
         # Empirical coefficients calibrated from historical institutional flow
         self.gamma = 0.314  # Temporary impact coefficient (liquidity demanding)
-        self.eta = 0.142    # Permanent impact coefficient (information content)
+        self.eta = 0.142  # Permanent impact coefficient (information content)
 
     def calculate_market_impact(
         self,
         ticker: str,
         order_size_shares: int,
         current_price: float,
-        trade_duration_minutes: float = 30.0
+        trade_duration_minutes: float = 30.0,
     ) -> MarketImpactResult:
         """
         Calculates the expected slippage and impact of an order.
@@ -61,7 +64,9 @@ class ImpactSimulator:
 
         # If we exceed 20% participation, we are the market. Impact scales non-linearly.
         if participation_rate > 0.20:
-            logger.warning(f"High Participation Rate ({participation_rate*100:.1f}%) for {ticker}. Massive impact expected.")
+            logger.warning(
+                f"High Participation Rate ({participation_rate * 100:.1f}%) for {ticker}. Massive impact expected."
+            )
 
         # 2. Temporary Impact (Square Root Law)
         # Driven by the speed of execution and taking liquidity from the book.
@@ -92,10 +97,13 @@ class ImpactSimulator:
             permanent_impact_bps=perm_impact_bps,
             expected_slippage_dollars=slippage_dollars,
             optimal_slices=optimal_slices,
-            optimal_time_horizon_minutes=trade_duration_minutes * (temp_impact_bps / 2.0 if temp_impact_bps > 2.0 else 1.0)
+            optimal_time_horizon_minutes=trade_duration_minutes
+            * (temp_impact_bps / 2.0 if temp_impact_bps > 2.0 else 1.0),
         )
 
-    def optimize_execution_schedule(self, ticker: str, order_size_shares: int, current_price: float, risk_aversion: float = 1e-6) -> List[Tuple[int, int]]:
+    def optimize_execution_schedule(
+        self, ticker: str, order_size_shares: int, current_price: float, risk_aversion: float = 1e-6
+    ) -> List[Tuple[int, int]]:
         """
         Uses Almgren-Chriss formulation to balance Market Impact vs Price Risk.
         Higher risk aversion means executing faster (paying more impact cost to avoid price drift).
@@ -111,7 +119,7 @@ class ImpactSimulator:
         # kappa = sqrt((risk_aversion * variance) / temp_impact_coefficient)
         # Using a highly simplified heuristic for the schedule generation
 
-        total_time_mins = 60 # Default 1 hour horizon
+        total_time_mins = 60  # Default 1 hour horizon
         schedule = []
 
         # Determine N discrete slices

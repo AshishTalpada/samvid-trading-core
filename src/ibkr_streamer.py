@@ -35,6 +35,7 @@ def _ensure_asyncio_loop() -> None:
     else:
         asyncio.set_event_loop(loop)
 
+
 # Defer importing `ib_insync` until runtime to avoid creating an event loop
 # at module import time in testing/static-analysis environments.
 

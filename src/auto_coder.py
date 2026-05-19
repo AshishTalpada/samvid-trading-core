@@ -49,6 +49,7 @@ class AutoCoder:
     AI self-coding engine. Validates, scores, and applies runtime code patches.
     In production: integrates with GitHub API to auto-open PRs for agent improvements.
     """
+
     def validate_syntax(self, code: str) -> bool:
         try:
             ast.parse(code)

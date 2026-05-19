@@ -13,6 +13,7 @@ Usage:
     # At position exit:
     LEDGER.record_exit(symbol, exit_type, pnl, r_multiple, triggered_by)
 """
+
 from __future__ import annotations
 
 import json
@@ -62,6 +63,7 @@ class DecisionLedger:
         self._init_db()
 
         import queue
+
         self._queue = queue.Queue()
         self._worker = threading.Thread(target=self._worker_loop, daemon=True)
         self._worker.start()

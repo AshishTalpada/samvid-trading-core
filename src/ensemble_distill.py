@@ -48,5 +48,11 @@ class EnsembleDistiller:
 
         best_vote = max(weighted_scores, key=weighted_scores.get)  # type: ignore
         ensemble_confidence = weighted_scores[best_vote] / total_weight
-        logger.info(f"[DISTILL] Ensemble vote: {best_vote} ({ensemble_confidence:.2%}) from {len(model_outputs)} models")
-        return {"vote": best_vote, "confidence": round(ensemble_confidence, 4), "breakdown": weighted_scores}
+        logger.info(
+            f"[DISTILL] Ensemble vote: {best_vote} ({ensemble_confidence:.2%}) from {len(model_outputs)} models"
+        )
+        return {
+            "vote": best_vote,
+            "confidence": round(ensemble_confidence, 4),
+            "breakdown": weighted_scores,
+        }

@@ -18,7 +18,7 @@ class GalacticClockSync:
 
     def query_ntp(self, server: str, timeout: float = 1.0) -> float | None:
         try:
-            pkt = b'\x1b' + 47 * b'\x00'
+            pkt = b"\x1b" + 47 * b"\x00"
             s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
             s.settimeout(timeout)
             t_send = time.time()
@@ -26,7 +26,7 @@ class GalacticClockSync:
             data, _ = s.recvfrom(1024)
             t_recv = time.time()
             s.close()
-            t_ntp = struct.unpack('!12I', data)[10] - NTP_DELTA
+            t_ntp = struct.unpack("!12I", data)[10] - NTP_DELTA
             rtt = t_recv - t_send
             return t_ntp + rtt / 2.0  # type: ignore
         except Exception as e:

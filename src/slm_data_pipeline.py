@@ -119,9 +119,7 @@ def build_dataset():
                 f.write(json.dumps(json_record) + "\n")
                 extracted_count += 1
 
-        logger.info(
-            f" Successfully extracted {extracted_count} training examples to {OUTPUT_PATH}"
-        )
+        logger.info(f" Successfully extracted {extracted_count} training examples to {OUTPUT_PATH}")
         logger.info(f"Dataset Balance -> Winners: {win_count} | Losers: {loss_count}")
         logger.info("This JSONL file is ready for LoRA fine-tuning.")
 
@@ -131,16 +129,16 @@ def build_dataset():
         conn.close()
 
 
-
 # ── LOCAL-ONLY SOVEREIGN EXTENSIONS ─────────────────────────────────────
 
 
 class SLMDataPipeline:
-    '''
+    """
     Small Language Model (SLM) Data pre-processor.
     Ingests raw Telegram/Twitter financial text, tokenizes, removes stop words,
     and converts to TF-IDF vectors for fast sentiment inference.
-    '''
+    """
+
     def __init__(self):
         self.vocab = {}
         self.idf = {}
@@ -149,13 +147,13 @@ class SLMDataPipeline:
 
     def clean_text(self, text: str) -> List[str]:
         text = text.lower()
-        text = re.sub(r'http\S+', '', text) # Remove URLs
-        text = re.sub(r'[^a-z0-9\s]', '', text) # Remove punctuation
+        text = re.sub(r"http\S+", "", text)  # Remove URLs
+        text = re.sub(r"[^a-z0-9\s]", "", text)  # Remove punctuation
         tokens = text.split()
         return [t for t in tokens if t not in self.stop_words]
 
     def fit(self, documents: List[str]):
-        '''Builds the vocabulary and Inverse Document Frequency (IDF) mapping.'''
+        """Builds the vocabulary and Inverse Document Frequency (IDF) mapping."""
         self.doc_count = len(documents)
         df = Counter()
 
@@ -170,7 +168,7 @@ class SLMDataPipeline:
             self.idf[word] = np.log(self.doc_count / (count + 1.0))
 
     def transform(self, text: str) -> np.ndarray:
-        '''Converts text into a TF-IDF sparse vector.'''
+        """Converts text into a TF-IDF sparse vector."""
         vector = np.zeros(len(self.vocab))
         if not self.vocab:
             return vector
@@ -186,5 +184,7 @@ class SLMDataPipeline:
                 vector[idx] = term_frequency * self.idf[word]
 
         return vector
+
+
 if __name__ == "__main__":
     build_dataset()

@@ -5,13 +5,17 @@ from typing import Optional
 
 logger = logging.getLogger(__name__)
 
+
 class FiberFailoverMonitor:
     """
     Active-passive fiber failover monitor.
     Continuously probes primary and secondary fiber paths via ICMP-equivalent
     TCP SYN probes and triggers failover within 10ms of primary path loss.
     """
-    def __init__(self, primary_host: str, secondary_host: str, port: int = 80, probe_interval: float = 0.1):
+
+    def __init__(
+        self, primary_host: str, secondary_host: str, port: int = 80, probe_interval: float = 0.1
+    ):
         self.primary = primary_host
         self.secondary = secondary_host
         self.port = port
@@ -35,11 +39,15 @@ class FiberFailoverMonitor:
         if p is None and self.active_path == self.primary:
             self.active_path = self.secondary
             self.failover_count += 1
-            logger.critical(f"[FIBER] PRIMARY DOWN — switched to secondary (failover #{self.failover_count})")
+            logger.critical(
+                f"[FIBER] PRIMARY DOWN — switched to secondary (failover #{self.failover_count})"
+            )
         elif p is not None and s is not None and p > s * 1.5 and self.active_path == self.primary:
             self.active_path = self.secondary
-            logger.warning(f"[FIBER] Secondary faster ({s*1000:.2f}ms vs {p*1000:.2f}ms). Switching.")
+            logger.warning(
+                f"[FIBER] Secondary faster ({s * 1000:.2f}ms vs {p * 1000:.2f}ms). Switching."
+            )
         elif p is not None and self.active_path == self.secondary:
             self.active_path = self.primary
-            logger.info(f"[FIBER] Primary restored ({p*1000:.2f}ms). Resuming.")
+            logger.info(f"[FIBER] Primary restored ({p * 1000:.2f}ms). Resuming.")
         return self.active_path

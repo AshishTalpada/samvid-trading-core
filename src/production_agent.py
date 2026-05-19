@@ -6,14 +6,23 @@ import requests
 
 logger = logging.getLogger(__name__)
 
+
 class ProductionResiliencyAgent:
     """
     Monitors factory-level supply resiliency via satellite-tagged news events.
     Detects fires, strikes, power outages at critical supplier facilities
     and alerts the risk engine to pre-emptively reduce semiconductor exposure.
     """
-    SUPPLY_KEYWORDS = ["factory fire","plant shutdown","strike","power outage","force majeure","explosion"]
-    SEMICONDUCTOR_TICKERS = ["NVDA","TSMC","AMAT","KLAC","ASML","MU","INTC","AMD"]
+
+    SUPPLY_KEYWORDS = [
+        "factory fire",
+        "plant shutdown",
+        "strike",
+        "power outage",
+        "force majeure",
+        "explosion",
+    ]
+    SEMICONDUCTOR_TICKERS = ["NVDA", "TSMC", "AMAT", "KLAC", "ASML", "MU", "INTC", "AMD"]
 
     def __init__(self):
         self.alert_history: list[dict] = []
@@ -25,7 +34,11 @@ class ProductionResiliencyAgent:
             for kw in self.SUPPLY_KEYWORDS:
                 if kw in low:
                     affected = [t for t in self.SEMICONDUCTOR_TICKERS if t.lower() in low]
-                    alert = {"keyword": kw, "tickers": affected or ["UNKNOWN"], "snippet": text[:120]}
+                    alert = {
+                        "keyword": kw,
+                        "tickers": affected or ["UNKNOWN"],
+                        "snippet": text[:120],
+                    }
                     alerts.append(alert)
                     self.alert_history.append(alert)
                     logger.warning(f"[PRODUCTION] Supply disruption: '{kw}' -> {affected}")

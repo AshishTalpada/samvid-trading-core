@@ -6,11 +6,13 @@ from typing import Any, Dict, List
 
 logger = logging.getLogger(__name__)
 
+
 class AutoThesisGenerator:
     """
     Generates a comprehensive, multi-page Trade Thesis Markdown document
     justifying exactly why the Sovereign Hive Mind took a trade.
     """
+
     def __init__(self, output_dir: str = "docs/journal/thesis"):
         self.output_dir = output_dir
         os.makedirs(self.output_dir, exist_ok=True)
@@ -24,7 +26,7 @@ class AutoThesisGenerator:
         macro_context: Dict[str, Any],
         agent_consensus: Dict[str, Any],
         risk_metrics: Dict[str, Any],
-        order_book_state: Dict[str, Any]
+        order_book_state: Dict[str, Any],
     ) -> str:
 
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -46,10 +48,10 @@ The Sovereign Hive Mind elected to execute a **{action}** position on **{ticker}
 
 ## 2. Macro Regime Context
 *The broader market environment in which this trade was taken.*
-- **VIX State:** {macro_context.get('vix', 'Normal')}
-- **Interest Rate Trend:** {macro_context.get('rates', 'Stable')}
-- **Sector Rotation Momentum:** {macro_context.get('sector_momentum', 'Neutral')}
-- **Systematic Bias:** {macro_context.get('bias', 'Neutral')}
+- **VIX State:** {macro_context.get("vix", "Normal")}
+- **Interest Rate Trend:** {macro_context.get("rates", "Stable")}
+- **Sector Rotation Momentum:** {macro_context.get("sector_momentum", "Neutral")}
+- **Systematic Bias:** {macro_context.get("bias", "Neutral")}
 
 ## 3. Agent Consensus Breakdown
 *How the various neural agents voted on this opportunity.*
@@ -60,18 +62,18 @@ The Sovereign Hive Mind elected to execute a **{action}** position on **{ticker}
         content += f"""
 ## 4. Quantitative Risk Parameters
 *Mathematical boundaries securing the position.*
-- **Entry Price:** ${risk_metrics.get('entry_price', 0.0):.2f}
-- **Hard Stop Loss:** ${risk_metrics.get('stop_loss', 0.0):.2f}
-- **Take Profit Target:** ${risk_metrics.get('take_profit', 0.0):.2f}
-- **Risk-to-Reward Ratio:** {risk_metrics.get('rr_ratio', 0.0):.2f}
-- **Kelly Criterion Size Allocation:** {risk_metrics.get('kelly_pct', 0.0) * 100:.2f}% of portfolio
-- **Value at Risk (VaR 99%):** ${risk_metrics.get('var_99', 0.0):.2f}
+- **Entry Price:** ${risk_metrics.get("entry_price", 0.0):.2f}
+- **Hard Stop Loss:** ${risk_metrics.get("stop_loss", 0.0):.2f}
+- **Take Profit Target:** ${risk_metrics.get("take_profit", 0.0):.2f}
+- **Risk-to-Reward Ratio:** {risk_metrics.get("rr_ratio", 0.0):.2f}
+- **Kelly Criterion Size Allocation:** {risk_metrics.get("kelly_pct", 0.0) * 100:.2f}% of portfolio
+- **Value at Risk (VaR 99%):** ${risk_metrics.get("var_99", 0.0):.2f}
 
 ## 5. Microstructure & Order Book Topology
 *The millisecond-level state of the Limit Order Book during execution.*
-- **Top of Book Spread:** {order_book_state.get('spread_bps', 0.0):.2f} bps
-- **Volume Imbalance (Top 5 Levels):** {order_book_state.get('imbalance', 0.0) * 100:.2f}% (Positive = Bid heavy)
-- **Detected Icebergs:** {order_book_state.get('icebergs_detected', 'None')}
+- **Top of Book Spread:** {order_book_state.get("spread_bps", 0.0):.2f} bps
+- **Volume Imbalance (Top 5 Levels):** {order_book_state.get("imbalance", 0.0) * 100:.2f}% (Positive = Bid heavy)
+- **Detected Icebergs:** {order_book_state.get("icebergs_detected", "None")}
 
 ---
 *Generated autonomously by Sovereign AutoThesis Engine.*

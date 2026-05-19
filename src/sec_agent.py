@@ -6,6 +6,7 @@ import requests
 
 logger = logging.getLogger(__name__)
 
+
 class SECSemanticAgent:
     """
     SEC EDGAR full-text semantic search agent.
@@ -13,16 +14,31 @@ class SECSemanticAgent:
     (e.g., 'going concern', 'material weakness', 'regulatory investigation')
     before they manifest as price crashes.
     """
-    EDGAR_FULL_TEXT = "https://efts.sec.gov/LATEST/search-index?q={}&category=form-type&dateRange=custom&startdt={}&enddt={}"
-    RED_FLAG_PHRASES = ["going concern", "material weakness", "regulatory investigation",
-                        "substantial doubt", "liquidity risk", "criminal investigation"]
 
-    def search(self, query: str, start_date: str = "2020-01-01", end_date: str = "2025-12-31") -> List[Dict]:
+    EDGAR_FULL_TEXT = "https://efts.sec.gov/LATEST/search-index?q={}&category=form-type&dateRange=custom&startdt={}&enddt={}"
+    RED_FLAG_PHRASES = [
+        "going concern",
+        "material weakness",
+        "regulatory investigation",
+        "substantial doubt",
+        "liquidity risk",
+        "criminal investigation",
+    ]
+
+    def search(
+        self, query: str, start_date: str = "2020-01-01", end_date: str = "2025-12-31"
+    ) -> List[Dict]:
         try:
             url = self.EDGAR_FULL_TEXT.format(requests.utils.quote(query), start_date, end_date)
             r = requests.get(url, timeout=8)
             hits = r.json().get("hits", {}).get("hits", [])
-            return [{"entity": h.get("_source", {}).get("entity_name", ""), "date": h.get("_source", {}).get("file_date", "")} for h in hits[:10]]
+            return [
+                {
+                    "entity": h.get("_source", {}).get("entity_name", ""),
+                    "date": h.get("_source", {}).get("file_date", ""),
+                }
+                for h in hits[:10]
+            ]
         except Exception as e:
             logger.error(f"[SEC] Search failed: {e}")
             return []
@@ -32,5 +48,6 @@ class SECSemanticAgent:
         for phrase in self.RED_FLAG_PHRASES:
             hits = self.search(f'"{ticker}" "{phrase}"')
             results[phrase] = len(hits)
-            if hits: logger.warning(f"[SEC] Red flag '{phrase}' for {ticker}: {len(hits)} filings")
+            if hits:
+                logger.warning(f"[SEC] Red flag '{phrase}' for {ticker}: {len(hits)} filings")
         return results

@@ -6,12 +6,14 @@ from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
+
 class DatabaseHealer:
     """
     Self-repairing QuestDB/SQLite database agent.
     Detects file corruption via checksum mismatch, auto-restores from the
     most recent verified backup, and alerts on repeated failures.
     """
+
     def __init__(self, db_path: str = "data/sovereign.db", backup_dir: str = "data/backups"):
         self.db_path = Path(db_path)
         self.backup_dir = Path(backup_dir)

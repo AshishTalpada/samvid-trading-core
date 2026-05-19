@@ -5,15 +5,17 @@ from typing import Any
 
 logger = logging.getLogger(__name__)
 
+
 class VIXCircuitBreaker:
     """
     Global macro safety valve. Kills all positions if VIX spikes brutally.
     Maintains a rolling 5-minute window of VIX ticks to calculate percentage change.
     """
+
     def __init__(self, spike_threshold: float = 0.20, window_seconds: int = 300):
         self.spike_threshold = spike_threshold
         self.window_seconds = window_seconds
-        self.tick_history: Any = deque() # tuples of (timestamp, vix_value)
+        self.tick_history: Any = deque()  # tuples of (timestamp, vix_value)
 
     def process_vix_tick(self, vix_value: float) -> bool:
         """
@@ -35,8 +37,7 @@ class VIXCircuitBreaker:
 
         if percent_change >= self.spike_threshold:
             logger.critical(
-                f"VIX FLASH SPIKE DETECTED! {percent_change*100:.2f}% "
-                f"in < {self.window_seconds}s"
+                f"VIX FLASH SPIKE DETECTED! {percent_change * 100:.2f}% in < {self.window_seconds}s"
             )
             return True
 

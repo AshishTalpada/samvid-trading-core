@@ -3,6 +3,7 @@ from typing import Any, Callable, Dict, Optional
 
 logger = logging.getLogger(__name__)
 
+
 class AdversarialStateMachine:
     """
     Fault-tolerant FSM utilizing twin state verification.
@@ -10,6 +11,7 @@ class AdversarialStateMachine:
     a critical logical bug has occurred, triggering an immediate safety halt.
     Prevents execution of trades in indeterminate logic states.
     """
+
     def __init__(self, initial_state: str = "IDLE"):
         self.state_a = initial_state
         self.state_b = initial_state

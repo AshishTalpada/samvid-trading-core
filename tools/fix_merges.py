@@ -13,21 +13,25 @@ causing IndentationError. This script:
      - All local-only declarations inside classes are injected as class methods
        using a proper indentation-aware approach.
 """
+
 import ast
 import difflib
 import re
 import shutil
 from pathlib import Path
 
-D_SRC   = Path(r"D:\Claude\samvid-trading-core-main\samvid-trading-core-main\src")
-C_SRC   = Path(r"C:\Users\talpa\Desktop\System_Beta\TradingSystem\src")
-BACKUP  = Path(r"C:\Users\talpa\Desktop\System_Beta\TradingSystem\tools\backup_before_merge")
+D_SRC = Path(r"D:\Claude\samvid-trading-core-main\samvid-trading-core-main\src")
+C_SRC = Path(r"C:\Users\talpa\Desktop\System_Beta\TradingSystem\src")
+BACKUP = Path(r"C:\Users\talpa\Desktop\System_Beta\TradingSystem\tools\backup_before_merge")
+
 
 def read(path: Path) -> str:
     return path.read_text(encoding="utf-8", errors="replace")
 
+
 def write(path: Path, content: str) -> None:
     path.write_text(content, encoding="utf-8")
+
 
 def is_parseable(code: str) -> bool:
     try:
@@ -35,6 +39,7 @@ def is_parseable(code: str) -> bool:
         return True
     except SyntaxError:
         return False
+
 
 def get_top_level_names(code: str) -> set[str]:
     """Return all top-level function / class names defined in the module."""
@@ -48,6 +53,7 @@ def get_top_level_names(code: str) -> set[str]:
         pass
     return names
 
+
 def get_top_level_segments(code: str) -> list[tuple[str, str]]:
     """
     Returns list of (name, source_text) for every top-level definition.
@@ -60,27 +66,33 @@ def get_top_level_segments(code: str) -> list[tuple[str, str]]:
         return []
 
     segments = []
-    top_nodes = [n for n in ast.iter_child_nodes(tree)
-                 if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef))]
+    top_nodes = [
+        n
+        for n in ast.iter_child_nodes(tree)
+        if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef))
+    ]
 
     for i, node in enumerate(top_nodes):
         start = node.lineno - 1  # 0-indexed
         # Walk back to capture decorators
-        while start > 0 and (lines[start-1].strip().startswith("@") or lines[start-1].strip() == ""):
-            if lines[start-1].strip().startswith("@"):
+        while start > 0 and (
+            lines[start - 1].strip().startswith("@") or lines[start - 1].strip() == ""
+        ):
+            if lines[start - 1].strip().startswith("@"):
                 start -= 1
             else:
                 break
         if i + 1 < len(top_nodes):
-            end = top_nodes[i+1].lineno - 1
+            end = top_nodes[i + 1].lineno - 1
             # Walk back past blank lines
-            while end > start and lines[end-1].strip() == "":
+            while end > start and lines[end - 1].strip() == "":
                 end -= 1
         else:
             end = len(lines)
         name = node.name
         segments.append((name, "".join(lines[start:end])))
     return segments
+
 
 def smart_merge(name: str, d_code: str, c_code: str) -> str:
     """
@@ -93,8 +105,7 @@ def smart_merge(name: str, d_code: str, c_code: str) -> str:
     c_segments = get_top_level_segments(c_code)
 
     local_only_segments = [
-        (seg_name, seg_code) for seg_name, seg_code in c_segments
-        if seg_name not in d_names
+        (seg_name, seg_code) for seg_name, seg_code in c_segments if seg_name not in d_names
     ]
 
     if not local_only_segments:
@@ -108,15 +119,19 @@ def smart_merge(name: str, d_code: str, c_code: str) -> str:
     for line in c_lines_all:
         stripped = line.rstrip()
         # Only include top-level assignments and simple statements (no indent, not blank, not import)
-        if (stripped and not stripped.startswith(" ") and not stripped.startswith("\t")
-                and stripped not in d_lines
-                and not stripped.startswith("#")
-                and not stripped.startswith("import ")
-                and not stripped.startswith("from ")
-                and not stripped.startswith("class ")
-                and not stripped.startswith("def ")
-                and not stripped.startswith("async def ")
-                and not stripped.startswith("if __name__")):
+        if (
+            stripped
+            and not stripped.startswith(" ")
+            and not stripped.startswith("\t")
+            and stripped not in d_lines
+            and not stripped.startswith("#")
+            and not stripped.startswith("import ")
+            and not stripped.startswith("from ")
+            and not stripped.startswith("class ")
+            and not stripped.startswith("def ")
+            and not stripped.startswith("async def ")
+            and not stripped.startswith("if __name__")
+        ):
             local_only_lines.append(line)
 
     # Build the merged content
@@ -131,11 +146,17 @@ def smart_merge(name: str, d_code: str, c_code: str) -> str:
 
     additions = []
     if local_only_lines:
-        additions += ["\n", "# ── LOCAL-ONLY MODULE CONSTANTS ─────────────────────────────────────────\n"]
+        additions += [
+            "\n",
+            "# ── LOCAL-ONLY MODULE CONSTANTS ─────────────────────────────────────────\n",
+        ]
         additions += local_only_lines
 
     if local_only_segments:
-        additions += ["\n", "# ── LOCAL-ONLY SOVEREIGN EXTENSIONS ─────────────────────────────────────\n"]
+        additions += [
+            "\n",
+            "# ── LOCAL-ONLY SOVEREIGN EXTENSIONS ─────────────────────────────────────\n",
+        ]
         for seg_name, seg_code in local_only_segments:
             additions += ["\n", "\n"]
             additions += seg_code.splitlines(keepends=True)
@@ -154,9 +175,9 @@ def smart_merge(name: str, d_code: str, c_code: str) -> str:
 
 files_to_fix = [f.name for f in C_SRC.glob("*.py") if (D_SRC / f.name).exists()]
 
-print(f"\n{'='*70}")
+print(f"\n{'=' * 70}")
 print("  POST-MERGE SYNTAX FIX (Smart Merge v2)")
-print(f"{'='*70}\n")
+print(f"{'=' * 70}\n")
 
 ok_count = 0
 fixed_count = 0
@@ -177,7 +198,9 @@ for name in sorted(files_to_fix):
     if is_parseable(merged):
         write(c_path, merged)
         ok_count += 1
-        local_segs = [s for s in get_top_level_segments(c_code) if s[0] not in get_top_level_names(d_code)]
+        local_segs = [
+            s for s in get_top_level_segments(c_code) if s[0] not in get_top_level_names(d_code)
+        ]
         if local_segs or merged != d_code:
             fixed_count += 1
             print(f"  ✅ MERGED+OK  {name:55s}  local_extensions={len(local_segs)}")
@@ -194,8 +217,8 @@ for name in sorted(files_to_fix):
             error_count += 1
             print(f"  ❌ UNPARSEABLE EVEN D-DRIVE: {name}")
 
-print(f"\n{'='*70}")
+print(f"\n{'=' * 70}")
 print(f"  FILES OK     : {ok_count}")
 print(f"  WITH MERGES  : {fixed_count}")
 print(f"  ERRORS       : {error_count}")
-print(f"{'='*70}\n")
+print(f"{'=' * 70}\n")

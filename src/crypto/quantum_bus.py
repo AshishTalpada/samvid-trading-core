@@ -58,6 +58,7 @@ class QuantumEntanglementBus:
         In simulation: uses os.urandom as a cryptographically secure fallback.
         """
         import os
+
         raw = os.urandom(n_bytes)
         logger.debug(f"[QBus] Generated {n_bytes}-byte QRNG seed (simulation mode)")
         return raw

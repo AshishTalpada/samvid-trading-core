@@ -7,12 +7,14 @@ import requests
 
 logger = logging.getLogger(__name__)
 
+
 class InsiderTradeAgent:
     """
     SEC Form 4 parser for real-time insider buying/selling signals.
     Clusters of insider BUYING (especially at CEOs + CFOs simultaneously) are among
     the highest-precision signals in quant finance (Seyhun 1988, Lakonishok 1995).
     """
+
     SEC_FEED = "https://efts.sec.gov/LATEST/search-index?q=%22form+4%22&dateRange=custom&startdt={}&enddt={}&hits.hits._source=period_of_report,display_names,entity_name,file_date"
 
     def parse_form4(self, filing: Dict) -> Dict | None:

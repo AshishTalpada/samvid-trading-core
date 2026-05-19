@@ -145,7 +145,6 @@ class DecisionEngine:
             total_confidence / len(self.required_agents) if len(self.required_agents) > 0 else 0.0
         )
 
-
         # 1. HARD VETO CHECK (Risk First)
         if output_map.get("Risk_Guard", {}).get("vote") == "NO":
             return await self._final_report(

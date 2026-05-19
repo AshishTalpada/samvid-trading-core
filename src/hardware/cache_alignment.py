@@ -30,4 +30,4 @@ class CacheLineAlignedBuffer:
         ctypes.memmove(ctypes.addressof(self._buf) + offset, data, n)
 
     def read(self, n: int, offset: int = 0) -> bytes:
-        return bytes(self._buf[offset:offset + n])
+        return bytes(self._buf[offset : offset + n])

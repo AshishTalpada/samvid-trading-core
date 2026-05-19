@@ -5,13 +5,17 @@ from typing import Optional
 
 logger = logging.getLogger(__name__)
 
+
 class FiberFailoverLayer:
     """
     Dual-fiber optical failover network layer.
     Monitors primary and secondary fiber paths via TCP probe and switches
     automatically to the lower-latency or available path.
     """
-    def __init__(self, primary: tuple[str,int], secondary: tuple[str,int], probe_interval: float = 0.5):
+
+    def __init__(
+        self, primary: tuple[str, int], secondary: tuple[str, int], probe_interval: float = 0.5
+    ):
         self.primary = primary
         self.secondary = secondary
         self.active = primary
