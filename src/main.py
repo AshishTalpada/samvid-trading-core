@@ -299,17 +299,6 @@ class TradingSystem:
 
         self._last_tick_time = time.monotonic()
         self._recalibration_in_progress = False
-        # Handle termination signals cleanly in the main event loop
-        if sys.platform != "win32":  # Windows uses signal.default_int_handler in main()
-            import signal
-
-            try:
-                loop = asyncio.get_event_loop()
-                for sig in (signal.SIGINT, signal.SIGTERM):
-                    loop.add_signal_handler(sig, lambda: asyncio.create_task(self.shutdown()))
-            except RuntimeError:
-                # Event loop not available (e.g., during synchronous tests)
-                pass
 
         self._write_pid()
         self.profiler.mark("CONSTRUCTOR_COMPLETE")
@@ -399,6 +388,17 @@ class TradingSystem:
         Parallelizes the cognitive matrix for sub-100ms startup.
         """
         self.profiler.mark("ASYNC_INIT_START")
+
+        # Handle termination signals cleanly in the main event loop
+        if sys.platform != "win32":
+            import signal
+
+            try:
+                loop = asyncio.get_running_loop()
+                for sig in (signal.SIGINT, signal.SIGTERM):
+                    loop.add_signal_handler(sig, lambda: asyncio.create_task(self.shutdown()))
+            except (RuntimeError, NotImplementedError):
+                pass
 
         # 1. Sovereign Scent Detection (Pillar 9.99)
         self.mind_system = MindSystem(self.bridge)
