@@ -5,11 +5,13 @@ import numpy as np
 
 logger = logging.getLogger(__name__)
 
+
 class FootfallAnalysisAgent:
     """
     Analyzes satellite/CCTV derived parking lot density data to estimate
     retail foot traffic for big-box retailers (WMT, TGT, HD) before earnings.
     """
+
     def __init__(self, base_density: float = 0.5):
         self.base_density = base_density
         self.history: List[float] = []

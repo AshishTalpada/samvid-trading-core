@@ -21,7 +21,9 @@ class PredictionBuffer:
     def push(self, branch: Dict[str, Any]) -> None:
         with self._lock:
             self._buffer.append(branch)
-            logger.debug(f"[PRED BUFFER] Pushed branch: {branch.get('scenario', '?')} ({len(self._buffer)}/{self._capacity})")
+            logger.debug(
+                f"[PRED BUFFER] Pushed branch: {branch.get('scenario', '?')} ({len(self._buffer)}/{self._capacity})"
+            )
 
     def pop_best(self) -> Optional[Dict[str, Any]]:
         with self._lock:
@@ -29,7 +31,9 @@ class PredictionBuffer:
                 return None
             best = max(self._buffer, key=lambda b: b.get("probability", 0.0))
             self._buffer.remove(best)
-            logger.debug(f"[PRED BUFFER] Popped best: {best.get('scenario', '?')} p={best.get('probability', 0):.2f}")
+            logger.debug(
+                f"[PRED BUFFER] Popped best: {best.get('scenario', '?')} p={best.get('probability', 0):.2f}"
+            )
             return best
 
     def peek_all(self) -> list[Dict[str, Any]]:

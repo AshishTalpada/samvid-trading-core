@@ -5,13 +5,15 @@ import time
 
 logger = logging.getLogger(__name__)
 
+
 class VoiceSecurityLayer:
     """
     Multi-layer voice authentication for high-risk trade authorizations.
     Combines speaker verification (cosine similarity on MFCCs)
     with a one-time challenge passphrase to prevent replay attacks.
     """
-    CHALLENGE_WORDS = ["alpha","bravo","charlie","delta","echo","foxtrot","golf","hotel"]
+
+    CHALLENGE_WORDS = ["alpha", "bravo", "charlie", "delta", "echo", "foxtrot", "golf", "hotel"]
 
     def __init__(self, similarity_threshold: float = 0.88):
         self.threshold = similarity_threshold
@@ -24,6 +26,7 @@ class VoiceSecurityLayer:
 
     def issue_challenge(self, user_id: str) -> str:
         import random
+
         word = random.choice(self.CHALLENGE_WORDS)
         self._challenges[user_id] = (word, time.time())
         return word
@@ -40,9 +43,9 @@ class VoiceSecurityLayer:
         if spoken_word.lower().strip() != challenge:
             logger.error("[VOICE SEC] Wrong challenge word.")
             return False
-        dot = sum(a*b for a,b in zip(enrolled, probe_mfcc, strict=False))
-        na = sum(x**2 for x in enrolled)**0.5
-        nb = sum(x**2 for x in probe_mfcc)**0.5
+        dot = sum(a * b for a, b in zip(enrolled, probe_mfcc, strict=False))
+        na = sum(x**2 for x in enrolled) ** 0.5
+        nb = sum(x**2 for x in probe_mfcc) ** 0.5
         sim = dot / (na * nb + 1e-9)
         passed = sim >= self.threshold
         logger.info(f"[VOICE SEC] {user_id}: sim={sim:.3f} -> {'PASS' if passed else 'FAIL'}")

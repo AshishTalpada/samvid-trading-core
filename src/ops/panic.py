@@ -5,12 +5,14 @@ from typing import List
 
 logger = logging.getLogger(__name__)
 
+
 class PhysicalPanicSwitch:
     """
     Self-destruct mechanism linked to a physical tamper seal on the server chassis.
     If intrusion is detected, instantly wipes all decrypted API keys, cryptographic
     logs, and proprietary model weights from memory and disk.
     """
+
     def __init__(self, secure_paths: List[str]):
         self.secure_paths = secure_paths
 
@@ -44,5 +46,6 @@ class PhysicalPanicSwitch:
         # Force immediate process termination to clear RAM
         logger.critical("WIPE COMPLETE. TERMINATING PROCESS TO CLEAR RAM.")
         import sys
+
         sys.exit(99)
         return success

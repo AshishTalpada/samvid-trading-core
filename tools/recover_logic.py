@@ -5,6 +5,7 @@ Compares every Python file in the D-drive reference against the local C-drive
 and produces a detailed diff report, a list of D-drive-only files (to be copied),
 and a list of local-only files (to be preserved untouched).
 """
+
 import difflib
 import os
 import shutil
@@ -18,19 +19,19 @@ REPORT_DIR.mkdir(exist_ok=True)
 d_files = {f.name for f in D_SRC.glob("*.py")}
 c_files = {f.name for f in C_SRC.glob("*.py")}
 
-d_only  = sorted(d_files - c_files)   # In D, missing from C → need to COPY
-c_only  = sorted(c_files - d_files)   # In C, not in D  → LOCAL EXCLUSIVE (preserve)
-both    = sorted(d_files & c_files)   # In both          → need DIFF
+d_only = sorted(d_files - c_files)  # In D, missing from C → need to COPY
+c_only = sorted(c_files - d_files)  # In C, not in D  → LOCAL EXCLUSIVE (preserve)
+both = sorted(d_files & c_files)  # In both          → need DIFF
 
-print(f"\n{'='*70}")
+print(f"\n{'=' * 70}")
 print("  SOVEREIGN RECOVERY SCAN")
-print(f"{'='*70}")
+print(f"{'=' * 70}")
 print(f"  D-drive files : {len(d_files)}")
 print(f"  C-drive files : {len(c_files)}")
 print(f"  D-ONLY (missing from local): {len(d_only)}")
 print(f"  C-ONLY (local exclusive)   : {len(c_only)}")
 print(f"  SHARED (need diff)         : {len(both)}")
-print(f"{'='*70}\n")
+print(f"{'=' * 70}\n")
 
 # ── 1. Files in D but not in C (must be COPIED) ─────────────────────────────
 print("FILES MISSING FROM LOCAL (D-drive only — will be COPIED):")
@@ -58,7 +59,9 @@ for name in both:
     d_lines = d_path.read_text(encoding="utf-8", errors="replace").splitlines(keepends=True)
     c_lines = c_path.read_text(encoding="utf-8", errors="replace").splitlines(keepends=True)
 
-    diff = list(difflib.unified_diff(c_lines, d_lines, fromfile=f"LOCAL/{name}", tofile=f"D-DRIVE/{name}"))
+    diff = list(
+        difflib.unified_diff(c_lines, d_lines, fromfile=f"LOCAL/{name}", tofile=f"D-DRIVE/{name}")
+    )
 
     if not diff:
         identical_files.append(name)
@@ -67,7 +70,9 @@ for name in both:
         # Count additions (lines in D not in C)
         additions = [l for l in diff if l.startswith("+") and not l.startswith("+++")]
         deletions = [l for l in diff if l.startswith("-") and not l.startswith("---")]
-        print(f"  ⚠️  {name:45s}  +{len(additions):4d} lines from D  -{len(deletions):4d} local lines")
+        print(
+            f"  ⚠️  {name:45s}  +{len(additions):4d} lines from D  -{len(deletions):4d} local lines"
+        )
         # Save diff file
         diff_file = REPORT_DIR / f"{name}.diff"
         diff_file.write_text("".join(diff), encoding="utf-8")
@@ -83,7 +88,7 @@ for name in changed_files:
 summary_path = REPORT_DIR / "RECOVERY_SUMMARY.txt"
 with open(summary_path, "w", encoding="utf-8") as f:
     f.write("SOVEREIGN RECOVERY SUMMARY\n")
-    f.write("="*60 + "\n\n")
+    f.write("=" * 60 + "\n\n")
     f.write("D-ONLY (COPIED to local):\n")
     for n in d_only:
         f.write(f"  {n}\n")

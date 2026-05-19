@@ -30,7 +30,9 @@ class MultiHorizonMemoryRecall:
             scored.append((overlap, lesson))
         scored.sort(key=lambda x: x[0], reverse=True)
         result = [l for _, l in scored[:top_n]]
-        logger.debug(f"[MEMORY] Recalled {len(result)} lessons from '{horizon}' for: '{query[:40]}'")
+        logger.debug(
+            f"[MEMORY] Recalled {len(result)} lessons from '{horizon}' for: '{query[:40]}'"
+        )
         return result
 
     def recall_all_horizons(self, query: str) -> Dict[str, List[Dict]]:

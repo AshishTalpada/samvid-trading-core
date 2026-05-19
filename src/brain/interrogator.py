@@ -3,12 +3,14 @@ from typing import Any
 
 logger = logging.getLogger(__name__)
 
+
 class SovereignInterrogator:
     """
     Natural language interrogation engine for quorum decisions.
     Allows the operator to ask: "Sovereign, why did you reject DIA?"
     and receive a structured, evidence-based justification.
     """
+
     def interrogate(self, decision: dict[str, Any], question: str) -> str:
         decision_type = decision.get("decision", "UNKNOWN")
         confidence = decision.get("confidence", 0.0)

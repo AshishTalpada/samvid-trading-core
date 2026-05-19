@@ -147,8 +147,13 @@ class TaskManager:
         if symbol in self._symbol_index:
             for tid in self._symbol_index[symbol]:
                 existing_task = self.tasks.get(tid)
-                if existing_task and existing_task.status in [TaskStatus.PENDING, TaskStatus.RUNNING]:
-                    logger.debug(f"TaskManager: Skipping spawn for {symbol}. Task {tid} is already {existing_task.status.value}.")
+                if existing_task and existing_task.status in [
+                    TaskStatus.PENDING,
+                    TaskStatus.RUNNING,
+                ]:
+                    logger.debug(
+                        f"TaskManager: Skipping spawn for {symbol}. Task {tid} is already {existing_task.status.value}."
+                    )
                     return existing_task
 
         task_id = f"t_{symbol}_{int(time.time())}"

@@ -5,12 +5,14 @@ import numpy as np
 
 logger = logging.getLogger(__name__)
 
+
 class VectorizedWisdomEngine:
     """
     Recalls 10 years of post-mortem trade lessons using FAISS/Cosine Similarity.
     Before Sovereign enters a trade, it queries this engine:
     'Have we seen a setup exactly like this? Did it work?'
     """
+
     def __init__(self):
         self.memory_vectors: List[np.ndarray] = []
         self.lessons: List[str] = []
@@ -33,7 +35,9 @@ class VectorizedWisdomEngine:
         q = query_vector / q_norm
 
         similarities = [float(np.dot(q, v)) for v in self.memory_vectors]
-        ranked = sorted(zip(similarities, self.lessons, strict=False), key=lambda x: x[0], reverse=True)
+        ranked = sorted(
+            zip(similarities, self.lessons, strict=False), key=lambda x: x[0], reverse=True
+        )
 
         recalled = ranked[:top_k]
         for sim, lesson in recalled:

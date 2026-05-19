@@ -3,11 +3,13 @@ from typing import Any, Dict
 
 logger = logging.getLogger(__name__)
 
+
 class SkepticAgent:
     """
     Devil's Advocate agent. Generates counterarguments to every bullish or bearish thesis.
     Lowers quorum conviction when it finds opposing evidence.
     """
+
     def __init__(self, conviction_penalty: float = 0.15):
         self.penalty = conviction_penalty
 
@@ -30,10 +32,12 @@ class SkepticAgent:
         return {
             "challenges": challenges,
             "adjusted_confidence": max(0.0, adjusted_confidence),
-            "veto": adjusted_confidence < 0.4
+            "veto": adjusted_confidence < 0.4,
         }
 
-    def run_adversarial_debate(self, proposal: Dict[str, Any], opponents: list[str]) -> Dict[str, Any]:
+    def run_adversarial_debate(
+        self, proposal: Dict[str, Any], opponents: list[str]
+    ) -> Dict[str, Any]:
         """
         Forces the proposing agents to defend their thesis against the Skeptic's counter-points.
         """
@@ -62,6 +66,5 @@ class SkepticAgent:
             "vote": "NO" if refined_conf < 0.6 else "YES",
             "confidence": refined_conf,
             "counter_thesis": counter_thesis,
-            "debate_resolved": True
+            "debate_resolved": True,
         }
-

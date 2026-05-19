@@ -1128,10 +1128,20 @@ class TradingBrain:
             while self.is_running:
                 # Sentinel: keep run() alive. If the main task crashes or
                 # completes for any reason, recreate it immediately.
-                if not hasattr(self, "_main_task") or self._main_task is None or self._main_task.done():
-                    exc = self._main_task.exception() if self._main_task and not self._main_task.cancelled() else None
+                if (
+                    not hasattr(self, "_main_task")
+                    or self._main_task is None
+                    or self._main_task.done()
+                ):
+                    exc = (
+                        self._main_task.exception()
+                        if self._main_task and not self._main_task.cancelled()
+                        else None
+                    )
                     if exc:
-                        logger.error(f"TradingBrain: _main_task died with exception: {exc}", exc_info=exc)
+                        logger.error(
+                            f"TradingBrain: _main_task died with exception: {exc}", exc_info=exc
+                        )
                     else:
                         logger.warning("TradingBrain: _main_task exited cleanly. Restarting...")
                     self._main_task = asyncio.create_task(self._run_loop())
@@ -1953,9 +1963,11 @@ class TradingBrain:
                 # Without this, the registry fills to 1000 and the brain stalls.
                 if signal_density >= 0.95 and self.task_manager:
                     from sovereign_task import TaskStatus
+
                     purged = 0
                     stale_keys = [
-                        k for k, t in list(self.task_manager.tasks.items())
+                        k
+                        for k, t in list(self.task_manager.tasks.items())
                         if hasattr(t, "status") and t.status == TaskStatus.PENDING
                     ]
                     for k in stale_keys[:200]:  # Purge up to 200 oldest PENDING tasks
@@ -2449,7 +2461,9 @@ class TradingBrain:
                         ticket = int(ticket_str)
                         success = await asyncio.to_thread(self.mt5_conn.close_position, ticket)
                         if not success:
-                            logger.error(f"MT5: Failed to close ticket {ticket}. Retaining position.")
+                            logger.error(
+                                f"MT5: Failed to close ticket {ticket}. Retaining position."
+                            )
                             return
                     except ValueError:
                         logger.error(
@@ -2636,8 +2650,10 @@ class TradingBrain:
             # Format detailed message
             title = "PARTIAL HARVEST" if exit_type == "PARTIAL" else "TRADE FINALIZED"
             outcome = (
-                "PROFIT" if realized_net_pnl > 0
-                else "LOSS" if realized_net_pnl < 0
+                "PROFIT"
+                if realized_net_pnl > 0
+                else "LOSS"
+                if realized_net_pnl < 0
                 else "BREAKEVEN"
             )
 

@@ -5,13 +5,17 @@ import optuna
 
 logger = logging.getLogger(__name__)
 
+
 class QuantumOptima:
     """
     Logic edge: Uses Optuna's CMA-ES and simulated annealing to find the
     global minimum of the multi-dimensional risk function.
     """
+
     def __init__(self):
-        self.study = optuna.create_study(direction="minimize", sampler=optuna.samplers.CmaEsSampler())
+        self.study = optuna.create_study(
+            direction="minimize", sampler=optuna.samplers.CmaEsSampler()
+        )
 
     def _objective(self, trial):
         # Example: Optimizing Sharpe Ratio vs Max Drawdown

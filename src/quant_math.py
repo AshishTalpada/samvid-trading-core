@@ -312,7 +312,9 @@ def _internal_kelly(win_rate: float, win_loss_ratio: float, fraction: float) -> 
     return float(safe_kelly)
 
 
-def calculate_kelly_criterion(win_rate: float, win_loss_ratio: float, fraction: float = 0.5) -> float:
+def calculate_kelly_criterion(
+    win_rate: float, win_loss_ratio: float, fraction: float = 0.5
+) -> float:
     """Calculates the optimal bet size based on the Kelly Criterion. Includes fractional Kelly for safety."""
     return _internal_kelly(win_rate, win_loss_ratio, fraction)
 
@@ -326,11 +328,11 @@ def _internal_sortino(ret_array: np.ndarray, risk_free_rate: float, target_retur
     downside_count = 0
     for r in ret_array:
         if r < target_return:
-            downside_sum += (r - target_return)**2
+            downside_sum += (r - target_return) ** 2
             downside_count += 1
 
     if downside_count == 0:
-        return 100.0 # High value for no downside
+        return 100.0  # High value for no downside
 
     downside_deviation = np.sqrt(downside_sum / len(ret_array))
     if downside_deviation == 0:
@@ -338,14 +340,20 @@ def _internal_sortino(ret_array: np.ndarray, risk_free_rate: float, target_retur
     return (mean_return - risk_free_rate) / downside_deviation
 
 
-def calculate_sortino_ratio(returns: List[float], risk_free_rate: float = 0.0, target_return: float = 0.0) -> float:
+def calculate_sortino_ratio(
+    returns: List[float], risk_free_rate: float = 0.0, target_return: float = 0.0
+) -> float:
     """Sortino ratio only penalizes downside volatility."""
     if not returns:
         return 0.0
-    return float(_internal_sortino(np.array(returns, dtype=np.float64), risk_free_rate, target_return))
+    return float(
+        _internal_sortino(np.array(returns, dtype=np.float64), risk_free_rate, target_return)
+    )
 
 
-def calculate_value_at_risk(returns: List[float], confidence_level: float = 0.99, portfolio_value: float = 1.0) -> float:
+def calculate_value_at_risk(
+    returns: List[float], confidence_level: float = 0.99, portfolio_value: float = 1.0
+) -> float:
     """Historical Value at Risk (VaR)."""
     if not returns:
         return 0.0
@@ -366,6 +374,5 @@ def get_portfolio_metrics(returns: List[float]) -> Dict[str, float]:
     return {
         "kelly_pct": calculate_kelly_criterion(win_rate, wlr),
         "sortino": calculate_sortino_ratio(returns),
-        "var_99": calculate_value_at_risk(returns)
+        "var_99": calculate_value_at_risk(returns),
     }
-

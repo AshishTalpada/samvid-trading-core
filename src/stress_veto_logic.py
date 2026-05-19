@@ -36,14 +36,19 @@ class StressVetoLogic:
             flags.append(f"LOSS_STREAK: {loss_streak} consecutive losses")
 
         if len(self._trade_times) >= 3:
-            intervals = [self._trade_times[i] - self._trade_times[i-1] for i in range(1, len(self._trade_times[-6:]))]
+            intervals = [
+                self._trade_times[i] - self._trade_times[i - 1]
+                for i in range(1, len(self._trade_times[-6:]))
+            ]
             avg_interval = sum(intervals) / len(intervals) if intervals else 999
             if avg_interval < 120:
                 flags.append(f"OVER_TRADING: avg interval {avg_interval:.0f}s < 2 min")
 
         if len(self._position_sizes) >= 3:
             recent_sizes = self._position_sizes[-3:]
-            if all(recent_sizes[i] > recent_sizes[i-1] * 1.3 for i in range(1, len(recent_sizes))):
+            if all(
+                recent_sizes[i] > recent_sizes[i - 1] * 1.3 for i in range(1, len(recent_sizes))
+            ):
                 flags.append("SIZE_ESCALATION: Position size growing 30%+ each trade")
 
         veto = len(flags) >= 2

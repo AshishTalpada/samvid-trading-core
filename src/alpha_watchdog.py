@@ -16,7 +16,9 @@ class AlphaDecayWatchdog:
     Triggers RETIRE when Sharpe goes negative for 5 consecutive days.
     """
 
-    def __init__(self, decay_threshold: float = 0.40, lookback_fast: int = 20, lookback_slow: int = 90):
+    def __init__(
+        self, decay_threshold: float = 0.40, lookback_fast: int = 20, lookback_slow: int = 90
+    ):
         self.decay_threshold = decay_threshold
         self.fast = lookback_fast
         self.slow = lookback_slow
@@ -41,10 +43,12 @@ class AlphaDecayWatchdog:
         if len(buf) < self.fast:
             return {"status": "WARMING_UP", "fast_sharpe": 0.0, "slow_sharpe": 0.0}
 
-        fast_sharpe = self._sharpe(buf[-self.fast:])
+        fast_sharpe = self._sharpe(buf[-self.fast :])
         slow_sharpe = self._sharpe(buf) if len(buf) >= self.slow else fast_sharpe
 
-        decay_ratio = (slow_sharpe - fast_sharpe) / (abs(slow_sharpe) + 1e-9) if slow_sharpe != 0 else 0
+        decay_ratio = (
+            (slow_sharpe - fast_sharpe) / (abs(slow_sharpe) + 1e-9) if slow_sharpe != 0 else 0
+        )
         consecutive_neg = sum(1 for p in buf[-5:] if p < 0)
 
         if consecutive_neg >= 5:

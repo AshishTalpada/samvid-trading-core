@@ -4,6 +4,7 @@ import random
 
 logger = logging.getLogger(__name__)
 
+
 class DifferentialPrivacyObfuscator:
     """
     Injects Laplacian noise into order execution quantities to obfuscate
@@ -11,6 +12,7 @@ class DifferentialPrivacyObfuscator:
     Ensures that the total quantity traded over the day remains mathematically correct,
     but the individual slice sizes appear entirely random to Level 3 data sniffers.
     """
+
     def __init__(self, epsilon: float = 0.5):
         self.epsilon = epsilon
         self.running_balance = 0

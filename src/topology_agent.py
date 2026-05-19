@@ -4,6 +4,7 @@ import numpy as np
 
 logger = logging.getLogger(__name__)
 
+
 class TopologicalDataAgent:
     """
     Topological Data Analysis (TDA) agent.
@@ -11,6 +12,7 @@ class TopologicalDataAgent:
     'holes' in the price manifold that signal regime changes before they appear in
     traditional indicators. High Betti numbers = complex topology = impending crash.
     """
+
     def __init__(self, max_dimension: int = 1):
         self.max_dim = max_dimension
 
@@ -21,7 +23,8 @@ class TopologicalDataAgent:
         """
         arr = np.array(price_series)
         n = len(arr)
-        if n < 4: return []
+        if n < 4:
+            return []
         # Pairwise distance matrix (returns time-series)
         dists = np.abs(arr[:, None] - arr[None, :])
         eps_range = np.linspace(0, dists.max(), eps_steps)
@@ -29,11 +32,11 @@ class TopologicalDataAgent:
         pairs: list[tuple] = []
         for eps in eps_range:
             for i in range(n):
-                for j in range(i+1, n):
-                    if dists[i,j] <= eps and components[i] != components[j]:
+                for j in range(i + 1, n):
+                    if dists[i, j] <= eps and components[i] != components[j]:
                         old = components[j]
                         new = components[i]
-                        pairs.append((dists[i,j], eps))
+                        pairs.append((dists[i, j], eps))
                         components = [new if c == old else c for c in components]
         return pairs
 

@@ -14,7 +14,9 @@ class PromptChainExecutor:
     def __init__(self):
         self._steps: List[tuple[str, Callable]] = []
 
-    def add_step(self, name: str, prompt_builder: Callable[[Any], str], executor: Callable[[str], Any]) -> None:
+    def add_step(
+        self, name: str, prompt_builder: Callable[[Any], str], executor: Callable[[str], Any]
+    ) -> None:
         self._steps.append((name, lambda ctx, pb=prompt_builder, ex=executor: ex(pb(ctx))))
 
     def execute(self, initial_context: Any) -> list[dict]:
@@ -33,5 +35,5 @@ class PromptChainExecutor:
         return trace
 
     def chain_summary(self, trace: list[dict]) -> str:
-        statuses = [f"{t['step']}({'✓' if t['status']=='OK' else '✗'})" for t in trace]
+        statuses = [f"{t['step']}({'✓' if t['status'] == 'OK' else '✗'})" for t in trace]
         return " → ".join(statuses)

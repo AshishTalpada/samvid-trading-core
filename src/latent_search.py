@@ -35,6 +35,8 @@ class LatentSpaceSearcher:
         results = self.search(query, top_k=1)
         if results:
             label, sim = results[0]
-            logging.getLogger(__name__).info(f"[LATENT SEARCH] Analogous regime: '{label}' (sim={sim:.3f})")
+            logging.getLogger(__name__).info(
+                f"[LATENT SEARCH] Analogous regime: '{label}' (sim={sim:.3f})"
+            )
             return label
         return None

@@ -17,11 +17,13 @@ logger = logging.getLogger(__name__)
 # Global Neural Semaphore: Prevent 'GGML_ASSERT' crash by serializing AI calls
 _SLM_LOCK = asyncio.Lock()
 
+
 class NativeSLM:
     """
     Blazing-fast, ultra-low latency inference engine running directly in VRAM.
     Bypasses all HTTP/REST API overhead.
     """
+
     def __init__(self, model_path: str = "models/sovereign_slm.gguf"):
         self._available = False
         self.model_path = model_path
@@ -33,9 +35,12 @@ class NativeSLM:
 
         try:
             import os
+
             # Only try to load if the file actually exists to prevent crashes
             if not os.path.exists(model_path):
-                logger.warning(f"Native SLM model not found at {model_path}. Awaiting fine-tuned model.")
+                logger.warning(
+                    f"Native SLM model not found at {model_path}. Awaiting fine-tuned model."
+                )
                 return
 
             logger.info(f"Loading Native SLM into memory from {model_path}...")
@@ -58,7 +63,6 @@ class NativeSLM:
     def is_available(self, value: bool) -> None:
         self._available = value
 
-
     async def evaluate_proposal(self, context: Dict[str, Any]) -> Dict[str, Any]:
         """Sovereign-SLM Neural Sandbox: Isolated Inference Guard."""
         if not self._available:
@@ -69,17 +73,10 @@ class NativeSLM:
 
         try:
             # Spawning a separate process protects the Main Engine from GGML_ASSERT crashes.
-            cmd = [
-                sys.executable,
-                "src/neural_sandbox.py",
-                self.model_path,
-                prompt_json
-            ]
+            cmd = [sys.executable, "src/neural_sandbox.py", self.model_path, prompt_json]
 
             proc = await asyncio.create_subprocess_exec(
-                *cmd,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE
+                *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
             )
 
             # 15s timeout for the isolated worker
@@ -93,7 +90,7 @@ class NativeSLM:
             result_raw = stdout.decode().strip()
             # Clean terminal noise if any
             if "{" in result_raw:
-                result_raw = result_raw[result_raw.find("{"):]
+                result_raw = result_raw[result_raw.find("{") :]
 
             result_data = json.loads(result_raw)
 
@@ -113,7 +110,9 @@ class NativeSLM:
             vote = "YES"
             reason = f"Neural Sandbox: {bias}"
 
-            if (entry_side == "long" and bias == "BEARISH") or (entry_side == "short" and bias == "BULLISH"):
+            if (entry_side == "long" and bias == "BEARISH") or (
+                entry_side == "short" and bias == "BULLISH"
+            ):
                 vote = "NO"
                 reason = f"VETO: Sandbox contradicts direction ({bias} vs {entry_side})"
 
@@ -126,7 +125,7 @@ class NativeSLM:
                 "timestamp": context.get("timestamp", time.time_ns()),
                 "reason": reason,
                 "bias": bias,
-                "agent_count": 1
+                "agent_count": 1,
             }
 
         except asyncio.TimeoutError:
@@ -152,7 +151,7 @@ class NativeSLM:
 
         return [
             {"role": "system", "content": sys_prompt},
-            {"role": "user", "content": f"Context:\n{ctx_str}"}
+            {"role": "user", "content": f"Context:\n{ctx_str}"},
         ]
 
     def _neutral_vote(self, context: dict, reason: str) -> dict:
@@ -165,7 +164,7 @@ class NativeSLM:
             "timestamp": context.get("timestamp", time.time_ns()),
             "reason": reason,
             "bias": "NEUTRAL",
-            "agent_count": 0
+            "agent_count": 0,
         }
 
     async def close(self) -> None:

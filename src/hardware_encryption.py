@@ -7,6 +7,7 @@ logger = logging.getLogger(__name__)
 
 try:
     from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+
     HAS_CRYPTO = True
 except ImportError:
     HAS_CRYPTO = False

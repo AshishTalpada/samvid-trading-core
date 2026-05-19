@@ -92,7 +92,6 @@ class MindObserver:
                 logger.error(f"MindObserver: Observation loop error: {e}")
                 await asyncio.sleep(10)
 
-
     async def _tool_fetch_sentiment(self) -> dict[str, Any]:
         """Simulates fetching global sentiment from external feeds (MCP-compatible)."""
         from time_sync import TimeSync

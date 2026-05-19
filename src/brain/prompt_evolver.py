@@ -3,12 +3,14 @@ import math
 
 logger = logging.getLogger(__name__)
 
+
 class PromptEvolver:
     """
     Self-referential prompt optimization engine.
     Tracks which prompt variants produced the highest-conviction correct calls
     and evolves the wording through a lightweight A/B mutation loop.
     """
+
     def __init__(self):
         self._variants: dict[str, list[float]] = {}
 
@@ -24,14 +26,14 @@ class PromptEvolver:
             return None
         # Only consider variants with enough data to be statistically relevant
         scores = {
-            pid: sum(s) / len(s)
-            for pid, s in self._variants.items()
-            if len(s) >= min_samples
+            pid: sum(s) / len(s) for pid, s in self._variants.items() if len(s) >= min_samples
         }
         if not scores:
             return None
         best = max(scores, key=scores.get)  # type: ignore
-        logger.info(f"[PROMPT EVOLVER] Best variant: {best} score={scores[best]:.3f} (n={len(self._variants[best])})")
+        logger.info(
+            f"[PROMPT EVOLVER] Best variant: {best} score={scores[best]:.3f} (n={len(self._variants[best])})"
+        )
         return best
 
     def mutate(self, prompt: str, vix: float) -> str:

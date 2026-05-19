@@ -5,12 +5,14 @@ import numpy as np
 
 logger = logging.getLogger(__name__)
 
+
 class GATFlow:
     """
     Tracks leader-follower relationships between tickers in a sector graph
     using Graph Attention patterns. Maps how capital flows from Mega-caps
     down to Mid-caps to predict delayed breakouts.
     """
+
     def __init__(self):
         self.flow_matrix: Dict[str, Dict[str, float]] = {}
 
@@ -33,5 +35,7 @@ class GATFlow:
 
         followers = [t for t, score in self.flow_matrix[leader_ticker].items() if score > threshold]
         if followers:
-            logger.debug(f"[GAT FLOW] {leader_ticker} leads {len(followers)} tickers: {followers[:3]}")
+            logger.debug(
+                f"[GAT FLOW] {leader_ticker} leads {len(followers)} tickers: {followers[:3]}"
+            )
         return followers

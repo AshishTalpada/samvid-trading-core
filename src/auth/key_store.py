@@ -35,7 +35,7 @@ class HardwareKeyStore:
         secret_bytes = secret.encode("utf-8")
 
         # Extend derived key to match secret length
-        repeated = (derived * (len(secret_bytes) // len(derived) + 1))[:len(secret_bytes)]
+        repeated = (derived * (len(secret_bytes) // len(derived) + 1))[: len(secret_bytes)]
         sealed = bytes(a ^ b for a, b in zip(secret_bytes, repeated, strict=False))
         cls._store[key_name] = sealed
         logger.info(f"[KEY STORE] Sealed key: {key_name}")
@@ -52,7 +52,7 @@ class HardwareKeyStore:
             return None
 
         derived = cls._derive_key(master_password)
-        repeated = (derived * (len(sealed) // len(derived) + 1))[:len(sealed)]
+        repeated = (derived * (len(sealed) // len(derived) + 1))[: len(sealed)]
         plain = bytes(a ^ b for a, b in zip(sealed, repeated, strict=False))
         return plain.decode("utf-8")
 
@@ -61,6 +61,6 @@ class HardwareKeyStore:
         """Imports all SOVEREIGN_* environment variables into the store."""
         for key, val in os.environ.items():
             if key.startswith("SOVEREIGN_"):
-                logical_name = key[len("SOVEREIGN_"):].lower().replace("_", "-")
+                logical_name = key[len("SOVEREIGN_") :].lower().replace("_", "-")
                 cls.seal(logical_name, val)
         logger.info("[KEY STORE] Loaded secrets from environment variables.")

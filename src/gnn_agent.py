@@ -5,11 +5,13 @@ import numpy as np
 
 logger = logging.getLogger(__name__)
 
+
 class GNNSentimentAgent:
     """
     Graph Neural Network (GNN) implementation for Sentiment Ripple tracking.
     Simulates how information propagates through a network of correlated entities.
     """
+
     def __init__(self, num_nodes: int = 100):
         self.num_nodes = num_nodes
         # Adjacency matrix representing edge weights (correlations) between entities
@@ -43,4 +45,4 @@ class GNNSentimentAgent:
         updated_features = np.tanh(transformed)
 
         self.node_features = updated_features
-        return self.node_features[:, 0] # Return the primary sentiment dimension
+        return self.node_features[:, 0]  # Return the primary sentiment dimension

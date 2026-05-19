@@ -35,8 +35,10 @@ class TailRiskModel:
         n = len(losses)
         n_u = sum(1 for l in losses if l > u_loss)
         if n_u == 0 or (1 - xi) == 0:
-            return float(np.mean(sorted(losses)[-int(n * (1 - confidence)):]))
+            return float(np.mean(sorted(losses)[-int(n * (1 - confidence)) :]))
         var_gpd = u_loss + (sigma / (1 - xi)) * ((n / n_u * (1 - confidence)) ** (-xi) - 1)
         es = (var_gpd + sigma - xi * u_loss) / (1 - xi)
-        logger.info(f"[TAIL RISK] GPD ES@{confidence:.0%}: {es:.4f} (xi={xi:.3f}, sigma={sigma:.4f})")
+        logger.info(
+            f"[TAIL RISK] GPD ES@{confidence:.0%}: {es:.4f} (xi={xi:.3f}, sigma={sigma:.4f})"
+        )
         return float(es)

@@ -42,7 +42,9 @@ class Position:
     initial_stop: float = 0.0
     stop_loss: float = 0.0
     take_profit: float = 0.0
-    target_exit_time: datetime = field(default_factory=lambda: datetime.now(timezone.utc) + timedelta(days=5))
+    target_exit_time: datetime = field(
+        default_factory=lambda: datetime.now(timezone.utc) + timedelta(days=5)
+    )
     trade_id: str = ""
     account_type: str = "ibkr"
     account_id: str = "UNKNOWN"
@@ -92,6 +94,8 @@ class Position:
         # If the position is live (qty != 0) but tracking is 0, sync them.
         if self.shares_remaining == 0.0 and self.qty != 0.0:
             self.shares_remaining = abs(self.qty)
+
+
 # ── LOCAL-ONLY SOVEREIGN EXTENSIONS ─────────────────────────────────────
 
 
@@ -113,17 +117,15 @@ class MarketTick:
         return (self.ask + self.bid) / 2.0
 
 
-
 @dataclass
 class OrderIntent:
     symbol: str
-    side: str # "BUY" or "SELL"
+    side: str  # "BUY" or "SELL"
     size_units: float
     target_price: float
-    logic_signature: str # Which neural agent/quorum authorized this?
+    logic_signature: str  # Which neural agent/quorum authorized this?
     intent_id: str = field(default_factory=lambda: uuid.uuid4().hex)
     created_at: datetime = field(default_factory=datetime.utcnow)
-
 
 
 @dataclass
@@ -138,7 +140,6 @@ class ExecutionFill:
     is_partial: bool = False
 
 
-
 @dataclass
 class RiskState:
     current_drawdown_pct: float
@@ -149,11 +150,10 @@ class RiskState:
     active_circuit_breakers: List[str] = field(default_factory=list)
 
 
-
 @dataclass
 class AgentVote:
     agent_id: str
-    vote: str # "BUY", "SELL", "HOLD"
-    confidence: float # 0.0 to 1.0
+    vote: str  # "BUY", "SELL", "HOLD"
+    confidence: float  # 0.0 to 1.0
     computation_time_ms: float
-    mathematical_justification: str # E.g., "Hurst exponent = 0.72"
+    mathematical_justification: str  # E.g., "Hurst exponent = 0.72"

@@ -5,14 +5,17 @@ from typing import Any, Dict
 
 logger = logging.getLogger(__name__)
 
+
 class TradeThesisGenerator:
     """
     Generates a dense, multi-page Markdown audit thesis for every executed trade.
     Includes data from all voting agents, risk metrics, and macro context,
     providing complete explainability for compliance and post-mortem review.
     """
+
     def __init__(self, output_dir: str = "reports/thesis"):
         import os
+
         self.output_dir = output_dir
         os.makedirs(self.output_dir, exist_ok=True)
 
@@ -46,7 +49,7 @@ class TradeThesisGenerator:
 
     def save_thesis(self, trade_data: Dict[str, Any]) -> str:
         md = self.generate_markdown(trade_data)
-        symbol = trade_data.get('symbol', 'UNK')
+        symbol = trade_data.get("symbol", "UNK")
         filename = f"{self.output_dir}/thesis_{symbol}_{int(time.time())}.md"
         with open(filename, "w") as f:
             f.write(md)

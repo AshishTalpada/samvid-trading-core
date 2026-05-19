@@ -4,16 +4,20 @@ from typing import Any, Dict
 
 logger = logging.getLogger(__name__)
 
+
 class DynamicKellySizer:
     """
     Computes position sizing based on dynamic Kelly Criterion adjusted by
     Shannon Entropy of the market regime.
     High entropy = high uncertainty = lower Kelly fraction.
     """
+
     def __init__(self, max_capital_pct: float = 0.20):
         self.max_cap = max_capital_pct
 
-    def compute_size(self, win_prob: float, win_loss_ratio: float, market_entropy: float = 1.0) -> float:
+    def compute_size(
+        self, win_prob: float, win_loss_ratio: float, market_entropy: float = 1.0
+    ) -> float:
         if win_prob <= 0 or win_loss_ratio <= 0:
             return 0.0
 
@@ -32,5 +36,7 @@ class DynamicKellySizer:
         adjusted_f = (kelly_f * 0.5) * entropy_penalty
 
         final_size = min(adjusted_f, self.max_cap)
-        logger.debug(f"[SIZER] Kelly={kelly_f:.3f}, Adj={adjusted_f:.3f}, Final Cap Pct={final_size:.2%}")
+        logger.debug(
+            f"[SIZER] Kelly={kelly_f:.3f}, Adj={adjusted_f:.3f}, Final Cap Pct={final_size:.2%}"
+        )
         return final_size

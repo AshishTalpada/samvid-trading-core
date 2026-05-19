@@ -4,12 +4,14 @@ import numpy as np
 
 logger = logging.getLogger(__name__)
 
+
 class HDCEngine:
     """
     Hyperdimensional Computing engine (10,000-dim binary vectors).
     Encodes market regimes as hypervectors; classifies new conditions
     via Hamming distance — nanosecond inference without GPU.
     """
+
     DIM = 10_000
 
     def __init__(self):

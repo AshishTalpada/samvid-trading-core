@@ -6,12 +6,14 @@ import numpy as np
 
 logger = logging.getLogger(__name__)
 
+
 class ContagionSentinel:
     """
     Detects cross-asset contagion - e.g. crypto sell-off bleeding into tech.
     Maintains a rolling correlation window. A sudden spike in correlation across normally
     uncorrelated assets indicates a liquidity event / systemic shock.
     """
+
     def __init__(self, window: int = 20, correlation_spike_threshold: float = 0.5):
         self.window = window
         self.threshold = correlation_spike_threshold
@@ -39,6 +41,8 @@ class ContagionSentinel:
 
         spike = current_avg_corr - baseline_correlation
         if spike > self.threshold:
-            logger.critical(f"[CONTAGION] Detected systemic correlation spike: {current_avg_corr:.2f} (jumped {spike:.2f})")
+            logger.critical(
+                f"[CONTAGION] Detected systemic correlation spike: {current_avg_corr:.2f} (jumped {spike:.2f})"
+            )
             return True
         return False
