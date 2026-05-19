@@ -1353,13 +1353,16 @@ class TradingSystem:
             logger.info("\n[8/9] Dhatu Oracle disabled or not configured.")
 
         # Start API Server
-        _p = self.api_server.port
-        logger.info(f"\n[9/9] Starting Institutional API Server (Port {_p})...")
-        started = await self.api_server.start()
-        if started:
-            logger.info(" API Server active")
+        if self.api_server:
+            _p = self.api_server.port
+            logger.info(f"\n[9/9] Starting Institutional API Server (Port {_p})...")
+            started = await self.api_server.start()
+            if started:
+                logger.info(" API Server active")
+            else:
+                logger.info(f"API Server skipped (already active on port {_p})")
         else:
-            logger.info(f"API Server skipped (already active on port {_p})")
+            logger.warning("\n[9/9] API Server is not initialized. Skipping startup.")
 
     async def startup(self) -> None:
         """Main startup sequence: parallel initialization of all system components."""
