@@ -1115,21 +1115,17 @@ class TradingBrain:
         # Ensures the Brain never exits unexpectedly after a Veto or Rejection.
         try:
             while self.is_running:
-                # Wait for critical background minds
-                # We await the main_loop task specifically as it's the heartbeat
-                if hasattr(self, "_main_task") and self._main_task:
-                    await asyncio.shield(self._main_task)
-
-                # If we get here, the main task finished or errored.
-                # If is_running is still True, we must restart.
-                if self.is_running:
-                    logger.warning(
-                        "TradingBrain: Main task exited prematurely. Restarting cycle..."
-                    )
+                # Sentinel: keep run() alive. If the main task crashes or
+                # completes for any reason, recreate it immediately.
+                if not hasattr(self, "_main_task") or self._main_task is None or self._main_task.done():
+                    exc = self._main_task.exception() if self._main_task and not self._main_task.cancelled() else None
+                    if exc:
+                        logger.error(f"TradingBrain: _main_task died with exception: {exc}", exc_info=exc)
+                    else:
+                        logger.warning("TradingBrain: _main_task exited cleanly. Restarting...")
                     self._main_task = asyncio.create_task(self._run_loop())
-                    await asyncio.sleep(5)
-                else:
-                    break
+
+                await asyncio.sleep(2)  # Poll every 2s — never exits unless cancelled
 
         except asyncio.CancelledError:
             logger.info("TradingBrain: Run task cancelled.")
