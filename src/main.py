@@ -302,10 +302,15 @@ class TradingSystem:
         if sys.platform != "win32":  # Windows uses signal.default_int_handler in main()
             import signal
 
-            for sig in (signal.SIGINT, signal.SIGTERM):
-                asyncio.get_event_loop().add_signal_handler(
-                    sig, lambda: asyncio.create_task(self.shutdown())
-                )
+            try:
+                loop = asyncio.get_event_loop()
+                for sig in (signal.SIGINT, signal.SIGTERM):
+                    loop.add_signal_handler(
+                        sig, lambda: asyncio.create_task(self.shutdown())
+                    )
+            except RuntimeError:
+                # Event loop not available (e.g., during synchronous tests)
+                pass
 
         self._write_pid()
         self.profiler.mark("CONSTRUCTOR_COMPLETE")
