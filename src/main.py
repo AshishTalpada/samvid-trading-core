@@ -1888,6 +1888,13 @@ class TradingSystem:
                 except Exception as e:
                     logger.error(f"Shutdown: API Server stop failed: {e}")
 
+            if hasattr(self, "dhatu_oracle") and self.dhatu_oracle:
+                try:
+                    logger.info(" -> Stopping Dhatu Oracle...")
+                    await self.dhatu_oracle.stop()
+                except Exception as e:
+                    logger.error(f"Shutdown: Dhatu Oracle stop failed: {e}")
+
             # 4. UNLOAD AI MODELS
             logger.info("[SHUTDOWN STEP 4/8] Offloading Neural VRAM weights...")
             if hasattr(self, "native_slm") and self.native_slm:
