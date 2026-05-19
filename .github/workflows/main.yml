@@ -32,6 +32,14 @@ jobs:
         run: uv run ruff check src tests scripts tools
 
       - name: Test Python
+        env:
+          SESSION_SECRET: "TEST_SESSION_SECRET_UNSECURE_MOCK_FOR_TESTS_ONLY"
+          MT5_LOGIN: "999999"
+          MT5_PASSWORD: "test_password"
+          MT5_SERVER: "MetaQuotes-Demo"
+          MT5_PATH: "/mock/path/to/terminal64.exe"
+          TELEGRAM_BOT_TOKEN: "123456789:ABCdefGhIJKlmNoPQRsTUVwxyZ"
+          TELEGRAM_CHAT_ID: "987654321"
         run: uv run python -m pytest tests -q
 
       - name: Compile Python
