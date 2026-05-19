@@ -940,7 +940,7 @@ class TradingBrain:
 
         if regime_veto:
             return {"approved": False, "reason": "quant_regime_veto", "consensus": consensus}
-        if opposite and consensus["confidence"] > 0.6:
+        if opposite and consensus["confidence"] > 0.8:
             return {
                 "approved": False,
                 "reason": f"quant_opposing_{quant_phase}",
