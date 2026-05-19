@@ -119,3 +119,13 @@ def sample_ohlcv_df():
         }
     )
     return df
+
+
+@pytest.fixture(autouse=True)
+def clear_vault_cache():
+    """Clear the Vault class cache between tests to ensure strict state isolation."""
+    from vault import Vault
+
+    Vault.clear_cache()
+    yield
+    Vault.clear_cache()

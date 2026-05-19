@@ -101,6 +101,7 @@ class Vault:
         try:
             keyring.set_password(Vault.SERVICE_NAME, key, value)
             logger.info(f"✓ Secret '{key}' successfully stored in Windows Vault.")
+            Vault._cache[key] = value
         except Exception as e:
             logger.error(f"Failed to store secret '{key}' in Vault: {e}")
             raise
@@ -112,6 +113,12 @@ class Vault:
             keyring.delete_password(Vault.SERVICE_NAME, key)
         except Exception:
             pass
+        Vault._cache.pop(key, None)
+
+    @classmethod
+    def clear_cache(cls) -> None:
+        """Clear the class-level cache."""
+        cls._cache.clear()
 
     @staticmethod
     def get_all_redactable_values() -> list[str]:
@@ -146,5 +153,4 @@ if __name__ == "__main__":
             exists = "✓" if keyring.get_password(Vault.SERVICE_NAME, k) else " "
             print(f" [{exists}] {k}")
     else:
-        print("Invalid command or arguments.")
         print("Invalid command or arguments.")
