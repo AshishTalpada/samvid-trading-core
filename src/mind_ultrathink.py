@@ -536,7 +536,8 @@ class MindUltrathink:
                 "fees": float(context.get("commission", 1.0)),
                 "r_r_ratio": float(context.get("r_r_ratio", 0.0)),
                 "shares": int(shares),
-            }
+            },
+            default=str
         )
 
         result = await self._tool_pause_and_reason(task_prompt, context.get("intensity", "RAINBOW"))
