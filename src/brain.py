@@ -4258,6 +4258,7 @@ class TradingBrain:
             ("_phantom_probe_task", "Phantom Probe"),
             ("_conviction_task", "Conviction Sync"),
             ("_freezer_task", "Periodic Freeze"),
+            ("_thaw_task", "Session Thawing"),
         ]
 
         cancel_tasks = []
