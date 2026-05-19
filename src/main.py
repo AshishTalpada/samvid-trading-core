@@ -296,6 +296,7 @@ class TradingSystem:
         self.background_tasks: dict[str, asyncio.Task[None]] = {}
         self.db_lock = asyncio.Lock()
         self._shutdown_event = asyncio.Event()
+        self._shutdown_in_progress = False
         self._hft_pulse_queue: Any = None
 
         self._last_tick_time = time.monotonic()
@@ -1809,12 +1810,11 @@ class TradingSystem:
             self._shutdown_lock = asyncio.Lock()
 
         async with self._shutdown_lock:
-            if (
-                not self.is_running
-                and hasattr(self, "_shutdown_complete")
-                and self._shutdown_complete
-            ):
+            if self._shutdown_in_progress:
+                # Shutdown already in progress — wait for it to complete and return
+                await self._shutdown_event.wait()
                 return
+            self._shutdown_in_progress = True
 
             self.is_running = False
 
