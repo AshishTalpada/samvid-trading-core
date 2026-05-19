@@ -1123,12 +1123,30 @@ class DhatuOracle:
         self._background_tasks.append(asyncio.create_task(self._news_scent.run()))
         self._background_tasks.append(asyncio.create_task(self._news_harvester.run()))
 
+        # Hardened Startup Cache Validation: re-verify freeze states or stale (>5m) state on boot
+        ignore_cache = False
         if self._current_state is not None:
+            if self._current_state.dhatu_state in ("Abhava", "Viyoga"):
+                logger.info(
+                    f"DhatuOracle: Cached state is a freeze state ({self._current_state.dhatu_state}). "
+                    "Forcing a fresh synthesis cycle to verify if the freeze is still active."
+                )
+                ignore_cache = True
+            else:
+                age = (datetime.now(timezone.utc) - self._current_state.generated_at).total_seconds()
+                if age > 300:  # 5 minutes
+                    logger.info(
+                        f"DhatuOracle: Persisted state {self._current_state.dhatu_state} is stale "
+                        f"({age/60:.1f}m old). Triggering fresh synthesis."
+                    )
+                    ignore_cache = True
+
+        if self._current_state is not None and not ignore_cache:
             logger.info(
                 f"DhatuOracle: Using cached state {self._current_state.dhatu_state} for startup."
             )
         else:
-            # Only run if we have no state at all
+            self._current_state = None
             state = await self._full_synthesis_cycle()
             if state:
                 self._current_state = state
