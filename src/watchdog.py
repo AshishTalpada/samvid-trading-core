@@ -47,6 +47,14 @@ def check_heartbeat(watchdog_start_time: datetime) -> bool:
         with sqlite3.connect(DB_PATH, timeout=60.0) as conn:
             conn.execute("PRAGMA busy_timeout=60000;")
             cursor = conn.cursor()
+
+            # Check system status first to support clean graceful shutdown
+            cursor.execute("SELECT value FROM system_state WHERE key='system_status'")
+            status_row = cursor.fetchone()
+            if status_row and status_row[0] == "stopped":
+                logger.info("Watchdog: Main engine stopped gracefully. Terminating watchdog.")
+                sys.exit(0)
+
             cursor.execute("SELECT value FROM system_state WHERE key='last_heartbeat'")
             row = cursor.fetchone()
 
