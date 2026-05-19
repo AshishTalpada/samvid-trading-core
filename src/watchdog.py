@@ -52,7 +52,10 @@ def check_heartbeat() -> bool:
 
         if row:
             last_hb_str = row[0]
-            last_hb = datetime.fromisoformat(last_hb_str)
+            last_hb = _parse_heartbeat_value(last_hb_str)
+            if last_hb is None:
+                logger.warning("Invalid heartbeat value found in database: %r", last_hb_str)
+                return True
             seconds_since = (datetime.now(timezone.utc) - last_hb).total_seconds()
 
             if seconds_since > SILENCE_TIMEOUT:
@@ -70,6 +73,30 @@ def check_heartbeat() -> bool:
     except Exception as e:
         logger.error(f"Watchdog Error during check: {e}")
         return True
+
+
+def _parse_heartbeat_value(value: object) -> datetime | None:
+    """Parse legacy ISO heartbeats and current nanosecond epoch heartbeats."""
+    if value is None:
+        return None
+
+    raw = str(value).strip()
+    if not raw:
+        return None
+
+    try:
+        if raw.isdigit():
+            number = int(raw)
+            if number > 10_000_000_000_000_000:
+                return datetime.fromtimestamp(number / 1_000_000_000, tz=timezone.utc)
+            return datetime.fromtimestamp(number, tz=timezone.utc)
+
+        parsed = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+        if parsed.tzinfo is None:
+            parsed = parsed.replace(tzinfo=timezone.utc)
+        return parsed
+    except (OSError, ValueError, OverflowError):
+        return None
 
 
 def check_task_liveness() -> dict:

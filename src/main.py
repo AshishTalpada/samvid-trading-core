@@ -35,6 +35,7 @@ import asyncio
 import asyncio.subprocess
 import logging
 import sqlite3
+import subprocess
 import time
 from collections.abc import Callable, Coroutine
 from datetime import datetime, timezone
@@ -1637,8 +1638,40 @@ class TradingSystem:
                     try:
                         cursor = db.cursor()
                         cursor.execute(
-                            "INSERT OR REPLACE INTO system_state (key, value) VALUES (?, ?)",
+                            "INSERT OR REPLACE INTO system_state (key, value, updated_at) "
+                            "VALUES (?, ?, CURRENT_TIMESTAMP)",
                             ("last_heartbeat", time.time_ns()),
+                        )
+                        ibkr_value = "disconnected"
+                        if self.ibkr_client:
+                            try:
+                                ibkr_value = (
+                                    "connected"
+                                    if self.ibkr_client.isConnected()
+                                    else "disconnected"
+                                )
+                            except Exception:
+                                ibkr_value = "error"
+                        cursor.execute(
+                            "INSERT OR REPLACE INTO system_state (key, value, updated_at) "
+                            "VALUES (?, ?, CURRENT_TIMESTAMP)",
+                            ("ibkr_status", ibkr_value),
+                        )
+                        mt5_value = "disconnected"
+                        if self.mt5_client:
+                            try:
+                                info = self.mt5_client.terminal_info()
+                                mt5_value = (
+                                    "connected"
+                                    if info is not None and info.connected
+                                    else "disconnected"
+                                )
+                            except Exception:
+                                mt5_value = "error"
+                        cursor.execute(
+                            "INSERT OR REPLACE INTO system_state (key, value, updated_at) "
+                            "VALUES (?, ?, CURRENT_TIMESTAMP)",
+                            ("mt5_status", mt5_value),
                         )
                         db.commit()
                         cursor.close()
@@ -2028,6 +2061,7 @@ class TradingSystem:
             logger.warning(
                 " WATCHDOG SILENCE (Bug #2): data/watchdog.pid missing. System is UNPROTECTED."
             )
+            await self._start_watchdog_process()
             return
 
         try:
@@ -2043,8 +2077,44 @@ class TradingSystem:
                     logger.info("Removed stale watchdog PID file.")
                 except Exception as remove_error:
                     logger.warning(f"Failed to remove stale watchdog PID file: {remove_error}")
+                await self._start_watchdog_process()
         except Exception as e:
             logger.error(f"Watchdog verification failed: {e}")
+            await self._start_watchdog_process()
+
+    async def _start_watchdog_process(self) -> None:
+        """Start the dead-man watchdog as a detached helper process."""
+        if os.environ.get("SOVEREIGN_DISABLE_WATCHDOG", "0") == "1":
+            logger.warning("Watchdog auto-start disabled by SOVEREIGN_DISABLE_WATCHDOG=1.")
+            return
+
+        watchdog_script = Path(__file__).resolve().parent / "watchdog.py"
+        if not watchdog_script.exists():
+            logger.error("Watchdog auto-start failed: missing %s", watchdog_script)
+            return
+
+        creationflags = 0
+        startupinfo = None
+        if sys.platform == "win32":
+            creationflags = subprocess.CREATE_NEW_PROCESS_GROUP | subprocess.DETACHED_PROCESS
+            startupinfo = subprocess.STARTUPINFO()
+            startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+
+        try:
+            proc = subprocess.Popen(
+                [sys.executable, str(watchdog_script)],
+                cwd=str(Path(__file__).resolve().parent.parent),
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                close_fds=os.name != "nt",
+                creationflags=creationflags,
+                startupinfo=startupinfo,
+            )
+            logger.warning("Watchdog auto-started as PID %s.", proc.pid)
+            await asyncio.sleep(0.5)
+        except Exception as exc:
+            logger.error("Watchdog auto-start failed: %s", exc, exc_info=True)
 
     async def _run_aegis_watchdog(self) -> None:
         """
