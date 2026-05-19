@@ -14,6 +14,7 @@ logger = logging.getLogger(__name__)
 # Global mt5_raw reference (placeholder for actual MT5 terminal object)
 mt5_raw: Any = None
 
+
 class MindExperiment:
     """
     Agent E: The Experiment Mind (A/B Gating).
@@ -56,7 +57,6 @@ class MindExperiment:
             except Exception as e:
                 logger.error(f"MindExperiment: Audit Error: {e}")
                 await asyncio.sleep(10)
-
 
     async def _tool_run_shadow_test(
         self, feature_name: str, variant_id: str, logic: dict
@@ -141,19 +141,20 @@ class MindExperiment:
         )
         return {"success": True, "evidence_verified": True}
 
-
     def init_population(self, base_weights: np.ndarray):
-        '''Creates the initial mutated swarm of clones.'''
+        """Creates the initial mutated swarm of clones."""
         self.population = []
         for _ in range(self.pop_size):
             # Apply Gaussian noise mutation
             noise = np.random.normal(loc=0.0, scale=self.mutation_rate, size=base_weights.shape)
             clone = base_weights + noise
             self.population.append({"weights": clone, "fitness": 0.0})
-        logger.info(f"[EVOLUTION] Generation {self.generation} spawned with {self.pop_size} clones.")
+        logger.info(
+            f"[EVOLUTION] Generation {self.generation} spawned with {self.pop_size} clones."
+        )
 
     def evaluate_fitness(self, market_data: np.ndarray, target_labels: np.ndarray):
-        '''Simulates paper-trading the clones over historical data to score them.'''
+        """Simulates paper-trading the clones over historical data to score them."""
         if not self.population:
             return
 
@@ -161,7 +162,9 @@ class MindExperiment:
             try:
                 # Shape validation
                 if market_data.shape[1] != clone["weights"].shape[0]:
-                    logger.error(f"[EVOLUTION] Shape mismatch: Data {market_data.shape} vs Weights {clone['weights'].shape}")
+                    logger.error(
+                        f"[EVOLUTION] Shape mismatch: Data {market_data.shape} vs Weights {clone['weights'].shape}"
+                    )
                     clone["fitness"] = 0.0
                     continue
 
@@ -186,28 +189,28 @@ class MindExperiment:
                 clone["fitness"] = 0.0
 
         # Sort population by fitness descending
-        self.population.sort(key=lambda x: x['fitness'], reverse=True)
-        best_fitness = self.population[0]['fitness']
+        self.population.sort(key=lambda x: x["fitness"], reverse=True)
+        best_fitness = self.population[0]["fitness"]
         logger.info(f"[EVOLUTION] Gen {self.generation} evaluated. Top Fitness: {best_fitness:.4f}")
 
     def breed_next_generation(self) -> np.ndarray:
-        '''
+        """
         Takes the top 20% of clones and uses crossover/mutation to spawn the next generation.
         Returns the current Apex (best) weights.
-        '''
+        """
         if not self.population:
             return np.array([])
 
         top_percentile = max(2, int(self.pop_size * 0.2))
         elites = self.population[:top_percentile]
 
-        new_population = copy.deepcopy(elites) # Keep elites intact
+        new_population = copy.deepcopy(elites)  # Keep elites intact
 
         # Fill the rest of the population with crossover and mutation
         while len(new_population) < self.pop_size:
             # Randomly select two parents from the elite pool
-            p1 = elites[np.random.randint(0, len(elites))]['weights']
-            p2 = elites[np.random.randint(0, len(elites))]['weights']
+            p1 = elites[np.random.randint(0, len(elites))]["weights"]
+            p2 = elites[np.random.randint(0, len(elites))]["weights"]
 
             # Crossover (50/50 mix)
             mask = np.random.rand(*p1.shape) > 0.5
@@ -225,7 +228,8 @@ class MindExperiment:
         self.population = new_population
         self.generation += 1
 
-        return elites[0]['weights']  # type: ignore
+        return elites[0]["weights"]  # type: ignore
+
 
 # Aliases for Sovereign Compatibility
 EvolutionaryNeuroExperiment = MindExperiment

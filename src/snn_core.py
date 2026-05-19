@@ -12,7 +12,9 @@ class SpikingNeuralCore:
     Provides richer temporal coding for market microstructure signals.
     """
 
-    def __init__(self, n: int = 256, tau_m: float = 20.0, delta_T: float = 2.0, theta_rh: float = -55.0):
+    def __init__(
+        self, n: int = 256, tau_m: float = 20.0, delta_T: float = 2.0, theta_rh: float = -55.0
+    ):
         self.n = n
         self.tau_m = tau_m
         self.delta_T = delta_T

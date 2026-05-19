@@ -6,12 +6,14 @@ from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
+
 class ApexArchive:
     """
     Immutable append-only decision archive.
     Every quorum decision is permanently stored with a SHA3-256 chain hash,
     creating a cryptographic audit trail that cannot be altered retroactively.
     """
+
     def __init__(self, path: str = "data/apex_archive.jsonl"):
         self._path = Path(path)
         self._path.parent.mkdir(parents=True, exist_ok=True)
@@ -31,7 +33,7 @@ class ApexArchive:
     def verify_chain(self) -> bool:
         entries = [json.loads(l) for l in self._path.read_text().splitlines() if l.strip()]
         for i, entry in enumerate(entries[1:], 1):
-            if entry["prev_hash"] != entries[i-1]["hash"]:
+            if entry["prev_hash"] != entries[i - 1]["hash"]:
                 logger.error(f"[ARCHIVE] Chain broken at entry {i}!")
                 return False
         return True

@@ -5,26 +5,30 @@ import numpy as np
 
 logger = logging.getLogger(__name__)
 
+
 class AntiFragilityEngine:
-    '''
+    """
     Identifies if an asset exhibits anti-fragile properties
     (gains disproportionately from volatility/chaos).
     Based on Nassim Taleb's mathematical definition of convexity.
-    '''
+    """
+
     def __init__(self, window: int = 60):
         self.window = window
 
-    def calculate_antifragility(self, asset_returns: List[float], market_volatility: List[float]) -> dict:
-        '''
+    def calculate_antifragility(
+        self, asset_returns: List[float], market_volatility: List[float]
+    ) -> dict:
+        """
         Measures the correlation between asset returns and market volatility spikes.
         Calculates the Second Derivative (Convexity) of the asset's payoff profile
         with respect to systemic market stress.
-        '''
+        """
         if len(asset_returns) < self.window or len(market_volatility) < self.window:
             return {"score": 0.0, "is_antifragile": False, "convexity": 0.0}
 
-        ret_array = np.array(asset_returns[-self.window:])
-        vol_array = np.array(market_volatility[-self.window:])
+        ret_array = np.array(asset_returns[-self.window :])
+        vol_array = np.array(market_volatility[-self.window :])
 
         # 1. Asymmetric Beta Profile (Upside Capture vs Downside Capture during High Volatility)
         # Find periods of extremely high systemic volatility (top 20th percentile)
@@ -59,13 +63,17 @@ class AntiFragilityEngine:
         is_anti = score > 0.4 and convexity_coeff > 0.001
 
         if is_anti:
-            logger.info(f"[FRAGILITY] Anti-Fragile asset detected. Score: {score:.2f}, Convexity: {convexity_coeff:.4f}")
+            logger.info(
+                f"[FRAGILITY] Anti-Fragile asset detected. Score: {score:.2f}, Convexity: {convexity_coeff:.4f}"
+            )
         elif score < -0.6:
-            logger.warning("[FRAGILITY] HIGHLY FRAGILE asset detected. Avoid holding during VIX spikes.")
+            logger.warning(
+                "[FRAGILITY] HIGHLY FRAGILE asset detected. Avoid holding during VIX spikes."
+            )
 
         return {
             "score": float(score),
             "is_antifragile": bool(is_anti),
             "convexity": float(convexity_coeff),
-            "high_vol_avg_return": float(mean_high_vol_ret)
+            "high_vol_avg_return": float(mean_high_vol_ret),
         }

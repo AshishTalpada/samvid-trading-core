@@ -20,11 +20,20 @@ class RedundantPowerMonitor:
     def read_psu_status(self) -> dict[str, dict]:
         try:
             import psutil
+
             batt = psutil.sensors_battery()
             power_plugged = batt.power_plugged if batt else True
             return {
-                "PSU_A": {"online": power_plugged, "voltage": self.NOMINAL_VOLTAGE, "healthy": power_plugged},
-                "PSU_B": {"online": power_plugged, "voltage": self.NOMINAL_VOLTAGE, "healthy": power_plugged},
+                "PSU_A": {
+                    "online": power_plugged,
+                    "voltage": self.NOMINAL_VOLTAGE,
+                    "healthy": power_plugged,
+                },
+                "PSU_B": {
+                    "online": power_plugged,
+                    "voltage": self.NOMINAL_VOLTAGE,
+                    "healthy": power_plugged,
+                },
             }
         except Exception:
             return {

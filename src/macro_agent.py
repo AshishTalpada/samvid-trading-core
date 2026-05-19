@@ -9,8 +9,10 @@ logger = logging.getLogger(__name__)
 
 USGS_API = "https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/significant_week.geojson"
 
+
 class MacroAgent:
     """Macro-environmental risk agent. Ingests USGS seismic + NOAA solar feeds."""
+
     def __init__(self):
         self.seismic_risk = 0.0
         self.solar_risk = 0.0

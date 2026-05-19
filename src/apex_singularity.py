@@ -5,6 +5,7 @@ import numpy as np
 
 logger = logging.getLogger(__name__)
 
+
 class SovereignSingularity:
     """
     The Sovereign Singularity: the theoretical inflection point where the system's
@@ -12,6 +13,7 @@ class SovereignSingularity:
     Tracks the ratio of model improvement per trade vs. market entropy per bar.
     When ratio > 1.0, the system has achieved statistical supremacy.
     """
+
     def __init__(self):
         self._model_improvements: list[float] = []
         self._market_entropies: list[float] = []

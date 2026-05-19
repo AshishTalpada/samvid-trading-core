@@ -5,12 +5,14 @@ import requests
 
 logger = logging.getLogger(__name__)
 
+
 class AgriculturalSignalAgent:
     """
     Analyses satellite-derived NDVI (Normalized Difference Vegetation Index)
     as a leading indicator for crop yield futures (corn, wheat, soy).
     Low NDVI in growing regions -> supply shock -> commodity price spike.
     """
+
     USDA_CROP_ENDPOINT = "https://quickstats.nass.usda.gov/api/api_GET/"
     COMMODITY_FUTURES = {"corn": "ZC", "wheat": "ZW", "soybeans": "ZS"}
 
@@ -28,5 +30,12 @@ class AgriculturalSignalAgent:
             direction, magnitude = "BEARISH", "LOW"
         else:
             direction, magnitude = "NEUTRAL", "NONE"
-        logger.info(f"[AGRI] {commodity}: NDVI={ndvi_score:.2f} -> {futures_ticker} {direction} {magnitude}")
-        return {"futures": futures_ticker, "direction": direction, "magnitude": magnitude, "ndvi": ndvi_score}
+        logger.info(
+            f"[AGRI] {commodity}: NDVI={ndvi_score:.2f} -> {futures_ticker} {direction} {magnitude}"
+        )
+        return {
+            "futures": futures_ticker,
+            "direction": direction,
+            "magnitude": magnitude,
+            "ndvi": ndvi_score,
+        }

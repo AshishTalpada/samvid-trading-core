@@ -5,7 +5,10 @@ class EntropySizer:
     """
     Position sizing based on Shannon Entropy (surprise/uncertainty).
     """
-    def calculate_position_size(self, probabilities: list[float], max_risk_pct: float = 0.02) -> float:
+
+    def calculate_position_size(
+        self, probabilities: list[float], max_risk_pct: float = 0.02
+    ) -> float:
         """
         Shannon Entropy based position sizing.
         High entropy = high uncertainty = lower size.

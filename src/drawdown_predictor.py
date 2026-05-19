@@ -4,19 +4,23 @@ import numpy as np
 
 logger = logging.getLogger(__name__)
 
+
 class DrawdownPredictor:
     """
     Models drawdowns using a Markov Chain to predict psychological pain duration.
     States: 0 (Winning), 1 (Small Loss), 2 (Deep Drawdown)
     """
+
     def __init__(self):
         # Transition matrix P[i, j] = probability of moving from state i to state j
         # Assumes autocorrelation in losses (losses cluster together)
-        self.transition_matrix = np.array([
-            [0.60, 0.30, 0.10], # From Winning
-            [0.40, 0.40, 0.20], # From Small Loss
-            [0.20, 0.30, 0.50]  # From Deep Drawdown (hard to escape)
-        ])
+        self.transition_matrix = np.array(
+            [
+                [0.60, 0.30, 0.10],  # From Winning
+                [0.40, 0.40, 0.20],  # From Small Loss
+                [0.20, 0.30, 0.50],  # From Deep Drawdown (hard to escape)
+            ]
+        )
 
     def predict_duration(self, current_state: int, target_state: int = 0) -> float:
         """

@@ -30,7 +30,6 @@ class HistoricalInstructor:
         logger.info("✓ Neutral Baseline: Price Action verified against 200MA (Hard Rule).")
 
 
-
 # ── LOCAL-ONLY MODULE CONSTANTS ─────────────────────────────────────────
 
 # ── LOCAL-ONLY SOVEREIGN EXTENSIONS ─────────────────────────────────────
@@ -45,6 +44,8 @@ class ValidationResult:
     total_return_pct: float
     win_rate: float
     notes: list[str] = field(default_factory=list)
+
+
 if __name__ == "__main__":
     instructor = HistoricalInstructor()
     instructor.run_validation()

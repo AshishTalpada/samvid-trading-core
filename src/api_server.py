@@ -357,7 +357,9 @@ class APIServer:
 
             secret = Vault.get("API_SERVER_KEY")
             if not secret and os.getenv("SOVEREIGN_ALLOW_OPEN_API", "0") != "1":
-                logger.warning("API Server: WebSocket rejected because API_SERVER_KEY is not configured.")
+                logger.warning(
+                    "API Server: WebSocket rejected because API_SERVER_KEY is not configured."
+                )
                 await websocket.close(code=1008)
                 return
             if secret:

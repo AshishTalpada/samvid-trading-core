@@ -8,6 +8,7 @@ from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
 class AESNIEncryptor:
     """AES-256-GCM encryption using hardware AES-NI CPU instructions via cryptography library."""
+
     def __init__(self, key: bytes | None = None):
         self.key = key or AESGCM.generate_key(256)
         self._aes = AESGCM(self.key)

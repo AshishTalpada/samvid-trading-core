@@ -6,17 +6,23 @@ from typing import Dict
 
 logger = logging.getLogger(__name__)
 
+
 class DeepFakeAuthAgent:
     """
     Detects AI-generated synthetic media (deepfakes) in financial news streams.
     Strategy: checks for metadata anomalies, fingerprinting artefacts, and
     cross-validates headline claims against SEC EDGAR in real time.
     """
+
     METADATA_RED_FLAGS = ["photoshop", "adobe", "generated", "synthetic", "DALL-E", "midjourney"]
 
     def scan_image_metadata(self, metadata: Dict[str, str]) -> float:
         """Returns suspicion score 0.0-1.0 from image EXIF metadata."""
-        hits = sum(1 for v in metadata.values() if any(f.lower() in str(v).lower() for f in self.METADATA_RED_FLAGS))
+        hits = sum(
+            1
+            for v in metadata.values()
+            if any(f.lower() in str(v).lower() for f in self.METADATA_RED_FLAGS)
+        )
         return min(1.0, hits / 3.0)
 
     def cross_validate_headline(self, headline: str, known_facts: list[str]) -> bool:

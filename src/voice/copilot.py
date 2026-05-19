@@ -7,6 +7,7 @@ import pyttsx3
 
 logger = logging.getLogger(__name__)
 
+
 class SovereignVoiceCopilot:
     """
     Custom AI voice co-pilot acting as an active situational awareness interface.
@@ -14,6 +15,7 @@ class SovereignVoiceCopilot:
     risk limit breaches, and arbitrage opportunities directly to the user,
     bypassing the need for visual dashboard monitoring.
     """
+
     def __init__(self, voice_speed: int = 180):
         self.message_queue: Any = queue.Queue()
         self.running = True
@@ -29,13 +31,13 @@ class SovereignVoiceCopilot:
     def _speech_loop(self):
         # Initialize pyttsx3 inside the thread as it relies on COM objects on Windows
         engine = pyttsx3.init()
-        engine.setProperty('rate', self.voice_speed)
+        engine.setProperty("rate", self.voice_speed)
 
         # Attempt to set a distinct, authoritative voice (e.g., Zira or David on Windows)
-        voices = engine.getProperty('voices')
+        voices = engine.getProperty("voices")
         for voice in voices:
             if "Zira" in voice.name or "Hazel" in voice.name:
-                engine.setProperty('voice', voice.id)
+                engine.setProperty("voice", voice.id)
                 break
 
         engine.say("Sovereign architecture initialized and monitoring execution streams.")
@@ -61,6 +63,7 @@ class SovereignVoiceCopilot:
         Submits a message to be spoken. Priority 0 is highest (cuts the line).
         """
         import time
+
         current_time = time.time()
 
         # Debounce: Don't repeat the exact same alert ID within 60 seconds

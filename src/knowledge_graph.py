@@ -3,12 +3,14 @@ from typing import Dict, List, Set
 
 logger = logging.getLogger(__name__)
 
+
 class MacroKnowledgeGraph:
     """
     Connects macro events (e.g. Fed Rate hike) to specific equity sectors.
     Uses an in-memory directed graph to traverse "Event -> Sector -> Ticker"
     relationships to instantly map the blast radius of breaking news.
     """
+
     def __init__(self):
         self.edges: Dict[str, Set[str]] = {}
 
@@ -36,5 +38,7 @@ class MacroKnowledgeGraph:
                     if neighbor not in visited:
                         queue.append((neighbor, current_depth + 1))
 
-        logger.debug(f"[KG] Event '{root_event}' impacts {len(impacted_nodes)} nodes at depth {depth}.")
+        logger.debug(
+            f"[KG] Event '{root_event}' impacts {len(impacted_nodes)} nodes at depth {depth}."
+        )
         return impacted_nodes

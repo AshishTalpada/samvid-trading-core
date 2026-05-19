@@ -4,11 +4,13 @@ import numpy as np
 
 logger = logging.getLogger(__name__)
 
+
 class EvolvingLossFunctions:
     """
     Adaptive loss function selector. Switches between Sharpe, Sortino, Calmar,
     and Omega ratio maximisation based on market regime.
     """
+
     def sharpe(self, returns: list[float], rf: float = 0.0) -> float:
         arr = np.array(returns)
         excess = arr - rf / 252

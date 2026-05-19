@@ -112,11 +112,34 @@ VOLUME_THRESHOLDS = {
 }
 
 TRADING_INSTRUMENTS = [
-    "SPY", "QQQ", "DIA", "IWM",
-    "MSFT", "AAPL", "NVDA", "GOOGL", "AMZN", "META", "AVGO", "AMD",
-    "TSLA", "NFLX", "COST", "GS", "JPM", "MA", "V", "WMT",
-    "ARM", "MU", "PLTR", "MSTR", "COIN", "SMCI",
-    "XAUUSD", "US100"
+    "SPY",
+    "QQQ",
+    "DIA",
+    "IWM",
+    "MSFT",
+    "AAPL",
+    "NVDA",
+    "GOOGL",
+    "AMZN",
+    "META",
+    "AVGO",
+    "AMD",
+    "TSLA",
+    "NFLX",
+    "COST",
+    "GS",
+    "JPM",
+    "MA",
+    "V",
+    "WMT",
+    "ARM",
+    "MU",
+    "PLTR",
+    "MSTR",
+    "COIN",
+    "SMCI",
+    "XAUUSD",
+    "US100",
 ]
 
 PANIC_LIQUIDATE = False  # Set to True to force-close all positions on startup

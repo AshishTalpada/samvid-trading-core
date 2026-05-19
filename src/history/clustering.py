@@ -5,6 +5,7 @@ import numpy as np
 
 class RegimeClusterer:
     """Discovers market regimes via k-means clustering on return/vol data."""
+
     def __init__(self, k: int = 4):
         self.k = k
         self.centroids: List[np.ndarray] = []

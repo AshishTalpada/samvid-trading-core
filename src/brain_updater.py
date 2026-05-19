@@ -5,12 +5,14 @@ import numpy as np
 
 logger = logging.getLogger(__name__)
 
+
 class MicroWeightUpdater:
     """
     Online learning engine that applies micro weight updates after every live fill.
     Uses a momentum-based SGD with exponential decay to update agent confidence
     weights without full retraining. Prevents catastrophic forgetting via EWC penalty.
     """
+
     def __init__(self, learning_rate: float = 1e-4, momentum: float = 0.9, ewc_lambda: float = 0.4):
         self.lr = learning_rate
         self.momentum = momentum
@@ -28,7 +30,7 @@ class MicroWeightUpdater:
         w_new = max(0.1, min(3.0, w + v_new))
         self._weights[agent_id] = w_new
         self._velocity[agent_id] = v_new
-        self._fisher[agent_id] = 0.9 * f + 0.1 * (grad ** 2)
+        self._fisher[agent_id] = 0.9 * f + 0.1 * (grad**2)
         logger.debug(f"[BRAIN UPDATER] {agent_id}: w={w:.3f} -> {w_new:.3f}")
         return w_new
 

@@ -6,11 +6,13 @@ import requests
 
 logger = logging.getLogger(__name__)
 
+
 class CorporateJetTracker:
     """
     Tracks corporate jet AIS/ADS-B signals to airports near M&A deal-making cities.
     Historically: CEO private jets at Omaha/Sun Valley 2-3 days before public M&A announcement.
     """
+
     MA_AIRPORTS = {
         "KBFF": "Scottsbluff (Berkshire Hathaway)",
         "KSUN": "Sun Valley (Allen & Co)",
@@ -24,6 +26,7 @@ class CorporateJetTracker:
         represents unusual jet clustering relative to 30-day baseline.
         """
         from collections import Counter
+
         airport_counts: Counter = Counter()
         for log in flight_logs:
             dest = log.get("destination", "")

@@ -4,14 +4,18 @@ from typing import Any, Dict
 
 logger = logging.getLogger(__name__)
 
+
 class StrategyABTester:
     """
     Runs two concurrent algorithmic logic variants in a live environment to determine statistical superiority.
     """
+
     def __init__(self):
         self.active_experiments: Dict[str, Dict[str, Any]] = {}
 
-    def start_experiment(self, experiment_name: str, variant_a_name: str, variant_b_name: str) -> str:
+    def start_experiment(
+        self, experiment_name: str, variant_a_name: str, variant_b_name: str
+    ) -> str:
         """
         Initializes a new A/B test routing table.
         """
@@ -20,8 +24,8 @@ class StrategyABTester:
             "name": experiment_name,
             "variants": {
                 "A": {"name": variant_a_name, "trades": 0, "pnl": 0.0},
-                "B": {"name": variant_b_name, "trades": 0, "pnl": 0.0}
-            }
+                "B": {"name": variant_b_name, "trades": 0, "pnl": 0.0},
+            },
         }
         logger.info(f"Started A/B Test: {experiment_name} ({exp_id})")
         return exp_id
@@ -32,7 +36,7 @@ class StrategyABTester:
         to ensure the same ticker always gets the same variant logic during the test.
         """
         if exp_id not in self.active_experiments:
-            return "A" # Default fallback
+            return "A"  # Default fallback
 
         # Simple consistent hashing
         hash_val = sum(ord(c) for c in ticker)
@@ -64,5 +68,5 @@ class StrategyABTester:
             "winner": winner,
             "pnl_diff": abs(pnl_a - pnl_b),
             "variant_A_stats": exp["variants"]["A"],
-            "variant_B_stats": exp["variants"]["B"]
+            "variant_B_stats": exp["variants"]["B"],
         }

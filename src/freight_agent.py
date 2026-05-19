@@ -6,19 +6,23 @@ import requests
 
 logger = logging.getLogger(__name__)
 
+
 class OceanFreightAgent:
     """
     Real-time ocean container freight tracker.
     Ingests Baltic Dry Index (BDI) + AIS vessel position data to detect
     supply chain bottlenecks before they appear in earnings reports.
     """
+
     BDI_PROXY = "https://markets.businessinsider.com/api/search"
     COMMODITY_MAP = {"shipping": ["ZIM", "MATX", "DAC"], "containers": ["FDX", "UPS", "XPO"]}
 
     def get_bdi_estimate(self) -> float:
         """Returns a normalised BDI score 0.0-1.0 from public proxy."""
         try:
-            r = requests.get("https://fred.stlouisfed.org/graph/fredgraph.csv?id=BDIYINDEX", timeout=5)
+            r = requests.get(
+                "https://fred.stlouisfed.org/graph/fredgraph.csv?id=BDIYINDEX", timeout=5
+            )
             lines = [l for l in r.text.strip().split("\n") if "," in l]
             last_val = float(lines[-1].split(",")[1])
             return min(1.0, last_val / 5000.0)

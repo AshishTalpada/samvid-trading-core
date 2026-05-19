@@ -4,10 +4,12 @@ import numpy as np
 
 logger = logging.getLogger(__name__)
 
+
 class TailRiskModel:
     """
     Models the 1% chance of catastrophic loss (Conditional Value at Risk).
     """
+
     def calculate_es(self, returns: list[float], confidence_level: float = 0.99) -> float:
         """
         Calculates the Expected Shortfall (CVaR) at the given confidence level.

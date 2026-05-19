@@ -5,12 +5,14 @@ from typing import Callable
 
 logger = logging.getLogger(__name__)
 
+
 class StreamerBase(ABC):
     """
     Abstract base class for all Sovereign market data streamers.
     Enforces a uniform interface for IBKR, Alpaca, Nasdaq ITCH, and Starlink feeds.
     Provides built-in reconnection logic and heartbeat monitoring.
     """
+
     def __init__(self, reconnect_delay: float = 5.0):
         self._running = False
         self._reconnect_delay = reconnect_delay
@@ -22,8 +24,10 @@ class StreamerBase(ABC):
 
     def _dispatch(self, tick: dict) -> None:
         for cb in self._callbacks:
-            try: cb(tick)
-            except Exception as e: logger.error(f"[STREAMER] Callback error: {e}")
+            try:
+                cb(tick)
+            except Exception as e:
+                logger.error(f"[STREAMER] Callback error: {e}")
 
     @abstractmethod
     def connect(self) -> bool: ...

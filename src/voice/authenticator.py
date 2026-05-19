@@ -4,6 +4,7 @@ from typing import Optional
 
 logger = logging.getLogger(__name__)
 
+
 class VoicePrintAuthenticator:
     """
     Voice biometric authentication layer.
@@ -11,6 +12,7 @@ class VoicePrintAuthenticator:
     via cosine similarity against stored embeddings.
     Blocks trade authorization if voice doesn't match enrolled profile.
     """
+
     SIMILARITY_THRESHOLD = 0.85
 
     def __init__(self):
@@ -33,5 +35,7 @@ class VoicePrintAuthenticator:
             return False
         sim = self._cosine_similarity(enrolled, probe_vector)
         passed = sim >= self.SIMILARITY_THRESHOLD
-        logger.info(f"[VOICE AUTH] {user_id}: similarity={sim:.3f} -> {'PASS' if passed else 'FAIL'}")
+        logger.info(
+            f"[VOICE AUTH] {user_id}: similarity={sim:.3f} -> {'PASS' if passed else 'FAIL'}"
+        )
         return passed

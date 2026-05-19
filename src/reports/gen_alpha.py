@@ -3,10 +3,13 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+
 class AlphaReportGenerator:
     """Generates weekly autonomous evolution reports summarizing system performance."""
-    def generate(self, week_pnl: float, trades: int, win_rate: float,
-                 sharpe: float, new_modules: list[str]) -> str:
+
+    def generate(
+        self, week_pnl: float, trades: int, win_rate: float, sharpe: float, new_modules: list[str]
+    ) -> str:
         now = datetime.datetime.utcnow()
         week_str = now.strftime("Week of %Y-%m-%d")
         lines = [

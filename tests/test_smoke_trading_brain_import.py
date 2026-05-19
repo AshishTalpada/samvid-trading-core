@@ -126,11 +126,25 @@ def test_paper_mode_startup_skips_ibkr_executable_check():
 
         with patch.object(main.MindSystem, "_tool_find_executable", AsyncMock(return_value=False)):
             with patch.object(main.TimeSync, "sync", AsyncMock(return_value=None)):
-                with patch.object(main.TradingSystem, "_verify_watchdog", AsyncMock(return_value=None)):
-                    with patch.object(main.TradingSystem, "_init_questdb", AsyncMock(return_value=None)):
-                        with patch.object(main.TradingSystem, "_init_api_server", AsyncMock(return_value=None)):
-                            with patch.object(main.TradingSystem, "_init_search_providers", AsyncMock(return_value=None)):
-                                with patch.object(main.TradingSystem, "_init_hft_streamer", AsyncMock(return_value=None)):
+                with patch.object(
+                    main.TradingSystem, "_verify_watchdog", AsyncMock(return_value=None)
+                ):
+                    with patch.object(
+                        main.TradingSystem, "_init_questdb", AsyncMock(return_value=None)
+                    ):
+                        with patch.object(
+                            main.TradingSystem, "_init_api_server", AsyncMock(return_value=None)
+                        ):
+                            with patch.object(
+                                main.TradingSystem,
+                                "_init_search_providers",
+                                AsyncMock(return_value=None),
+                            ):
+                                with patch.object(
+                                    main.TradingSystem,
+                                    "_init_hft_streamer",
+                                    AsyncMock(return_value=None),
+                                ):
                                     asyncio.run(system.async_init())
 
 
@@ -176,8 +190,14 @@ def test_ibkr_paper_mode_starts_ibkr_connection():
 
             with patch("risk_invariants.RiskInvariants.verify_config", return_value=True):
                 with patch.object(main.TradingSystem, "check_paper", return_value=None):
-                    with patch.object(main.TradingSystem, "start_dms", AsyncMock(return_value=None)):
-                        with patch.object(main.TradingSystem, "connect_ibkr", AsyncMock(return_value=True)) as mock_connect:
-                            with patch.object(main.TradingSystem, "connect_mt5", AsyncMock(return_value=True)):
+                    with patch.object(
+                        main.TradingSystem, "start_dms", AsyncMock(return_value=None)
+                    ):
+                        with patch.object(
+                            main.TradingSystem, "connect_ibkr", AsyncMock(return_value=True)
+                        ) as mock_connect:
+                            with patch.object(
+                                main.TradingSystem, "connect_mt5", AsyncMock(return_value=True)
+                            ):
                                 asyncio.run(system.startup())
                                 assert mock_connect.called

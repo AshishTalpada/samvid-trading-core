@@ -3,6 +3,7 @@ src/safety.py
 
 Safety helpers: emergency halt and runtime paper-mode enforcement.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -129,7 +130,9 @@ def EMERGENCY_HALT(reason: str = "EMERGENCY HALT invoked") -> None:
             else:
                 asyncio.run(send_telegram_alert(f" EMERGENCY HALT: {reason}"))
         except RuntimeError:
-            logger.debug("Emergency alert skipped because a running event loop prevented asyncio.run().")
+            logger.debug(
+                "Emergency alert skipped because a running event loop prevented asyncio.run()."
+            )
         except Exception:
             logger.error("Failed to send emergency Telegram alert")
 

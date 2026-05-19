@@ -142,9 +142,7 @@ class ChromaDeepMemory:
                     )
                     logger.info(f"✓ Chroma Persistence Online at {db_dir}")
             except Exception as e:
-                logger.warning(
-                    f"Chroma: PersistentClient failed ({e}). Falling back to Ephemeral."
-                )
+                logger.warning(f"Chroma: PersistentClient failed ({e}). Falling back to Ephemeral.")
                 ChromaDeepMemory._client_instance = chromadb.EphemeralClient(
                     settings=Settings(allow_reset=True, anonymized_telemetry=False)
                 )
@@ -452,9 +450,7 @@ class SwarmPredictor:
         deep_memory_str, top_confidence = await self._memory.search_memory(seed_narrative)
 
         if top_confidence > 0.90:
-            logger.info(
-                f" FLASH-INFERENCE: High-Resonance Ghost detected ({top_confidence:.1%})."
-            )
+            logger.info(f" FLASH-INFERENCE: High-Resonance Ghost detected ({top_confidence:.1%}).")
             bias = SwarmBias.BULLISH if "BULLISH" in deep_memory_str.upper() else SwarmBias.BEARISH
             consensus = SwarmConsensus(
                 bias=bias,

@@ -61,9 +61,10 @@ class SovereignDecisionEngine:
                 output_map = {out.get("agent"): out for out in agent_outputs}
                 is_probe = bool(context.get("is_probe", False))
                 if not is_probe:
-                    if context.get("oracle_freeze") or float(
-                        context.get("oracle_risk_modifier", 1.0) or 0.0
-                    ) <= 0.0:
+                    if (
+                        context.get("oracle_freeze")
+                        or float(context.get("oracle_risk_modifier", 1.0) or 0.0) <= 0.0
+                    ):
                         return await self._final_report(
                             decision="REJECT",
                             confidence=0.0,
@@ -94,6 +95,7 @@ class SovereignDecisionEngine:
                 # Attempt to use the native Rust implementation for zero-allocation speed
                 try:
                     import sovereign_core
+
                     engine = sovereign_core.FastDecisionEngine()
                     rust_result = engine.evaluate(context, agent_outputs)
                     # The Rust engine returns a dict like {"decision": ..., "confidence": ...}
@@ -102,7 +104,7 @@ class SovereignDecisionEngine:
                         decision=rust_result.get("decision", "REJECT"),
                         confidence=rust_result.get("confidence", 0.0),
                         reason=rust_result.get("reason", "Rust Engine Default Fallback"),
-                        votes=agent_outputs
+                        votes=agent_outputs,
                     )
                 except ImportError:
                     # Fallback to the slow Python brain if Rust module isn't built yet
@@ -162,8 +164,10 @@ class SovereignDecisionEngine:
                     # Fast Path: Zero-allocation numeric comparison
                     if isinstance(context_ts, (int, float)) and isinstance(agent_ts, (int, float)):
                         # If nanoseconds (e.g. time.time_ns()), convert to seconds
-                        if context_ts > 1e15: context_ts /= 1e9
-                        if agent_ts > 1e15: agent_ts /= 1e9
+                        if context_ts > 1e15:
+                            context_ts /= 1e9
+                        if agent_ts > 1e15:
+                            agent_ts /= 1e9
                         drift_sec = abs(agent_ts - context_ts)
                     else:
                         # Slow Path: Fallback for unmigrated agents (String parsing)

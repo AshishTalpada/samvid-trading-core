@@ -7,6 +7,7 @@ import numpy as np
 
 logger = logging.getLogger(__name__)
 
+
 class AlphaDecayWatchdog:
     """
     Advanced Strategy Safety Monitor.
@@ -14,6 +15,7 @@ class AlphaDecayWatchdog:
     If a strategy's edge begins to statistically decay due to market regime changes or
     institutional crowding, this watchdog automatically quarantines the strategy.
     """
+
     def __init__(self, bridge: Any = None, history_window: int = 100):
         self.bridge = bridge
         self.window = history_window
@@ -47,13 +49,17 @@ class AlphaDecayWatchdog:
             return
 
         # Check for structural decay
-        if self.baseline_sharpe > 0.5: # Only track decay for meaningful baselines
+        if self.baseline_sharpe > 0.5:  # Only track decay for meaningful baselines
             decay_pct = (self.baseline_sharpe - current_sharpe) / self.baseline_sharpe
             if decay_pct > 0.40 and current_sharpe < 1.0:
-                logger.critical(f"[WATCHDOG] SEVERE ALPHA DECAY DETECTED! Sharpe dropped from {self.baseline_sharpe:.2f} to {current_sharpe:.2f}.")
+                logger.critical(
+                    f"[WATCHDOG] SEVERE ALPHA DECAY DETECTED! Sharpe dropped from {self.baseline_sharpe:.2f} to {current_sharpe:.2f}."
+                )
                 await self._quarantine_strategy()
         elif self.baseline_sharpe <= 0.5 and current_sharpe < -2.0:
-            logger.critical(f"[WATCHDOG] STRATEGY COLLAPSE! Sharpe collapsed to {current_sharpe:.2f}.")
+            logger.critical(
+                f"[WATCHDOG] STRATEGY COLLAPSE! Sharpe collapsed to {current_sharpe:.2f}."
+            )
             await self._quarantine_strategy()
 
     async def _quarantine_strategy(self):
@@ -64,5 +70,5 @@ class AlphaDecayWatchdog:
             await self.bridge.broadcast(
                 "watchdog",
                 "CRITICAL: Strategy Quarantine Triggered due to Alpha Decay.",
-                {"type": "QUARANTINE", "state": True}
+                {"type": "QUARANTINE", "state": True},
             )
