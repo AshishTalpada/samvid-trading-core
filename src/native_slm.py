@@ -83,7 +83,7 @@ class NativeSLM:
             )
 
             # 15s timeout for the isolated worker
-            stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=15.0)
+            stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=90.0)
 
             if proc.returncode != 0:
                 err_msg = stderr.decode().strip()
@@ -130,7 +130,7 @@ class NativeSLM:
             }
 
         except asyncio.TimeoutError:
-            logger.error("Neural Sandbox TIMEOUT (15s). Moving on.")
+            logger.error("Neural Sandbox TIMEOUT (90s). Moving on.")
             return self._neutral_vote(context, "Sandbox Timeout")
         except Exception as e:
             logger.error(f"Neural Sandbox DISPATCH FAILED: {e}")
