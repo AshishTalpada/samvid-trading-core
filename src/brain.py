@@ -819,14 +819,7 @@ class TradingBrain:
         self._exit_last_attempt: dict[str, datetime] = {}  # Symbol -> Last Re-attempt
         self._order_submit_times: dict[int, datetime] = {}  # OrderId -> Submission time
 
-        # Check if we have a persisted state to recover from after a crash
-        # Dispatched as a background task to prevent blocking the boot dashboard
-        try:
-            loop = asyncio.get_running_loop()
-        except RuntimeError:
-            self._thaw_task = None
-        else:
-            self._thaw_task = loop.create_task(self._thaw_session_async())
+        self._thaw_task = None
 
     def sync_oracle_state(self) -> bool:
         """Hydrate the brain's macro freeze state from the attached DhatuOracle."""
