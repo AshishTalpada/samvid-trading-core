@@ -1783,6 +1783,8 @@ class DhatuOracle:
                 # Extract most recent price/vix data from internal cache or synthesis
                 # We use SPY as the proxy for global regime sentiment
                 vix = 15.0
+                prices = np.array([])
+                volumes = np.array([])
                 if self._ticker_cache:
                     vix_data = await self._ticker_cache.get("mech_^VIX")
                     if vix_data and isinstance(vix_data, list) and vix_data:
@@ -1790,13 +1792,21 @@ class DhatuOracle:
                         if match:
                             vix = float(match.group(1))
 
-                import yfinance as yf
+                try:
+                    import yfinance as yf
 
-                ticker = await asyncio.to_thread(yf.Ticker, "SPY")
-                df = await asyncio.to_thread(lambda: ticker.history(period="30d", interval="1d"))
-                if not df.empty and "Close" in df and "Volume" in df:
-                    prices = df["Close"].to_numpy()
-                    volumes = df["Volume"].to_numpy()
+                    ticker = await asyncio.to_thread(yf.Ticker, "SPY")
+                    df = await asyncio.to_thread(
+                        lambda: ticker.history(period="30d", interval="1d")
+                    )
+                    if not df.empty and "Close" in df and "Volume" in df:
+                        prices = df["Close"].to_numpy()
+                        volumes = df["Volume"].to_numpy()
+                except Exception as market_data_error:
+                    logger.debug(
+                        "DhatuOracle: Bayesian market data fetch skipped: %s",
+                        market_data_error,
+                    )
 
                 if len(prices) >= 10:
                     bayes_state = self._bayesian_oracle.update(prices, volumes, vix)
