@@ -1664,12 +1664,12 @@ class LiveLearningEngine:
         vote = "YES"
         reason = f"Historical WR: {win_rate:.1%} (n={n_trades}, {rating})"
 
-        if rating in ["MODERATE", "RELIABLE", "STRONG"] and win_rate < 0.45:
+        if rating in ["MODERATE", "RELIABLE", "STRONG"] and win_rate < 0.35:
             vote = "NO"
-            reason = f"VETO: Statistical performance ({win_rate:.1%}) below 45% threshold."
-        elif rating == "STRONG" and win_rate < 0.50:
+            reason = f"VETO: Statistical performance ({win_rate:.1%}) below 35% threshold."
+        elif rating == "STRONG" and win_rate < 0.40:
             vote = "NO"
-            reason = f"VETO: High-significance performance ({win_rate:.1%}) below 50% threshold."
+            reason = f"VETO: High-significance performance ({win_rate:.1%}) below 40% threshold."
 
         return {
             "agent": "Agent_D",
