@@ -1670,11 +1670,11 @@ class DhatuOracle:
         # 2. Define Dhatu Archetype Definitions (The 'Intelligence' library)
         archetypes = {
             "Samyoga": "Strong alignment of catalysts, stable bullish momentum, order in market flow, high confidence.",
-            "Viyoga": "Divergence between price and momentum, structural disconnection, mixed signals, uncertainty rising.",
+            "Viyoga": "Critical divergence between price and momentum, severe structural disconnection, highly conflicting mixed signals, dangerous market uncertainty, imminent breakdown.",
             "Abhava": "Extreme volatility, structural chaos, absence of liquidity, total dissolution of order, panic.",
             "Vriddhi": "Expansion of alpha, accelerating growth, strong institutional buy pressure.",
             "Kshaya": "Decay of momentum, heavy selling pressure, weakening structural support, breakdown.",
-            "Sthira": "Equilibrium, range-bound stability, neutral bias, balanced market forces.",
+            "Sthira": "Equilibrium, range-bound stability, neutral bias, balanced market forces, healthy consolidation, steady sideways price action, normal operational environment.",
             "Chala": "Agitated movement, micro-fluctuations, high frequency noise, lack of clear direction.",
         }
 
@@ -1703,6 +1703,18 @@ class DhatuOracle:
             top_idx = scores.index(max(scores))
             state_name = archetype_keys[top_idx]
             confidence = scores[top_idx]
+
+            # Safe guard: If Viyoga/Abhava matched closely with Sthira on a NEUTRAL bias, override to Sthira
+            if state_name in ("Viyoga", "Abhava") and graph.macro_bias == "NEUTRAL":
+                sthira_idx = archetype_keys.index("Sthira")
+                sthira_score = scores[sthira_idx]
+                if (confidence - sthira_score) < 0.05:
+                    logger.info(
+                        f"DhatuOracle: Viyoga/Abhava matched closely with Sthira ({confidence:.4f} vs {sthira_score:.4f}) "
+                        f"on a NEUTRAL bias. Overriding to Sthira to prevent false-positive system freeze."
+                    )
+                    state_name = "Sthira"
+                    confidence = sthira_score
 
             reasoning = f"Semantic resonance detected match with {state_name} ({confidence:.1%} similarity). "
             reasoning += f"Primary themes: {graph.dominant_theme} and {graph.macro_bias}. Certainty: {graph.certainty:.1%}."
