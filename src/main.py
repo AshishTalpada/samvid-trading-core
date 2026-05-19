@@ -1990,10 +1990,10 @@ class TradingSystem:
             logging.shutdown()
             self._shutdown_complete = True
 
-            # Ensures dangling background threads (Dhatu, Watchdogs) cannot re-awaken the matrix.
-            import os
-
-            os._exit(0)
+            # Signal the main event loop to exit cleanly.
+            # Previously used os._exit(0) which skips finally blocks,
+            # atexit handlers, and SQLite WAL checkpoint — risking DB corruption.
+            self._shutdown_event.set()
 
         except Exception as e:
             logger.error(f"FATAL ERROR DURING SHUTDOWN: {e}", exc_info=True)
