@@ -627,6 +627,9 @@ class TVNewsScent:
         self.session_id = f"ns_{os.urandom(6).hex()}"
         self._running = False
         self._ws = None
+        self._connected = False
+        self._last_connect_log = 0.0
+        self._last_disconnect_log = 0.0
 
     def _format_message(self, data: dict) -> str:
         """TradingView ~m~ framing."""
@@ -702,7 +705,15 @@ class TVNewsScent:
                         )
                     )
 
-                    logger.info("✓ TVNewsScent: Neural Scent Feed established (TradingView WS).")
+                    connected_at = time.monotonic()
+                    if not self._connected or connected_at - self._last_connect_log > 300.0:
+                        logger.info(
+                            "TVNewsScent: Neural Scent Feed established (TradingView WS)."
+                        )
+                        self._last_connect_log = connected_at
+                    else:
+                        logger.debug("TVNewsScent: TradingView WS reconnected.")
+                    self._connected = True
 
                     async for message in ws:
                         if isinstance(message, str):
@@ -735,7 +746,22 @@ class TVNewsScent:
                                                         ).isoformat(),
                                                     },
                                                 )
+                    self._connected = False
+                    disconnected_at = time.monotonic()
+                    session_age = disconnected_at - connected_at
+                    if disconnected_at - self._last_disconnect_log > 300.0:
+                        logger.warning(
+                            "TVNewsScent: TradingView WS closed after %.1fs; reconnecting.",
+                            session_age,
+                        )
+                        self._last_disconnect_log = disconnected_at
+                    else:
+                        logger.debug(
+                            "TVNewsScent: TradingView WS closed after %.1fs; reconnecting.",
+                            session_age,
+                        )
             except Exception as e:
+                self._connected = False
                 logger.error(f" TVNewsScent: Neural Scent blip (Check Origin/Proxy): {e}")
 
             # Replaces the unstable fixed sleep inside the except block.
