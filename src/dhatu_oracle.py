@@ -1633,7 +1633,7 @@ class DhatuOracle:
         logger.info(f"Dhatu_Oracle: Using {effort.upper()} effort for Macro Synthesis.")
 
         # DEBUG: Log the first 500 chars of the collected text
-        logger.info(f"Dhatu_Oracle: RAW SIGNAL TEXT: {all_text[:500]}...")
+        logger.debug("Dhatu_Oracle: RAW SIGNAL TEXT: %s...", all_text[:500])
 
         # Scaler
         effort_mult = {"low": 1, "medium": 3, "high": 5, "max": 10}[effort]
