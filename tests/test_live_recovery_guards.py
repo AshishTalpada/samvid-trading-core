@@ -1,7 +1,7 @@
 import json
 from datetime import datetime, timezone
 
-from src.sovereign_task import SovereignTask, TaskManager
+from src.sovereign_task import SovereignTask, TaskManager, TaskStatus
 from src.system_types import Position
 
 
@@ -33,3 +33,31 @@ def test_task_registry_preserves_phase_on_restore(tmp_path) -> None:
     restored = manager.tasks["t_SPY_1"]
     assert restored.status_summary == "VETTING: checking cache and agent quorum"
     assert restored.to_dict()["phase"] == restored.status_summary
+
+
+def test_task_manager_symbol_gate_blocks_active_task(tmp_path) -> None:
+    manager = TaskManager(registry_path=str(tmp_path / "active_tasks.json"))
+
+    task = manager.spawn_trade("SPY", {"pattern": "Descending Triangle"})
+
+    gate = manager.get_symbol_gate("SPY")
+
+    assert gate is not None
+    gate_kind, gate_task, remaining = gate
+    assert gate_kind == "active"
+    assert gate_task is task
+    assert remaining == 0.0
+
+
+def test_task_manager_symbol_gate_blocks_recent_veto(tmp_path) -> None:
+    manager = TaskManager(registry_path=str(tmp_path / "active_tasks.json"))
+    task = manager.spawn_trade("QQQ", {"pattern": "Descending Triangle"})
+    task.transition(TaskStatus.KILLED)
+
+    gate = manager.get_symbol_gate("QQQ", terminal_cooldown_seconds=300.0)
+
+    assert gate is not None
+    gate_kind, gate_task, remaining = gate
+    assert gate_kind == "cooldown"
+    assert gate_task is task
+    assert 0.0 < remaining <= 300.0
