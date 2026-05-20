@@ -587,6 +587,7 @@ class SwarmPredictor:
 
         return {
             "agent": "Swarm_Predictor",
+            "symbol": symbol,
             "vote": vote,
             "confidence": consensus.confidence,
             "signal_strength": consensus.get_confidence_modifier(),
