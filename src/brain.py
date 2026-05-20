@@ -1810,7 +1810,7 @@ class TradingBrain:
                         "pending": 0,
                         "regime": self.current_regime,
                     }
-                await asyncio.sleep(60)
+                await asyncio.sleep(30)
                 return
 
             # Check budget with atomic safety
