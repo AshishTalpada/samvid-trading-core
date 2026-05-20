@@ -1794,8 +1794,17 @@ class TradingSystem:
 
             while retries < max_retries:
                 try:
+                    if self._shutdown_in_progress or not self.is_running:
+                        logger.info("Supervisor: %s standing down during shutdown.", name)
+                        return
                     logger.info(f"Supervisor: Launching {name}...")
                     await coro_func()
+                    if self._shutdown_in_progress or not self.is_running:
+                        logger.info(
+                            "Background task '%s' stopped cleanly during shutdown.",
+                            name,
+                        )
+                        return
                     logger.warning(
                         f"Background task '{name}' finished unexpectedly without error. "
                         "Restarting supervisor..."
@@ -1820,6 +1829,8 @@ class TradingSystem:
                         )
                     except Exception:
                         pass
+                    if self._shutdown_in_progress or not self.is_running:
+                        return
                     await asyncio.sleep(delay)
 
                 if retries >= max_retries:
@@ -2157,9 +2168,11 @@ class TradingSystem:
         Monitors the physical layer heart rate and triggers autonomous repair.
         """
         logger.info("Watchdog: Aegis Stability Protocol Active.")
-        while not self._shutdown_event.is_set():
+        while self.is_running and not self._shutdown_event.is_set():
             try:
                 await asyncio.sleep(60)
+                if not self.is_running or self._shutdown_in_progress:
+                    break
 
                 # Check Ingestion Health (Delta since last HFT tick)
                 drift = time.monotonic() - self._last_tick_time
@@ -2262,9 +2275,11 @@ class TradingSystem:
         logger.info("Main: Performance Monitor ACTIVE (Interval: 15m).")
         import psutil
 
-        while not self._shutdown_event.is_set():
+        while self.is_running and not self._shutdown_event.is_set():
             try:
                 await asyncio.sleep(900)  # 15 Minutes
+                if not self.is_running or self._shutdown_in_progress:
+                    break
                 cpu = psutil.cpu_percent()
                 ram = psutil.virtual_memory().percent
                 logger.info(
@@ -2283,11 +2298,13 @@ class TradingSystem:
         logger.info("Sentinel: Persistence Grooming Task ACTIVE (Interval: 24h).")
         self._sentinel_running = False
 
-        while True:
+        while self.is_running and not self._shutdown_event.is_set():
             try:
                 # Reduced from 30s pulses (which caused hardware resets) to 24-hour cycles.
                 # Deep training should only occur when the system is not actively in an HFT session.
                 await asyncio.sleep(86400)  # 24 Hours
+                if not self.is_running or self._shutdown_in_progress:
+                    break
 
                 if self._sentinel_running:
                     logger.debug("Sentinel: Deep Training Cycle already in progress. Skipping.")
