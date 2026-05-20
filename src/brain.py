@@ -4271,6 +4271,14 @@ class TradingBrain:
                     await asyncio.sleep(3600)
                     continue
 
+                if (
+                    not self._is_market_open()
+                    and os.environ.get("SOVEREIGN_ALLOW_CLOSED_MARKET_SCANS") != "1"
+                ):
+                    logger.info("Brain: Phantom probe skipped while US equity market is closed.")
+                    await asyncio.sleep(3600)
+                    continue
+
                 if hasattr(self, "coordinator"):
                     logger.info(" Brain: Initiating PHANTOM PROBE (System Wiring Check)...")
                     # Construct a fake proposal
