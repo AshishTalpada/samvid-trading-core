@@ -538,6 +538,8 @@ class APIServer:
                 "open_by_symbol": [],
                 "order_health": {"persistent_orders": 0, "stale_orders": 0, "failures": 0},
                 "tasks": {"total": 0, "by_status": {}, "by_phase": {}, "recent": []},
+                "system_events": [],
+                "oracle_readings": [],
             }
             if self.system.trading_brain:
                 brain = self.system.trading_brain
@@ -645,6 +647,47 @@ class APIServer:
                                     payload = json.loads(row[0])
                                     payload["updated_at"] = row[1]
                                     trading_truth["performance"] = payload
+
+                        cursor.execute(
+                            "SELECT name FROM sqlite_master WHERE type='table' AND name='system_events'"
+                        )
+                        if cursor.fetchone():
+                            cursor.execute(
+                                "SELECT timestamp, event_type, severity, agent, message, details "
+                                "FROM system_events ORDER BY id DESC LIMIT 25"
+                            )
+                            trading_truth["system_events"] = [
+                                {
+                                    "timestamp": row[0],
+                                    "event_type": row[1],
+                                    "severity": row[2],
+                                    "agent": row[3],
+                                    "message": row[4],
+                                    "details": json.loads(row[5] or "{}"),
+                                }
+                                for row in cursor.fetchall()
+                            ]
+
+                        cursor.execute(
+                            "SELECT name FROM sqlite_master WHERE type='table' AND name='dhatu_readings'"
+                        )
+                        if cursor.fetchone():
+                            cursor.execute(
+                                "SELECT timestamp, dhatu_state, base_modifier, freshness_score, "
+                                "final_modifier, instrument FROM dhatu_readings "
+                                "ORDER BY id DESC LIMIT 50"
+                            )
+                            trading_truth["oracle_readings"] = [
+                                {
+                                    "timestamp": row[0],
+                                    "dhatu_state": row[1],
+                                    "base_modifier": float(row[2] or 0.0),
+                                    "freshness_score": float(row[3] or 0.0),
+                                    "final_modifier": float(row[4] or 0.0),
+                                    "instrument": row[5],
+                                }
+                                for row in cursor.fetchall()
+                            ]
 
                         cursor.execute(
                             "SELECT name FROM sqlite_master WHERE type='table' AND name='persistent_orders'"
