@@ -2,46 +2,111 @@ import json
 import logging
 import os
 import sys
+from typing import Any
 
 from llama_cpp import Llama
 
-# Minimal logging to avoid terminal pollution
 logging.basicConfig(level=logging.ERROR)
 
 
-def run_isolated_inference(model_path, prompt_json):
+def _safe_int_env(name: str, default: int, minimum: int, maximum: int) -> int:
+    try:
+        value = int(os.environ.get(name, str(default)))
+    except (TypeError, ValueError):
+        value = default
+    return max(minimum, min(maximum, value))
+
+
+def _load_model(model_path: str) -> tuple[Llama, dict[str, int]]:
+    n_ctx = _safe_int_env("SOVEREIGN_SLM_N_CTX", 256, 128, 1024)
+    n_threads = _safe_int_env("SOVEREIGN_SLM_THREADS", 2, 1, 4)
+    n_gpu_layers = _safe_int_env("SOVEREIGN_SLM_GPU_LAYERS", 0, 0, 99)
+    n_batch = _safe_int_env("SOVEREIGN_SLM_N_BATCH", 8, 1, 32)
+    n_ubatch = _safe_int_env("SOVEREIGN_SLM_N_UBATCH", min(n_batch, 8), 1, n_batch)
+
+    kwargs: dict[str, Any] = {
+        "model_path": model_path,
+        "n_gpu_layers": n_gpu_layers,
+        "n_ctx": n_ctx,
+        "n_threads": n_threads,
+        "n_batch": n_batch,
+        "verbose": False,
+    }
+    try:
+        llm = Llama(**kwargs, n_ubatch=n_ubatch, flash_attn=False)
+    except TypeError:
+        llm = Llama(**kwargs)
+
+    return llm, {
+        "n_ctx": n_ctx,
+        "n_threads": n_threads,
+        "n_gpu_layers": n_gpu_layers,
+        "n_batch": n_batch,
+        "n_ubatch": n_ubatch,
+    }
+
+
+def _complete(llm: Llama, prompt: list[dict[str, str]], max_tokens: int, temperature: float) -> str:
+    full_prompt = f"System: {prompt[0]['content']}\nUser: {prompt[1]['content']}\nAssistant:"
+    response = llm(
+        full_prompt,
+        max_tokens=max(1, min(int(max_tokens), 20)),
+        temperature=float(temperature),
+        stop=["\n", "User:", "System:"],
+    )
+    return str(response["choices"][0]["text"]).strip().upper()
+
+
+def run_isolated_inference(model_path: str, prompt_json: str) -> None:
     try:
         prompt = json.loads(prompt_json)
-        n_ctx = int(os.environ.get("SOVEREIGN_SLM_N_CTX", "256"))
-        n_threads = int(os.environ.get("SOVEREIGN_SLM_THREADS", "8"))
-        n_gpu_layers = int(os.environ.get("SOVEREIGN_SLM_GPU_LAYERS", "0"))
+        llm, _meta = _load_model(model_path)
+        text = _complete(llm, prompt, max_tokens=10, temperature=0.1)
+        print(json.dumps({"status": "SUCCESS", "text": text}), flush=True)
+    except Exception as exc:
+        print(json.dumps({"status": "ERROR", "reason": str(exc)}), flush=True)
 
-        # Load fresh instance in isolation
-        llm = Llama(
-            model_path=model_path,
-            n_gpu_layers=n_gpu_layers,
-            n_ctx=n_ctx,
-            n_threads=n_threads,
-            n_batch=64,
-            verbose=False,
-        )
 
-        # Use simple completion for max stability
-        full_prompt = f"System: {prompt[0]['content']}\nUser: {prompt[1]['content']}\nAssistant:"
+def run_worker(model_path: str) -> None:
+    try:
+        llm, meta = _load_model(model_path)
+        print(json.dumps({"status": "READY", **meta}), flush=True)
+    except Exception as exc:
+        print(json.dumps({"status": "ERROR", "reason": str(exc)}), flush=True)
+        return
 
-        response = llm(full_prompt, max_tokens=20, temperature=0.1, stop=["\n", "User:", "System:"])
-
-        text = response["choices"][0]["text"].strip().upper()
-        print(json.dumps({"status": "SUCCESS", "text": text}))
-    except Exception as e:
-        print(json.dumps({"status": "ERROR", "reason": str(e)}))
+    for line in sys.stdin:
+        try:
+            request = json.loads(line)
+            text = _complete(
+                llm,
+                request["prompt"],
+                max_tokens=int(request.get("max_tokens", 10)),
+                temperature=float(request.get("temperature", 0.1)),
+            )
+            print(
+                json.dumps(
+                    {"id": request.get("id"), "status": "SUCCESS", "text": text},
+                    separators=(",", ":"),
+                ),
+                flush=True,
+            )
+        except Exception as exc:
+            print(
+                json.dumps(
+                    {"id": request.get("id") if "request" in locals() else None,
+                     "status": "ERROR",
+                     "reason": str(exc)},
+                    separators=(",", ":"),
+                ),
+                flush=True,
+            )
 
 
 if __name__ == "__main__":
-    if len(sys.argv) < 3:
+    if len(sys.argv) >= 3 and sys.argv[1] == "--worker":
+        run_worker(sys.argv[2])
+    elif len(sys.argv) >= 3:
+        run_isolated_inference(sys.argv[1], sys.argv[2])
+    else:
         sys.exit(1)
-
-    m_path = sys.argv[1]
-    p_json = sys.argv[2]
-
-    run_isolated_inference(m_path, p_json)
