@@ -555,6 +555,7 @@ class MindUltrathink:
 
         return {
             "agent": "Mind_Ultrathink",
+            "symbol": symbol,
             "vote": vote,
             "confidence": float(result.get("confidence", 0.0)),
             "reason": reason,
