@@ -1312,14 +1312,20 @@ class TradingSystem:
 
         logger.info(f"Telegram: Attempting to send message (Prefix check: {message[:10]}...)")
         msg_upper = message.upper()
-        if not any(prefix.upper() in msg_upper for prefix in allowed_prefixes if prefix):
+        is_allowed_prefix = any(prefix.upper() in msg_upper for prefix in allowed_prefixes if prefix)
+        is_error = any(
+            term in msg_upper for term in ("ERROR", "FAILED", "EXCEPTION", "CRITICAL", "FATAL")
+        )
+        if not (is_allowed_prefix or is_error):
             logger.info(
                 "Sterilization: Suppressing non-elite main notification "
                 f"(No allowed prefix found): {message[:50]}..."
             )
             return False
 
-        if not self.telegram_token or not self.telegram_chat_id:
+        token = self.telegram_token or Vault.get("TELEGRAM_BOT_TOKEN")
+        chat_id = self.telegram_chat_id or Vault.get("TELEGRAM_CHAT_ID")
+        if not token or not chat_id:
             logger.warning("Telegram notification skipped: Token or ChatID missing.")
             return False
 
@@ -1330,11 +1336,13 @@ class TradingSystem:
                 redacted_message = redacted_message.replace(s, "[REDACTED]")
 
         try:
-            url = f"https://api.telegram.org/bot{self.telegram_token}/sendMessage"
+            base_url = Vault.get("TELEGRAM_API_URL", "https://api.telegram.org").rstrip("/")
+            url = f"{base_url}/bot{token.strip()}/sendMessage"
             payload = {
-                "chat_id": str(self.telegram_chat_id).strip(),
+                "chat_id": str(chat_id).strip(),
                 "text": redacted_message,
                 "parse_mode": "HTML",
+                "disable_web_page_preview": True,
             }
 
             if (
@@ -1350,12 +1358,15 @@ class TradingSystem:
                 if resp.status == 200:
                     logger.info(" Telegram notification sent successfully.")
                     return True
-                else:
-                    logger.warning(
-                        f" Telegram notification failed with status {resp.status}. "
-                        f"Message: {redacted_message[:50]}..."
-                    )
-                    return False
+                response_text = await resp.text()
+                if len(response_text) > 300:
+                    response_text = response_text[:300] + "... [truncated]"
+                logger.warning(
+                    " Telegram notification failed with status %s: %s",
+                    resp.status,
+                    response_text,
+                )
+                return False
         except Exception as e:
             logger.error(f" Telegram notification error: {e}", exc_info=True)
             return False
@@ -1529,7 +1540,7 @@ class TradingSystem:
             )
 
             notification = (
-                f"⚡ <b>Sovereign Trading System Online</b>\n\n"
+                f"[STARTUP] <b>Sovereign Trading System Online</b>\n\n"
                 f"<b>Mode:</b> <code>{self.mode.upper()}</code>\n"
                 f"───────────────────\n"
                 f"<b>IBKR Gateway:</b> {ibkr_status}\n"
@@ -1622,7 +1633,8 @@ class TradingSystem:
         except Exception as e:
             logger.error(f"Startup failed: {e}", exc_info=True)
             await self.send_telegram_notification(
-                f" <b>Trading System Startup Failed</b>\n\nError: <code>{e!s}</code>"
+                f"[STARTUP FAILED] <b>Trading System Startup Failed</b>\n\n"
+                f"Error: <code>{e!s}</code>"
             )
             raise
 
