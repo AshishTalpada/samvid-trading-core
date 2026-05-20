@@ -183,11 +183,11 @@ class DataPipeline:
         """Get a database connection with WAL mode enabled for concurrency."""
         conn = sqlite3.connect(
             self.db_path,
-            timeout=30.0,  # 30s Python-level timeout — matches busy_timeout below
+            timeout=60.0,  # 60s Python-level timeout — matches busy_timeout below
             check_same_thread=False,
             isolation_level=None,
         )
-        conn.execute("PRAGMA busy_timeout = 30000;")  # 30s SQLite-level busy wait
+        conn.execute("PRAGMA busy_timeout = 60000;")  # 60s SQLite-level busy wait
         conn.execute("PRAGMA journal_mode=WAL;")
         conn.execute("PRAGMA synchronous=NORMAL;")
         return conn
@@ -877,7 +877,7 @@ class DataPipeline:
 
     async def backfill_gap(self, symbol: str) -> None:
         """Identify and fill the data gap since last shutdown."""
-        last_ts = self.get_last_timestamp(symbol)
+        last_ts = await asyncio.to_thread(self.get_last_timestamp, symbol)
         if not last_ts:
             logger.info(f"No history for {symbol} — performing initial 5-day fetch.")
             df = await self.fetch_ohlcv(symbol, tf="1m", bars=5000)  # Full week
@@ -943,6 +943,17 @@ class DataPipeline:
                 "2025-09-01",
                 "2025-11-27",
                 "2025-12-25",
+                # 2026 NYSE Holidays
+                "2026-01-01",
+                "2026-01-19",
+                "2026-02-16",
+                "2026-04-03",
+                "2026-05-25",
+                "2026-06-19",
+                "2026-07-03",
+                "2026-09-07",
+                "2026-11-26",
+                "2026-12-25",
             }
             if date_str in HOLIDAYS:
                 return False
