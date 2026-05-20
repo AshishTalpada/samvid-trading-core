@@ -3110,7 +3110,7 @@ class TradingBrain:
                     def _read_sqlite_ohlcv() -> pd.DataFrame:
                         import sqlite3
 
-                        with sqlite3.connect(self.db_path, timeout=30.0) as conn:
+                        with sqlite3.connect(self.db_path, timeout=60.0) as conn:
                             conn.execute("PRAGMA query_only = ON")
                             return pd.read_sql_query(query, conn, params=[symbol])
 
