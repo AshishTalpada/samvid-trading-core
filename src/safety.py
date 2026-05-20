@@ -16,7 +16,7 @@ from telegram_alerts import send_telegram_alert
 logger = logging.getLogger("safety")
 
 
-def _send_startup_alert(message: str) -> None:
+def _send_safety_alert(message: str, category: str = "Safety") -> None:
     try:
         loop = None
         try:
@@ -29,16 +29,17 @@ def _send_startup_alert(message: str) -> None:
         else:
             asyncio.run(send_telegram_alert(message))
     except RuntimeError:
-        logger.debug("Startup alert skipped because a running event loop prevented asyncio.run().")
+        logger.debug(f"{category} alert skipped because a running event loop prevented asyncio.run().")
     except Exception as exc:
-        logger.error(f"Startup alert failed: {exc}")
+        logger.error(f"{category} alert failed: {exc}")
 
 
 def _force_paper_mode(system: Any, reason: str) -> None:
     system.mode = "paper"
     logger.warning(f"Startup Safety: {reason} — forcing paper mode")
-    _send_startup_alert(
-        " SOVEREIGN: Startup safety enforced PAPER mode. Live trading is disabled until explicitly authorized."
+    _send_safety_alert(
+        " SOVEREIGN: Startup safety enforced PAPER mode. Live trading is disabled until explicitly authorized.",
+        category="Startup"
     )
 
 
@@ -116,25 +117,7 @@ def EMERGENCY_HALT(reason: str = "EMERGENCY HALT invoked") -> None:
             logger.critical(f"EMERGENCY HALT: TradingStateManager not available — reason: {reason}")
 
         # Fire-and-forget Telegram alert
-        try:
-            loop = None
-            try:
-                loop = asyncio.get_running_loop()
-            except RuntimeError:
-                loop = None
-
-            if loop and loop.is_running():
-                loop.call_soon_threadsafe(
-                    lambda: asyncio.create_task(send_telegram_alert(f" EMERGENCY HALT: {reason}"))
-                )
-            else:
-                asyncio.run(send_telegram_alert(f" EMERGENCY HALT: {reason}"))
-        except RuntimeError:
-            logger.debug(
-                "Emergency alert skipped because a running event loop prevented asyncio.run()."
-            )
-        except Exception:
-            logger.error("Failed to send emergency Telegram alert")
+        _send_safety_alert(f" EMERGENCY HALT: {reason}", category="Emergency")
 
     except Exception as e:
         logger.error(f"EMERGENCY_HALT failed: {e}")
