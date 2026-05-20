@@ -1,3 +1,4 @@
+import atexit
 import logging
 import os
 import sqlite3
@@ -218,6 +219,7 @@ def _write_watchdog_pid() -> None:
         os.makedirs("data", exist_ok=True)
         with open("data/watchdog.pid", "w") as f:
             f.write(str(pid))
+        atexit.register(_remove_pid_file, "data/watchdog.pid", str(pid))
         logger.info(f"Watchdog PID {pid} recorded to data/watchdog.pid")
     except Exception as e:
         logger.error(f"Failed to write Watchdog PID: {e}")

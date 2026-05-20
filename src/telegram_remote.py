@@ -81,6 +81,7 @@ class TelegramRemote:
         """Main polling loop for Telegram updates."""
         api_base = Vault.get("TELEGRAM_API_URL", "https://api.telegram.org").rstrip("/")
         url = f"{api_base}/bot{self.token}/getUpdates"
+        consecutive_errors = 0
 
         try:
             async with self.session.get(f"{api_base}/bot{self.token}/deleteWebhook") as dw:
@@ -93,15 +94,30 @@ class TelegramRemote:
                 params = {"offset": self.last_update_id + 1, "timeout": 30}
                 async with self.session.get(url, params=params) as resp:
                     if resp.status == 200:
+                        consecutive_errors = 0
                         data = await resp.json()
                         for update in data.get("result", []):
                             self.last_update_id = update["update_id"]
                             await self._handle_update(update)
                     else:
-                        logger.error(f"TelegramRemote: Error {resp.status}")
+                        consecutive_errors += 1
+                        logger.warning(
+                            "TelegramRemote: getUpdates returned HTTP %s (%s consecutive).",
+                            resp.status,
+                            consecutive_errors,
+                        )
                         await asyncio.sleep(10)
+            except asyncio.CancelledError:
+                logger.info("TelegramRemote: polling cancelled.")
+                raise
             except Exception as e:
-                logger.error(f"TelegramRemote Poll Error: {e}")
+                consecutive_errors += 1
+                logger.warning(
+                    "TelegramRemote Poll Error (%s consecutive): %s: %r",
+                    consecutive_errors,
+                    type(e).__name__,
+                    e,
+                )
                 await asyncio.sleep(5)
 
             await asyncio.sleep(1)
