@@ -876,7 +876,7 @@ class IBKRConnection:
     def _persist_execution(self, symbol: str, order_type: str, details: dict):
         """Write a persistent execution log entry for audit trail and manual recovery."""
         try:
-            log_file = "data/execution_persistence.json"
+            log_file = "data/execution_persistence.jsonl"
             import json
             import os
 
