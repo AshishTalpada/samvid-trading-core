@@ -1,3 +1,4 @@
+import asyncio
 import logging
 from typing import Dict, List
 
@@ -20,8 +21,8 @@ class SeismicRiskMonitor:
     should immediately trigger a reduction in related equity/commodity exposure.
     """
 
-    def fetch_recent(self, min_mag: float = 5.0, limit: int = 50) -> List[Dict]:
-        try:
+    async def fetch_recent(self, min_mag: float = 5.0, limit: int = 50) -> List[Dict]:
+        def _fetch():
             r = requests.get(
                 USGS_API,
                 params={"format": "geojson", "minmagnitude": min_mag, "limit": limit},
@@ -36,6 +37,9 @@ class SeismicRiskMonitor:
                 }
                 for f in r.json().get("features", [])
             ]
+
+        try:
+            return await asyncio.to_thread(_fetch)
         except Exception as e:
             logger.error(f"[SEISMIC] USGS fetch failed: {e}")
             return []
@@ -54,3 +58,4 @@ class SeismicRiskMonitor:
                         max_risk = risk
                         logger.warning(f"[SEISMIC] M{quake['mag']} near {name} -> risk={risk:.2f}")
         return round(max_risk, 3)
+
