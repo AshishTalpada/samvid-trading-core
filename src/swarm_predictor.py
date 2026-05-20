@@ -327,17 +327,16 @@ class SwarmPredictor:
                 "No Intelligence Provider Found (Set USE_LOCAL_LLM=true or OPENAI_API_KEY)"
             )
 
-        # Start the Background Memory Harvester (Safe for non-async tests)
-        try:
-            self._memory_loop = asyncio.create_task(self._process_memory_queue())
-        except RuntimeError:
-            self._memory_loop = None
+        # The memory harvester is started lazily only when there is useful
+        # high-confidence memory to persist. Starting it during every
+        # constructor call leaks pending tasks in smoke tests and short runs.
 
     def stop(self) -> None:
         """Gracefully stop background tasks."""
         if self._memory_loop and not self._memory_loop.done():
             self._memory_loop.cancel()
             logger.info("✓ SwarmPredictor: Background tasks terminated.")
+        self._memory_loop = None
 
     # Public Base Methods (Replacing HTTP logic)
     @property
@@ -502,7 +501,7 @@ class SwarmPredictor:
         self._last_consensus = consensus
 
         # 4. Async Memory Commitment
-        if confidence > 0.70:
+        if confidence > 0.70 and self._ensure_memory_loop():
             try:
                 await self._memory_queue.put(
                     {
@@ -760,9 +759,24 @@ class SwarmPredictor:
             _cache_minutes=15,
         )
 
+    def _ensure_memory_loop(self) -> bool:
+        """Start the memory harvester only when Chroma memory is usable."""
+        if not getattr(self._memory, "collection", None):
+            return False
+        if self._memory_loop and not self._memory_loop.done():
+            return True
+        try:
+            self._memory_loop = asyncio.create_task(self._process_memory_queue())
+            return True
+        except RuntimeError:
+            self._memory_loop = None
+            return False
+
     async def close(self) -> None:
-        if self._memory_loop:
+        if self._memory_loop and not self._memory_loop.done():
             self._memory_loop.cancel()
+            await asyncio.gather(self._memory_loop, return_exceptions=True)
+        self._memory_loop = None
 
     async def _process_memory_queue(self) -> None:
         """Sovereign Memory Harvester: Commits intelligence to disk during idle cycles."""
