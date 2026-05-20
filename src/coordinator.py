@@ -646,6 +646,15 @@ class TradingCoordinator:
 
                 async def poll_swarm():
                     """Swarm Predictor: (SOLUTION 5) Uses Background State with High-Fidelity Fallback."""
+                    if self.brain.swarm_predictor is None:
+                        return {
+                            "agent": "Swarm_Predictor",
+                            "vote": "ABSTAIN",
+                            "confidence": 0.0,
+                            "reason": "SwarmPredictor not configured",
+                            "timestamp": timestamp,
+                        }
+
                     state = self.brain.conviction_state.get("Swarm_Predictor")
                     if state and "timestamp" in state:
                         ts = state["timestamp"]
@@ -659,8 +668,6 @@ class TradingCoordinator:
                             return state
 
                     try:
-                        if self.brain.swarm_predictor is None:
-                            raise RuntimeError("SwarmPredictor not configured")
                         logger.info(
                             "Coordinator: Background Swarm stale. Falling back to Live Collective Intelligence..."
                         )
@@ -804,7 +811,11 @@ class TradingCoordinator:
                         gated_votes = []
                         background_success = True
                         for name, _ in gated_agents:
-                            cache_key = f"{name}:{symbol}" if name in ["Swarm_Predictor", "Mind_Ultrathink"] else name
+                            cache_key = (
+                                f"{name}:{symbol}"
+                                if name in ["Swarm_Predictor", "Mind_Ultrathink"]
+                                else name
+                            )
                             state = self.brain.conviction_state.get(cache_key)
                             state_ts = state.get("timestamp") if state else None
                             should_call = not state or not state_ts
@@ -827,7 +838,7 @@ class TradingCoordinator:
                             gated_votes.append(state)
 
                         if not background_success:
-                            logger.warning(
+                            logger.info(
                                 "Coordinator: Background Conviction Stale/Missing. Reverting to Parallel Neural Gate..."
                             )
 
@@ -888,7 +899,11 @@ class TradingCoordinator:
                                 vote_registry[res["agent"]] = res
                                 # Update Conviction State for caching
                                 if res.get("confidence", 0) > 0:
-                                    cache_key = f"{res['agent']}:{symbol}" if res["agent"] in ["Swarm_Predictor", "Mind_Ultrathink"] else res["agent"]
+                                    cache_key = (
+                                        f"{res['agent']}:{symbol}"
+                                        if res["agent"] in ["Swarm_Predictor", "Mind_Ultrathink"]
+                                        else res["agent"]
+                                    )
                                     self.brain.conviction_state[cache_key] = res
                     except Exception as gated_e:
                         logger.error(f"Coordinator: Gated Intelligence failure: {gated_e}")
