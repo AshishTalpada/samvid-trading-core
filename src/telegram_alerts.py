@@ -47,7 +47,7 @@ async def send_telegram_alert(message: str) -> None:
     ]
 
     msg_upper = message.upper()
-    is_elite = any(prefix.upper() in msg_upper for prefix in allowed_prefixes)
+    is_elite = any(prefix and prefix.upper() in msg_upper for prefix in allowed_prefixes)
     is_error = any(
         term in msg_upper for term in ["ERROR", "FAILED", "EXCEPTION", "CRITICAL", "FATAL"]
     )
@@ -58,7 +58,7 @@ async def send_telegram_alert(message: str) -> None:
 
     msg_hash = hashlib.md5(message.encode()).hexdigest()  # nosec B324
     async with _alert_lock:
-        now = asyncio.get_event_loop().time()
+        now = time.time()
 
         global _last_sent_times
         # Prune times outside the window
@@ -175,7 +175,7 @@ class SovereignTelegramBot:
             "STATUS",
         ]
         msg_upper = message.upper()
-        is_elite = any(prefix.upper() in msg_upper for prefix in allowed_prefixes)
+        is_elite = any(prefix and prefix.upper() in msg_upper for prefix in allowed_prefixes)
         is_error = any(
             term in msg_upper for term in ["ERROR", "FAILED", "EXCEPTION", "CRITICAL", "FATAL"]
         )
