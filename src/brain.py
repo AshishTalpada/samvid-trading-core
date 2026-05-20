@@ -1774,6 +1774,29 @@ class TradingBrain:
 
             self._scan_cycle += 1
 
+            if (
+                not self._is_market_open()
+                and os.environ.get("SOVEREIGN_ALLOW_CLOSED_MARKET_SCANS") != "1"
+            ):
+                if self._scan_cycle % 10 == 1:
+                    logger.info(
+                        "SCAN SUSPENDED: US equity market is closed. "
+                        "Set SOVEREIGN_ALLOW_CLOSED_MARKET_SCANS=1 for offline simulation."
+                    )
+                self.pending_signals.clear()
+                async with self._state_lock:
+                    self.last_scan_stats = {
+                        "cycle": self._scan_cycle,
+                        "watchlist": 0,
+                        "scanned": 0,
+                        "patterns_detected": 0,
+                        "patterns_approved": 0,
+                        "pending": 0,
+                        "regime": self.current_regime,
+                    }
+                await asyncio.sleep(60)
+                return
+
             # Check budget with atomic safety
             if not self.budget_monitor.is_trading_allowed():
                 logger.warning("SCAN BLOCKED: Budget exhausted — returning to STANDBY")
