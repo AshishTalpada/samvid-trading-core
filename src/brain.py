@@ -1011,7 +1011,22 @@ class TradingBrain:
 
     async def _on_hft_news(self, payload: dict) -> None:
         """Neural News Trigger: Triggers re-scans on high-impact headlines."""
-        headline = str(payload.get("headline", "")).upper()
+        raw_headline = str(payload.get("headline", ""))
+        try:
+            from auth.prompt_guard import PromptGuard
+
+            guard = getattr(self, "_prompt_guard", None)
+            if guard is None:
+                guard = PromptGuard()
+                self._prompt_guard = guard
+            if not guard.is_safe(raw_headline):
+                logger.warning("BRAIN: Blocked adversarial news payload before cognition.")
+                return
+            raw_headline = guard.sanitize(raw_headline, max_length=512)
+        except Exception as guard_error:
+            logger.debug("PromptGuard skipped for news payload: %s", guard_error)
+
+        headline = raw_headline.upper()
         sentiment = float(payload.get("sentiment", 0.0))
         impact = float(payload.get("impact", 0.0))
 
