@@ -88,7 +88,7 @@ class NativeSLM:
                 err_msg = stderr.decode(errors="replace").strip()
                 if len(err_msg) > 600:
                     err_msg = err_msg[:600] + "... [truncated]"
-                self._record_sandbox_failure()
+                self._record_sandbox_failure(err_msg)
                 logger.error(
                     "Neural Sandbox CRASHED (code %s, failures=%s): %s",
                     proc.returncode,
@@ -105,8 +105,9 @@ class NativeSLM:
             result_data = json.loads(result_raw)
 
             if result_data.get("status") == "ERROR":
-                self._record_sandbox_failure()
-                return self._neutral_vote(context, f"Sandbox Error: {result_data.get('reason')}")
+                reason = str(result_data.get("reason", "unknown sandbox error"))
+                self._record_sandbox_failure(reason)
+                return self._neutral_vote(context, f"Sandbox Error: {reason}")
 
             self._sandbox_failures = 0
             output_text = result_data.get("text", "NEUTRAL")
@@ -141,26 +142,30 @@ class NativeSLM:
             }
 
         except asyncio.TimeoutError:
-            self._record_sandbox_failure()
+            self._record_sandbox_failure("timeout")
             logger.error("Neural Sandbox TIMEOUT (90s). Moving on.")
             return self._neutral_vote(context, "Sandbox Timeout")
         except Exception as e:
-            self._record_sandbox_failure()
+            self._record_sandbox_failure(str(e))
             logger.error(f"Neural Sandbox DISPATCH FAILED: {e}")
             return self._neutral_vote(context, f"Dispatch Error: {e}")
 
-    def _record_sandbox_failure(self) -> None:
+    def _record_sandbox_failure(self, reason: str = "") -> None:
         now = time.monotonic()
         if now - self._last_failure_at > 300.0:
             self._sandbox_failures = 0
         self._last_failure_at = now
         self._sandbox_failures += 1
-        if self._sandbox_failures >= 2:
+        lower_reason = reason.lower()
+        hard_model_mismatch = "n_ctx_seq" in lower_reason and "n_ctx_train" in lower_reason
+        if hard_model_mismatch or self._sandbox_failures >= 2:
             self._available = False
+            why = "model context mismatch" if hard_model_mismatch else "repeated sandbox failures"
             logger.warning(
-                "Native SLM disabled after %s sandbox failures. Trading will continue "
-                "with deterministic quorum agents.",
+                "Native SLM disabled after %s (%s). Trading will continue with deterministic "
+                "quorum agents.",
                 self._sandbox_failures,
+                why,
             )
 
     def _build_prompt(self, context: dict) -> list:
