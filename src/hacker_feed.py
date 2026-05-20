@@ -1,7 +1,7 @@
+import asyncio
 import logging
-import re
 import time
-from typing import Generator
+from typing import AsyncGenerator
 
 import requests
 
@@ -43,29 +43,32 @@ def _score_threat(title: str) -> float:
     return min(1.0, hits / 3.0)
 
 
-def stream_hn_stories(min_score: float = 0.3) -> Generator[dict, None, None]:
+async def stream_hn_stories(min_score: float = 0.3) -> AsyncGenerator[dict, None]:
     """
-    Streams new Hacker News stories in real time.
+    Streams new Hacker News stories in real time (async generator).
     Yields dicts with title, url, threat_score for any story that breaches the threshold.
+    Uses asyncio.to_thread for HTTP calls to stay non-blocking.
     """
     seen: set[int] = set()
 
     while True:
         try:
-            resp = requests.get(f"{HN_API}/newstories.json", timeout=5)
-            resp.raise_for_status()
-            story_ids: list[int] = resp.json()[:100]
+            story_ids: list[int] = await asyncio.to_thread(
+                lambda: requests.get(f"{HN_API}/newstories.json", timeout=5).json()[:100]
+            )
 
             for sid in story_ids:
                 if sid in seen:
                     continue
                 seen.add(sid)
 
-                item_resp = requests.get(f"{HN_API}/item/{sid}.json", timeout=3)
-                if item_resp.status_code != 200:
+                try:
+                    item = await asyncio.to_thread(
+                        lambda s=sid: requests.get(f"{HN_API}/item/{s}.json", timeout=3).json()
+                    )
+                except requests.RequestException:
                     continue
 
-                item = item_resp.json()
                 title = item.get("title", "")
                 url = item.get("url", "")
                 score = _score_threat(title)
@@ -74,7 +77,8 @@ def stream_hn_stories(min_score: float = 0.3) -> Generator[dict, None, None]:
                     logger.warning(f"[HACKER FEED] Threat signal ({score:.2f}): {title}")
                     yield {"title": title, "url": url, "threat_score": score, "ts": time.time()}
 
-        except requests.RequestException as exc:
+        except Exception as exc:
             logger.error(f"[HACKER FEED] Request failure: {exc}")
 
-        time.sleep(60)
+        await asyncio.sleep(60)
+
