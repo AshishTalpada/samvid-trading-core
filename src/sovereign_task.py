@@ -181,6 +181,32 @@ class TaskManager:
         asyncio.create_task(self.save_registry())
         return task
 
+    def get_symbol_gate(
+        self,
+        symbol: str,
+        terminal_cooldown_seconds: float = 300.0,
+    ) -> tuple[str, SovereignTask, float] | None:
+        """
+        Return the freshest task that should suppress a new scan for this symbol.
+
+        Active tasks suppress immediately. Recently terminal tasks suppress for a
+        short cooldown so cached vetoes do not re-enter the full quorum loop every
+        scan cycle.
+        """
+        now = time.time()
+        for tid in reversed(self._symbol_index.get(symbol, [])):
+            task = self.tasks.get(tid)
+            if not task:
+                continue
+            if task.status in [TaskStatus.PENDING, TaskStatus.RUNNING]:
+                return ("active", task, 0.0)
+            if task.status in [TaskStatus.FAILED, TaskStatus.KILLED]:
+                ref_time = task.end_time or task.start_time
+                age_sec = now - float(ref_time or now)
+                if age_sec < terminal_cooldown_seconds:
+                    return ("cooldown", task, terminal_cooldown_seconds - age_sec)
+        return None
+
     def get_task(self, task_id: str) -> SovereignTask | None:
         return self.tasks.get(task_id)
 
