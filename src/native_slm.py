@@ -1,11 +1,7 @@
 import asyncio
-import contextlib
-import json
 import logging
-import sys
+import os
 import time
-import uuid
-from datetime import datetime, timezone
 from typing import Any, Dict
 
 try:
@@ -14,22 +10,22 @@ except ImportError:
     Llama = None
 
 logger = logging.getLogger(__name__)
-SANDBOX_TIMEOUT_SEC = 90.0
 
-# Global Neural Semaphore: Prevent 'GGML_ASSERT' crash by serializing AI calls
+# Global GGML serialization lock — prevents concurrent GGML_ASSERT crashes
+# when multiple async tasks call into the same in-process Llama instance.
 _SLM_LOCK = asyncio.Lock()
 
 
 class NativeSLM:
     """
     Blazing-fast, ultra-low latency inference engine running directly in VRAM.
-    Bypasses all HTTP/REST API overhead.
+    Model is loaded ONCE at startup and kept resident — no subprocess overhead.
     """
 
     def __init__(self, model_path: str = "models/sovereign_slm.gguf"):
         self._available = False
         self.model_path = model_path
-        self.model = None
+        self.model: Any = None
         self._sandbox_failures = 0
         self._last_failure_at = 0.0
 
@@ -37,24 +33,31 @@ class NativeSLM:
             logger.warning("llama-cpp-python not installed. Native SLM offline.")
             return
 
+        if not os.path.exists(model_path):
+            logger.warning(
+                f"Native SLM model not found at {model_path}. Awaiting fine-tuned model."
+            )
+            return
+
         try:
-            import os
-
-            # Only try to load if the file actually exists to prevent crashes
-            if not os.path.exists(model_path):
-                logger.warning(
-                    f"Native SLM model not found at {model_path}. Awaiting fine-tuned model."
-                )
-                return
-
             logger.info(f"Loading Native SLM into memory from {model_path}...")
-            # n_gpu_layers=-1 attempts to offload entirely to GPU if compiled with cuBLAS/Metal
-            # Increased context window to 8192 to utilize more of the model's training capacity.
-            # This provides better 'intelligence' for multi-factor market analysis.
-            # Safe Mode: Full CPU execution to prevent GGML_ASSERT memory overflows.
-            # n_gpu_layers=0 eliminates hardware-mismatch crashes
+            n_ctx = int(os.environ.get("SOVEREIGN_SLM_N_CTX", "256"))
+            n_threads = int(os.environ.get("SOVEREIGN_SLM_THREADS", "4"))
+            n_gpu_layers = int(os.environ.get("SOVEREIGN_SLM_GPU_LAYERS", "0"))
+
+            self.model = Llama(
+                model_path=model_path,
+                n_gpu_layers=n_gpu_layers,
+                n_ctx=n_ctx,
+                n_threads=n_threads,
+                n_batch=64,
+                verbose=False,
+            )
             self._available = True
-            logger.info(f"Sovereign-SLM: Neural Sandbox initialized for {model_path}")
+            logger.info(
+                f"Sovereign-SLM: Model resident in memory "
+                f"(n_ctx={n_ctx}, n_threads={n_threads}, n_gpu_layers={n_gpu_layers})"
+            )
         except Exception as e:
             logger.error(f"Sovereign-SLM Initialization failed: {e}")
             self._available = False
@@ -68,52 +71,52 @@ class NativeSLM:
         self._available = value
 
     async def evaluate_proposal(self, context: Dict[str, Any]) -> Dict[str, Any]:
-        """Sovereign-SLM Neural Sandbox: Isolated Inference Guard."""
-        if not self._available:
-            return self._neutral_vote(context, "Native SLM sandbox unavailable.")
+        """Sovereign-SLM Neural Inference — runs in-process with thread isolation."""
+        if not self._available or self.model is None:
+            return self._neutral_vote(context, "Native SLM unavailable.")
 
         prompt = self._build_prompt(context)
-        prompt_json = json.dumps(prompt)
 
         try:
-            # Spawning a separate process protects the Main Engine from GGML_ASSERT crashes.
-            cmd = [sys.executable, "src/neural_sandbox.py", self.model_path, prompt_json]
-
-            proc = await asyncio.create_subprocess_exec(
-                *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
-            )
-
-            stdout, stderr = await asyncio.wait_for(
-                proc.communicate(), timeout=SANDBOX_TIMEOUT_SEC
-            )
-
-            if proc.returncode != 0:
-                err_msg = stderr.decode(errors="replace").strip()
-                if len(err_msg) > 600:
-                    err_msg = err_msg[:600] + "... [truncated]"
-                self._record_sandbox_failure(err_msg)
-                logger.error(
-                    "Neural Sandbox CRASHED (code %s, failures=%s): %s",
-                    proc.returncode,
-                    self._sandbox_failures,
-                    err_msg,
+            async with _SLM_LOCK:
+                result = await asyncio.wait_for(
+                    asyncio.to_thread(self._run_sync, prompt, context),
+                    timeout=30.0,
                 )
-                return self._neutral_vote(context, f"Sandbox Crash: {err_msg}")
+            return result
+        except asyncio.TimeoutError:
+            self._record_failure("timeout")
+            logger.error("Native SLM: Inference timed out after 30s.")
+            return self._neutral_vote(context, "SLM Timeout")
+        except Exception as e:
+            self._record_failure(str(e))
+            logger.error(f"Native SLM: Inference dispatch failed: {e}")
+            return self._neutral_vote(context, f"Dispatch Error: {e}")
 
-            result_raw = stdout.decode().strip()
-            # Clean terminal noise if any
-            if "{" in result_raw:
-                result_raw = result_raw[result_raw.find("{") :]
-
-            result_data = json.loads(result_raw)
-
-            if result_data.get("status") == "ERROR":
-                reason = str(result_data.get("reason", "unknown sandbox error"))
-                self._record_sandbox_failure(reason)
-                return self._neutral_vote(context, f"Sandbox Error: {reason}")
-
-            self._sandbox_failures = 0
-            output_text = result_data.get("text", "NEUTRAL")
+    def _run_sync(self, prompt: list, context: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Synchronous inference called via asyncio.to_thread.
+        _SLM_LOCK is NOT used here (can't acquire asyncio.Lock in sync thread).
+        Thread-safety is guaranteed by the fact that llama.cpp itself is
+        single-threaded per model instance, and asyncio.to_thread serializes
+        calls through the thread pool naturally for single-model setups.
+        """
+        t0 = time.monotonic()
+        try:
+            # Build flat prompt string (fastest path for llama-cpp)
+            full_prompt = (
+                f"System: {prompt[0]['content']}\n"
+                f"User: {prompt[1]['content']}\n"
+                f"Assistant:"
+            )
+            response = self.model(
+                full_prompt,
+                max_tokens=10,
+                temperature=0.1,
+                stop=["\n", "User:", "System:"],
+            )
+            elapsed = time.monotonic() - t0
+            output_text = response["choices"][0]["text"].strip().upper()
 
             bias = "NEUTRAL"
             if "BULLISH" in output_text:
@@ -122,16 +125,16 @@ class NativeSLM:
                 bias = "BEARISH"
 
             entry_side = str(context.get("side", "long")).lower()
-
             vote = "YES"
-            reason = f"Neural Sandbox: {bias}"
+            reason = f"Native SLM: {bias} ({elapsed:.2f}s)"
 
             if (entry_side == "long" and bias == "BEARISH") or (
                 entry_side == "short" and bias == "BULLISH"
             ):
                 vote = "NO"
-                reason = f"VETO: Sandbox contradicts direction ({bias} vs {entry_side})"
+                reason = f"VETO: SLM contradicts direction ({bias} vs {entry_side})"
 
+            self._sandbox_failures = 0
             return {
                 "agent": "Native_SLM",
                 "vote": vote,
@@ -143,44 +146,29 @@ class NativeSLM:
                 "bias": bias,
                 "agent_count": 1,
             }
-
-        except asyncio.TimeoutError:
-            self._record_sandbox_failure("timeout")
-            with contextlib.suppress(ProcessLookupError):
-                proc.kill()
-            with contextlib.suppress(Exception):
-                await asyncio.wait_for(proc.communicate(), timeout=5.0)
-            logger.error(
-                "Neural Sandbox TIMEOUT (%ss). Process killed; moving on.",
-                SANDBOX_TIMEOUT_SEC,
-            )
-            return self._neutral_vote(context, "Sandbox Timeout")
         except Exception as e:
-            self._record_sandbox_failure(str(e))
-            logger.error(f"Neural Sandbox DISPATCH FAILED: {e}")
-            return self._neutral_vote(context, f"Dispatch Error: {e}")
+            self._record_failure(str(e))
+            raise
 
-    def _record_sandbox_failure(self, reason: str = "") -> None:
+    def _record_failure(self, reason: str = "") -> None:
         now = time.monotonic()
         if now - self._last_failure_at > 300.0:
             self._sandbox_failures = 0
         self._last_failure_at = now
         self._sandbox_failures += 1
-        lower_reason = reason.lower()
-        hard_model_mismatch = "n_ctx_seq" in lower_reason and "n_ctx_train" in lower_reason
-        if hard_model_mismatch or self._sandbox_failures >= 2:
+        if self._sandbox_failures >= 3:
             self._available = False
-            why = "model context mismatch" if hard_model_mismatch else "repeated sandbox failures"
             logger.warning(
-                "Native SLM disabled after %s (%s). Trading will continue with deterministic "
-                "quorum agents.",
+                "Native SLM disabled after %s consecutive failures. "
+                "Trading continues with deterministic quorum agents.",
                 self._sandbox_failures,
-                why,
             )
 
     def _build_prompt(self, context: dict) -> list:
-        sys_prompt = "You are Sovereign-SLM, an elite quantitative strategist. Analyze the market context and output exactly one word: BULLISH, BEARISH, or NEUTRAL."
-
+        sys_prompt = (
+            "You are Sovereign-SLM, an elite quantitative strategist. "
+            "Analyze the market context and output exactly one word: BULLISH, BEARISH, or NEUTRAL."
+        )
         ctx_str = (
             f"Instrument: {str(context.get('symbol', 'UNKNOWN'))}\n"
             f"Regime: {str(context.get('regime', 'UNKNOWN'))}\n"
@@ -191,7 +179,6 @@ class NativeSLM:
             f"Side: {str(context.get('side', 'LONG'))}\n"
             f"\nDecision?"
         )
-
         return [
             {"role": "system", "content": sys_prompt},
             {"role": "user", "content": f"Context:\n{ctx_str}"},
@@ -211,9 +198,9 @@ class NativeSLM:
         }
 
     async def close(self) -> None:
-        if self.model:
-            # Free VRAM
+        """Free model memory on shutdown."""
+        if self.model is not None:
             del self.model
             self.model = None
             self._available = False
-            logger.info("Native SLM unloaded from VRAM.")
+            logger.info("Native SLM unloaded from memory.")
