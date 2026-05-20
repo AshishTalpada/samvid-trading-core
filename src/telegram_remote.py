@@ -26,6 +26,7 @@ class TelegramRemote:
         self.last_update_id = 0
         self.is_running = False
         self.session = None
+        self._poll_task: asyncio.Task | None = None
         self.last_auth_time = 0.0
         self._auth_attempts = 0
         self._last_auth_attempt_time = 0.0
@@ -57,13 +58,21 @@ class TelegramRemote:
         self.bus.on("trade.exit", self._update_stats)
         self.bus.on("notification.telegram", self._handle_broadcast)
 
-        asyncio.create_task(self._poll_loop())
+        self._poll_task = asyncio.create_task(self._poll_loop())
 
     async def stop(self):
         """Graceful shutdown."""
         self.is_running = False
+        if self._poll_task and not self._poll_task.done():
+            self._poll_task.cancel()
+            try:
+                await self._poll_task
+            except asyncio.CancelledError:
+                pass
+        self._poll_task = None
         if self.session:
             await self.session.close()
+            self.session = None
 
     async def _update_dhatu(self, payload):
         from time_sync import TimeSync
