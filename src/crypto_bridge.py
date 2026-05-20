@@ -1,3 +1,4 @@
+import asyncio
 import logging
 from typing import Dict
 
@@ -15,10 +16,11 @@ class CryptoBridgeAgent:
 
     COINGECKO_API = "https://api.coingecko.com/api/v3/simple/price"
 
-    def get_crypto_returns(self, coins: list[str] | None = None) -> Dict[str, float]:
+    async def get_crypto_returns(self, coins: list[str] | None = None) -> Dict[str, float]:
         if coins is None:
             coins = ["bitcoin", "ethereum"]
-        try:
+
+        def _fetch():
             r = requests.get(
                 self.COINGECKO_API,
                 params={
@@ -30,6 +32,9 @@ class CryptoBridgeAgent:
             )
             data = r.json()
             return {coin: data.get(coin, {}).get("usd_24h_change", 0.0) / 100.0 for coin in coins}
+
+        try:
+            return await asyncio.to_thread(_fetch)
         except Exception as e:
             logger.error(f"[CRYPTO BRIDGE] API error: {e}")
             return {}
@@ -40,3 +45,4 @@ class CryptoBridgeAgent:
         if btc_24h_return > 0.05:
             return "RISK_ON"
         return "NEUTRAL"
+
