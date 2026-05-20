@@ -1864,6 +1864,7 @@ class TradingBrain:
                 "detected": 0,
                 "approved": 0,
                 "rejected": 0,
+                "gated": 0,
             }
             stats_lock = asyncio.Lock()
 
@@ -1880,6 +1881,8 @@ class TradingBrain:
                         last_vet = last_vet.replace(tzinfo=timezone.utc)
                     cooldown_age = (datetime.now(timezone.utc) - last_vet).total_seconds()
                     if cooldown_age < 30:
+                        async with stats_lock:
+                            stats["gated"] += 1
                         logger.debug(
                             "Scan [%s]: skipped during post-vetting cooldown (%.1fs remaining).",
                             symbol,
@@ -1894,6 +1897,8 @@ class TradingBrain:
                     )
                     if gate:
                         gate_kind, gate_task, remaining_sec = gate
+                        async with stats_lock:
+                            stats["gated"] += 1
                         if gate_kind == "active":
                             logger.debug(
                                 "Scan [%s]: skipped because task %s is still %s.",
@@ -2050,6 +2055,7 @@ class TradingBrain:
                 f"[SCAN] #{self._scan_cycle} | Regime={self.current_regime} | "
                 f"Condition={self._oracle_dhatu} (VIX: {vix_str}) "
                 f"| Watchlist={len(watchlist)} Scanned={stats['scanned']} "
+                f"Gated={stats['gated']} "
                 f"| Detected={stats['detected']} Approved={stats['approved']} "
                 f"| Pending={len(discoveries)}"
             )
@@ -2060,6 +2066,7 @@ class TradingBrain:
                     "cycle": self._scan_cycle,
                     "watchlist": len(watchlist),
                     "scanned": stats["scanned"],
+                    "gated": stats["gated"],
                     "patterns_detected": stats["detected"],
                     "patterns_approved": stats["approved"],
                     "pending": len(discoveries),
@@ -2074,6 +2081,13 @@ class TradingBrain:
             # Guard: skip entropy check if no symbols were successfully scanned
             # to avoid false flushes.
             scanned_count = stats["scanned"]
+            if (
+                scanned_count == 0
+                and stats["gated"] >= len(watchlist)
+                and not discoveries
+            ):
+                await asyncio.sleep(5.0)
+
             # Corrected: Density should reflect actual Task Registry occupancy
             # (Volume), not Hit Rate.
             # Hit rate is a measure of opportunity; Registry occupancy is a measure of memory load.
