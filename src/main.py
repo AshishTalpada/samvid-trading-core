@@ -2491,31 +2491,9 @@ class TradingSystem:
 
     def _display_dashboard(self) -> None:
         """Final Aesthetit Polish: Displays a terminal-grade dashboard of active Minds."""
-        banner = (
-            "\n" + "╔" + "═" * 78 + "╗\n"
-            "║" + "    THE SOVEREIGN SINGULARITY MATRIX  ".center(78) + "║\n"
-            "╠" + "═" * 78 + "╣\n"
-            "║"
-            + (
-                f"  STATUS:   ACTIVE  |  MODE:     {self.mode.upper().center(10)}  |  "
-                "TICK:  100Hz (0.01s)  "
-            ).center(78)
-            + "║\n"
-            "╠" + "═" * 38 + "╦" + "═" * 39 + "╣\n"
-            "║  COGNITIVE MINDS (A-M) Status        ║  SYSTEM INFRASTRUCTURE Diagnostics    ║\n"
-            "╠" + "═" * 38 + "╬" + "═" * 39 + "╣\n"
-            "║  A: Dhatu Oracle      →  [ONLINE]    ║  Q: QuestDB (TSDB)    →  [SYNCED]     ║\n"
-            "║  B: Trading Brain     →  [ACTIVE]    ║  I: IBKR (Broker)     →  [CONNECTED]  ║\n"
-            "║  C: Risk Agent        →  [VETTING]   ║  B: Intelligence Bus  →  [LISTENING]  ║\n"
-            "║  D: Evolution Mind    →  [LEARNING]  ║  G: Ghost Watchdog    →  [ARBITER]    ║\n"
-            "║  E: Data Pipeline     →  [STREAMING] ║  V: Vault Registry    →  [LOCKED]     ║\n"
-            "║  K: Ultrathink R-Res  →  [RESONANCE] ║  S: System Mind       →  [STABLE]     ║\n"
-            "║  M: Coordinator Phase →  [SOVEREIGN] ║  L: Local Determinism →  [HIGH-PERF]   ║\n"
-            "╠" + "═" * 78 + "╣\n"
-            "║" + "   GHOST RUN STATUS: CERTIFIED & HARDENED   ".center(78) + "║\n"
-            "╚" + "═" * 78 + "╝\n"
-        )
-        logger.info(banner)
+        from dashboard.console import render_dashboard
+        render_dashboard(self)
+
 
 
 async def main(s: TradingSystem) -> None:
