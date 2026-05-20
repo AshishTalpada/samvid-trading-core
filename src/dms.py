@@ -133,10 +133,25 @@ class DMSMonitor:
 
     def record_heartbeat(self, agent_id: str = "BRAIN_PRIMARY") -> None:
         """Record a heartbeat from a specific agent."""
-        self.agent_heartbeats[agent_id] = datetime.now(timezone.utc)
-        self.alert_sent = False
-        self.flatten_executed = False
-        self.timeout_detected_at = None
+        current_time = datetime.now(timezone.utc)
+        self.agent_heartbeats[agent_id] = current_time
+
+        # Only reset emergency alert/flatten states if all critical agents are healthy
+        all_healthy = True
+        for agent in self.critical_agents:
+            last_hb = self.agent_heartbeats.get(agent)
+            if not last_hb:
+                all_healthy = False
+                break
+            if (current_time - last_hb).total_seconds() > self.timeout:
+                all_healthy = False
+                break
+
+        if all_healthy:
+            self.alert_sent = False
+            self.flatten_executed = False
+            self.timeout_detected_at = None
+
 
     async def check_timeout(self) -> bool:
         """Check if any critical agent heartbeat timeout exceeded."""
