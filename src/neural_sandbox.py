@@ -12,7 +12,7 @@ logging.basicConfig(level=logging.ERROR)
 def run_isolated_inference(model_path, prompt_json):
     try:
         prompt = json.loads(prompt_json)
-        n_ctx = int(os.environ.get("SOVEREIGN_SLM_N_CTX", "4096"))
+        n_ctx = int(os.environ.get("SOVEREIGN_SLM_N_CTX", "256"))
         n_threads = int(os.environ.get("SOVEREIGN_SLM_THREADS", "8"))
         n_gpu_layers = int(os.environ.get("SOVEREIGN_SLM_GPU_LAYERS", "0"))
 
@@ -22,7 +22,7 @@ def run_isolated_inference(model_path, prompt_json):
             n_gpu_layers=n_gpu_layers,
             n_ctx=n_ctx,
             n_threads=n_threads,
-            n_batch=1,
+            n_batch=64,
             verbose=False,
         )
 
