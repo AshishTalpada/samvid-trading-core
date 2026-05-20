@@ -2980,7 +2980,7 @@ class TradingBrain:
             - None           → symbol has zero rows in DB (DataPipeline hasn't fetched it yet)
         """
         try:
-            if not self.db_conn:
+            if not self.db_conn and not os.path.exists(self.db_path):
                 return None
 
             # If we fetched this symbol within the last 5 seconds, return the cached copy.
@@ -3052,13 +3052,29 @@ class TradingBrain:
                     "ORDER BY timestamp DESC LIMIT 200"
                 )
                 try:
+                    def _read_sqlite_ohlcv() -> pd.DataFrame:
+                        import sqlite3
+
+                        with sqlite3.connect(self.db_path, timeout=30.0) as conn:
+                            conn.execute("PRAGMA query_only = ON")
+                            return pd.read_sql_query(query, conn, params=[symbol])
+
                     df = await asyncio.wait_for(
-                        asyncio.to_thread(pd.read_sql_query, query, self.db_conn, params=[symbol]),
+                        asyncio.to_thread(_read_sqlite_ohlcv),
                         timeout=30.0,
                     )
                 except (asyncio.TimeoutError, TimeoutError):
                     logger.warning(f"SQLite timeout for {symbol} after 15s — skipping symbol")
                     return None
+                except Exception as sqlite_err:
+                    if "closed database" in str(sqlite_err).lower():
+                        logger.warning(
+                            "SQLite OHLCV read skipped for %s because the runtime DB handle "
+                            "is closing.",
+                            symbol,
+                        )
+                        return None
+                    raise
             else:
                 df = df_qdb
 
