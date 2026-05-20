@@ -4358,6 +4358,20 @@ class TradingBrain:
         logger.info(" Brain: Asynchronous Prediction Pipeline ACTIVE (Background Thinking).")
         while self.is_running:
             try:
+                market_open = self._is_market_open()
+                closed_market = (
+                    not market_open
+                    and os.environ.get("SOVEREIGN_ALLOW_CLOSED_MARKET_SCANS") != "1"
+                )
+                if closed_market:
+                    if getattr(self, "_last_closed_conviction_log", 0) + 900 < time.time():
+                        logger.info(
+                            "TradingBrain: Conviction sync idling while market is closed."
+                        )
+                        self._last_closed_conviction_log = time.time()
+                    await asyncio.sleep(300)
+                    continue
+
                 # Construct Global Context (No symbol-specifics)
                 global_ctx = {
                     "symbol": "GLOBAL",

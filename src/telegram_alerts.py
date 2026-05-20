@@ -17,6 +17,32 @@ _last_sent_times: list[float] = []
 _rate_limit_max = 20
 _rate_limit_window = 60.0
 _shared_session: aiohttp.ClientSession | None = None
+_ALLOWED_TERMS = (
+    "[EXECUTION]",
+    "[SOVEREIGN ALERT]",
+    "[TRADE]",
+    "[RISK]",
+    "[DMS]",
+    "[EMERGENCY]",
+    "[SHUTDOWN]",
+    "[STARTUP]",
+    "[STATUS]",
+    "SYSTEM CRITICAL",
+    "TRADE FULLY CLOSED",
+    "REJECTED",
+    "SOVEREIGN",
+    "MAIN",
+    "BRAIN",
+    "STATUS",
+)
+_ERROR_TERMS = ("ERROR", "FAILED", "EXCEPTION", "CRITICAL", "FATAL", "TIMEOUT")
+
+
+def _should_send(message: str) -> bool:
+    msg_upper = message.upper()
+    return any(term in msg_upper for term in _ALLOWED_TERMS) or any(
+        term in msg_upper for term in _ERROR_TERMS
+    )
 
 
 async def send_telegram_alert(message: str) -> None:
@@ -24,35 +50,7 @@ async def send_telegram_alert(message: str) -> None:
     Sends a Telegram alert with Elite Signal Sterilization.
     Blocks routine pattern noise and 'Phantom' calls.
     """
-    allowed_prefixes = [
-        "[EXECUTION]",
-        "",
-        "",
-        "",
-        "",
-        "",
-        "",
-        "",
-        "",
-        "",
-        "",
-        "SYSTEM CRITICAL",
-        "TRADE FULLY CLOSED",
-        "REJECTED",
-        "",
-        "SOVEREIGN",
-        "MAIN",
-        "BRAIN",
-        "STATUS",
-    ]
-
-    msg_upper = message.upper()
-    is_elite = any(prefix and prefix.upper() in msg_upper for prefix in allowed_prefixes)
-    is_error = any(
-        term in msg_upper for term in ["ERROR", "FAILED", "EXCEPTION", "CRITICAL", "FATAL"]
-    )
-
-    if not (is_elite or is_error):
+    if not _should_send(message):
         logger.debug(f"Sterilization: Suppressing non-essential signal: {message[:50]}...")
         return
 
@@ -87,6 +85,7 @@ async def send_telegram_alert(message: str) -> None:
     chat_id = Vault.get("TELEGRAM_CHAT_ID")
 
     if not token or not chat_id:
+        logger.warning("Telegram alert skipped: token or chat id missing.")
         return
 
     agents = [
@@ -122,10 +121,17 @@ async def send_telegram_alert(message: str) -> None:
                 # Pass randomized headers per request to the shared session
                 async with session.post(url, json=payload, proxy=proxy, headers=headers) as resp:
                     if resp.status == 200:
+                        logger.info("Telegram alert sent: %s...", redacted_message[:80])
                         return
                     elif resp.status == 429:  # Rate limit
+                        logger.warning("Telegram rate limited; retrying after cooldown.")
                         await asyncio.sleep(10)
                         continue
+                    body = await resp.text()
+                    if len(body) > 300:
+                        body = body[:300] + "... [truncated]"
+                    logger.warning("Telegram alert failed with status %s: %s", resp.status, body)
+                    return
             except Exception as e:
                 if attempt == max_retries - 1:
                     logger.error(f"Failed to send telegram alert after {max_retries} attempts: {e}")
@@ -133,6 +139,14 @@ async def send_telegram_alert(message: str) -> None:
                     await asyncio.sleep(base_delay * (attempt + 1))
     except Exception as e:
         logger.error(f"Telegram session management failed: {e}")
+
+
+async def close_telegram_session() -> None:
+    """Close the shared Telegram session for smoke tests and graceful shutdown."""
+    global _shared_session
+    if _shared_session is not None and not _shared_session.closed:
+        await _shared_session.close()
+    _shared_session = None
 
 
 # ── LOCAL-ONLY SOVEREIGN EXTENSIONS ─────────────────────────────────────
@@ -154,33 +168,7 @@ class SovereignTelegramBot:
         Transmits a message with Sterilization, Redaction, and Rate Limiting.
         """
         # 1. Sterilization
-        allowed_prefixes = [
-            "[EXECUTION]",
-            "",
-            "",
-            "",
-            "",
-            "",
-            "",
-            "",
-            "",
-            "",
-            "SYSTEM CRITICAL",
-            "TRADE FULLY CLOSED",
-            "REJECTED",
-            "",
-            "SOVEREIGN",
-            "MAIN",
-            "BRAIN",
-            "STATUS",
-        ]
-        msg_upper = message.upper()
-        is_elite = any(prefix and prefix.upper() in msg_upper for prefix in allowed_prefixes)
-        is_error = any(
-            term in msg_upper for term in ["ERROR", "FAILED", "EXCEPTION", "CRITICAL", "FATAL"]
-        )
-
-        if not (is_elite or is_error):
+        if not _should_send(message):
             logger.debug(f"Sterilization: Suppressing non-essential signal: {message[:50]}...")
             return False
 
