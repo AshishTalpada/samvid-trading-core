@@ -17,6 +17,7 @@ import numpy as np
 import polars as pl
 
 logger = logging.getLogger(__name__)
+_VALIDATION_TASK_MANAGER: Any | None = None
 
 from config import (
     ESCAPE_ORBITAL,
@@ -1894,7 +1895,10 @@ def agent_a_validate_trade(
 
     from sovereign_task import TaskManager, TaskStatus
 
-    task_manager = TaskManager()
+    global _VALIDATION_TASK_MANAGER
+    if _VALIDATION_TASK_MANAGER is None:
+        _VALIDATION_TASK_MANAGER = TaskManager()
+    task_manager = _VALIDATION_TASK_MANAGER
 
     task_id = kwargs.get("proposal_id", f"diag_{datetime.now(timezone.utc).strftime('%H%M%S')}")
     task = task_manager.get_task(task_id)
