@@ -1833,7 +1833,7 @@ class InMemorySovereignAtlas:
                     LIMIT 25000 -- Cap fetch for stability
                 """
 
-                with sqlite3.connect(self.db_path, timeout=10.0) as conn:
+                with sqlite3.connect(self.db_path, timeout=60.0) as conn:
                     cursor = conn.execute(query, (final_key,))
                     matches = cursor.fetchall()
 
