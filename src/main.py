@@ -301,6 +301,7 @@ class TradingSystem:
         self._hft_pulse_queue: Any = None
 
         self._last_tick_time = time.monotonic()
+        self._last_data_starvation_alert = 0.0
         self._recalibration_in_progress = False
 
         self._write_pid()
@@ -2161,12 +2162,17 @@ class TradingSystem:
                 # Check Ingestion Health (Delta since last HFT tick)
                 drift = time.monotonic() - self._last_tick_time
 
-                # If we haven't seen a tick in 5 minutes, we are likely 'Blinded'
+                # If we haven't seen a tick in 5 minutes, we are likely 'Blinded'.
+                # Do not refresh _last_tick_time here; only _on_hft_pulse() may
+                # prove the data plane is actually alive.
                 if drift > 300 and not self._recalibration_in_progress:
-                    logger.warning(
-                        f"Watchdog: Data Starvation Detected (Drift: {drift:.2f}s). "
-                        "Initiating Autonomous Recovery..."
-                    )
+                    now_mono = time.monotonic()
+                    if now_mono - self._last_data_starvation_alert > 300:
+                        logger.warning(
+                            f"Watchdog: Data Starvation Detected (Drift: {drift:.2f}s). "
+                            "Awaiting HFT pulse recovery..."
+                        )
+                        self._last_data_starvation_alert = now_mono
 
                 if hasattr(self, "mt5_client") and self.mt5_client:
                     try:
@@ -2201,7 +2207,6 @@ class TradingSystem:
                     except Exception as e:
                         logger.error(f"Watchdog: MT5 Heartbeat error: {e}")
 
-                self._last_tick_time = time.monotonic()  # Reset timer for health baseline
             except Exception as e:
                 logger.error(f"Watchdog Error (Aegis): {e}")
 
