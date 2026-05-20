@@ -250,19 +250,19 @@ def run_watchdog():
         f"Silence threshold: {SILENCE_TIMEOUT}s | Live-lock threshold: {LIVENESS_TIMEOUT}s"
     )
 
-    watchdog_start_time = datetime.now(timezone.utc)
-    watchdog_start_ts = time.time()
+    monitored_engine_start_time = datetime.now(timezone.utc)
+    monitored_engine_start_ts = time.time()
 
     while True:
         try:
-            uptime = time.time() - watchdog_start_ts
+            uptime = time.time() - monitored_engine_start_ts
             if uptime < 90:
                 logger.info(f"Watchdog startup grace period: {90 - uptime:.0f}s remaining...")
                 time.sleep(CHECK_INTERVAL)
                 continue
 
-            is_alive = check_heartbeat(watchdog_start_time)
-            stale = check_task_liveness(watchdog_start_time)
+            is_alive = check_heartbeat(monitored_engine_start_time)
+            stale = check_task_liveness(monitored_engine_start_time)
             mem_usage = check_memory_usage()
 
             mem_limit = get_dynamic_memory_threshold()
@@ -364,6 +364,8 @@ def run_watchdog():
                         logger.info(
                             "Watchdog: Sovereign Engine REBOOTED as PID %s.", reboot_proc.pid
                         )
+                        monitored_engine_start_time = datetime.now(timezone.utc)
+                        monitored_engine_start_ts = time.time()
                         # main.py owns data/main.pid after it passes the
                         # single-instance guard. Writing the child PID here can
                         # make a half-started reboot look like the active engine
