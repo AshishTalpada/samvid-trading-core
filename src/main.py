@@ -469,6 +469,11 @@ class TradingSystem:
             self.profiler.mark("SMOKE_ASYNC_INIT_DONE")
             return
 
+        # Background supervisors check this flag before entering their loops.
+        # Set it before launching any supervised task; otherwise startup races
+        # cause critical services to stand down as if shutdown had begun.
+        self.is_running = True
+
         # Start the worker task after parallel init
         self._start_supervised_task("hft_pulse_worker", self._run_hft_pulse_worker)
 
@@ -1605,7 +1610,6 @@ class TradingSystem:
                                 await asyncio.sleep(wait_time)
                             else:
                                 raise
-                self.is_running = True
             if os.environ.get("SOVEREIGN_SKIP_PID_CHECK", "0") == "1":
                 logger.info("Smoke-test mode detected - startup complete without run loop.")
                 return
