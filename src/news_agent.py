@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import re
 import time
@@ -51,13 +52,16 @@ class MacroNewsAgent:
             "dovish_hits": dove,
         }
 
-    def fetch_fred_release_schedule(self) -> List[Dict]:
-        try:
+    async def fetch_fred_release_schedule(self) -> List[Dict]:
+        def _fetch():
             r = requests.get(
                 "https://api.stlouisfed.org/fred/releases/dates?api_key=invalid_key&file_type=json",
                 timeout=4,
             )
             return r.json().get("release_dates", [])[:10]  # type: ignore
+
+        try:
+            return await asyncio.to_thread(_fetch)
         except Exception:
             return []
 
@@ -68,3 +72,4 @@ class MacroNewsAgent:
             0.5 + statement_score * 0.3 + (cpi_yoy - 2.0) * 0.05 - (unemployment - 4.0) * 0.03
         )
         return max(0.0, min(1.0, hike_prob))
+
