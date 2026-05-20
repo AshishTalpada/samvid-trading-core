@@ -4493,5 +4493,11 @@ class TradingBrain:
                 except Exception as e:
                     logger.error(f"Error stopping {mind_attr}: {e}")
 
+        if self.swarm_predictor and hasattr(self.swarm_predictor, "close"):
+            try:
+                await self.swarm_predictor.close()
+            except Exception as e:
+                logger.error(f"Error closing swarm_predictor: {e}")
+
         await self.qdb.stop()
         logger.info("Trading Brain stopped.")
