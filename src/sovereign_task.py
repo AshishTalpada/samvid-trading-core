@@ -178,7 +178,7 @@ class TaskManager:
         if symbol not in self._symbol_index:
             self._symbol_index[symbol] = []
         self._symbol_index[symbol].append(task_id)
-        asyncio.create_task(self.save_registry())
+        self._save_registry_safe()
         return task
 
     def get_symbol_gate(
@@ -299,6 +299,16 @@ class TaskManager:
             logger.error(f"TaskManager: Registry sync-save failed: {e}")
         return False
 
+    def _save_registry_safe(self, allow_empty: bool = False):
+        try:
+            loop = asyncio.get_running_loop()
+            if loop.is_running():
+                loop.create_task(self.save_registry(allow_empty))
+            else:
+                self._save_registry_sync(allow_empty)
+        except RuntimeError:
+            self._save_registry_sync(allow_empty)
+
     async def save_registry(self, allow_empty: bool = False):
         """Atomically save task registry with Windows-safe retry logic (Async)."""
         async with self._save_lock:
@@ -327,7 +337,7 @@ class TaskManager:
         if to_remove:
             logger.info(f"TaskManager: Purged {len(to_remove)} dormant tasks.")
             # Run background save
-            asyncio.create_task(self.save_registry(allow_empty=True))
+            self._save_registry_safe(allow_empty=True)
 
     def purge_completed(self, max_age_days: int = 7):
         """Clear old finished and stale tasks to prevent memory leaks."""
@@ -364,7 +374,7 @@ class TaskManager:
             logger.info(f"TaskManager: Hard Purge complete. Removed {purge_count} oldest tasks.")
 
         if to_remove or len(self.tasks) > 1000:
-            asyncio.create_task(self.save_registry(allow_empty=True))
+            self._save_registry_safe(allow_empty=True)
 
     def _delete_task_reference(self, tid: str):
         """Internal helper to clean up all index references for a task ID."""
