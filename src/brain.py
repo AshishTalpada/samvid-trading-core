@@ -1046,6 +1046,16 @@ class TradingBrain:
         is_hft_impact = any(k in headline for k in IMPACT_KEYWORDS) or impact > 0.6
 
         if is_hft_impact:
+            if (
+                not self._is_market_open()
+                and os.environ.get("SOVEREIGN_ALLOW_CLOSED_MARKET_SCANS") != "1"
+            ):
+                logger.debug(
+                    "BRAIN: News action ignored while US equity market is closed: %s",
+                    headline[:80],
+                )
+                return
+
             if self._is_oracle_entry_frozen():
                 logger.debug(
                     "BRAIN: News action ignored during oracle freeze "
@@ -1550,6 +1560,12 @@ class TradingBrain:
                     elif label == "macro.impact":
                         # Direct Macro Influence on Brain Risk
                         impact = payload.get("impact", "NEUTRAL")
+                        if (
+                            not self._is_market_open()
+                            and os.environ.get("SOVEREIGN_ALLOW_CLOSED_MARKET_SCANS") != "1"
+                        ):
+                            logger.debug("BUS -> macro.impact ignored while market is closed.")
+                            continue
                         if self._is_oracle_entry_frozen():
                             logger.debug(
                                 "BUS → macro.impact ignored during oracle freeze: %s", impact
