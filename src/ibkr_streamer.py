@@ -10,7 +10,9 @@ import sys
 import time
 from collections import defaultdict, deque
 from datetime import datetime, timezone
+from datetime import time as dt_time
 from typing import TYPE_CHECKING, Any, Optional
+from zoneinfo import ZoneInfo
 
 if TYPE_CHECKING:
     from intelligence_bus import SharedIntelligenceBus
@@ -42,6 +44,17 @@ def _ensure_asyncio_loop() -> None:
 from tick_batcher import TICK_BATCHER
 
 logger = logging.getLogger(__name__)
+
+
+def _is_us_equity_market_open() -> bool:
+    """Return True during regular US equity market hours."""
+    try:
+        now_et = datetime.now(ZoneInfo("America/New_York"))
+        if now_et.weekday() >= 5:
+            return False
+        return dt_time(9, 30) <= now_et.time() <= dt_time(16, 0)
+    except Exception:
+        return True
 
 
 class SpreadTracker:
@@ -450,7 +463,11 @@ class IBKRStreamer:
                     seconds_since_tick = (
                         datetime.now(timezone.utc) - self._last_tick_time
                     ).total_seconds()
-                    if seconds_since_tick > 180 and self.is_running:
+                    if (
+                        seconds_since_tick > 180
+                        and self.is_running
+                        and _is_us_equity_market_open()
+                    ):
                         logger.warning(
                             f"IBKRStreamer: SILENT DATA GAP detected ({seconds_since_tick:.0f}s). Re-initializing..."
                         )
