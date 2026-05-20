@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import time
 from typing import Dict, List
@@ -14,8 +15,8 @@ class SensorIngestAgent:
     Produces a unified sensor risk score for position sizing adjustment.
     """
 
-    def fetch_usgs_events(self, min_magnitude: float = 5.0) -> List[Dict]:
-        try:
+    async def fetch_usgs_events(self, min_magnitude: float = 5.0) -> List[Dict]:
+        def _fetch():
             url = f"https://earthquake.usgs.gov/fdsnws/event/1/query?format=geojson&minmagnitude={min_magnitude}&limit=20"
             r = requests.get(url, timeout=6)
             features = r.json().get("features", [])
@@ -27,6 +28,9 @@ class SensorIngestAgent:
                 }
                 for f in features
             ]
+
+        try:
+            return await asyncio.to_thread(_fetch)
         except Exception as e:
             logger.error(f"[SENSOR] USGS fetch failed: {e}")
             return []
@@ -39,3 +43,4 @@ class SensorIngestAgent:
             f"[SENSOR] Composite risk={composite:.3f} (seismic={seismic_risk:.2f}, solar={solar_risk:.2f})"
         )
         return round(composite, 3)  # type: ignore
+
