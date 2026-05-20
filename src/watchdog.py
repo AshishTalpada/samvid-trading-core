@@ -37,6 +37,22 @@ def get_dynamic_memory_threshold() -> float:
 TASK_HEARTBEAT_FILE = "data/task_heartbeats.json"
 
 
+def _remove_pid_file(path: str, expected_pid: str | None = None) -> None:
+    """Remove a stale PID file, optionally only if it still contains expected_pid."""
+    try:
+        if not os.path.exists(path):
+            return
+        if expected_pid is not None:
+            with open(path, "r") as f:
+                current = f.read().strip()
+            if current != expected_pid:
+                return
+        os.remove(path)
+        logger.info("Watchdog: Removed stale PID file %s.", path)
+    except Exception as exc:
+        logger.debug("Watchdog: PID cleanup skipped for %s: %s", path, exc)
+
+
 def check_heartbeat(watchdog_start_time: datetime) -> bool:
     """Returns True if the system is alive, False if silent/crashed."""
     if not os.path.exists(DB_PATH):
@@ -167,6 +183,8 @@ def check_memory_usage() -> float:
                 pass
 
         if not target_pid or not psutil.pid_exists(target_pid):
+            if target_pid:
+                _remove_pid_file(pid_file, str(target_pid))
             # Fallback: Find by process name if file is missing/stale
             for proc in psutil.process_iter(["pid", "name", "cmdline"]):
                 if "python" in (proc.info["name"] or "").lower():
@@ -303,10 +321,13 @@ def run_watchdog():
                                 time.sleep(10)
                             except Exception as e:
                                 logger.error(f"Watchdog: Failed to kill process {pid_to_kill}: {e}")
+                            finally:
+                                _remove_pid_file(pid_file, pid_to_kill)
                         elif pid_to_kill:
                             logger.warning(
                                 "Watchdog: Ignoring invalid PID file content: %r", pid_to_kill
                             )
+                            _remove_pid_file(pid_file, pid_to_kill)
 
                         project_root = Path(__file__).resolve().parent.parent
                         main_script = project_root / "src" / "main.py"
@@ -324,6 +345,11 @@ def run_watchdog():
                         logger.info(
                             "Watchdog: Sovereign Engine REBOOTED as PID %s.", reboot_proc.pid
                         )
+                        try:
+                            with open(pid_file, "w") as f:
+                                f.write(str(reboot_proc.pid))
+                        except Exception as exc:
+                            logger.debug("Watchdog: Failed to persist reboot PID: %s", exc)
                 else:
                     logger.warning(
                         f"RESTART THROTTLED: Next attempt in "
