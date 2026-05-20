@@ -2161,6 +2161,8 @@ class TradingBrain:
             vetting_task = asyncio.create_task(
                 self.coordinator.initiate_trade_lifecycle(symbol, signal)
             )
+            self._background_tasks.add(vetting_task)
+            vetting_task.add_done_callback(self._background_tasks.discard)
             vetting_task.add_done_callback(_task_done)
 
         # Clear the queue and return to scanning immediately
@@ -4493,6 +4495,19 @@ class TradingBrain:
                 logger.warning("TradingBrain: Some tasks failed to cancel within 5s.")
             except Exception as e:
                 logger.error(f"Error during parallel task cancellation: {e}")
+
+        background_tasks = [task for task in self._background_tasks if not task.done()]
+        for task in background_tasks:
+            task.cancel()
+        if background_tasks:
+            try:
+                await asyncio.wait_for(
+                    asyncio.gather(*background_tasks, return_exceptions=True), timeout=5.0
+                )
+            except asyncio.TimeoutError:
+                logger.warning("TradingBrain: Some background vetting tasks ignored shutdown.")
+            finally:
+                self._background_tasks.difference_update(background_tasks)
 
         # Stop component-specific minds
         minds = [
