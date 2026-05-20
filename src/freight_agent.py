@@ -1,6 +1,6 @@
+import asyncio
 import logging
-import time
-from typing import Dict, List
+from typing import List
 
 import requests
 
@@ -17,15 +17,18 @@ class OceanFreightAgent:
     BDI_PROXY = "https://markets.businessinsider.com/api/search"
     COMMODITY_MAP = {"shipping": ["ZIM", "MATX", "DAC"], "containers": ["FDX", "UPS", "XPO"]}
 
-    def get_bdi_estimate(self) -> float:
+    async def get_bdi_estimate(self) -> float:
         """Returns a normalised BDI score 0.0-1.0 from public proxy."""
-        try:
+        def _fetch():
             r = requests.get(
                 "https://fred.stlouisfed.org/graph/fredgraph.csv?id=BDIYINDEX", timeout=5
             )
-            lines = [l for l in r.text.strip().split("\n") if "," in l]
+            lines = [ln for ln in r.text.strip().split("\n") if "," in ln]
             last_val = float(lines[-1].split(",")[1])
             return min(1.0, last_val / 5000.0)
+
+        try:
+            return await asyncio.to_thread(_fetch)
         except Exception as e:
             logger.error(f"[FREIGHT] BDI fetch failed: {e}")
             return 0.5
@@ -35,3 +38,4 @@ class OceanFreightAgent:
         if bdi < 0.3:
             return self.COMMODITY_MAP["shipping"]
         return []
+
