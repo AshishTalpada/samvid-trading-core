@@ -804,7 +804,8 @@ class TradingCoordinator:
                         gated_votes = []
                         background_success = True
                         for name, _ in gated_agents:
-                            state = self.brain.conviction_state.get(name)
+                            cache_key = f"{name}:{symbol}" if name in ["Swarm_Predictor", "Mind_Ultrathink"] else name
+                            state = self.brain.conviction_state.get(cache_key)
                             state_ts = state.get("timestamp") if state else None
                             should_call = not state or not state_ts
                             if state_ts and not should_call:
@@ -887,7 +888,8 @@ class TradingCoordinator:
                                 vote_registry[res["agent"]] = res
                                 # Update Conviction State for caching
                                 if res.get("confidence", 0) > 0:
-                                    self.brain.conviction_state[res["agent"]] = res
+                                    cache_key = f"{res['agent']}:{symbol}" if res["agent"] in ["Swarm_Predictor", "Mind_Ultrathink"] else res["agent"]
+                                    self.brain.conviction_state[cache_key] = res
                     except Exception as gated_e:
                         logger.error(f"Coordinator: Gated Intelligence failure: {gated_e}")
                         for name, _ in gated_agents:
