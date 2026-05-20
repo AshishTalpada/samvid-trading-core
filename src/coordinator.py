@@ -134,7 +134,7 @@ class TradingCoordinator:
                     return False
 
         # -- IDEMPOTENCY & CORTEX CACHE -------------------
-        if symbol in self._pending_vets:
+        if symbol in self._pending_vets and not is_probe:
             logger.debug(f"Coordinator: Skipping redundant vet for {symbol} (already in progress).")
             return False
 
@@ -171,7 +171,7 @@ class TradingCoordinator:
                 )
 
             has_position = any(getattr(p, "symbol", None) == symbol for p in self.brain.positions)
-            if has_position:
+            if has_position and not is_probe:
                 if task:
                     task.log(f"REDUNDANCY_VETO: Position already active for {symbol}.")
                     # Transition to KILLED so it doesn't stay 'RUNNING' in TaskManager
