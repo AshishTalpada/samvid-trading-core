@@ -630,6 +630,7 @@ class TVNewsScent:
         self._connected = False
         self._last_connect_log = 0.0
         self._last_disconnect_log = 0.0
+        self._short_disconnects = 0
 
     def _format_message(self, data: dict) -> str:
         """TradingView ~m~ framing."""
@@ -749,6 +750,10 @@ class TVNewsScent:
                     self._connected = False
                     disconnected_at = time.monotonic()
                     session_age = disconnected_at - connected_at
+                    if session_age < 5.0:
+                        self._short_disconnects += 1
+                    else:
+                        self._short_disconnects = 0
                     if disconnected_at - self._last_disconnect_log > 300.0:
                         logger.warning(
                             "TVNewsScent: TradingView WS closed after %.1fs; reconnecting.",
@@ -760,6 +765,14 @@ class TVNewsScent:
                             "TVNewsScent: TradingView WS closed after %.1fs; reconnecting.",
                             session_age,
                         )
+                    if self._short_disconnects >= 5:
+                        logger.warning(
+                            "TVNewsScent: TradingView WS is unstable "
+                            "(%s short disconnects). Cooling down for 5 minutes.",
+                            self._short_disconnects,
+                        )
+                        await asyncio.sleep(300)
+                        self._short_disconnects = 0
             except Exception as e:
                 self._connected = False
                 logger.error(f" TVNewsScent: Neural Scent blip (Check Origin/Proxy): {e}")
