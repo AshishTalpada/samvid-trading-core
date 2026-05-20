@@ -298,8 +298,11 @@ class TradingSystem:
 
         self.background_tasks: dict[str, asyncio.Task[None]] = {}
         self.db_lock = asyncio.Lock()
+        self._shutdown_lock = asyncio.Lock()
+        self._shutdown_task = None
         self._shutdown_event = asyncio.Event()
         self._shutdown_in_progress = False
+        self._shutdown_complete = False
         self._hft_pulse_queue: Any = None
 
         self._last_tick_time = time.monotonic()
@@ -1860,27 +1863,38 @@ class TradingSystem:
         if not hasattr(self, "_shutdown_lock"):
             self._shutdown_lock = asyncio.Lock()
 
+        should_wait = False
         async with self._shutdown_lock:
-            if self._shutdown_in_progress:
-                # Shutdown already in progress — wait for it to complete and return
-                await self._shutdown_event.wait()
-                return
-            self._shutdown_in_progress = True
+            current_task = asyncio.current_task()
+            active_task = getattr(self, "_shutdown_task", None)
+            if active_task and active_task != current_task and not active_task.done():
+                logger.info("Shutdown: Shutdown sequence already running in another task. Waiting for completion...")
+                should_wait = True
 
-            self.is_running = False
+            if not should_wait:
+                self._shutdown_task = current_task
+                if self._shutdown_complete:
+                    return
 
-            # Signals all autonomous minds (Ghost, Scent, Evolution) to stand down.
-            if hasattr(self, "bus") and self.bus:
-                try:
-                    await self.bus.publish(
-                        "system.status", {"state": "SHUTDOWN", "timestamp": time.time_ns()}
-                    )
-                except Exception:
-                    pass
+                self._shutdown_in_progress = True
+                self.is_running = False
 
-            logger.info("\n" + "═" * 30)
-            logger.info("SOVEREIGN: INITIATING SEQUENTIAL SHUTDOWN PROTOCOL")
-            logger.info("═" * 30 + "\n")
+                # Signals all autonomous minds (Ghost, Scent, Evolution) to stand down.
+                if hasattr(self, "bus") and self.bus:
+                    try:
+                        await self.bus.publish(
+                            "system.status", {"state": "SHUTDOWN", "timestamp": time.time_ns()}
+                        )
+                    except Exception:
+                        pass
+
+                logger.info("\n" + "═" * 30)
+                logger.info("SOVEREIGN: INITIATING SEQUENTIAL SHUTDOWN PROTOCOL")
+                logger.info("═" * 30 + "\n")
+
+        if should_wait:
+            await self._shutdown_event.wait()
+            return
 
         try:
             # 1. COMPUTE DAILY PERFORMANCE
@@ -2088,6 +2102,7 @@ class TradingSystem:
 
             logging.shutdown()
             self._shutdown_complete = True
+            self._shutdown_task = None
 
             # Signal the main event loop to exit cleanly.
             # Previously used os._exit(0) which skips finally blocks,
@@ -2556,8 +2571,8 @@ if __name__ == "__main__":
                     loop.run_until_complete(
                         asyncio.wait_for(s._shutdown_event.wait(), timeout=45.0)
                     )
-            except Exception as e:
-                print(f"[SOVEREIGN] Primary Shutdown Exception: {e}")
+            except (KeyboardInterrupt, BaseException, Exception) as e:
+                print(f"[SOVEREIGN] Primary Shutdown Exception or Interrupt: {e}")
 
             pending = [t for t in asyncio.all_tasks(loop) if not t.done()]
 
