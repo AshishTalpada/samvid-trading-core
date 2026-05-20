@@ -104,7 +104,6 @@ class APIServer:
         if hasattr(self.system, "bus") and self.system.bus is not None:
             # HFT topics use the Queue model to prevent memory leaks
             self._tick_queue = self.system.bus.subscribe("tick.hft", maxsize=50)
-            asyncio.create_task(self._run_tick_broadcaster())
 
             # Low-frequency topics can use callbacks safely
             self.system.bus.on("oracle.state", self._broadcast_oracle)
