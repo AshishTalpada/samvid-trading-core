@@ -28,6 +28,8 @@ class NativeSLM:
         self._available = False
         self.model_path = model_path
         self.model = None
+        self._sandbox_failures = 0
+        self._last_failure_at = 0.0
 
         if Llama is None:
             logger.warning("llama-cpp-python not installed. Native SLM offline.")
@@ -83,8 +85,16 @@ class NativeSLM:
             stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=90.0)
 
             if proc.returncode != 0:
-                err_msg = stderr.decode().strip()
-                logger.error(f"Neural Sandbox CRASHED (code {proc.returncode}): {err_msg}")
+                err_msg = stderr.decode(errors="replace").strip()
+                if len(err_msg) > 600:
+                    err_msg = err_msg[:600] + "... [truncated]"
+                self._record_sandbox_failure()
+                logger.error(
+                    "Neural Sandbox CRASHED (code %s, failures=%s): %s",
+                    proc.returncode,
+                    self._sandbox_failures,
+                    err_msg,
+                )
                 return self._neutral_vote(context, f"Sandbox Crash: {err_msg}")
 
             result_raw = stdout.decode().strip()
@@ -95,8 +105,10 @@ class NativeSLM:
             result_data = json.loads(result_raw)
 
             if result_data.get("status") == "ERROR":
+                self._record_sandbox_failure()
                 return self._neutral_vote(context, f"Sandbox Error: {result_data.get('reason')}")
 
+            self._sandbox_failures = 0
             output_text = result_data.get("text", "NEUTRAL")
 
             bias = "NEUTRAL"
@@ -129,11 +141,27 @@ class NativeSLM:
             }
 
         except asyncio.TimeoutError:
+            self._record_sandbox_failure()
             logger.error("Neural Sandbox TIMEOUT (90s). Moving on.")
             return self._neutral_vote(context, "Sandbox Timeout")
         except Exception as e:
+            self._record_sandbox_failure()
             logger.error(f"Neural Sandbox DISPATCH FAILED: {e}")
             return self._neutral_vote(context, f"Dispatch Error: {e}")
+
+    def _record_sandbox_failure(self) -> None:
+        now = time.monotonic()
+        if now - self._last_failure_at > 300.0:
+            self._sandbox_failures = 0
+        self._last_failure_at = now
+        self._sandbox_failures += 1
+        if self._sandbox_failures >= 2:
+            self._available = False
+            logger.warning(
+                "Native SLM disabled after %s sandbox failures. Trading will continue "
+                "with deterministic quorum agents.",
+                self._sandbox_failures,
+            )
 
     def _build_prompt(self, context: dict) -> list:
         sys_prompt = "You are Sovereign-SLM, an elite quantitative strategist. Analyze the market context and output exactly one word: BULLISH, BEARISH, or NEUTRAL."
