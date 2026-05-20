@@ -906,6 +906,17 @@ class DhatuOracle:
                         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                     )
                 """)
+                conn.execute("""
+                    CREATE TABLE IF NOT EXISTS dhatu_readings (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        timestamp TEXT,
+                        dhatu_state TEXT,
+                        base_modifier REAL,
+                        freshness_score REAL,
+                        final_modifier REAL,
+                        instrument TEXT
+                    )
+                """)
         except Exception as e:
             logger.error(f"DhatuOracle: Failed to init DB: {e}")
 
@@ -928,6 +939,19 @@ class DhatuOracle:
                 conn.execute(
                     "INSERT OR REPLACE INTO system_state (key, value, updated_at) VALUES (?, ?, ?)",
                     ("oracle_state", json.dumps(state_data), datetime.now(timezone.utc)),
+                )
+                conn.execute(
+                    "INSERT INTO dhatu_readings "
+                    "(timestamp, dhatu_state, base_modifier, freshness_score, "
+                    "final_modifier, instrument) VALUES (?, ?, ?, ?, ?, ?)",
+                    (
+                        datetime.now(timezone.utc).isoformat(),
+                        state.dhatu_state,
+                        float(state.risk_modifier),
+                        float(getattr(state, "confidence", 0.0) or 0.0),
+                        float(state.risk_modifier),
+                        "GLOBAL",
+                    ),
                 )
             logger.debug("DhatuOracle: State persisted to DB")
         except Exception as e:
