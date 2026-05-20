@@ -34,7 +34,7 @@ class NativeSLM:
         self._last_failure_at = 0.0
         self._last_restart_at = 0.0
         self._startup_timeout = float(os.environ.get("SOVEREIGN_SLM_STARTUP_TIMEOUT", "45"))
-        self._inference_timeout = float(os.environ.get("SOVEREIGN_SLM_TIMEOUT", "25"))
+        self._inference_timeout = float(os.environ.get("SOVEREIGN_SLM_TIMEOUT", "8"))
 
         if Llama is None:
             logger.warning("llama-cpp-python not installed. Native SLM offline.")
@@ -78,7 +78,7 @@ class NativeSLM:
                 payload = {
                     "id": request_id,
                     "prompt": prompt,
-                    "max_tokens": 10,
+                    "max_tokens": 3,
                     "temperature": 0.1,
                 }
                 wire = json.dumps(payload, separators=(",", ":")) + "\n"

@@ -19,10 +19,10 @@ def _safe_int_env(name: str, default: int, minimum: int, maximum: int) -> int:
 
 def _load_model(model_path: str) -> tuple[Llama, dict[str, int]]:
     n_ctx = _safe_int_env("SOVEREIGN_SLM_N_CTX", 256, 128, 1024)
-    n_threads = _safe_int_env("SOVEREIGN_SLM_THREADS", 2, 1, 4)
+    n_threads = _safe_int_env("SOVEREIGN_SLM_THREADS", 4, 1, 4)
     n_gpu_layers = _safe_int_env("SOVEREIGN_SLM_GPU_LAYERS", 0, 0, 99)
-    n_batch = _safe_int_env("SOVEREIGN_SLM_N_BATCH", 8, 1, 32)
-    n_ubatch = _safe_int_env("SOVEREIGN_SLM_N_UBATCH", min(n_batch, 8), 1, n_batch)
+    n_batch = _safe_int_env("SOVEREIGN_SLM_N_BATCH", 4, 1, 16)
+    n_ubatch = _safe_int_env("SOVEREIGN_SLM_N_UBATCH", min(n_batch, 4), 1, n_batch)
 
     kwargs: dict[str, Any] = {
         "model_path": model_path,
@@ -61,7 +61,7 @@ def run_isolated_inference(model_path: str, prompt_json: str) -> None:
     try:
         prompt = json.loads(prompt_json)
         llm, _meta = _load_model(model_path)
-        text = _complete(llm, prompt, max_tokens=10, temperature=0.1)
+        text = _complete(llm, prompt, max_tokens=3, temperature=0.1)
         print(json.dumps({"status": "SUCCESS", "text": text}), flush=True)
     except Exception as exc:
         print(json.dumps({"status": "ERROR", "reason": str(exc)}), flush=True)
