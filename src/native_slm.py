@@ -1,4 +1,5 @@
 import asyncio
+import contextlib
 import json
 import logging
 import sys
@@ -13,6 +14,7 @@ except ImportError:
     Llama = None
 
 logger = logging.getLogger(__name__)
+SANDBOX_TIMEOUT_SEC = 90.0
 
 # Global Neural Semaphore: Prevent 'GGML_ASSERT' crash by serializing AI calls
 _SLM_LOCK = asyncio.Lock()
@@ -81,8 +83,9 @@ class NativeSLM:
                 *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
             )
 
-            # 15s timeout for the isolated worker
-            stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=90.0)
+            stdout, stderr = await asyncio.wait_for(
+                proc.communicate(), timeout=SANDBOX_TIMEOUT_SEC
+            )
 
             if proc.returncode != 0:
                 err_msg = stderr.decode(errors="replace").strip()
@@ -143,7 +146,14 @@ class NativeSLM:
 
         except asyncio.TimeoutError:
             self._record_sandbox_failure("timeout")
-            logger.error("Neural Sandbox TIMEOUT (90s). Moving on.")
+            with contextlib.suppress(ProcessLookupError):
+                proc.kill()
+            with contextlib.suppress(Exception):
+                await asyncio.wait_for(proc.communicate(), timeout=5.0)
+            logger.error(
+                "Neural Sandbox TIMEOUT (%ss). Process killed; moving on.",
+                SANDBOX_TIMEOUT_SEC,
+            )
             return self._neutral_vote(context, "Sandbox Timeout")
         except Exception as e:
             self._record_sandbox_failure(str(e))
