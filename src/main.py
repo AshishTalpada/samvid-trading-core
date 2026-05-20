@@ -386,6 +386,20 @@ class TradingSystem:
         except Exception as e:
             logger.error(f"Failed to verify single instance or write PID: {e}")
 
+    def _clear_own_pid_file(self) -> None:
+        """Remove data/main.pid only when it still points at this process."""
+        pid_file = "data/main.pid"
+        try:
+            if not os.path.exists(pid_file):
+                return
+            with open(pid_file, "r") as f:
+                recorded_pid = int((f.read() or "").strip())
+            if recorded_pid == os.getpid():
+                os.remove(pid_file)
+                logger.info("Removed own main PID file during shutdown.")
+        except Exception as exc:
+            logger.debug("Main PID cleanup skipped: %s", exc)
+
     async def async_init(self) -> None:
         """PILLAR 6: Progressive Orchestration (9.99 Upgrade)
         Parallelizes the cognitive matrix for sub-100ms startup.
@@ -2526,6 +2540,7 @@ if __name__ == "__main__":
             except Exception:
                 pass
 
+            s._clear_own_pid_file()
             loop.close()
         except Exception as e:
             print(f"Shutdown Error: {e}")
