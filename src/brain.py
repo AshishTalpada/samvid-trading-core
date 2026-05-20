@@ -1848,6 +1848,30 @@ class TradingBrain:
                         )
                         return None
 
+                if self.task_manager:
+                    gate = self.task_manager.get_symbol_gate(
+                        symbol,
+                        terminal_cooldown_seconds=300.0,
+                    )
+                    if gate:
+                        gate_kind, gate_task, remaining_sec = gate
+                        if gate_kind == "active":
+                            logger.debug(
+                                "Scan [%s]: skipped because task %s is still %s.",
+                                symbol,
+                                gate_task.id,
+                                gate_task.status.value,
+                            )
+                        else:
+                            logger.debug(
+                                "Scan [%s]: skipped during terminal task cooldown "
+                                "(task=%s, %.1fs remaining).",
+                                symbol,
+                                gate_task.id,
+                                remaining_sec,
+                            )
+                        return None
+
                 async with stats_lock:
                     stats["scanned"] += 1
 
