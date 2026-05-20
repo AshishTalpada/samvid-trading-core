@@ -706,7 +706,7 @@ class TVNewsScent:
                     )
 
                     connected_at = time.monotonic()
-                    if not self._connected or connected_at - self._last_connect_log > 300.0:
+                    if connected_at - self._last_connect_log > 300.0:
                         logger.info(
                             "TVNewsScent: Neural Scent Feed established (TradingView WS)."
                         )
