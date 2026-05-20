@@ -11,8 +11,11 @@ Implements:
 """
 
 import asyncio
+import json
 import logging
+import os
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import TYPE_CHECKING, Any, Optional
 
 import aiohttp
@@ -25,6 +28,8 @@ if TYPE_CHECKING:
 from vault import Vault
 
 logger = logging.getLogger(__name__)
+TASK_HEARTBEAT_FILE = Path("data/task_heartbeats.json")
+TASK_HEARTBEAT_FLUSH_INTERVAL = 1.0
 
 
 def _get_mt5_module() -> Any:
@@ -72,6 +77,8 @@ class DMSMonitor:
             "BRAIN_PRIMARY": datetime.now(timezone.utc),
         }
         self.critical_agents = ["BRAIN_PRIMARY", "AGENT_A", "AGENT_C", "COORDINATOR"]
+        self._heartbeat_file_error_logged = False
+        self._last_task_registry_flush = 0.0
 
         self.last_status_ok = datetime.now(timezone.utc)
         self.api_url = f"https://api.telegram.org/bot{bot_token}"
@@ -135,6 +142,7 @@ class DMSMonitor:
         """Record a heartbeat from a specific agent."""
         current_time = datetime.now(timezone.utc)
         self.agent_heartbeats[agent_id] = current_time
+        self._flush_task_heartbeats(current_time)
 
         # Only reset emergency alert/flatten states if all critical agents are healthy
         all_healthy = True
@@ -152,6 +160,31 @@ class DMSMonitor:
             self.flatten_executed = False
             self.timeout_detected_at = None
 
+    def _flush_task_heartbeats(self, current_time: datetime) -> None:
+        """Persist agent heartbeats for the external watchdog."""
+        now_ts = current_time.timestamp()
+        if now_ts - self._last_task_registry_flush < TASK_HEARTBEAT_FLUSH_INTERVAL:
+            return
+        self._last_task_registry_flush = now_ts
+
+        try:
+            TASK_HEARTBEAT_FILE.parent.mkdir(parents=True, exist_ok=True)
+            payload = {
+                "pid": os.getpid(),
+                "heartbeats": {
+                    agent: heartbeat.timestamp()
+                    for agent, heartbeat in self.agent_heartbeats.items()
+                },
+            }
+            tmp_path = TASK_HEARTBEAT_FILE.with_suffix(".json.tmp")
+            with tmp_path.open("w", encoding="utf-8") as f:
+                json.dump(payload, f, separators=(",", ":"))
+            os.replace(tmp_path, TASK_HEARTBEAT_FILE)
+            self._heartbeat_file_error_logged = False
+        except Exception as exc:
+            if not self._heartbeat_file_error_logged:
+                logger.warning("DMS: Failed to persist task heartbeats: %s", exc)
+                self._heartbeat_file_error_logged = True
 
     async def check_timeout(self) -> bool:
         """Check if any critical agent heartbeat timeout exceeded."""
