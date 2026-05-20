@@ -789,9 +789,10 @@ class TradingCoordinator:
                                 ),
                             ),
                         ]
+                        live_only_agents = []
 
                         if self.brain.native_slm and self.brain.native_slm.is_available:
-                            gated_agents.append(
+                            live_only_agents.append(
                                 (
                                     "Native_SLM",
                                     lambda: self.brain.native_slm.evaluate_proposal(shared_context),
@@ -841,6 +842,31 @@ class TradingCoordinator:
                                 return_exceptions=True,
                             )
 
+                            for name, res in zip(names, results, strict=False):
+                                if isinstance(res, (Exception, asyncio.TimeoutError)):
+                                    logger.error(f"Neural Gate: {name} Failed or Timed Out: {res}")
+                                    gated_votes.append(
+                                        {
+                                            "agent": name,
+                                            "vote": "ABSTAIN",
+                                            "confidence": 0.0,
+                                            "reason": "Latency/Error abstain",
+                                            "timestamp": timestamp,
+                                        }
+                                    )
+                                else:
+                                    gated_votes.append(res)
+
+                        if live_only_agents:
+                            names = [n for n, _ in live_only_agents]
+                            funcs = [f for _, f in live_only_agents]
+                            results = await asyncio.gather(
+                                *[
+                                    asyncio.wait_for(_poll_neural_safe(name, func), timeout=120.0)
+                                    for name, func in zip(names, funcs, strict=False)
+                                ],
+                                return_exceptions=True,
+                            )
                             for name, res in zip(names, results, strict=False):
                                 if isinstance(res, (Exception, asyncio.TimeoutError)):
                                     logger.error(f"Neural Gate: {name} Failed or Timed Out: {res}")
