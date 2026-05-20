@@ -33,6 +33,7 @@ if _src not in sys.path:
 
 import asyncio
 import asyncio.subprocess
+import json
 import logging
 import sqlite3
 import subprocess
@@ -647,6 +648,8 @@ class TradingSystem:
                             "ALTER TABLE trades ADD COLUMN account_id TEXT DEFAULT 'UNKNOWN'"
                         )
 
+                self._ensure_runtime_telemetry_schema(cursor)
+                self.db_conn.commit()
                 cursor.close()
                 logger.info(f"Database tables verified: {', '.join(tables)}")
 
@@ -655,6 +658,145 @@ class TradingSystem:
             except Exception as e:
                 logger.error(f"Database initialization failed: {e}")
                 raise
+
+    def _ensure_runtime_telemetry_schema(self, cursor: sqlite3.Cursor) -> None:
+        """Ensure dashboard/API telemetry tables are present and readable."""
+        cursor.executescript("""
+            CREATE TABLE IF NOT EXISTS system_events (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                timestamp TEXT,
+                event_type TEXT,
+                severity TEXT,
+                agent TEXT,
+                message TEXT,
+                details TEXT
+            );
+            CREATE TABLE IF NOT EXISTS dhatu_readings (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                timestamp TEXT,
+                dhatu_state TEXT,
+                base_modifier REAL,
+                freshness_score REAL,
+                final_modifier REAL,
+                instrument TEXT
+            );
+            CREATE TABLE IF NOT EXISTS performance_summary (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                date TEXT,
+                total_trades INTEGER DEFAULT 0,
+                wins INTEGER DEFAULT 0,
+                losses INTEGER DEFAULT 0,
+                win_rate REAL DEFAULT 0.0,
+                total_r REAL DEFAULT 0.0,
+                max_drawdown REAL DEFAULT 0.0,
+                daily_pnl REAL DEFAULT 0.0,
+                broker TEXT,
+                entropy_score REAL DEFAULT 0.0
+            );
+        """)
+
+        cursor.execute("PRAGMA table_info(performance_summary)")
+        performance_cols = {row[1] for row in cursor.fetchall()}
+        for column, decl in {
+            "key": "TEXT",
+            "value": "TEXT",
+            "updated_at": "TIMESTAMP",
+        }.items():
+            if column not in performance_cols:
+                cursor.execute(f"ALTER TABLE performance_summary ADD COLUMN {column} {decl}")
+
+        cursor.execute(
+            "CREATE INDEX IF NOT EXISTS idx_system_events_ts ON system_events(timestamp)"
+        )
+        cursor.execute(
+            "CREATE INDEX IF NOT EXISTS idx_dhatu_readings_ts ON dhatu_readings(timestamp)"
+        )
+
+    def _record_system_event(
+        self,
+        event_type: str,
+        message: str,
+        *,
+        severity: str = "INFO",
+        agent: str = "main",
+        details: dict[str, Any] | None = None,
+    ) -> None:
+        """Persist a concise runtime event for dashboards and audits."""
+        if not self.db_conn:
+            return
+        try:
+            self.db_conn.execute(
+                "INSERT INTO system_events "
+                "(timestamp, event_type, severity, agent, message, details) "
+                "VALUES (?, ?, ?, ?, ?, ?)",
+                (
+                    datetime.now(timezone.utc).isoformat(),
+                    event_type,
+                    severity,
+                    agent,
+                    message,
+                    json.dumps(details or {}),
+                ),
+            )
+        except Exception as exc:
+            logger.debug("System event write skipped: %s", exc)
+
+    def _refresh_performance_summary(self) -> None:
+        """Refresh the dashboard performance row even when no trade exits occur."""
+        if not self.db_conn:
+            return
+        try:
+            cursor = self.db_conn.cursor()
+            self._ensure_runtime_telemetry_schema(cursor)
+            cursor.execute("""
+                SELECT
+                    COUNT(*) AS total_count,
+                    SUM(CASE WHEN COALESCE(net_pnl, pnl_dollars, 0) > 0 THEN 1 ELSE 0 END) AS wins,
+                    SUM(CASE WHEN COALESCE(net_pnl, pnl_dollars, 0) < 0 THEN 1 ELSE 0 END) AS losses,
+                    SUM(COALESCE(net_pnl, pnl_dollars, 0)) AS net_pnl,
+                    AVG(r_multiple) AS avg_r
+                FROM trades
+                WHERE outcome NOT IN ('OPEN', 'ORPHANED')
+            """)
+            row = cursor.fetchone()
+            total_count = int(row[0] or 0)
+            wins = int(row[1] or 0)
+            losses = int(row[2] or 0)
+            summary = {
+                "closed_count": total_count,
+                "wins": wins,
+                "losses": losses,
+                "win_rate": (wins / total_count) if total_count else 0.0,
+                "net_pnl": float(row[3] or 0.0),
+                "avg_r": float(row[4] or 0.0),
+                "updated_from": "main.heartbeat",
+            }
+            now = datetime.now(timezone.utc)
+            cursor.execute(
+                "UPDATE performance_summary SET value=?, updated_at=? WHERE key='latest'",
+                (json.dumps(summary), now),
+            )
+            if cursor.rowcount == 0:
+                cursor.execute(
+                    "INSERT INTO performance_summary "
+                    "(date, total_trades, wins, losses, win_rate, total_r, daily_pnl, "
+                    "key, value, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    (
+                        now.date().isoformat(),
+                        total_count,
+                        wins,
+                        losses,
+                        summary["win_rate"],
+                        summary["avg_r"],
+                        summary["net_pnl"],
+                        "latest",
+                        json.dumps(summary),
+                        now,
+                    ),
+                )
+            cursor.close()
+        except Exception as exc:
+            logger.debug("Performance summary refresh skipped: %s", exc)
 
     def _create_basic_schema(self) -> None:
         """Create minimal schema if schema.sql doesn't exist"""
@@ -1563,6 +1705,13 @@ class TradingSystem:
                                 "INSERT OR REPLACE INTO system_state (key, value) VALUES (?, ?)",
                                 ("system_status", "running"),
                             )
+                            self._record_system_event(
+                                "startup",
+                                "Trading system startup completed",
+                                agent="main",
+                                details={"mode": self.mode},
+                            )
+                            self._refresh_performance_summary()
                             db.commit()
                             cursor.close()
                             break  # Success
@@ -1674,6 +1823,13 @@ class TradingSystem:
                             "VALUES (?, ?, CURRENT_TIMESTAMP)",
                             ("mt5_status", mt5_value),
                         )
+                        self._record_system_event(
+                            "heartbeat",
+                            "Runtime heartbeat",
+                            agent="main",
+                            details={"ibkr": ibkr_value, "mt5": mt5_value},
+                        )
+                        self._refresh_performance_summary()
                         db.commit()
                         cursor.close()
                     except sqlite3.OperationalError as e:
