@@ -143,6 +143,7 @@ class DataPipeline:
         # Explicit type-safety cast for Vault-retrieved keys
         self.finnhub_key = str(finnhub_key) if finnhub_key else ""
         self.is_running = False
+        self.last_vix: float | None = None
         self._last_reality_check: dict[str, float] = {}  # symbol -> timestamp (time.monotonic)
 
         # SharedIntelligenceBus — publishes candle.batch so Brain wakes immediately
@@ -596,36 +597,73 @@ class DataPipeline:
         Returns:
             Current VIX value or 0.0 if error
         """
+        async def _fetch_yahoo_chart_vix() -> float | None:
+            session = await self._get_http_session()
+            url = "https://query1.finance.yahoo.com/v8/finance/chart/%5EVIX"
+            params = {"range": "5d", "interval": "1d"}
+            async with session.get(url, params=params) as response:
+                if response.status != 200:
+                    logger.warning("VIX Yahoo chart fallback returned HTTP %s", response.status)
+                    return None
+                payload = await response.json()
+            result = payload.get("chart", {}).get("result") or []
+            if not result:
+                return None
+            quote = (result[0].get("indicators", {}).get("quote") or [{}])[0]
+            closes = quote.get("close") or []
+            valid_closes = [float(v) for v in closes if v is not None]
+            return valid_closes[-1] if valid_closes else None
+
         try:
             ticker = await asyncio.to_thread(yf.Ticker, "^VIX")
             hist = None
-            for attempt in range(2):
+            for attempt, (period, interval) in enumerate((("1d", "1m"), ("5d", "1d")), start=1):
                 try:
-                    hist = await asyncio.to_thread(ticker.history, period="1d", interval="1m")
+                    hist = await asyncio.to_thread(ticker.history, period=period, interval=interval)
                     if hist is not None and not hist.empty:
                         break
                 except Exception as e:
-                    if "subscriptable" in str(e).lower():
+                    err = str(e).lower()
+                    if "subscriptable" in err or "nonetype" in err:
                         logger.warning(
-                            f"VIX yfinance glitch. Attempt {attempt + 1} failed. Jittering..."
+                            "VIX yfinance glitch. Attempt %s failed. Jittering...",
+                            attempt,
                         )
                         await asyncio.sleep(1.0)
                     else:
                         raise e
 
             if hist is None or hist.empty:
-                logger.warning("No VIX data available")
+                fallback_vix = await _fetch_yahoo_chart_vix()
+                if fallback_vix is None:
+                    if self.last_vix is not None:
+                        logger.warning(
+                            "No fresh VIX data available; retaining last value %.2f",
+                            self.last_vix,
+                        )
+                        return self.last_vix
+                    logger.warning("No VIX data available")
+                    return 0.0
+                vix_value = fallback_vix
+            else:
+                close_col = (
+                    "Close"
+                    if "Close" in hist.columns
+                    else ("close" if "close" in hist.columns else None)
+                )
+                if close_col is None:
+                    fallback_vix = await _fetch_yahoo_chart_vix()
+                    if fallback_vix is None:
+                        logger.warning("VIX data missing 'Close' column")
+                        return self.last_vix or 0.0
+                    vix_value = fallback_vix
+                else:
+                    vix_value = float(hist[close_col].iloc[-1])
+
+            if vix_value <= 0:
+                logger.warning("Rejected non-positive VIX value: %.4f", vix_value)
                 return 0.0
 
-            close_col = (
-                "Close"
-                if "Close" in hist.columns
-                else ("close" if "close" in hist.columns else None)
-            )
-            if close_col is None:
-                logger.warning("VIX data missing 'Close' column")
-                return 0.0
-            vix_value = float(hist[close_col].iloc[-1])
             self.last_vix = vix_value
 
             def _save_vix():
@@ -651,8 +689,8 @@ class DataPipeline:
             return vix_value
 
         except Exception as e:
-            logger.error(f"Error fetching VIX: {e}")
-            return 0.0
+            logger.error("Error fetching VIX: %r", e)
+            return self.last_vix or 0.0
 
     async def fetch_news(self, symbol: str, limit: int = 10) -> list[dict]:
         """
@@ -692,7 +730,7 @@ class DataPipeline:
                             )
                 logger.info(f"Finnhub fetched {len(data[:5])} news items for {symbol}")
             except Exception as e:
-                logger.error(f"Finnhub news fetch failed for {symbol}: {e}")
+                logger.error("Finnhub news fetch failed for %s: %r", symbol, e)
 
         # 2. Try OpenBB (multi-source aggregation)
         if self.openbb and self.openbb.is_available:
