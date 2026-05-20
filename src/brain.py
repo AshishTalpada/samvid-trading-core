@@ -4336,7 +4336,7 @@ class TradingBrain:
                             self.swarm_predictor.evaluate_proposal(global_ctx), timeout=60.0
                         )
                         res["timestamp"] = now_iso
-                        new_convictions["Swarm_Predictor"] = res
+                        new_convictions[f"Swarm_Predictor:{res.get('symbol', 'GLOBAL')}"] = res
                         logger.debug("Brain: Swarm_Predictor synchronized.")
                     except (asyncio.TimeoutError, Exception) as e:
                         import traceback
@@ -4354,7 +4354,7 @@ class TradingBrain:
                             self.mind_ultrathink.evaluate_proposal(global_ctx), timeout=20.0
                         )
                         res["timestamp"] = now_iso
-                        new_convictions["Mind_Ultrathink"] = res
+                        new_convictions[f"Mind_Ultrathink:{res.get('symbol', 'GLOBAL')}"] = res
                         logger.debug("Brain: Mind_Ultrathink synchronized.")
                     except (asyncio.TimeoutError, Exception) as e:
                         logger.warning(
