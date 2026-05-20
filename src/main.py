@@ -40,8 +40,10 @@ import subprocess
 import time
 from collections.abc import Callable, Coroutine
 from datetime import datetime, timezone
+from datetime import time as dt_time
 from logging.handlers import RotatingFileHandler
 from typing import TYPE_CHECKING, Any
+from zoneinfo import ZoneInfo
 
 import aiohttp
 
@@ -2165,7 +2167,11 @@ class TradingSystem:
                 # If we haven't seen a tick in 5 minutes, we are likely 'Blinded'.
                 # Do not refresh _last_tick_time here; only _on_hft_pulse() may
                 # prove the data plane is actually alive.
-                if drift > 300 and not self._recalibration_in_progress:
+                if (
+                    drift > 300
+                    and not self._recalibration_in_progress
+                    and self._is_us_equity_market_open()
+                ):
                     now_mono = time.monotonic()
                     if now_mono - self._last_data_starvation_alert > 300:
                         logger.warning(
@@ -2211,6 +2217,16 @@ class TradingSystem:
                 logger.error(f"Watchdog Error (Aegis): {e}")
 
             pass
+
+    def _is_us_equity_market_open(self) -> bool:
+        """Return True during regular US equity market hours."""
+        try:
+            now_et = datetime.now(ZoneInfo("America/New_York"))
+            if now_et.weekday() >= 5:
+                return False
+            return dt_time(9, 30) <= now_et.time() <= dt_time(16, 0)
+        except Exception:
+            return True
 
     async def _run_hft_pulse_worker(self) -> None:
         """
