@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import math
 import time
@@ -17,11 +18,14 @@ class MacroAgent:
         self.seismic_risk = 0.0
         self.solar_risk = 0.0
 
-    def fetch_seismic_risk(self) -> float:
-        try:
+    async def fetch_seismic_risk(self) -> float:
+        def _fetch():
             r = requests.get(USGS_API, timeout=5)
             quakes = r.json().get("features", [])
-            max_mag = max((q["properties"]["mag"] or 0 for q in quakes), default=0)
+            return max((q["properties"]["mag"] or 0 for q in quakes), default=0)
+
+        try:
+            max_mag = await asyncio.to_thread(_fetch)
             self.seismic_risk = min(1.0, max_mag / 9.0)
         except Exception as e:
             logger.error(f"[MACRO] Seismic fetch failed: {e}")
@@ -30,3 +34,4 @@ class MacroAgent:
     def composite_risk_multiplier(self) -> float:
         """Returns 0.0 (no risk) to 1.0 (extreme risk). Use to scale position sizing down."""
         return max(self.seismic_risk, self.solar_risk)
+
