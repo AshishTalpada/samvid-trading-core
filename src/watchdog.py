@@ -141,7 +141,7 @@ def _parse_heartbeat_value(value: object) -> datetime | None:
         return None
 
 
-def check_task_liveness() -> dict:
+def check_task_liveness(watchdog_start_time: datetime) -> dict:
     """
     Fix 14: Detects live-locked tasks by reading per-task heartbeat timestamps.
     A task is considered live-locked if it hasn't written a heartbeat in LIVENESS_TIMEOUT seconds.
@@ -152,11 +152,28 @@ def check_task_liveness() -> dict:
     if not os.path.exists(TASK_HEARTBEAT_FILE):
         return stale_tasks
     try:
+        file_mtime = os.path.getmtime(TASK_HEARTBEAT_FILE)
+        if file_mtime < watchdog_start_time.timestamp():
+            logger.info("Watchdog: Ignoring task heartbeat registry from prior session.")
+            return stale_tasks
+
         with open(TASK_HEARTBEAT_FILE, "r") as f:
-            heartbeats = json.load(f)
+            payload = json.load(f)
+        if isinstance(payload, dict) and "heartbeats" in payload:
+            heartbeats = payload.get("heartbeats") or {}
+        else:
+            heartbeats = payload
+
+        if not isinstance(heartbeats, dict):
+            logger.warning("Watchdog: Invalid task heartbeat registry shape.")
+            return stale_tasks
+
         now = time.time()
         for task_name, last_ts in heartbeats.items():
-            age = now - float(last_ts)
+            heartbeat_ts = float(last_ts)
+            if heartbeat_ts < watchdog_start_time.timestamp():
+                continue
+            age = now - heartbeat_ts
             if age > LIVENESS_TIMEOUT:
                 stale_tasks[task_name] = age
                 logger.critical(
@@ -245,7 +262,7 @@ def run_watchdog():
                 continue
 
             is_alive = check_heartbeat(watchdog_start_time)
-            stale = check_task_liveness()
+            stale = check_task_liveness(watchdog_start_time)
             mem_usage = check_memory_usage()
 
             mem_limit = get_dynamic_memory_threshold()
