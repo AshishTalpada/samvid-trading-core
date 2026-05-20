@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import re
 from typing import Dict, List
@@ -25,10 +26,10 @@ class SECSemanticAgent:
         "criminal investigation",
     ]
 
-    def search(
+    async def search(
         self, query: str, start_date: str = "2020-01-01", end_date: str = "2025-12-31"
     ) -> List[Dict]:
-        try:
+        def _blocking_search():
             url = self.EDGAR_FULL_TEXT.format(requests.utils.quote(query), start_date, end_date)
             r = requests.get(url, timeout=8)
             hits = r.json().get("hits", {}).get("hits", [])
@@ -39,15 +40,25 @@ class SECSemanticAgent:
                 }
                 for h in hits[:10]
             ]
+
+        try:
+            return await asyncio.to_thread(_blocking_search)
         except Exception as e:
             logger.error(f"[SEC] Search failed: {e}")
             return []
 
-    def red_flag_scan(self, ticker: str) -> Dict[str, int]:
-        results = {}
+    async def red_flag_scan(self, ticker: str) -> Dict[str, int]:
+        tasks = []
         for phrase in self.RED_FLAG_PHRASES:
-            hits = self.search(f'"{ticker}" "{phrase}"')
+            tasks.append(self.search(f'"{ticker}" "{phrase}"'))
+
+        search_results = await asyncio.gather(*tasks)
+
+        results = {}
+        for phrase, hits in zip(self.RED_FLAG_PHRASES, search_results, strict=True):
             results[phrase] = len(hits)
             if hits:
                 logger.warning(f"[SEC] Red flag '{phrase}' for {ticker}: {len(hits)} filings")
         return results
+
+
