@@ -1240,9 +1240,17 @@ class DataPipeline:
                 if isinstance(result, Exception):
                     logger.error(f"BACKFILL FAILED for {sym}: {result}")
             logger.info(" CORE SYNC COMPLETE: Database established continuity in background.")
+
+            if not self.is_running:
+                logger.info("DataPipeline: Skipping news/research loops after shutdown request.")
+                return
+
             # Launch periodic research and news tasks
             self._news_task = asyncio.create_task(self._run_news_loop())
             self._research_task = asyncio.create_task(self._run_research_loop())
+        except asyncio.CancelledError:
+            logger.info("DataPipeline: Background sync cancelled.")
+            raise
         except Exception as e:
             logger.error(f"Error during background core sync: {e}")
 
@@ -1457,6 +1465,11 @@ class DataPipeline:
                 logger.warning("DataPipeline: Some tasks failed to cancel within 5s.")
             except Exception as e:
                 logger.error(f"Error during parallel task cancellation: {e}")
+            finally:
+                for attr, _name in tasks_to_cancel:
+                    task = getattr(self, attr, None)
+                    if task is None or task.done() or task.cancelled():
+                        setattr(self, attr, None)
 
         # Wait for all in-flight database threads to complete
         wait_start = time.time()
@@ -1473,9 +1486,16 @@ class DataPipeline:
 
         # Cancel any lingering enrichment tasks
 
-        for t in list(self._enrichment_tasks):
-            if not t.done():
-                t.cancel()
+        enrichment_tasks = [t for t in self._enrichment_tasks if not t.done()]
+        for task in enrichment_tasks:
+            task.cancel()
+        if enrichment_tasks:
+            try:
+                await asyncio.wait_for(
+                    asyncio.gather(*enrichment_tasks, return_exceptions=True), timeout=5.0
+                )
+            except asyncio.TimeoutError:
+                logger.warning("DataPipeline: Enrichment tasks failed to cancel within 5s.")
         self._enrichment_tasks.clear()
 
         if self._http_session and not self._http_session.closed:
