@@ -347,11 +347,10 @@ def run_watchdog():
                         logger.info(
                             "Watchdog: Sovereign Engine REBOOTED as PID %s.", reboot_proc.pid
                         )
-                        try:
-                            with open(pid_file, "w") as f:
-                                f.write(str(reboot_proc.pid))
-                        except Exception as exc:
-                            logger.debug("Watchdog: Failed to persist reboot PID: %s", exc)
+                        # main.py owns data/main.pid after it passes the
+                        # single-instance guard. Writing the child PID here can
+                        # make a half-started reboot look like the active engine
+                        # and cause duplicate-instance false positives.
                 else:
                     logger.warning(
                         f"RESTART THROTTLED: Next attempt in "
