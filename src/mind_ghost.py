@@ -32,6 +32,7 @@ class MindGhost:
         # Track when next probe is allowed per service (exponential backoff)
         self._probe_next_allowed: dict[str, float] = {}
         self._probe_backoff_sec: dict[str, float] = {"IBKR": 30.0, "MT5": 60.0}
+        self._next_api_loss_alert = 0.0
 
         # FIX: Store task references to allow clean cancellation on shutdown.
         # Dropping these references causes 'Task was destroyed but it is pending!'
@@ -120,12 +121,14 @@ class MindGhost:
                         )
                 if self.last_api_heartbeat > self.startup_time:
                     if current_time - self.last_api_heartbeat > 60.0:
-                        logger.error(
-                            f"MindGhost: API HEARTBEAT LOST! (Last: "
-                            f"{int(current_time - self.last_api_heartbeat)}s ago). "
-                            "Service may be hanging."
-                        )
-                        await self._trigger_ghost_reset("IBKR")
+                        if current_time >= self._next_api_loss_alert:
+                            logger.error(
+                                f"MindGhost: API HEARTBEAT LOST! (Last: "
+                                f"{int(current_time - self.last_api_heartbeat)}s ago). "
+                                "Service may be hanging."
+                            )
+                            await self._trigger_ghost_reset("IBKR")
+                            self._next_api_loss_alert = current_time + 60.0
                 else:
                     if int(current_time) % 15 == 0:
                         logger.debug("MindGhost: Waiting for Sovereign Matrix Handshake...")
@@ -239,6 +242,7 @@ class MindGhost:
             from time_sync import TimeSync
 
             self.last_api_heartbeat = TimeSync.now().timestamp()
+            self._next_api_loss_alert = 0.0
             # If we were in handshake mode, this confirms success
             if self.last_api_heartbeat > self.startup_time:
                 self.ghost_mirror[service] = "connected"
