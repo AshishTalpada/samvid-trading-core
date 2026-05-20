@@ -1,5 +1,5 @@
+import asyncio
 import logging
-import time
 
 import requests
 
@@ -16,14 +16,17 @@ class SolarActivityMonitor:
     Sovereign reduces satellite-dependent data weight during solar storms.
     """
 
-    def fetch_kp_index(self) -> float:
-        try:
+    async def fetch_kp_index(self) -> float:
+        def _fetch():
             r = requests.get(NOAA_SOLAR_API, timeout=5)
             data = r.json()
             latest = data[-1] if data else {}
             kp = float(latest.get("kp_index", 0.0))
             logger.info(f"[SOLAR] Current Kp-index: {kp}")
             return kp
+
+        try:
+            return await asyncio.to_thread(_fetch)
         except Exception as e:
             logger.error(f"[SOLAR] NOAA fetch failed: {e}")
             return 0.0
@@ -36,3 +39,4 @@ class SolarActivityMonitor:
         if kp >= 3.0:
             return 0.8
         return 1.0
+
