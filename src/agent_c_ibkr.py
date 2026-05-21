@@ -285,13 +285,17 @@ class IBKRConnection:
         """Sovereign Order Shield: Checks if an order for this symbol is already active."""
         if not self.ib:
             return False
-        for trade in self.ib.trades():
-            if trade.contract.symbol == symbol and trade.orderStatus.status in (
-                "PendingSubmit",
-                "PreSubmitted",
-                "Submitted",
-            ):
-                return True
+        try:
+            for trade in self.ib.trades():
+                if trade.contract.symbol == symbol and trade.orderStatus.status in (
+                    "PendingSubmit",
+                    "PreSubmitted",
+                    "Submitted",
+                ):
+                    return True
+        except Exception as exc:
+            logger.warning("IBKR: pending-order check failed for %s: %s", symbol, exc)
+            return True
         return False
 
     def is_connected(self) -> bool:
@@ -507,7 +511,7 @@ class IBKRConnection:
 
     async def ensure_connection(self) -> bool:
         """Handshake with MindGhost (Agent J) for resilient infra."""
-        if not self.is_connected and not self.is_reconnecting:
+        if not self.is_connected() and not self.is_reconnecting:
             logger.warning("IBKR: Connection offline. Requesting infrastructure heal...")
             return False
 
@@ -516,7 +520,7 @@ class IBKRConnection:
         if not self._callbacks_registered:
             self._setup_callbacks()
 
-        if self.is_connected and not self._recovered_orders:
+        if self.is_connected() and not self._recovered_orders:
             _t = asyncio.create_task(self.recover_orphaned_orders())
             self._background_tasks.add(_t)
             _t.add_done_callback(self._background_tasks.discard)
@@ -528,7 +532,7 @@ class IBKRConnection:
         Scans SQLite for orders that were 'In-Flight' during a crash.
         Cross-references with the broker to re-bind or alert.
         """
-        if not self.is_connected:
+        if not self.is_connected():
             return
 
         logger.info("IBKR: Initiating Orphaned Order Recovery...")
@@ -582,7 +586,7 @@ class IBKRConnection:
         Returning STARTING_CAPITAL_CAD when offline was causing the sizer to
         calculate positions based on fake capital, resulting in 1000+ share orders.
         """
-        if not self.is_connected:
+        if not self.is_connected():
             logger.warning(
                 "IBKR: get_account_value() called while OFFLINE. "
                 "Returning 0 to block sizer. Will retry once connected."
@@ -633,7 +637,7 @@ class IBKRConnection:
         """
         Pre-qualifies contracts into the local cache to achieve < 50ms order firing.
         """
-        if not self.is_connected:
+        if not self.is_connected():
             return
 
         from ib_insync import Stock
@@ -720,6 +724,15 @@ class IBKRConnection:
             )
             return []
 
+        try:
+            shares = int(shares)
+        except (TypeError, ValueError):
+            logger.error("IBKR: Invalid bracket share quantity for %s: %r", symbol, shares)
+            return []
+        if shares <= 0:
+            logger.warning("IBKR: Refusing non-positive bracket size for %s: %s", symbol, shares)
+            return []
+
         # Reduced from 30s to 1s to allow Scalping/HFT while preventing API flooding
         # EMERGENCY urgency (stop-loss / VETO exits) always bypasses this throttle.
         wait_seconds = (datetime.now() - self._last_trade_time).total_seconds()
@@ -736,7 +749,7 @@ class IBKRConnection:
             )
             return []
 
-        if not self.is_connected:
+        if not self.is_connected():
             from config import FORCED_PAPER_MODE
 
             if FORCED_PAPER_MODE:
@@ -914,12 +927,21 @@ class IBKRConnection:
             )
             return None
 
+        try:
+            shares = int(shares)
+        except (TypeError, ValueError):
+            logger.error("IBKR: Invalid share quantity for %s: %r", symbol, shares)
+            return None
+        if shares <= 0:
+            logger.warning("IBKR: Refusing non-positive order size for %s: %s", symbol, shares)
+            return None
+
         wait_seconds = (datetime.now() - self._last_trade_time).total_seconds()
         if wait_seconds < 1.0 and urgency != "EMERGENCY":
             logger.warning(f" DISCIPLINE THROTTLE: Order for {symbol} suppressed.")
             return None
 
-        if not self.is_connected:
+        if not self.is_connected():
             from config import FORCED_PAPER_MODE
 
             if FORCED_PAPER_MODE:
@@ -983,6 +1005,7 @@ class IBKRConnection:
 
                 target_accounts = [target_acc] if target_acc else [None]
 
+                primary_id = None
                 for i, acc in enumerate(target_accounts):
                     if urgency == "EMERGENCY":
                         o = MarketOrder(direction, shares)
@@ -1045,6 +1068,10 @@ class IBKRConnection:
                         self._background_tasks.add(_audit_t)
                         _audit_t.add_done_callback(self._background_tasks.discard)
 
+                if primary_id is None:
+                    logger.error("IBKR: No primary order id returned for %s.", symbol)
+                    return None
+
                 self._last_trade_time = datetime.now()  # Update Discipline Lock
                 return primary_id
 
@@ -1057,7 +1084,7 @@ class IBKRConnection:
         Maintains 'Dormant Orders' on the exchange to preserve a 'Warm Path'.
         Modifying an existing order is often faster than submitting a new one.
         """
-        if not self.is_connected:
+        if not self.is_connected():
             return
 
         from ib_insync import LimitOrder, Stock
@@ -1081,14 +1108,24 @@ class IBKRConnection:
             return None
 
         trade = self._warm_slots[symbol]
-        if trade.status in ("Filled", "Cancelled"):
+        status = getattr(getattr(trade, "orderStatus", None), "status", "")
+        if status in ("Filled", "Cancelled", "Inactive"):
             del self._warm_slots[symbol]
+            return None
+
+        rounded_price = self.round_to_tick(price)
+        if rounded_price <= 0:
+            logger.warning(
+                "IBKR: Warm-slot path rejected for %s because execution price is %.4f.",
+                symbol,
+                price,
+            )
             return None
 
         # Transform the dormant order into the real tiger
         trade.order.action = direction
         trade.order.totalQuantity = shares
-        trade.order.lmtPrice = self.round_to_tick(price)
+        trade.order.lmtPrice = rounded_price
         trade.order.transmit = True
 
         self.ib.placeOrder(trade.contract, trade.order)
@@ -1109,7 +1146,7 @@ class IBKRConnection:
         target_acc = trade.order.account
         for _attempt in range(6):  # Poll for 60s total
             await asyncio.sleep(10)
-            if trade.orderStatus.status in ("Filled", "Submitted", "PreSubmitted"):
+            if trade.orderStatus.status == "Filled":
                 logger.info(f"✓ AUDIT SUCCESS: {symbol} execution verified (Status: Filled).")
                 return  # Alignment confirmed
 
@@ -1121,7 +1158,7 @@ class IBKRConnection:
         self._last_heartbeat = datetime(1970, 1, 1)  # Poison the heartbeat
 
     def cancel_order(self, order_id: int) -> bool:
-        if not self.is_connected:
+        if not self.is_connected():
             return False
         try:
             orders = self.ib.openOrders()
@@ -1135,7 +1172,7 @@ class IBKRConnection:
             return False
 
     def get_positions(self) -> list[dict]:
-        if not self.is_connected:
+        if not self.is_connected():
             return []
         try:
             positions = self.ib.positions()
