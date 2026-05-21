@@ -51,7 +51,26 @@ class SmartExecutionRouter:
         # Sort by lowest fee
         return sorted(online.keys(), key=lambda k: online[k]["fee_bps"])[0]  # type: ignore
 
-    def route_order(self, ticker: str, size: float, urgency: str = "NORMAL") -> str:
-        venue = self.select_venue(size * 100, urgency)  # Approximating USD value
-        logger.info(f"[ROUTER] Routing {size} {ticker} -> {venue} (Urgency: {urgency})")
+    def route_order(
+        self,
+        ticker: str,
+        size: float,
+        urgency: str = "NORMAL",
+        reference_price: float | None = None,
+    ) -> str:
+        size = float(size)
+        if size <= 0:
+            logger.error("[ROUTER] Rejecting non-positive order size for %s: %s", ticker, size)
+            return "NONE"
+
+        price = float(reference_price) if reference_price and reference_price > 0 else 100.0
+        venue = self.select_venue(size * price, urgency)
+        logger.info(
+            "[ROUTER] Routing %.4f %s -> %s (Urgency: %s, RefPx: %.4f)",
+            size,
+            ticker,
+            venue,
+            urgency,
+            price,
+        )
         return venue
