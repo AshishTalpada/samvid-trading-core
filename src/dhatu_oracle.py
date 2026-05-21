@@ -12,6 +12,7 @@ import time
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from typing import TYPE_CHECKING, Any, Dict
+from zoneinfo import ZoneInfo
 
 import httpx
 import numpy as np
@@ -631,6 +632,20 @@ class TVNewsScent:
         self._last_connect_log = 0.0
         self._last_disconnect_log = 0.0
         self._short_disconnects = 0
+        self._instability_cycles = 0
+        self._last_after_hours_pause_log = 0.0
+        self._allow_after_hours = os.getenv("SOVEREIGN_TVNEWS_AFTER_HOURS", "0") == "1"
+        self._after_hours_pause_sec = max(
+            300, int(os.getenv("SOVEREIGN_TVNEWS_AFTER_HOURS_PAUSE_SEC", "900"))
+        )
+
+    def _is_us_equity_market_open(self) -> bool:
+        """Cheap wall-clock gate to avoid hammering the TV socket after-hours."""
+        now = datetime.now(ZoneInfo("America/New_York"))
+        if now.weekday() >= 5:
+            return False
+        minutes = now.hour * 60 + now.minute
+        return (9 * 60 + 30) <= minutes < (16 * 60)
 
     def _format_message(self, data: dict) -> str:
         """TradingView ~m~ framing."""
@@ -681,6 +696,17 @@ class TVNewsScent:
 
         while self._running:
             try:
+                if not self._allow_after_hours and not self._is_us_equity_market_open():
+                    now_mono = time.monotonic()
+                    if now_mono - self._last_after_hours_pause_log > self._after_hours_pause_sec:
+                        logger.info(
+                            "TVNewsScent: paused while US equity market is closed "
+                            "(set SOVEREIGN_TVNEWS_AFTER_HOURS=1 to force it on)."
+                        )
+                        self._last_after_hours_pause_log = now_mono
+                    await asyncio.sleep(self._after_hours_pause_sec)
+                    continue
+
                 target_url = self.url
                 target_headers = headers
                 async with websockets.connect(
@@ -752,6 +778,9 @@ class TVNewsScent:
                     session_age = disconnected_at - connected_at
                     if session_age < 5.0:
                         self._short_disconnects += 1
+                    elif session_age > 120.0:
+                        self._short_disconnects = 0
+                        self._instability_cycles = 0
                     else:
                         self._short_disconnects = 0
                     if disconnected_at - self._last_disconnect_log > 300.0:
@@ -766,16 +795,22 @@ class TVNewsScent:
                             session_age,
                         )
                     if self._short_disconnects >= 5:
+                        self._instability_cycles += 1
+                        cooldown = min(1800, 300 * (2 ** min(self._instability_cycles - 1, 3)))
                         logger.warning(
                             "TVNewsScent: TradingView WS is unstable "
-                            "(%s short disconnects). Cooling down for 5 minutes.",
+                            "(%s short disconnects). Cooling down for %d minutes.",
                             self._short_disconnects,
+                            max(1, cooldown // 60),
                         )
-                        await asyncio.sleep(300)
+                        await asyncio.sleep(cooldown)
                         self._short_disconnects = 0
             except Exception as e:
                 self._connected = False
-                logger.error(f" TVNewsScent: Neural Scent blip (Check Origin/Proxy): {e}")
+                logger.warning(
+                    "TVNewsScent: Neural Scent transient failure: %s",
+                    _short_exc(e) or repr(e),
+                )
 
             # Replaces the unstable fixed sleep inside the except block.
             await asyncio.sleep(15)
