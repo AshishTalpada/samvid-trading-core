@@ -1925,19 +1925,29 @@ class TradingSystem:
             logger.info("[SHUTDOWN STEP 1/9] Calculating daily performance...")
             daily_pnl = 0.0
             trades_today = 0
+            shadow_rejections_today = 0
             if hasattr(self, "db_conn") and self.db_conn:
                 try:
                     cursor = self.db_conn.cursor()
                     # Use UTC today for the tally to match DB records
                     today_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
                     cursor.execute(
-                        "SELECT pnl_dollars FROM trades WHERE timestamp LIKE ?", (f"{today_str}%",)
+                        "SELECT pnl_dollars FROM trades "
+                        "WHERE timestamp LIKE ? AND outcome != 'SHADOW_REJECTED'",
+                        (f"{today_str}%",),
                     )
                     rows = cursor.fetchall()
                     trades_today = len(rows)
                     for row in rows:
                         if row[0] is not None:
                             daily_pnl += float(row[0])
+                    cursor.execute(
+                        "SELECT COUNT(*) FROM trades "
+                        "WHERE timestamp LIKE ? AND outcome = 'SHADOW_REJECTED'",
+                        (f"{today_str}%",),
+                    )
+                    shadow_row = cursor.fetchone()
+                    shadow_rejections_today = int(shadow_row[0] or 0) if shadow_row else 0
                     cursor.close()
                     logger.info(
                         f"✓ Performance Tally: ${daily_pnl:+.2f} over {trades_today} trades."
@@ -1956,6 +1966,7 @@ class TradingSystem:
                     f"<b>Daily Wrap-Up:</b>\n"
                     f"{sign} <b>Total PnL:</b> ${daily_pnl:+.2f}\n"
                     f" <b>Trades Executed:</b> {trades_today}\n"
+                    f" <b>Shadow Rejections:</b> {shadow_rejections_today}\n"
                     f" <b>Status:</b> GRACEFUL_EXIT"
                 )
                 # Shielded Telegram send with slightly longer timeout
