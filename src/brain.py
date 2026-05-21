@@ -10,6 +10,7 @@ Implements:
 
 import asyncio
 import collections
+import inspect
 import json
 import logging
 import os
@@ -1094,6 +1095,22 @@ class TradingBrain:
             or float(getattr(self, "_oracle_risk_modifier", 1.0)) <= 0.0
         )
 
+    def _broker_is_connected(self, conn: Any) -> bool:
+        """Return broker connectivity for agents exposing either a property or method."""
+        if conn is None:
+            return False
+        state = getattr(conn, "is_connected", False)
+        try:
+            if callable(state):
+                state = state()
+            if inspect.isawaitable(state):
+                logger.warning("Broker connectivity check returned awaitable; treating as offline.")
+                return False
+            return bool(state)
+        except Exception as exc:
+            logger.warning("Broker connectivity check failed: %s", exc)
+            return False
+
     async def _decay_risk_modifier(self):
         """Gradually decays the oracle risk modifier back towards baseline (Oracle State)."""
         if not self.dhatu_oracle:
@@ -1827,17 +1844,11 @@ class TradingBrain:
             if self.mode == "paper":
                 broker_online = True
             elif self.mode == "ibkr_paper":
-                broker_online = (
-                    hasattr(self.ibkr_conn, "is_connected") and self.ibkr_conn.is_connected
-                )
+                broker_online = self._broker_is_connected(self.ibkr_conn)
             elif self.active_broker == "IBKR":
-                broker_online = (
-                    hasattr(self.ibkr_conn, "is_connected") and self.ibkr_conn.is_connected
-                )
+                broker_online = self._broker_is_connected(self.ibkr_conn)
             elif self.active_broker == "MT5":
-                broker_online = (
-                    hasattr(self.mt5_conn, "is_connected") and self.mt5_conn.is_connected
-                )
+                broker_online = self._broker_is_connected(self.mt5_conn)
 
             if not broker_online:
                 if self._scan_cycle % 10 == 1:
@@ -2483,13 +2494,9 @@ class TradingBrain:
             if self.mode == "paper":
                 broker_online = True
             elif pos.account_type == "ibkr":
-                broker_online = (
-                    hasattr(self.ibkr_conn, "is_connected") and self.ibkr_conn.is_connected
-                )
+                broker_online = self._broker_is_connected(self.ibkr_conn)
             elif pos.account_type == "mt5":
-                broker_online = (
-                    hasattr(self.mt5_conn, "is_connected") and self.mt5_conn.is_connected
-                )
+                broker_online = self._broker_is_connected(self.mt5_conn)
 
             if not broker_online:
                 logger.warning(
@@ -3342,7 +3349,7 @@ class TradingBrain:
             # 1. Gather Reality from Brokers
             ibkr_reality = {}
             ibkr_polled = False
-            if self.ibkr_conn and self.ibkr_conn.is_connected:
+            if self._broker_is_connected(self.ibkr_conn):
                 ibkr_reality = self.ibkr_conn._positions_cache  # {symbol: qty}
 
                 # SOVEREIGN GUARD: Force real-time poll if cache is empty OR seems incomplete
@@ -3368,7 +3375,7 @@ class TradingBrain:
 
             mt5_reality = {}
             mt5_polled = False
-            if self.mt5_conn and self.mt5_conn.is_connected:
+            if self._broker_is_connected(self.mt5_conn):
                 if hasattr(self.mt5_conn, "get_all_positions") and callable(
                     getattr(self.mt5_conn, "get_all_positions", None)
                 ):
@@ -3451,7 +3458,7 @@ class TradingBrain:
             for sym in sorted(all_symbols):
                 for b in ["ibkr", "mt5"]:
                     reality_map = ibkr_reality if b == "ibkr" else mt5_reality
-                    if b == "mt5" and not (self.mt5_conn and self.mt5_conn.is_connected):
+                    if b == "mt5" and not self._broker_is_connected(self.mt5_conn):
                         continue
 
                     m_pos = next(
