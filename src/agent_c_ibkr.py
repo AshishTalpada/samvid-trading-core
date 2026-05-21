@@ -167,6 +167,14 @@ class IBKRConnection:
         account, purchasing power, margin.
         """
         try:
+            try:
+                shares = int(shares)
+                price = float(price)
+            except (TypeError, ValueError):
+                return False, f"INVALID_ORDER: Non-numeric size/price for {symbol}."
+            if shares <= 0 or price <= 0:
+                return False, f"INVALID_ORDER: Non-positive size/price for {symbol}."
+
             # 0a. TradingState FSM gate — block new entries if HALTED or REDUCING
             allowed, state_reason = TradingStateManager.allow_order(is_close=is_close)
             if not allowed:
@@ -190,7 +198,7 @@ class IBKRConnection:
             # 2. Purchasing Power Guard
             nav_cad = self.get_account_value()
             nav_usd = nav_cad / USD_CAD_RATE
-            order_value = shares * price
+            order_value = abs(shares) * price
             if order_value > nav_usd * 2.0:  # Allow 2x margin maximum
                 return (
                     False,
@@ -1271,9 +1279,16 @@ class PositionSizingChain:
         if balance < 1000:
             step7_final_risk = max(step7_final_risk, 2.0)
 
-        price = kwargs.get("entry_price", kwargs.get("price", 1.0))
-        stop = kwargs.get("stop_price", price * 0.99)
-        spread = kwargs.get("spread", 0.0)
+        try:
+            price = float(kwargs.get("entry_price", kwargs.get("price", 1.0)))
+            stop = float(kwargs.get("stop_price", price * 0.99))
+            spread = max(0.0, float(kwargs.get("spread", 0.0)))
+        except (TypeError, ValueError):
+            logger.error(f"Sizer: [INPUT_VETO] {instrument} received invalid price inputs.")
+            return zero_size()
+        if price <= 0:
+            logger.error(f"Sizer: [INPUT_VETO] {instrument} received non-positive price.")
+            return zero_size()
 
         # Real risk per share must include the spread we cross to enter.
         # For long: Entry is ASK, Stop is BID. Diff = (Ask - Bid) + (Bid - Stop) = Ask - Stop.
