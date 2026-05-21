@@ -625,27 +625,32 @@ class DataPipeline:
             return valid_closes[-1] if valid_closes else None
 
         try:
-            ticker = await asyncio.to_thread(yf.Ticker, "^VIX")
+            vix_value = await _fetch_yahoo_chart_vix()
             hist = None
-            for attempt, (period, interval) in enumerate((("1d", "1m"), ("5d", "1d")), start=1):
-                try:
-                    hist = await asyncio.to_thread(ticker.history, period=period, interval=interval)
-                    if hist is not None and not hist.empty:
-                        break
-                except Exception as e:
-                    err = str(e).lower()
-                    if "subscriptable" in err or "nonetype" in err:
-                        logger.warning(
-                            "VIX yfinance glitch. Attempt %s failed. Jittering...",
-                            attempt,
-                        )
-                        await asyncio.sleep(1.0)
-                    else:
-                        raise e
 
-            if hist is None or hist.empty:
-                fallback_vix = await _fetch_yahoo_chart_vix()
-                if fallback_vix is None:
+            if vix_value is None:
+                ticker = await asyncio.to_thread(yf.Ticker, "^VIX")
+                for attempt, (period, interval) in enumerate(
+                    (("1d", "1m"), ("5d", "1d")), start=1
+                ):
+                    try:
+                        hist = await asyncio.to_thread(
+                            ticker.history, period=period, interval=interval
+                        )
+                        if hist is not None and not hist.empty:
+                            break
+                    except Exception as e:
+                        err = str(e).lower()
+                        if "subscriptable" in err or "nonetype" in err:
+                            logger.warning(
+                                "VIX yfinance glitch. Attempt %s failed. Jittering...",
+                                attempt,
+                            )
+                            await asyncio.sleep(1.0)
+                        else:
+                            raise e
+
+                if hist is None or hist.empty:
                     if self.last_vix is not None:
                         logger.warning(
                             "No fresh VIX data available; retaining last value %.2f",
@@ -654,19 +659,14 @@ class DataPipeline:
                         return self.last_vix
                     logger.warning("No VIX data available")
                     return 0.0
-                vix_value = fallback_vix
-            else:
                 close_col = (
                     "Close"
                     if "Close" in hist.columns
                     else ("close" if "close" in hist.columns else None)
                 )
                 if close_col is None:
-                    fallback_vix = await _fetch_yahoo_chart_vix()
-                    if fallback_vix is None:
-                        logger.warning("VIX data missing 'Close' column")
-                        return self.last_vix or 0.0
-                    vix_value = fallback_vix
+                    logger.warning("VIX data missing 'Close' column")
+                    return self.last_vix or 0.0
                 else:
                     vix_value = float(hist[close_col].iloc[-1])
 
