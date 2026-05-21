@@ -1111,6 +1111,61 @@ class TradingBrain:
             logger.warning("Broker connectivity check failed: %s", exc)
             return False
 
+    async def _maybe_send_execution_status(self, stats: dict[str, Any], vix_str: str) -> None:
+        """Send a throttled Telegram heartbeat when scans produce no executable trade."""
+        now = time.monotonic()
+        last_sent = float(getattr(self, "_last_execution_status_notice", 0.0))
+        try:
+            interval = float(os.getenv("SOVEREIGN_EXECUTION_STATUS_INTERVAL_SEC", "900"))
+        except ValueError:
+            interval = 900.0
+        if now - last_sent < max(300.0, interval):
+            return
+
+        watchlist = int(stats.get("watchlist", 0) or 0)
+        scanned = int(stats.get("scanned", 0) or 0)
+        gated = int(stats.get("gated", 0) or 0)
+        detected = int(stats.get("patterns_detected", stats.get("detected", 0)) or 0)
+        approved = int(stats.get("patterns_approved", stats.get("approved", 0)) or 0)
+        pending = int(stats.get("pending", 0) or 0)
+
+        if pending > 0:
+            return
+        if watchlist <= 0:
+            return
+
+        if not self._is_market_open() and os.environ.get("SOVEREIGN_ALLOW_CLOSED_MARKET_SCANS") != "1":
+            reason = "Market closed; live entries are intentionally paused."
+        elif scanned == 0 and gated >= watchlist:
+            reason = (
+                "All symbols gated "
+                f"(active={stats.get('gate_active', 0)}, "
+                f"cooldown={stats.get('gate_cooldown', 0)}, "
+                f"vetting={stats.get('gate_vetting', 0)})."
+            )
+        elif detected == 0:
+            reason = "No qualifying patterns detected."
+        elif approved == 0:
+            reason = "Patterns detected, but none cleared approval gates."
+        else:
+            reason = "Approved candidates did not become executable orders."
+
+        msg = (
+            "<b>[STATUS] Execution Pulse</b>\n"
+            f"Mode: {self.mode} | Broker: {self.active_broker}\n"
+            f"Regime: {self.current_regime} | Dhatu: {self._oracle_dhatu} | VIX: {vix_str}\n"
+            f"Watchlist: {watchlist} | Scanned: {scanned} | Gated: {gated}\n"
+            f"Detected: {detected} | Approved: {approved} | Pending: {pending}\n"
+            f"Trade status: no broker order sent. {reason}"
+        )
+        try:
+            from telegram_alerts import send_telegram_alert
+
+            await send_telegram_alert(msg)
+            self._last_execution_status_notice = now
+        except Exception as exc:
+            logger.debug("Execution status Telegram notice skipped: %s", exc)
+
     async def _decay_risk_modifier(self):
         """Gradually decays the oracle risk modifier back towards baseline (Oracle State)."""
         if not self.dhatu_oracle:
@@ -2098,6 +2153,9 @@ class TradingBrain:
                     "pending": len(discoveries),
                     "regime": self.current_regime,
                 }
+                status_snapshot = dict(self.last_scan_stats)
+
+            await self._maybe_send_execution_status(status_snapshot, vix_str)
 
             # Routine Memory Maintenance (Every 10 cycles)
             if self.task_manager and self._scan_cycle % 10 == 0:
