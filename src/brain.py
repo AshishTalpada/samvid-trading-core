@@ -1879,12 +1879,23 @@ class TradingBrain:
                         "cycle": self._scan_cycle,
                         "watchlist": 0,
                         "scanned": 0,
+                        "gated": 0,
+                        "gate_active": 0,
+                        "gate_cooldown": 0,
+                        "gate_vetting": 0,
                         "patterns_detected": 0,
                         "patterns_approved": 0,
                         "pending": 0,
                         "regime": self.current_regime,
                     }
-                await asyncio.sleep(120)
+                    status_snapshot = dict(self.last_scan_stats)
+                await self._maybe_send_execution_status(status_snapshot, "N/A")
+                for _ in range(4):
+                    if self.dms:
+                        self.dms.record_heartbeat()
+                    if self.mind_ghost:
+                        await self.mind_ghost.update_heartbeat("ENGINE")
+                    await asyncio.sleep(30)
                 return
 
             # Check budget with atomic safety
