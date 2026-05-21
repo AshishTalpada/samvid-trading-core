@@ -1,5 +1,6 @@
 import atexit
 import logging
+from logging.handlers import RotatingFileHandler
 import os
 import sqlite3
 import subprocess
@@ -8,10 +9,18 @@ import time
 from datetime import datetime, timezone
 from pathlib import Path
 
-# Setup minimal logging
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - WATCHDOG - %(levelname)s - %(message)s"
+# Setup minimal logging. The main process launches this helper detached with
+# stdout/stderr hidden, so a file sink is required for post-mortem visibility.
+LOG_DIR = Path("logs")
+LOG_DIR.mkdir(exist_ok=True)
+_formatter = logging.Formatter("%(asctime)s - WATCHDOG - %(levelname)s - %(message)s")
+_console_handler = logging.StreamHandler()
+_console_handler.setFormatter(_formatter)
+_file_handler = RotatingFileHandler(
+    LOG_DIR / "watchdog.log", maxBytes=2_000_000, backupCount=3, encoding="utf-8"
 )
+_file_handler.setFormatter(_formatter)
+logging.basicConfig(level=logging.INFO, handlers=[_console_handler, _file_handler])
 logger = logging.getLogger(__name__)
 
 DB_PATH = "data/trading.db"
@@ -65,13 +74,11 @@ def check_heartbeat(watchdog_start_time: datetime) -> bool:
             conn.execute("PRAGMA busy_timeout=60000;")
             cursor = conn.cursor()
 
-            # Check system status first to support clean graceful shutdown
+            # Check system status and heartbeat together. A prior clean shutdown
+            # can leave system_status='stopped' in SQLite; treating that stale
+            # value as live truth makes freshly spawned watchdogs kill themselves.
             cursor.execute("SELECT value FROM system_state WHERE key='system_status'")
             status_row = cursor.fetchone()
-            if status_row and status_row[0] == "stopped":
-                logger.info("Watchdog: Main engine stopped gracefully. Terminating watchdog.")
-                sys.exit(0)
-
             cursor.execute("SELECT value FROM system_state WHERE key='last_heartbeat'")
             row = cursor.fetchone()
 
@@ -81,6 +88,12 @@ def check_heartbeat(watchdog_start_time: datetime) -> bool:
             if last_hb is None:
                 logger.warning("Invalid heartbeat value found in database: %r", last_hb_str)
                 return True
+
+            if status_row and status_row[0] == "stopped":
+                if last_hb >= watchdog_start_time:
+                    logger.info("Watchdog: Main engine stopped gracefully. Terminating watchdog.")
+                    sys.exit(0)
+                logger.info("Watchdog: Ignoring stale stopped state from prior session.")
 
             # Ignore legacy heartbeat from prior sessions during initial phase
             if last_hb < watchdog_start_time:
@@ -354,12 +367,24 @@ def run_watchdog():
                             logger.critical("Watchdog: Cannot reboot, missing %s", main_script)
                             continue
 
+                        creationflags = 0
+                        startupinfo = None
+                        if sys.platform == "win32":
+                            creationflags = (
+                                subprocess.CREATE_NEW_PROCESS_GROUP
+                                | subprocess.CREATE_NO_WINDOW
+                            )
+                            startupinfo = subprocess.STARTUPINFO()
+                            startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+
                         reboot_proc = subprocess.Popen(
                             [sys.executable, str(main_script)],
                             cwd=str(project_root),
                             stdout=subprocess.DEVNULL,
                             stderr=subprocess.DEVNULL,
                             close_fds=os.name != "nt",
+                            creationflags=creationflags,
+                            startupinfo=startupinfo,
                         )
                         logger.info(
                             "Watchdog: Sovereign Engine REBOOTED as PID %s.", reboot_proc.pid
