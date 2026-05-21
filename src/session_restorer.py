@@ -68,7 +68,12 @@ class SessionRestorer:
 
             os.replace(temp_path, self.path)
             self.last_frozen = now_ts
-            logger.info(
+            freeze_logger = (
+                logger.info
+                if os.getenv("SOVEREIGN_VERBOSE_FREEZE_LOGS", "0") == "1"
+                else logger.debug
+            )
+            freeze_logger(
                 f"SessionRestorer: State FROZEN at {self.last_frozen.isoformat()}. Size: {len(data)} bytes."
             )
             return True
