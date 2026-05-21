@@ -3470,9 +3470,14 @@ class TradingBrain:
 
             report_lines.append("=" * 80 + "\n")
             drift_found = any("DRIFT" in line for line in report_lines)
+            position_rows = max(0, len(report_lines) - 6)
             last_report = getattr(self, "_last_reality_report_ts", 0.0)
-            if drift_found or time.monotonic() - last_report > 60:
-                logger.info("\n".join(report_lines))
+            market_open = self._is_market_open()
+            quiet_empty_after_hours = not market_open and position_rows == 0 and not drift_found
+            report_interval = 900 if quiet_empty_after_hours else 60
+            if drift_found or time.monotonic() - last_report > report_interval:
+                report_logger = logger.debug if quiet_empty_after_hours else logger.info
+                report_logger("\n".join(report_lines))
                 self._last_reality_report_ts = time.monotonic()
 
             self._reconcile_open_trade_rows("ibkr", ibkr_reality, ibkr_polled, now_ts)
