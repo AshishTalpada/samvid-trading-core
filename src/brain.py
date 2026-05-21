@@ -1878,6 +1878,9 @@ class TradingBrain:
                 "approved": 0,
                 "rejected": 0,
                 "gated": 0,
+                "gate_active": 0,
+                "gate_cooldown": 0,
+                "gate_vetting": 0,
             }
             stats_lock = asyncio.Lock()
 
@@ -1896,6 +1899,7 @@ class TradingBrain:
                     if cooldown_age < 30:
                         async with stats_lock:
                             stats["gated"] += 1
+                            stats["gate_vetting"] += 1
                         logger.debug(
                             "Scan [%s]: skipped during post-vetting cooldown (%.1fs remaining).",
                             symbol,
@@ -1912,6 +1916,10 @@ class TradingBrain:
                         gate_kind, gate_task, remaining_sec = gate
                         async with stats_lock:
                             stats["gated"] += 1
+                            if gate_kind == "active":
+                                stats["gate_active"] += 1
+                            else:
+                                stats["gate_cooldown"] += 1
                         if gate_kind == "active":
                             logger.debug(
                                 "Scan [%s]: skipped because task %s is still %s.",
@@ -2068,7 +2076,9 @@ class TradingBrain:
                 f"[SCAN] #{self._scan_cycle} | Regime={self.current_regime} | "
                 f"Condition={self._oracle_dhatu} (VIX: {vix_str}) "
                 f"| Watchlist={len(watchlist)} Scanned={stats['scanned']} "
-                f"Gated={stats['gated']} "
+                f"Gated={stats['gated']}"
+                f"(active={stats['gate_active']},cooldown={stats['gate_cooldown']},"
+                f"vetting={stats['gate_vetting']}) "
                 f"| Detected={stats['detected']} Approved={stats['approved']} "
                 f"| Pending={len(discoveries)}"
             )
@@ -2080,6 +2090,9 @@ class TradingBrain:
                     "watchlist": len(watchlist),
                     "scanned": stats["scanned"],
                     "gated": stats["gated"],
+                    "gate_active": stats["gate_active"],
+                    "gate_cooldown": stats["gate_cooldown"],
+                    "gate_vetting": stats["gate_vetting"],
                     "patterns_detected": stats["detected"],
                     "patterns_approved": stats["approved"],
                     "pending": len(discoveries),
