@@ -95,6 +95,9 @@ class BrokerArbitrator:
             return True
 
         try:
+            if not current_nbbo or len(current_nbbo) < 2:
+                logger.error("[ARBITRATOR] Malformed NBBO tuple: %r", current_nbbo)
+                return False
             report = FIXExecutionReport(
                 order_id=tags.get(self.TAG_ORDER_ID, "UNKNOWN"),
                 exec_id=tags.get(self.TAG_EXEC_ID, "UNKNOWN"),
@@ -125,7 +128,23 @@ class BrokerArbitrator:
             )
             return True
 
-        expected_price = order_intent["expected_price"]
+        expected_price = float(order_intent["expected_price"] or 0.0)
+        if expected_price <= 0 or report.fill_price <= 0:
+            logger.error(
+                "[ARBITRATOR] Invalid execution economics for order %s: expected=%s fill=%s",
+                report.order_id,
+                expected_price,
+                report.fill_price,
+            )
+            return False
+        if report.nbbo_bid <= 0 or report.nbbo_ask <= 0 or report.nbbo_bid > report.nbbo_ask:
+            logger.error(
+                "[ARBITRATOR] Invalid NBBO for order %s: bid=%s ask=%s",
+                report.order_id,
+                report.nbbo_bid,
+                report.nbbo_ask,
+            )
+            return False
         side = report.side
 
         # 1: Buy, 2: Sell (FIX Standard)
