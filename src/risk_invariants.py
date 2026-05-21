@@ -1,4 +1,5 @@
 import logging
+import math
 from collections import deque
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
@@ -15,8 +16,8 @@ class OrderThrottler:
     """
 
     def __init__(self, max_orders: int = 30, per_seconds: int = 60):
-        self._max = max_orders
-        self._window = timedelta(seconds=per_seconds)
+        self._max = max(1, int(max_orders))
+        self._window = timedelta(seconds=max(1, int(per_seconds)))
         self._timestamps: deque[datetime] = deque()
 
     def can_submit(self) -> bool:
@@ -152,7 +153,17 @@ class RiskInvariants:
         Final safety check before order transmission.
         Ensures the sizer didn't return an insane value.
         """
-        if balance <= 0:
+        try:
+            risk_dollars = float(risk_dollars)
+            balance = float(balance)
+        except (TypeError, ValueError):
+            logger.critical("RISK VIOLATION: Non-numeric risk inputs.")
+            return False
+
+        if not math.isfinite(risk_dollars) or not math.isfinite(balance):
+            logger.critical("RISK VIOLATION: Non-finite risk inputs.")
+            return False
+        if balance <= 0 or risk_dollars < 0:
             return False
 
         risk_pct = risk_dollars / balance
@@ -171,11 +182,29 @@ class RiskInvariants:
         Enforces per-instrument notional cap before order transmission.
         Returns False and logs a CRITICAL if the order exceeds the instrument's limit.
         """
-        notional = quantity * price
-        limit = cls.MAX_NOTIONAL_PER_ORDER.get(symbol, cls.MAX_NOTIONAL_PER_ORDER["DEFAULT"])
+        try:
+            quantity = float(quantity)
+            price = float(price)
+        except (TypeError, ValueError):
+            logger.critical("NOTIONAL VETO: Non-numeric order for %s. Order DENIED.", symbol)
+            return False
+
+        if not math.isfinite(quantity) or not math.isfinite(price) or quantity == 0 or price <= 0:
+            logger.critical(
+                "NOTIONAL VETO: Invalid order economics for %s "
+                "(qty=%r, price=%r). Order DENIED.",
+                symbol,
+                quantity,
+                price,
+            )
+            return False
+
+        clean_symbol = str(symbol or "DEFAULT").upper()
+        notional = abs(quantity) * price
+        limit = cls.MAX_NOTIONAL_PER_ORDER.get(clean_symbol, cls.MAX_NOTIONAL_PER_ORDER["DEFAULT"])
         if notional > limit:
             logger.critical(
-                f"NOTIONAL VETO: {symbol} order ${notional:,.0f} exceeds "
+                f"NOTIONAL VETO: {clean_symbol} order ${notional:,.0f} exceeds "
                 f"hard cap ${limit:,.0f}. Order DENIED."
             )
             return False
