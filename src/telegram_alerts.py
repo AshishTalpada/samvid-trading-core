@@ -7,6 +7,7 @@ from typing import Optional
 
 import aiohttp
 
+from text_safety import normalize_operator_text
 from vault import Vault
 
 logger = logging.getLogger("telegram")
@@ -50,6 +51,7 @@ async def send_telegram_alert(message: str) -> None:
     Sends a Telegram alert with Elite Signal Sterilization.
     Blocks routine pattern noise and 'Phantom' calls.
     """
+    message = normalize_operator_text(message)
     if not _should_send(message):
         logger.debug(f"Sterilization: Suppressing non-essential signal: {message[:50]}...")
         return
@@ -167,6 +169,8 @@ class SovereignTelegramBot:
         """
         Transmits a message with Sterilization, Redaction, and Rate Limiting.
         """
+        message = normalize_operator_text(message)
+
         # 1. Sterilization
         if not _should_send(message):
             logger.debug(f"Sterilization: Suppressing non-essential signal: {message[:50]}...")

@@ -50,6 +50,7 @@ import aiohttp
 from mind_bridge import MindBridge
 from mind_system import MindSystem
 from session_restorer import SessionRestorer
+from text_safety import normalize_operator_text
 from time_sync import TimeSync
 
 if TYPE_CHECKING:
@@ -101,6 +102,7 @@ class SovereignFormatter(logging.Formatter):
         try:
             # First, format using standard logic
             msg = super().format(record)
+            msg = normalize_operator_text(msg)
 
             # Second, Apply Redaction
             if self._pattern:
@@ -1322,6 +1324,7 @@ class TradingSystem:
             "BACKGROUND TASK CRASHED",
         ]
 
+        message = normalize_operator_text(message)
         logger.info(f"Telegram: Attempting to send message (Prefix check: {message[:10]}...)")
         msg_upper = message.upper()
         is_allowed_prefix = any(prefix.upper() in msg_upper for prefix in allowed_prefixes if prefix)
