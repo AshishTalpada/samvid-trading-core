@@ -1,8 +1,11 @@
 import asyncio
+import json
 import logging
+import os
 import socket
 import time
 import uuid
+from pathlib import Path
 from typing import Any, Dict
 
 from mind_bridge import MindBridge
@@ -33,6 +36,10 @@ class MindGhost:
         self._probe_next_allowed: dict[str, float] = {}
         self._probe_backoff_sec: dict[str, float] = {"IBKR": 30.0, "MT5": 60.0}
         self._next_api_loss_alert = 0.0
+        self._heartbeat_registry_path = Path("data/task_heartbeats.json")
+        self._heartbeat_registry_max_age = 90.0
+        self._registry_recovery_logged = False
+        self._next_reset_suppressed_log = 0.0
 
         # FIX: Store task references to allow clean cancellation on shutdown.
         # Dropping these references causes 'Task was destroyed but it is pending!'
@@ -119,6 +126,7 @@ class MindGhost:
                         logger.info(
                             "MindGhost: Handshake confirmed via Global Matrix. Audit mode ENGAGED."
                         )
+                self._refresh_from_task_registry(current_time)
                 if self.last_api_heartbeat > self.startup_time:
                     if current_time - self.last_api_heartbeat > 60.0:
                         if current_time >= self._next_api_loss_alert:
@@ -178,9 +186,12 @@ class MindGhost:
 
         auto_restart = Vault.get("IBKR_AUTO_RESTART", "0").strip() == "1"
         if service_name == "IBKR" and not auto_restart:
-            logger.warning(
-                "MindGhost: IBKR reset suppressed because IBKR_AUTO_RESTART is disabled."
-            )
+            now = time.monotonic()
+            if now >= self._next_reset_suppressed_log:
+                logger.warning(
+                    "MindGhost: IBKR reset suppressed because IBKR_AUTO_RESTART is disabled."
+                )
+                self._next_reset_suppressed_log = now + 300.0
             return
 
         retry_count = self.retry_counts.get(service_name, 0)
@@ -243,9 +254,43 @@ class MindGhost:
 
             self.last_api_heartbeat = TimeSync.now().timestamp()
             self._next_api_loss_alert = 0.0
+            self._registry_recovery_logged = False
             # If we were in handshake mode, this confirms success
             if self.last_api_heartbeat > self.startup_time:
                 self.ghost_mirror[service] = "connected"
+
+    def _refresh_from_task_registry(self, current_time: float) -> None:
+        """Accept fresh DMS task heartbeats as proof that the engine is alive."""
+        try:
+            if not self._heartbeat_registry_path.exists():
+                return
+            with self._heartbeat_registry_path.open("r", encoding="utf-8") as f:
+                payload = json.load(f)
+            if not isinstance(payload, dict):
+                return
+            registry_pid = payload.get("pid")
+            if registry_pid and int(registry_pid) != os.getpid():
+                return
+            heartbeats = payload.get("heartbeats") or {}
+            if not isinstance(heartbeats, dict) or not heartbeats:
+                return
+            latest = max(float(ts) for ts in heartbeats.values())
+            age = current_time - latest
+            if age <= self._heartbeat_registry_max_age:
+                if latest > self.last_api_heartbeat:
+                    self.last_api_heartbeat = latest
+                    self._next_api_loss_alert = 0.0
+                    self.ghost_mirror["ENGINE"] = "connected"
+                    if not self._registry_recovery_logged:
+                        logger.info(
+                            "MindGhost: Engine heartbeat confirmed via DMS registry "
+                            f"({age:.1f}s old)."
+                        )
+                        self._registry_recovery_logged = True
+            elif self._registry_recovery_logged:
+                self._registry_recovery_logged = False
+        except (OSError, ValueError, TypeError, json.JSONDecodeError) as exc:
+            logger.debug(f"MindGhost: DMS heartbeat registry read skipped: {exc}")
 
     def _probe_port(self, port: int) -> bool:
         """Low-level TCP handshake to detect hung local services."""
