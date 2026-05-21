@@ -201,6 +201,8 @@ class TaskManager:
             if task.status in [TaskStatus.PENDING, TaskStatus.RUNNING]:
                 return ("active", task, 0.0)
             if task.status in [TaskStatus.FAILED, TaskStatus.KILLED]:
+                if str(getattr(task, "status_summary", "")).startswith("STALE:"):
+                    continue
                 ref_time = task.end_time or task.start_time
                 age_sec = now - float(ref_time or now)
                 if age_sec < terminal_cooldown_seconds:
