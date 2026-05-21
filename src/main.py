@@ -363,6 +363,7 @@ class TradingSystem:
                         same_app = "src/main.py" in cmdline_str or "main.py" in cmdline_str
 
                         if same_app:
+                            tail_cmd = r"powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\tail_live_logs.ps1"
                             logger.critical(
                                 f" CRITICAL: Duplicate Sovereign Instance Detected "
                                 f"(PID: {old_pid})."
@@ -372,7 +373,18 @@ class TradingSystem:
                                 "and Broker Port locks."
                             )
                             logger.critical(
-                                "Please kill the existing process before starting a new one."
+                                "The existing engine is still running. To watch it live, run: %s",
+                                tail_cmd,
+                            )
+                            logger.critical(
+                                "To stop it intentionally, terminate PID %s first, then restart.",
+                                old_pid,
+                            )
+                            print(
+                                "\nDuplicate Sovereign instance blocked.\n"
+                                f"Existing engine PID: {old_pid}\n"
+                                f"Live logs: {tail_cmd}\n",
+                                file=sys.stderr,
                             )
                             sys.exit(1)
 
