@@ -2159,9 +2159,7 @@ class TradingSystem:
             return
         pid_file = "data/watchdog.pid"
         if not os.path.exists(pid_file):
-            logger.warning(
-                " WATCHDOG SILENCE (Bug #2): data/watchdog.pid missing. System is UNPROTECTED."
-            )
+            logger.info("Watchdog PID file missing at startup; launching watchdog helper.")
             await self._start_watchdog_process()
             return
 
@@ -2212,8 +2210,29 @@ class TradingSystem:
                 creationflags=creationflags,
                 startupinfo=startupinfo,
             )
-            logger.warning("Watchdog auto-started as PID %s.", proc.pid)
-            await asyncio.sleep(0.5)
+            actual_pid = None
+            pid_path = Path("data/watchdog.pid")
+            for _ in range(20):
+                if pid_path.exists():
+                    try:
+                        actual_pid = pid_path.read_text(encoding="utf-8").strip()
+                        if actual_pid:
+                            break
+                    except OSError:
+                        pass
+                await asyncio.sleep(0.1)
+            if actual_pid:
+                logger.info(
+                    "Watchdog auto-started successfully (launcher PID %s, watchdog PID %s).",
+                    proc.pid,
+                    actual_pid,
+                )
+            else:
+                logger.warning(
+                    "Watchdog launch requested (launcher PID %s), but PID file was not "
+                    "written within 2s.",
+                    proc.pid,
+                )
         except Exception as exc:
             logger.error("Watchdog auto-start failed: %s", exc, exc_info=True)
 
