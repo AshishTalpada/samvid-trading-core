@@ -47,6 +47,12 @@ class ImpactSimulator:
         """
         Calculates the expected slippage and impact of an order.
         """
+        order_size_shares = int(order_size_shares)
+        current_price = float(current_price)
+        trade_duration_minutes = max(0.0, float(trade_duration_minutes))
+        if order_size_shares <= 0:
+            return MarketImpactResult(0.0, 0.0, 0.0, 0, 0.0)
+
         daily_vol = self.adv.get(ticker, 1_000_000)
         daily_vol_pct = self.volatility.get(ticker, 0.02)
 
@@ -111,6 +117,11 @@ class ImpactSimulator:
 
         Returns a schedule: List of (Time_Offset_Minutes, Shares_To_Execute)
         """
+        order_size_shares = int(order_size_shares)
+        current_price = float(current_price)
+        if order_size_shares <= 0 or current_price <= 0:
+            return []
+
         daily_vol = self.adv.get(ticker, 1_000_000)
         daily_vol_pct = self.volatility.get(ticker, 0.02)
         variance = (current_price * daily_vol_pct) ** 2
@@ -123,7 +134,7 @@ class ImpactSimulator:
         schedule = []
 
         # Determine N discrete slices
-        N = 10
+        N = min(10, order_size_shares)
         dt = total_time_mins / N
 
         # Generate an execution trajectory (U-shaped smile typical of institutional execution)
@@ -138,7 +149,7 @@ class ImpactSimulator:
                 slice_size = shares_remaining
             else:
                 slice_size = int((order_size_shares / N) * smile_factor)
-                slice_size = min(slice_size, shares_remaining)
+                slice_size = max(1, min(slice_size, shares_remaining - (N - i - 1)))
 
             schedule.append((int(i * dt), slice_size))
             shares_remaining -= slice_size
