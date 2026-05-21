@@ -897,6 +897,7 @@ class DataPipeline:
 
     async def backfill_gap(self, symbol: str) -> None:
         """Identify and fill the data gap since last shutdown."""
+        backfill_log = logger.debug if not self.is_market_open() else logger.info
         last_ts = await asyncio.to_thread(self.get_last_timestamp, symbol)
         if not last_ts:
             logger.info(f"No history for {symbol} — performing initial 5-day fetch.")
@@ -914,7 +915,7 @@ class DataPipeline:
 
         # Calculate bars needed (approximate)
         minutes = int(gap.total_seconds() / 60)
-        logger.info(f" BACKFILL: {symbol} is missing {minutes} minutes of data.")
+        backfill_log(f" BACKFILL: {symbol} is missing {minutes} minutes of data.")
 
         # Limit backfill to 7 days (yfinance 1m limit)
         if minutes > 10080:
@@ -1322,7 +1323,25 @@ class DataPipeline:
     async def _background_sync(self) -> None:
         """Execute the CORE SYNC in the background to avoid blocking system startup."""
         try:
-            semaphore = asyncio.Semaphore(3)
+            market_open = self.is_market_open()
+            full_closed_backfill = os.getenv("SOVEREIGN_AFTER_HOURS_FULL_BACKFILL", "0") == "1"
+            sync_symbols = (
+                self.INSTRUMENTS
+                if market_open or full_closed_backfill
+                else [
+                    sym
+                    for sym in self.CLOSED_MARKET_PULSE_SYMBOLS
+                    if sym in set(self.INSTRUMENTS)
+                ]
+            )
+            if not market_open and not full_closed_backfill:
+                logger.info(
+                    "DataPipeline: compact after-hours core sync across %d symbols "
+                    "(set SOVEREIGN_AFTER_HOURS_FULL_BACKFILL=1 for full backfill).",
+                    len(sync_symbols),
+                )
+
+            semaphore = asyncio.Semaphore(3 if market_open else 2)
 
             async def throttled_backfill(sym):
                 async with semaphore:
@@ -1330,10 +1349,10 @@ class DataPipeline:
                     await asyncio.sleep(0.5)  # Slight delay between symbols
                     return res
 
-            sync_tasks = [throttled_backfill(symbol) for symbol in self.INSTRUMENTS]
+            sync_tasks = [throttled_backfill(symbol) for symbol in sync_symbols]
             results = await asyncio.gather(*sync_tasks, return_exceptions=True)
             # Log any backfill failures explicitly so they are visible in logs
-            for sym, result in zip(self.INSTRUMENTS[: len(results)], results, strict=False):
+            for sym, result in zip(sync_symbols[: len(results)], results, strict=False):
                 if isinstance(result, Exception):
                     logger.error(f"BACKFILL FAILED for {sym}: {result}")
             logger.info(" CORE SYNC COMPLETE: Database established continuity in background.")

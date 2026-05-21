@@ -165,6 +165,7 @@ class IBKRStreamer:
         self._bus_queue: asyncio.Queue = asyncio.Queue(maxsize=5000)
         self._publisher_task: asyncio.Task | None = None
         self._last_tick_time = datetime.now(timezone.utc)
+        self._last_status_log: dict[tuple[int, str], float] = {}
 
     async def connect(self) -> None:
         """Connect to IBKR TWS/Gateway and QuestDB ILP."""
@@ -379,7 +380,14 @@ class IBKRStreamer:
         # 10167/10168/10089: Informational warnings about delayed data/subscriptions
         # 1100/1101/1102: Connection lost/restored (expected off-hours behavior)
         if errorCode in (2104, 2106, 2158, 2157, 10167, 10168, 10089, 1100, 1101, 1102):
-            logger.info(f"IBKRStreamer [STATUS]: {errorCode} - {errorString}")
+            status_key = (errorCode, errorString)
+            now = time.monotonic()
+            last_log = self._last_status_log.get(status_key, 0.0)
+            if now - last_log > 300.0:
+                logger.info(f"IBKRStreamer [STATUS]: {errorCode} - {errorString}")
+                self._last_status_log[status_key] = now
+            else:
+                logger.debug(f"IBKRStreamer [STATUS]: {errorCode} - {errorString}")
             return
 
         if errorCode >= 2100 and errorCode <= 2110:
