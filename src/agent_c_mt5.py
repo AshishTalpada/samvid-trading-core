@@ -436,9 +436,21 @@ class MetaTrader5Agent:
     def is_connected(self) -> bool:
         return self.connected
 
-    def connect(self) -> bool:
+    def connect(
+        self,
+        account: Optional[int] = None,
+        password: Optional[str] = None,
+        server: Optional[str] = None,
+    ) -> bool:
         """Initializes the MT5 terminal and logs into the trading server."""
         mt5 = _get_mt5_module()
+        if account is not None:
+            self.account = int(account)
+        if password is not None:
+            self.password = str(password)
+        if server is not None:
+            self.server = str(server)
+
         if not mt5.initialize():
             logger.critical(f"[MT5] Initialization failed. Error code: {mt5.last_error()}")
             return False
@@ -469,7 +481,13 @@ class MetaTrader5Agent:
         return {"bid": float(tick.bid), "ask": float(tick.ask), "time_ms": tick.time_msc}
 
     def execute_market_order(
-        self, symbol: str, action: str, lot_size: float, slippage_pts: int = 10
+        self,
+        symbol: str,
+        action: str,
+        lot_size: float,
+        slippage_pts: int = 10,
+        sl: float = 0.0,
+        tp: float = 0.0,
     ) -> Dict[str, Any]:
         """
         Executes a direct market order with Sovereign Security Guards.
@@ -479,15 +497,14 @@ class MetaTrader5Agent:
 
         from trading_state import TradingStateManager
 
-        if not TradingStateManager.allow_order(
-            True
-        ):  # MT5 orders are usually new entries in this context
+        allowed, state_reason = TradingStateManager.allow_order(False)
+        if not allowed:
             logger.warning(
                 f"[MT5] SAFETY GATE: Market order for {symbol} REJECTED due to TradingState."
             )
             return {
                 "status": "error",
-                "message": f"TradingState {TradingStateManager.state.value} blocks entries",
+                "message": state_reason,
             }
 
         # 1. WHITELIST SIGNATURE GUARD (Ported from D: drive logic)
@@ -527,10 +544,33 @@ class MetaTrader5Agent:
         if not self.connected:
             return {"status": "error", "message": "MT5 Terminal not connected"}
 
+        action = str(action).upper()
+        if action not in {"BUY", "SELL"}:
+            return {"status": "error", "message": f"Invalid MT5 action: {action}"}
+
+        try:
+            lot_size = float(lot_size)
+        except (TypeError, ValueError):
+            return {"status": "error", "message": f"Invalid MT5 lot size: {lot_size!r}"}
+        if lot_size <= 0:
+            return {"status": "error", "message": f"Non-positive MT5 lot size: {lot_size}"}
+
         mt5 = _get_mt5_module()
         if not mt5.symbol_select(symbol, True):
             logger.error(f"[MT5] Failed to select symbol {symbol}")
             return {"status": "error", "message": "Symbol selection failed"}
+
+        info = mt5.symbol_info(symbol)
+        if info is not None:
+            min_lot = float(getattr(info, "volume_min", 0.0) or 0.0)
+            max_lot = float(getattr(info, "volume_max", lot_size) or lot_size)
+            step_lot = float(getattr(info, "volume_step", 0.0) or 0.0)
+            if min_lot > 0:
+                lot_size = max(min_lot, lot_size)
+            if max_lot > 0:
+                lot_size = min(max_lot, lot_size)
+            if step_lot > 0:
+                lot_size = round(round(lot_size / step_lot) * step_lot, 8)
 
         tick = self.get_tick(symbol)
         if not tick:
@@ -565,6 +605,8 @@ class MetaTrader5Agent:
             "volume": float(lot_size),
             "type": order_type,
             "price": price,
+            "sl": float(sl or 0.0),
+            "tp": float(tp or 0.0),
             "deviation": int(deviation),
             "magic": magic_id,
             "comment": "SETO_V8_AUTONOMY",
@@ -593,6 +635,58 @@ class MetaTrader5Agent:
             "price": result.price,
             "comment": result.comment,
         }
+
+    def place_order(self, sym: str, dir: str, vol: float, sl: float = 0.0, tp: float = 0.0) -> int:
+        """Compatibility wrapper used by TradingBrain._place_mt5_order."""
+        result = self.execute_market_order(sym, str(dir).upper(), vol, sl=sl, tp=tp)
+        if result.get("status") != "filled":
+            return 0
+        return int(result.get("ticket") or 0)
+
+    def close_position(self, ticket: int) -> bool:
+        """Close one MT5 position by ticket using an explicit position close request."""
+        if not self.connected:
+            return False
+
+        mt5 = _get_mt5_module()
+        positions = mt5.positions_get(ticket=int(ticket))
+        if not positions:
+            logger.warning("[MT5] close_position: ticket %s not found.", ticket)
+            return False
+
+        pos = positions[0]
+        if not mt5.symbol_select(pos.symbol, True):
+            logger.error("[MT5] close_position: failed to select %s.", pos.symbol)
+            return False
+
+        tick = mt5.symbol_info_tick(pos.symbol)
+        if tick is None:
+            logger.error("[MT5] close_position: no tick for %s.", pos.symbol)
+            return False
+
+        close_type = mt5.ORDER_TYPE_SELL if pos.type == mt5.POSITION_TYPE_BUY else mt5.ORDER_TYPE_BUY
+        price = float(tick.bid if close_type == mt5.ORDER_TYPE_SELL else tick.ask)
+        request = {
+            "action": mt5.TRADE_ACTION_DEAL,
+            "position": int(ticket),
+            "symbol": pos.symbol,
+            "volume": float(pos.volume),
+            "type": close_type,
+            "price": price,
+            "deviation": 50,
+            "magic": self.magic_number,
+            "comment": "SETO_V8_CLOSE",
+            "type_time": mt5.ORDER_TIME_GTC,
+            "type_filling": mt5.ORDER_FILLING_IOC,
+        }
+        result = mt5.order_send(request)
+        if result is None or result.retcode != mt5.TRADE_RETCODE_DONE:
+            rc = result.retcode if result else -1
+            msg = result.comment if result else "No result from mt5.order_send"
+            logger.error("[MT5] close_position failed for %s: retcode=%s | %s", ticket, rc, msg)
+            return False
+        logger.info("[MT5] Closed ticket %s at %s.", ticket, price)
+        return True
 
     def close_all_positions(self, symbol: Optional[str] = None):
         """Emergency function to liquidate all positions associated with the Sovereign magic number."""
