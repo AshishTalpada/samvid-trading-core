@@ -488,6 +488,7 @@ class MetaTrader5Agent:
         slippage_pts: int = 10,
         sl: float = 0.0,
         tp: float = 0.0,
+        is_close: bool = False,
     ) -> Dict[str, Any]:
         """
         Executes a direct market order with Sovereign Security Guards.
@@ -497,7 +498,7 @@ class MetaTrader5Agent:
 
         from trading_state import TradingStateManager
 
-        allowed, state_reason = TradingStateManager.allow_order(False)
+        allowed, state_reason = TradingStateManager.allow_order(is_close=is_close)
         if not allowed:
             logger.warning(
                 f"[MT5] SAFETY GATE: Market order for {symbol} REJECTED due to TradingState."
@@ -636,9 +637,17 @@ class MetaTrader5Agent:
             "comment": result.comment,
         }
 
-    def place_order(self, sym: str, dir: str, vol: float, sl: float = 0.0, tp: float = 0.0) -> int:
+    def place_order(
+        self,
+        sym: str,
+        dir: str,
+        vol: float,
+        sl: float = 0.0,
+        tp: float = 0.0,
+        is_close: bool = False,
+    ) -> int:
         """Compatibility wrapper used by TradingBrain._place_mt5_order."""
-        result = self.execute_market_order(sym, str(dir).upper(), vol, sl=sl, tp=tp)
+        result = self.execute_market_order(sym, str(dir).upper(), vol, sl=sl, tp=tp, is_close=is_close)
         if result.get("status") != "filled":
             return 0
         return int(result.get("ticket") or 0)
@@ -646,6 +655,13 @@ class MetaTrader5Agent:
     def close_position(self, ticket: int) -> bool:
         """Close one MT5 position by ticket using an explicit position close request."""
         if not self.connected:
+            return False
+
+        from trading_state import TradingStateManager
+
+        allowed, state_reason = TradingStateManager.allow_order(is_close=True)
+        if not allowed:
+            logger.warning("[MT5] close_position blocked by TradingState: %s", state_reason)
             return False
 
         mt5 = _get_mt5_module()
@@ -702,7 +718,13 @@ class MetaTrader5Agent:
             if pos.magic == self.magic_number:
                 action = "BUY" if pos.type == 1 else "SELL"  # Reverse the position type to close it
                 logger.warning(f"[MT5] Liquidating Position {pos.ticket} ({pos.symbol})")
-                self.execute_market_order(pos.symbol, action, pos.volume, slippage_pts=50)
+                self.execute_market_order(
+                    pos.symbol,
+                    action,
+                    pos.volume,
+                    slippage_pts=50,
+                    is_close=True,
+                )
 
     def get_all_positions(self) -> Dict[str, float]:
         """Returns a mapping of {symbol: qty} for all open MT5 positions."""
