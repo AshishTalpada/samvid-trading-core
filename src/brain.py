@@ -1789,9 +1789,14 @@ class TradingBrain:
 
         try:
             now = datetime.now(timezone.utc)
+            closed_market_scans_disabled = (
+                not self._is_market_open()
+                and os.environ.get("SOVEREIGN_ALLOW_CLOSED_MARKET_SCANS") != "1"
+            )
             if (
                 self.last_regime_update is None
-                or (now - self.last_regime_update).total_seconds() >= 60
+                or (now - self.last_regime_update).total_seconds()
+                >= (900 if closed_market_scans_disabled else 60)
             ):
                 try:
                     # Use a short timeout so regime detection doesn't stall the scanning pulse
@@ -1807,10 +1812,7 @@ class TradingBrain:
 
             self._scan_cycle += 1
 
-            if (
-                not self._is_market_open()
-                and os.environ.get("SOVEREIGN_ALLOW_CLOSED_MARKET_SCANS") != "1"
-            ):
+            if closed_market_scans_disabled:
                 if self._scan_cycle % 10 == 1:
                     logger.info(
                         "SCAN SUSPENDED: US equity market is closed. "
@@ -1827,7 +1829,7 @@ class TradingBrain:
                         "pending": 0,
                         "regime": self.current_regime,
                     }
-                await asyncio.sleep(30)
+                await asyncio.sleep(120)
                 return
 
             # Check budget with atomic safety
