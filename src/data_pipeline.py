@@ -115,6 +115,7 @@ class DataPipeline:
             ]
         )
     )
+    CLOSED_MARKET_PULSE_SYMBOLS = ["SPY", "QQQ", "IWM", "DIA", "NQ=F", "GC=F"]
 
     DMS_LOCK_FILE = "data/dms.lock"  #
 
@@ -162,6 +163,14 @@ class DataPipeline:
         self._http_session: Optional[aiohttp.ClientSession] = None
         self._active_db_tasks = 0
         self._active_tasks_lock = asyncio.Lock()
+        self._quiet_pulse_logging = False
+        self._last_market_state: bool | None = None
+        self.closed_market_interval = max(
+            300, int(os.getenv("SOVEREIGN_DATA_PULSE_CLOSED_SEC", "900"))
+        )
+        self.open_market_interval_override = int(
+            os.getenv("SOVEREIGN_DATA_PULSE_OPEN_SEC", "0")
+        )
 
         try:
             self.news_memory = ChromaDeepMemory(collection_name="market_news_v8")
@@ -409,7 +418,8 @@ class DataPipeline:
             pl_df = pl.from_pandas(df)
             del df
             del ticker
-            logger.info(f"Fetched {len(pl_df)} bars for {symbol} ({tf})")
+            log_fetch = logger.debug if self._quiet_pulse_logging else logger.info
+            log_fetch(f"Fetched {len(pl_df)} bars for {symbol} ({tf})")
             return pl_df
 
         except Exception as e:
@@ -1101,7 +1111,8 @@ class DataPipeline:
                 count = len(df)
             else:
                 count = 0
-            logger.info(f"Stored {count} bars for {symbol}")
+            log_store = logger.debug if self._quiet_pulse_logging else logger.info
+            log_store(f"Stored {count} bars for {symbol}")
 
     async def run_continuous(self) -> None:
         """
@@ -1119,26 +1130,48 @@ class DataPipeline:
         while self.is_running:
             try:
                 is_open = self.is_market_open()
-                logger.info(
-                    f"DataPipeline: Market is {'OPEN' if is_open else 'CLOSED'} - starting pulse."
+                full_closed_scan = os.getenv("SOVEREIGN_AFTER_HOURS_FULL_PULSE", "0") == "1"
+                pulse_symbols = (
+                    self.INSTRUMENTS
+                    if is_open or full_closed_scan
+                    else [
+                        sym
+                        for sym in self.CLOSED_MARKET_PULSE_SYMBOLS
+                        if sym in set(self.INSTRUMENTS)
+                    ]
                 )
+                self._quiet_pulse_logging = not is_open
+                state_changed = self._last_market_state is None or self._last_market_state != is_open
+                if state_changed or is_open:
+                    logger.info(
+                        "DataPipeline: Market is %s - starting %s pulse across %d symbols.",
+                        "OPEN" if is_open else "CLOSED",
+                        "full-speed" if is_open else "compact after-hours",
+                        len(pulse_symbols),
+                    )
+                else:
+                    logger.debug(
+                        "DataPipeline: compact after-hours pulse across %d symbols.",
+                        len(pulse_symbols),
+                    )
+                self._last_market_state = is_open
 
                 # Previously fired all 30 simultaneously, causing +1.7 GB RSS spike.
                 # Now strictly limited to 3 concurrent yfinance fetches to cap memory.
-                _fetch_sem = asyncio.Semaphore(3)
+                _fetch_sem = asyncio.Semaphore(3 if is_open else 2)
 
                 async def _throttled_fetch(s):
                     async with _fetch_sem:
                         return await self.fetch_ohlcv(s, tf="1m", bars=100 if is_open else 50)
 
-                tasks = [_throttled_fetch(sym) for sym in self.INSTRUMENTS]
+                tasks = [_throttled_fetch(sym) for sym in pulse_symbols]
                 results = await asyncio.gather(*tasks, return_exceptions=True)
 
                 successful = []
 
                 # Every 5 minutes (or on startup), fetch 1d data for core indices to handle multi-day regime shifts
                 pulse_id = int(time.time() // 60)
-                if pulse_id % 5 == 0:
+                if is_open and pulse_id % 5 == 0:
                     logger.info("DataPulse: Fetching Macro (1d) Context for SPY/QQQ...")
                     for macro_sym in ["SPY", "QQQ"]:
                         macro_df = await self.fetch_ohlcv(macro_sym, tf="1d", bars=250)
@@ -1147,7 +1180,7 @@ class DataPipeline:
 
                 conn = self._get_db_connection()
                 try:
-                    for symbol, df in zip(self.INSTRUMENTS[: len(results)], results, strict=False):
+                    for symbol, df in zip(pulse_symbols[: len(results)], results, strict=False):
                         if isinstance(df, Exception):
                             logger.error(f"✗ {symbol}: Fetch failed - {df}")
                             continue
@@ -1194,7 +1227,13 @@ class DataPipeline:
                 gc.collect()
 
                 # Heartbeat
-                logger.info(f"DataPulse: {len(successful)} symbols reconciled.")
+                if is_open:
+                    logger.info(f"DataPulse: {len(successful)} symbols reconciled.")
+                else:
+                    logger.debug(
+                        "DataPulse: %d compact after-hours symbols reconciled.",
+                        len(successful),
+                    )
 
                 if self.bus is not None:
                     now_mono = time.monotonic()
@@ -1211,8 +1250,8 @@ class DataPipeline:
                     await self.bus.publish(
                         "candle.batch",
                         {
-                            "symbols": self.INSTRUMENTS,
-                            "count": len(self.INSTRUMENTS),
+                            "symbols": pulse_symbols,
+                            "count": len(pulse_symbols),
                             "timestamp": time.time_ns(),
                             "market_open": is_open,
                             "staleness_veto": stale_detect,
@@ -1258,11 +1297,10 @@ class DataPipeline:
                 if is_open:
                     from config import DATA_INGESTION_INTERVAL
 
-                    await asyncio.sleep(DATA_INGESTION_INTERVAL)  # Intraday high-freq
+                    open_sleep = self.open_market_interval_override or DATA_INGESTION_INTERVAL
+                    await asyncio.sleep(open_sleep)  # Intraday high-freq
                 else:
-                    from config import DATA_MAINTENANCE_INTERVAL
-
-                    await asyncio.sleep(DATA_MAINTENANCE_INTERVAL)  # Maintenance mode
+                    await asyncio.sleep(self.closed_market_interval)  # Maintenance mode
 
             except asyncio.CancelledError:
                 logger.info("DataPipeline: Cancellation received.")
