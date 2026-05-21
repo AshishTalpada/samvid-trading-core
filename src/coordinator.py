@@ -1,5 +1,7 @@
 import asyncio
+import json
 import logging
+import os
 import time
 import uuid
 from datetime import datetime, timezone
@@ -962,6 +964,19 @@ class TradingCoordinator:
         """The dedicated execution nexus for the Sovereign system."""
         try:
             proposal_id = all_votes[0].get("proposal_id", "CACHE")
+            decision = self._maybe_promote_paper_exploration(
+                symbol=symbol,
+                decision=decision,
+                pattern=pattern,
+                all_votes=all_votes,
+                shares=shares,
+                is_probe=is_probe,
+            )
+            if decision.get("paper_exploration"):
+                exploration_cap = max(
+                    1, int(os.environ.get("SOVEREIGN_PAPER_EXPLORATION_MAX_SHARES", "1"))
+                )
+                shares = min(int(shares), exploration_cap)
 
             if decision["decision"] == "EXECUTE" or is_probe:
                 if is_probe:
@@ -1152,6 +1167,7 @@ class TradingCoordinator:
                 logger.info(
                     f"Coordinator [{proposal_id}]  VETO: {symbol} rejected by decision engine. Reason: {reason}"
                 )
+                await self._record_rejection(symbol, pattern, decision, all_votes, shares)
 
                 await send_telegram_alert(f" *VETO: {symbol}*\nReason: {reason}\nID: {proposal_id}")
 
@@ -1177,13 +1193,16 @@ class TradingCoordinator:
                             entry_price=pattern.entry,
                             entry_time=datetime.now(timezone.utc),
                             pattern=pattern.name,
-                            initial_belief=0.0,  # Shadow trade has no belief
-                            current_belief=0.0,
+                            initial_belief=float(decision.get("confidence", 0.0) or 0.0),
+                            current_belief=float(decision.get("confidence", 0.0) or 0.0),
                             initial_stop=pattern.stop,
                             stop_loss=pattern.stop,
                             take_profit=pattern.target,
                             trade_id=f"SHADOW_{proposal_id}",
                             task_id=task.id if task else "N/A",
+                            catalyst_score=float(decision.get("confidence", 0.0) or 0.0) * 100.0,
+                            dhatu_state=getattr(self.brain, "_oracle_dhatu", "UNKNOWN"),
+                            regime_at_entry=getattr(self.brain, "current_regime", "UNKNOWN"),
                             status="SHADOW_REJECTED",
                             meta={"reason": reason, "votes": all_votes},
                         )
@@ -1208,3 +1227,145 @@ class TradingCoordinator:
             # Add to a local 'cooldown' in the brain to prevent the scanner from re-submitting for 30s
             if hasattr(self.brain, "_vetting_cooldowns"):
                 self.brain._vetting_cooldowns[symbol] = datetime.now(timezone.utc)
+
+    def _vote_metrics(self, all_votes: list[dict[str, Any]]) -> dict[str, Any]:
+        yes_votes = 0.0
+        no_agents: list[str] = []
+        hard_no_agents: list[str] = []
+        confidence_sum = 0.0
+        active = 0
+        for vote in all_votes:
+            agent = str(vote.get("agent", "UNKNOWN"))
+            choice = vote.get("vote")
+            confidence = float(vote.get("confidence", 0.0) or 0.0)
+            if choice != "ABSTAIN":
+                active += 1
+                confidence_sum += confidence
+            if choice == "YES":
+                yes_votes += 2.0 if agent == "Agent_D" else 1.0
+            elif choice == "NO":
+                no_agents.append(agent)
+                if agent in {"Risk_Guard", "Agent_D", "Dhatu_Oracle"}:
+                    hard_no_agents.append(agent)
+        avg_confidence = confidence_sum / active if active else 0.0
+        return {
+            "yes_votes": yes_votes,
+            "no_agents": no_agents,
+            "hard_no_agents": hard_no_agents,
+            "active_voters": active,
+            "avg_confidence": avg_confidence,
+        }
+
+    def _maybe_promote_paper_exploration(
+        self,
+        symbol: str,
+        decision: dict[str, Any],
+        pattern: Any,
+        all_votes: list[dict[str, Any]],
+        shares: int,
+        is_probe: bool,
+    ) -> dict[str, Any]:
+        """Allow tiny paper-only learning trades on high-quality near misses."""
+        if is_probe or decision.get("decision") == "EXECUTE":
+            return decision
+        if getattr(self.brain, "mode", "") != "ibkr_paper":
+            return decision
+        if os.environ.get("SOVEREIGN_PAPER_EXPLORATION", "1") != "1":
+            return decision
+        if shares <= 0:
+            return decision
+
+        metrics = self._vote_metrics(all_votes)
+        reason = str(decision.get("reason", ""))
+        cognitive_only = (
+            "Mind_Ultrathink" in metrics["no_agents"]
+            and not metrics["hard_no_agents"]
+            and all(agent in {"Mind_Ultrathink", "Swarm_Predictor"} for agent in metrics["no_agents"])
+        )
+        enough_fast_agreement = metrics["yes_votes"] >= 5 and metrics["avg_confidence"] >= 0.50
+        pattern_conf = float(getattr(pattern, "confidence", 0.0) or 0.0)
+        if not (cognitive_only and enough_fast_agreement and pattern_conf >= 65.0):
+            return decision
+
+        promoted = dict(decision)
+        promoted["decision"] = "EXECUTE"
+        promoted["confidence"] = min(0.61, max(float(decision.get("confidence", 0.0) or 0.0), 0.50))
+        promoted["reason"] = (
+            "IBKR_PAPER_EXPLORATION: tiny paper-only learning order promoted from "
+            f"near-miss veto. Original reason: {reason[:180]}"
+        )
+        promoted["paper_exploration"] = True
+        logger.warning(
+            "Coordinator: %s promoted to IBKR paper exploration "
+            "(yes=%.1f active=%s conf=%.2f pattern_conf=%.1f).",
+            symbol,
+            metrics["yes_votes"],
+            metrics["active_voters"],
+            metrics["avg_confidence"],
+            pattern_conf,
+        )
+        return promoted
+
+    async def _record_rejection(
+        self,
+        symbol: str,
+        pattern: Any,
+        decision: dict[str, Any],
+        all_votes: list[dict[str, Any]],
+        shares: int,
+    ) -> None:
+        """Persist rejection causes separately from real trade rows."""
+
+        def _sync_record() -> None:
+            conn = getattr(self.brain, "db_conn", None)
+            if conn is None:
+                return
+            try:
+                metrics = self._vote_metrics(all_votes)
+                conn.execute(
+                    """
+                    CREATE TABLE IF NOT EXISTS decision_rejections (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        timestamp TEXT NOT NULL,
+                        symbol TEXT NOT NULL,
+                        pattern TEXT,
+                        regime TEXT,
+                        dhatu_state TEXT,
+                        decision_reason TEXT,
+                        confidence REAL,
+                        shares INTEGER,
+                        yes_votes REAL,
+                        active_voters INTEGER,
+                        no_agents TEXT,
+                        votes_json TEXT
+                    )
+                    """
+                )
+                conn.execute(
+                    """
+                    INSERT INTO decision_rejections (
+                        timestamp, symbol, pattern, regime, dhatu_state,
+                        decision_reason, confidence, shares, yes_votes, active_voters,
+                        no_agents, votes_json
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        datetime.now(timezone.utc).isoformat(),
+                        symbol,
+                        getattr(pattern, "name", "UNKNOWN"),
+                        getattr(self.brain, "current_regime", "UNKNOWN"),
+                        getattr(self.brain, "_oracle_dhatu", "UNKNOWN"),
+                        str(decision.get("reason", ""))[:1000],
+                        float(decision.get("confidence", 0.0) or 0.0),
+                        int(shares or 0),
+                        float(metrics["yes_votes"]),
+                        int(metrics["active_voters"]),
+                        ",".join(metrics["no_agents"]),
+                        json.dumps(all_votes, default=str)[:12000],
+                    ),
+                )
+                conn.commit()
+            except Exception as exc:
+                logger.debug("Decision rejection telemetry skipped for %s: %s", symbol, exc)
+
+        await asyncio.to_thread(_sync_record)
