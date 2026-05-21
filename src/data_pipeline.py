@@ -707,6 +707,7 @@ class DataPipeline:
         Fetch news for a symbol using Finnhub + OpenBB + yfinance.
         """
         combined_news: list[dict[str, Any]] = []
+        news_log = logger.debug if self._quiet_pulse_logging else logger.info
 
         # 1. Try Finnhub (Professional Grade)
         if self.finnhub_key:
@@ -719,10 +720,13 @@ class DataPipeline:
 
                 url = f"https://finnhub.io/api/v1/company-news?symbol={symbol}&from={three_days_ago}&to={today}&token={self.finnhub_key}"
                 session = await self._get_http_session()
+                fetched_count = 0
                 async with session.get(url) as response:
                     if response.status == 200:
                         data = await response.json()
-                        for article in data[:5]:  # Top 5 from Finnhub
+                        top_articles = data[:5]
+                        fetched_count = len(top_articles)
+                        for article in top_articles:  # Top 5 from Finnhub
                             combined_news.append(
                                 {
                                     "symbol": symbol,
@@ -738,7 +742,13 @@ class DataPipeline:
                                     ),
                                 }
                             )
-                logger.info(f"Finnhub fetched {len(data[:5])} news items for {symbol}")
+                    else:
+                        logger.debug(
+                            "Finnhub news returned HTTP %s for %s.",
+                            response.status,
+                            symbol,
+                        )
+                news_log(f"Finnhub fetched {fetched_count} news items for {symbol}")
             except Exception as e:
                 logger.error("Finnhub news fetch failed for %s: %r", symbol, e)
 
@@ -761,7 +771,7 @@ class DataPipeline:
                         }
                     )
                 if openbb_articles:
-                    logger.info(f"OpenBB fetched {len(openbb_articles)} news items for {symbol}")
+                    news_log(f"OpenBB fetched {len(openbb_articles)} news items for {symbol}")
             except Exception as e:
                 logger.error(f"OpenBB news fetch failed for {symbol}: {e}")
 
@@ -798,7 +808,7 @@ class DataPipeline:
                             "sentiment": self._calculate_sentiment(headline, summary),
                         }
                     )
-                logger.info(f"YFinance fetched {len(yf_news[:5])} news items for {symbol}")
+                news_log(f"YFinance fetched {len(yf_news[:5])} news items for {symbol}")
         except Exception as e:
             logger.error(f"YFinance news fetch failed for {symbol}: {e}")
 
@@ -852,9 +862,9 @@ class DataPipeline:
 
             # Log top headlines for Cockpit visibility
             for item in combined_news[:3]:  # type: ignore
-                logger.info(f" NEWS [{symbol}] from {item['source']}: {item['headline']}")
+                news_log(f" NEWS [{symbol}] from {item['source']}: {item['headline']}")
         else:
-            logger.info(
+            news_log(
                 f" NEWS: No fresh headlines for {symbol} after polling Finnhub, OpenBB, and YFinance."
             )
 
