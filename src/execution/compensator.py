@@ -1,4 +1,5 @@
 import asyncio
+import inspect
 import logging
 import time
 
@@ -44,4 +45,6 @@ class LatencyCompensator:
         if delay_ms > 0:
             await asyncio.sleep(delay_ms / 1000.0)
         logger.info(f"[COMPENSATOR] Submitting order (RTT={self._rtt_ms:.2f}ms pre-lead)")
-        await callback()
+        result = callback()
+        if inspect.isawaitable(result):
+            await result

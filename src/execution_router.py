@@ -1,4 +1,5 @@
 import logging
+import os
 import time
 from typing import Dict, List, Optional
 
@@ -13,10 +14,19 @@ class SmartExecutionRouter:
     """
 
     def __init__(self):
+        enable_unwired = os.getenv("SOVEREIGN_ENABLE_UNWIRED_VENUES", "0") == "1"
         self.brokers = {
             "IBKR": {"latency": 5.0, "status": "ONLINE", "fee_bps": 0.3},
-            "ALPACA": {"latency": 25.0, "status": "ONLINE", "fee_bps": 0.0},
-            "DARK_POOL": {"latency": 150.0, "status": "ONLINE", "fee_bps": 1.0},
+            "ALPACA": {
+                "latency": 25.0,
+                "status": "ONLINE" if enable_unwired else "OFFLINE",
+                "fee_bps": 0.0,
+            },
+            "DARK_POOL": {
+                "latency": 150.0,
+                "status": "ONLINE" if enable_unwired else "OFFLINE",
+                "fee_bps": 1.0,
+            },
         }
         self.primary = "IBKR"
 
