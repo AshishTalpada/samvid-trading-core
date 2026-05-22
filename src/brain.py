@@ -844,6 +844,9 @@ class TradingBrain:
         self._scan_cycle: int = 0
         self.last_scan_time: datetime | None = None
         self._vetting_cooldowns: dict[str, datetime] = {}  # Symbol -> last vet time
+        self._last_runtime_wall = datetime.now(timezone.utc)
+        self._resume_quarantine_until: datetime | None = None
+        self._last_resume_notice_at: datetime | None = None
 
         self._exit_failure_count: dict[str, int] = {}  # Symbol -> Strike Count
         self._exit_last_attempt: dict[str, datetime] = {}  # Symbol -> Last Re-attempt
@@ -1474,6 +1477,8 @@ class TradingBrain:
         logger.info("BrainWatchdog: Pulse task active (15s interval)")
         while self.is_running:
             try:
+                await self._check_resume_gap("brain_watchdog")
+
                 if self.dms:
                     self.dms.record_heartbeat("BRAIN_PRIMARY")
                     self.dms.record_heartbeat("COORDINATOR")
@@ -1524,6 +1529,52 @@ class TradingBrain:
             except Exception as e:
                 logger.error(f"BrainWatchdog: Heartbeat error: {e}")
                 await asyncio.sleep(5)
+
+    async def _check_resume_gap(self, source: str) -> bool:
+        """Detect laptop sleep/resume gaps before fresh heartbeats can hide them."""
+        now = datetime.now(timezone.utc)
+        gap_seconds = (now - self._last_runtime_wall).total_seconds()
+        self._last_runtime_wall = now
+
+        threshold = max(90.0, float(self.scan_interval) * 2.0)
+        if gap_seconds <= threshold:
+            return False
+
+        quarantine_seconds = max(300.0, min(1800.0, gap_seconds * 0.25))
+        until = now + timedelta(seconds=quarantine_seconds)
+        if self._resume_quarantine_until is None or until > self._resume_quarantine_until:
+            self._resume_quarantine_until = until
+
+        self.pending_signals.clear()
+        async with self._state_lock:
+            self.state = TradingState.STANDBY
+
+        if self.dms and hasattr(self.dms, "mark_resume_gap_if_needed"):
+            self.dms.mark_resume_gap_if_needed(now, source)
+
+        logger.critical(
+            "RESUME GAP DETECTED by %s: runtime silent for %.0fs. "
+            "Trading quarantined until %s while broker/data state is revalidated.",
+            source,
+            gap_seconds,
+            self._resume_quarantine_until.isoformat(),
+        )
+
+        if self.bus is not None:
+            try:
+                await self.bus.publish(
+                    "notification.telegram",
+                    {
+                        "message": (
+                            "[DMS] Resume gap detected: "
+                            f"runtime silent for {gap_seconds:.0f}s. "
+                            "New entries quarantined while broker/data state is revalidated."
+                        )
+                    },
+                )
+            except Exception as exc:
+                logger.debug("Resume-gap Telegram publish skipped: %s", exc)
+        return True
 
     # BUS LISTENER — processes events from SharedIntelligenceBus
 
@@ -1843,7 +1894,31 @@ class TradingBrain:
         self._is_scanning = True
 
         try:
+            await self._check_resume_gap("scanner")
             now = datetime.now(timezone.utc)
+            quarantine_until = self._resume_quarantine_until
+            if quarantine_until and now < quarantine_until:
+                remaining = (quarantine_until - now).total_seconds()
+                notice_due = (
+                    self._last_resume_notice_at is None
+                    or (now - self._last_resume_notice_at).total_seconds() >= 60
+                )
+                if notice_due:
+                    logger.critical(
+                        "SCAN SUSPENDED: resume quarantine active for %.0fs more. "
+                        "Broker/data state must settle after laptop sleep.",
+                        remaining,
+                    )
+                    self._last_resume_notice_at = now
+                self.pending_signals.clear()
+                await asyncio.sleep(min(30.0, max(1.0, remaining)))
+                return
+
+            if quarantine_until and now >= quarantine_until:
+                logger.warning("Resume quarantine cleared; scanner may resume.")
+                self._resume_quarantine_until = None
+                self._last_resume_notice_at = None
+
             closed_market_scans_disabled = (
                 not self._is_market_open()
                 and os.environ.get("SOVEREIGN_ALLOW_CLOSED_MARKET_SCANS") != "1"
