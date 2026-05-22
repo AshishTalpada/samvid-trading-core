@@ -25,11 +25,13 @@ mt5: Any = None
 if TYPE_CHECKING:
     from intelligence_bus import SharedIntelligenceBus
 
+from text_safety import normalize_operator_text
 from vault import Vault
 
 logger = logging.getLogger(__name__)
 TASK_HEARTBEAT_FILE = Path("data/task_heartbeats.json")
 TASK_HEARTBEAT_FLUSH_INTERVAL = 1.0
+MIN_RESUME_GAP_SECONDS = 90.0
 
 
 def _get_mt5_module() -> Any:
@@ -86,6 +88,10 @@ class DMSMonitor:
         self.alert_sent = False
         self.flatten_executed = False
         self.session: aiohttp.ClientSession | None = None
+        self._last_wall_clock_seen = datetime.now(timezone.utc)
+        self._resume_incident_active = False
+        self._resume_gap_seconds = 0.0
+        self._resume_incident_source = "unknown"
 
         # Broker connections for emergency flatten
         self.ibkr_client = ibkr_client
@@ -108,6 +114,7 @@ class DMSMonitor:
 
     async def _send_telegram_message(self, message: str) -> bool:
         """Send message via Telegram API."""
+        message = normalize_operator_text(message)
         session = self.session
         if not session:
             from session_manager import SovereignSession
@@ -141,8 +148,12 @@ class DMSMonitor:
     def record_heartbeat(self, agent_id: str = "BRAIN_PRIMARY") -> None:
         """Record a heartbeat from a specific agent."""
         current_time = datetime.now(timezone.utc)
+        self.mark_resume_gap_if_needed(current_time, f"heartbeat:{agent_id}")
         self.agent_heartbeats[agent_id] = current_time
         self._flush_task_heartbeats(current_time)
+
+        if self._resume_incident_active:
+            return
 
         # Only reset emergency alert/flatten states if all critical agents are healthy
         all_healthy = True
@@ -159,6 +170,34 @@ class DMSMonitor:
             self.alert_sent = False
             self.flatten_executed = False
             self.timeout_detected_at = None
+
+    def mark_resume_gap_if_needed(
+        self, current_time: datetime | None = None, source: str = "runtime"
+    ) -> bool:
+        """Promote a long wall-clock gap into a DMS incident before heartbeats refresh."""
+        current_time = current_time or datetime.now(timezone.utc)
+        gap_seconds = (current_time - self._last_wall_clock_seen).total_seconds()
+        self._last_wall_clock_seen = current_time
+
+        threshold = max(float(self.timeout), MIN_RESUME_GAP_SECONDS)
+        if gap_seconds <= threshold:
+            return False
+
+        if not self._resume_incident_active:
+            self._resume_incident_active = True
+            self._resume_gap_seconds = gap_seconds
+            self._resume_incident_source = source
+            self.timeout_detected_at = current_time
+            self.alert_sent = False
+            self.flatten_executed = False
+            logger.critical(
+                "DMS: Resume gap detected by %s. Runtime was silent for %.0fs "
+                "(threshold %.0fs). Emergency path armed.",
+                source,
+                gap_seconds,
+                threshold,
+            )
+        return True
 
     def _flush_task_heartbeats(self, current_time: datetime) -> None:
         """Persist agent heartbeats for the external watchdog."""
@@ -189,6 +228,27 @@ class DMSMonitor:
     async def check_timeout(self) -> bool:
         """Check if any critical agent heartbeat timeout exceeded."""
         current_time = datetime.now(timezone.utc)
+        self.mark_resume_gap_if_needed(current_time, "dms_loop")
+
+        if self._resume_incident_active:
+            stale_agents = [
+                f"SYSTEM_RESUME_GAP ({int(self._resume_gap_seconds)}s via {self._resume_incident_source})"
+            ]
+            if not self.alert_sent:
+                await self.send_emergency_alert(stale_agents)
+                self.alert_sent = True
+
+            timeout_at = self.timeout_detected_at or current_time
+            grace_elapsed = (current_time - timeout_at).total_seconds()
+            if grace_elapsed >= self.grace_period and not self.flatten_executed:
+                logger.critical(
+                    "DMS: Resume-gap panic threshold reached after %.0fs - executing emergency flatten.",
+                    grace_elapsed,
+                )
+                await self.execute_emergency_flatten()
+                self.flatten_executed = True
+            return True
+
         stale_agents = []
 
         for agent in self.critical_agents:
