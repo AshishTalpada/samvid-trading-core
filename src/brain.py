@@ -90,6 +90,7 @@ from mind_observer import MindObserver
 from mind_prompts import MindPrompts
 from mind_system import MindSystem
 from mind_ultrathink import MindUltrathink
+from pandas_safety import safe_polars_from_pandas
 from portfolio_analyzer import PORTFOLIO_ANALYZER
 from quant_signals import QuantConsensus
 from questdb_adapter import QuestDBAdapter
@@ -2114,7 +2115,7 @@ class TradingBrain:
                         if isinstance(df_pd, pl.DataFrame):
                             df_pl = df_pd
                         else:
-                            df_pl = pl.from_pandas(df_pd)
+                            df_pl = safe_polars_from_pandas(df_pd)
 
                         tr_expr = pl.max_horizontal(
                             [
@@ -2405,11 +2406,38 @@ class TradingBrain:
                 pos.unrealized_pnl = (current_price - pos.entry_price) * pos.qty
 
                 # Check IBKR cache to stop 'Phantom Tightening' logs
-                broker_qty = 0
-                if hasattr(self, "agent_c_ibkr") and self.agent_c_ibkr.ibkr_conn:
-                    broker_qty = self.agent_c_ibkr.ibkr_conn._positions_cache.get(pos.symbol, 0)
+                broker_qty = None
+                if pos.account_type == "ibkr" and self.ibkr_conn:
+                    cache = getattr(self.ibkr_conn, "_positions_cache", {}) or {}
+                    if pos.symbol in cache:
+                        broker_qty = float(cache[pos.symbol])
+                    elif self.ibkr_client and self.ibkr_client.isConnected():
+                        try:
+                            positions = await asyncio.to_thread(self.ibkr_client.positions)
+                            reality = {p.contract.symbol: float(p.position) for p in positions}
+                            cache.update(reality)
+                            if pos.symbol in reality:
+                                broker_qty = reality[pos.symbol]
+                        except Exception as poll_err:
+                            logger.debug(
+                                "IBKR reality poll skipped for %s during monitor: %s",
+                                pos.symbol,
+                                poll_err,
+                            )
 
-                pos.meta["broker_flat"] = abs(broker_qty) < 0.1
+                pos.meta["broker_flat"] = broker_qty is not None and abs(broker_qty) < 0.1
+                if pos.account_type == "ibkr" and pos.meta["broker_flat"]:
+                    logger.warning(
+                        " MIRROR SYNC: %s memory error (%s) corrected to Broker Reality (0).",
+                        pos.symbol,
+                        pos.qty,
+                    )
+                    self._mark_trade_liquidated(pos.symbol, pos.account_type)
+                    async with self._state_lock:
+                        if pos in self.positions:
+                            self.positions.remove(pos)
+                    self.closed_positions.append(pos)
+                    continue
 
                 # MFE / MAE Tracking
                 risk_amt = abs(pos.entry_price - pos.initial_stop)
@@ -3361,7 +3389,7 @@ class TradingBrain:
             except Exception as e:
                 logger.debug(f"Staleness check skipped for {symbol}: {e}")
 
-            final_df = pl.from_pandas(df_frame)
+            final_df = safe_polars_from_pandas(df_frame)
             self._hot_cache[symbol] = final_df
             self._hot_cache_time[symbol] = time.monotonic()
             return final_df
@@ -3740,7 +3768,8 @@ class TradingBrain:
             price = self.last_tick_prices.get(symbol, 0.0)
             if price <= 0:
                 market_data = await self._fetch_market_snapshot(symbol)
-                price = market_data.get("price", 0.0) if market_data else 0.0
+                raw_price = market_data.get("price") if market_data else None
+                price = float(raw_price) if raw_price is not None else 0.0
 
             direction = "LONG" if qty > 0 else "SHORT"
 
@@ -3788,14 +3817,14 @@ class TradingBrain:
             if self.db_conn and not db_row:
                 cursor = self.db_conn.cursor()
                 cursor.execute(
-                    "INSERT INTO trades (timestamp, instrument, direction, quantity, entry_price, "
+                    "INSERT INTO trades (timestamp, instrument, direction, shares, entry_price, "
                     "outcome, stop_price, target_price, broker, notes) "
                     "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                     (
-                        time.time_ns(),
+                        datetime.now(timezone.utc).isoformat(),
                         symbol,
                         direction,
-                        qty,
+                        abs(qty),
                         price,
                         "OPEN",
                         stop,
