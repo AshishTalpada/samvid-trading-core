@@ -5,6 +5,7 @@ import os
 import sqlite3
 import time
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any, Dict
 
 from config import PROJECT_PATH
@@ -57,8 +58,10 @@ class SessionRestorer:
             signature = hashlib.sha256(data + self.secret_key.encode()).hexdigest()
 
             # 3. Write Atomic (Safe-Write pattern)
-            temp_path = f"{self.path}.tmp"
-            fd = os.open(temp_path, os.O_CREAT | os.O_WRONLY | os.O_TRUNC, 0o600)
+            temp_path = f"{self.path}.{os.getpid()}.{time.time_ns()}.tmp"
+            path_obj = Path(self.path)
+            tmp_obj = Path(temp_path)
+            fd = os.open(str(tmp_obj), os.O_CREAT | os.O_WRONLY | os.O_TRUNC, 0o600)
             with os.fdopen(fd, "wb") as f:
                 f.write(data)
                 f.write(b"\n--SIGNATURE--\n")
@@ -66,7 +69,26 @@ class SessionRestorer:
                 f.flush()
                 os.fsync(f.fileno())
 
-            os.replace(temp_path, self.path)
+            last_replace_error: Exception | None = None
+            for attempt in range(5):
+                try:
+                    os.replace(str(tmp_obj), str(path_obj))
+                    last_replace_error = None
+                    break
+                except PermissionError as exc:
+                    last_replace_error = exc
+                    time.sleep(0.05 * (attempt + 1))
+            if last_replace_error is not None:
+                logger.warning(
+                    "SessionRestorer: Freeze skipped; session file busy after retries: %s",
+                    last_replace_error,
+                )
+                try:
+                    tmp_obj.unlink(missing_ok=True)
+                except Exception:
+                    pass
+                return False
+
             self.last_frozen = now_ts
             freeze_logger = (
                 logger.info
