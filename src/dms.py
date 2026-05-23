@@ -432,7 +432,7 @@ class DMSMonitor:
                             )
                             if self.ibkr_client.isConnected():
                                 logger.info("DMS: IBKR reconnected successfully.")
-                                break  # break reconnect-wait, retry outer for-loop
+                                continue
                         except Exception as e:
                             logger.error(f"DMS: IBKR reconnect failed: {e}")
                             if attempt == _retries:
