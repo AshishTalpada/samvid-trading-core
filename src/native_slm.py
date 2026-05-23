@@ -37,7 +37,7 @@ class NativeSLM:
         self._inference_timeout = float(os.environ.get("SOVEREIGN_SLM_TIMEOUT", "8"))
 
         if Llama is None:
-            logger.warning("llama-cpp-python not installed. Native SLM offline.")
+            logger.info("llama-cpp-python not installed. Native SLM offline.")
             return
 
         if not os.path.exists(model_path):

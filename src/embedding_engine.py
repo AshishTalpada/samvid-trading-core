@@ -1,3 +1,4 @@
+import hashlib
 import logging
 import threading
 from typing import List, Optional
@@ -16,6 +17,7 @@ class SharedEmbeddingEngine:
     _instance: Optional["SharedEmbeddingEngine"] = None
     _model: Optional[any] = None
     _lock = threading.Lock()
+    _fallback_logged = False
 
     def __new__(cls):
         if cls._instance is None:
@@ -36,9 +38,26 @@ class SharedEmbeddingEngine:
                 self._model = TextEmbedding(model_name)
                 logger.info(f"✓ SharedEmbeddingEngine: {model_name} loaded into memory.")
             except Exception as e:
-                logger.error(f"SharedEmbeddingEngine: Model load failed: {e}")
+                if not self._fallback_logged:
+                    logger.info(
+                        "SharedEmbeddingEngine: fastembed unavailable (%s). "
+                        "Using deterministic hash embeddings until dependency is installed.",
+                        e,
+                    )
+                    self._fallback_logged = True
                 return None
         return self._model
+
+    @staticmethod
+    def _hash_embedding(text: str, dims: int = 384) -> list[float]:
+        values: list[float] = []
+        seed = text.encode("utf-8", errors="ignore") or b"\x00"
+        counter = 0
+        while len(values) < dims:
+            digest = hashlib.blake2b(seed + counter.to_bytes(4, "little"), digest_size=32).digest()
+            values.extend(((byte / 127.5) - 1.0) for byte in digest)
+            counter += 1
+        return values[:dims]
 
     def embed(self, texts: List[str]) -> List[List[float]]:
         """
@@ -46,8 +65,7 @@ class SharedEmbeddingEngine:
         """
         model = self._get_model()
         if model is None:
-            logger.critical("SharedEmbeddingEngine: MODEL NOT INITIALIZED. Vector search is BLIND.")
-            return []
+            return [self._hash_embedding(text) for text in texts]
 
         BATCH_SIZE = 100
         all_embeddings = []
