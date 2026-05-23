@@ -7,6 +7,9 @@ from typing import Any
 
 OPT_NON_STR_KEYS = 1
 OPT_SERIALIZE_NUMPY = 2
+OPT_INDENT_2 = 4
+OPT_SORT_KEYS = 8
+OPT_UTC_Z = 16
 
 
 def _default(value: Any) -> Any:
@@ -31,10 +34,14 @@ def _default(value: Any) -> Any:
 
 def dumps(obj: Any, *, option: int = 0) -> bytes:
     """Small orjson-compatible fallback for environments where the DLL is blocked."""
+    indent = 2 if option & OPT_INDENT_2 else None
+    sort_keys = bool(option & OPT_SORT_KEYS)
     return json.dumps(
         obj,
         default=_default,
         ensure_ascii=False,
+        indent=indent,
+        sort_keys=sort_keys,
         separators=(",", ":"),
     ).encode("utf-8")
 

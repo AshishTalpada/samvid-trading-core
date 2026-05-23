@@ -15,6 +15,7 @@ import logging
 from datetime import datetime, timedelta
 from typing import Any
 
+from pandas_safety import safe_polars_from_pandas
 from vault import Vault
 
 logger = logging.getLogger(__name__)
@@ -132,7 +133,7 @@ class OpenBBProvider:
                 # Run synchronously to avoid signal handling issues in thread pools
                 loaded = _try_load_openbb()
                 if not loaded:
-                    logger.warning("OpenBB SDK not available — falling back to yfinance.")
+                    logger.info("OpenBB SDK not available - using yfinance provider.")
                     return False
             except asyncio.TimeoutError:
                 logger.warning(
@@ -201,8 +202,6 @@ class OpenBBProvider:
             return None
 
         try:
-            import polars as pl
-
             start_date = (datetime.now() - timedelta(days=period_days)).strftime("%Y-%m-%d")
 
             result = await asyncio.to_thread(
@@ -231,7 +230,7 @@ class OpenBBProvider:
                     df_pd.rename(columns={col: "timestamp"}, inplace=True)
                     break
 
-            pl_df = pl.from_pandas(df_pd)
+            pl_df = safe_polars_from_pandas(df_pd)
             logger.debug(f"OpenBB fetched {len(pl_df)} bars for {symbol}")
             return pl_df
 
@@ -471,8 +470,6 @@ class OpenBBProvider:
             return None
 
         try:
-            import polars as pl
-
             start = (datetime.now() - timedelta(days=period_days)).strftime("%Y-%m-%d")
 
             result = await asyncio.to_thread(
@@ -496,7 +493,7 @@ class OpenBBProvider:
                     df_pd.rename(columns={col: "timestamp"}, inplace=True)
                     break
 
-            return pl.from_pandas(df_pd)
+            return safe_polars_from_pandas(df_pd)
 
         except Exception as e:
             logger.debug(f"OpenBB crypto fetch failed for {symbol}: {e}")
