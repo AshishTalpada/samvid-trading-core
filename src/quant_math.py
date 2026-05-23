@@ -33,15 +33,20 @@ except Exception as e:
     )
     _NUMBA_AVAILABLE = False
 
-    def njit(*args, **kwargs):  # type: ignore  # noqa: E302
-        """No-op decorator when Numba is unavailable."""
 
-        def decorator(fn):
-            return fn
+def _identity_njit(*args, **kwargs):  # type: ignore[no-untyped-def]
+    """No-op decorator when Numba is unavailable."""
 
-        if args and callable(args[0]):
-            return args[0]
-        return decorator
+    def decorator(fn):
+        return fn
+
+    if args and callable(args[0]):
+        return args[0]
+    return decorator
+
+
+if not _NUMBA_AVAILABLE:
+    njit = _identity_njit  # type: ignore[assignment]
 
 
 # ── EMA ────────────────────────────────────────────────────────────────────────

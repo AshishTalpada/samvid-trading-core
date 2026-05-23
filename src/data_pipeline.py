@@ -50,6 +50,7 @@ import yfinance as yf
 
 from config import QUESTDB_ENABLED
 from openbb_provider import OpenBBProvider
+from pandas_safety import safe_polars_from_pandas
 from questdb_adapter import QuestDBAdapter
 
 if TYPE_CHECKING:
@@ -415,7 +416,7 @@ class DataPipeline:
                 if col in df.columns:
                     df.rename(columns={col: "timestamp"}, inplace=True)
 
-            pl_df = pl.from_pandas(df)
+            pl_df = safe_polars_from_pandas(df)
             del df
             del ticker
             log_fetch = logger.debug if self._quiet_pulse_logging else logger.info
@@ -520,7 +521,7 @@ class DataPipeline:
                 logger.debug(f"DataPipeline: {symbol} has holes after ffill. Pruning...")
                 df = df.dropna()
 
-            return pl.from_pandas(df.reset_index())
+            return safe_polars_from_pandas(df.reset_index())
         except Exception as e:
             import traceback
 
@@ -613,7 +614,7 @@ class DataPipeline:
             params = {"range": "5d", "interval": "1d"}
             async with session.get(url, params=params) as response:
                 if response.status != 200:
-                    logger.warning("VIX Yahoo chart fallback returned HTTP %s", response.status)
+                    logger.info("VIX Yahoo chart fallback returned HTTP %s", response.status)
                     return None
                 payload = await response.json()
             result = payload.get("chart", {}).get("result") or []
