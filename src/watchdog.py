@@ -1,12 +1,12 @@
 import atexit
 import logging
-from logging.handlers import RotatingFileHandler
 import os
 import sqlite3
 import subprocess
 import sys
 import time
 from datetime import datetime, timezone
+from logging.handlers import RotatingFileHandler
 from pathlib import Path
 
 # Setup minimal logging. The main process launches this helper detached with
