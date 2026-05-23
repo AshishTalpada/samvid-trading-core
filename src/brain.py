@@ -1905,7 +1905,7 @@ class TradingBrain:
                     or (now - self._last_resume_notice_at).total_seconds() >= 60
                 )
                 if notice_due:
-                    logger.critical(
+                    logger.warning(
                         "SCAN SUSPENDED: resume quarantine active for %.0fs more. "
                         "Broker/data state must settle after laptop sleep.",
                         remaining,
