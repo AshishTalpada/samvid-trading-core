@@ -376,8 +376,10 @@ class DataPipeline:
                         break
 
             if df is None or (hasattr(df, "empty") and df.empty):
-                logger.warning(
-                    f"No historical data for {symbol}. Attempting Heuristic Reconstruction..."
+                no_data_log = logger.warning if self.is_market_open() else logger.info
+                no_data_log(
+                    "No historical data for %s. Attempting Heuristic Reconstruction...",
+                    symbol,
                 )
                 last_price = await self.get_current_price(symbol)
                 if last_price > 0:
@@ -751,7 +753,11 @@ class DataPipeline:
                         )
                 news_log(f"Finnhub fetched {fetched_count} news items for {symbol}")
             except Exception as e:
-                logger.error("Finnhub news fetch failed for %s: %r", symbol, e)
+                logger.warning(
+                    "Finnhub news fetch skipped for %s: %r. Continuing with OpenBB/local feeds.",
+                    symbol,
+                    e,
+                )
 
         # 2. Try OpenBB (multi-source aggregation)
         if self.openbb and self.openbb.is_available:
