@@ -153,7 +153,7 @@ logging.getLogger("fastembed").setLevel(logging.WARNING)
 
 
 # Suppress noisy third-party libraries for production
-logging.getLogger("yfinance").setLevel(logging.ERROR)
+logging.getLogger("yfinance").setLevel(logging.CRITICAL)
 logging.getLogger("peewee").setLevel(logging.ERROR)
 logging.getLogger("urllib3").setLevel(logging.ERROR)
 logging.getLogger("ib_insync").setLevel(logging.ERROR)
@@ -1508,7 +1508,11 @@ class TradingSystem:
             logger.info("\n[9/10] Validating Native SLM Readiness...")
             if self.native_slm is not None:
                 if self.native_slm.is_available:
-                    logger.info("Native SLM is loaded in VRAM and ready.")
+                    if hasattr(self.native_slm, "warmup"):
+                        await self.native_slm.warmup()
+                    slm_mode = getattr(self.native_slm, "mode", "native")
+                    slm_detail = getattr(self.native_slm, "status_detail", slm_mode)
+                    logger.info("Native SLM online (%s): %s.", slm_mode, slm_detail)
                 else:
                     logger.info("Native SLM offline - trading continues with pure math execution.")
 
@@ -1553,6 +1557,16 @@ class TradingSystem:
                 )
                 else "🔴 OFFLINE"
             )
+
+            if hasattr(self, "native_slm") and self.native_slm and self.native_slm.is_available:
+                slm_mode = getattr(self.native_slm, "mode", "native")
+                slm_status = (
+                    "GREEN NATIVE READY"
+                    if slm_mode == "native"
+                    else "YELLOW FALLBACK ONLINE"
+                )
+            else:
+                slm_status = "RED OFFLINE"
 
             notification = (
                 f"[STARTUP] <b>Sovereign Trading System Online</b>\n\n"
