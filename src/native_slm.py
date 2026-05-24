@@ -33,11 +33,22 @@ class NativeSLM:
         self._sandbox_failures = 0
         self._last_failure_at = 0.0
         self._last_restart_at = 0.0
+        self._fallback_mode = False
+        self._status_detail = "offline"
         self._startup_timeout = float(os.environ.get("SOVEREIGN_SLM_STARTUP_TIMEOUT", "45"))
         self._inference_timeout = float(os.environ.get("SOVEREIGN_SLM_TIMEOUT", "8"))
 
         if Llama is None:
-            logger.info("llama-cpp-python not installed. Native SLM offline.")
+            if os.path.exists(model_path):
+                self._available = True
+                self._fallback_mode = True
+                self._status_detail = "deterministic fallback: llama-cpp-python missing"
+                logger.warning(
+                    "Native SLM runtime missing; deterministic fallback online for %s.",
+                    model_path,
+                )
+            else:
+                logger.info("llama-cpp-python not installed. Native SLM offline.")
             return
 
         if not os.path.exists(model_path):
@@ -48,6 +59,7 @@ class NativeSLM:
             return
 
         self._available = True
+        self._status_detail = "native isolated worker"
         logger.info(
             "Sovereign-SLM: crash-isolated resident worker armed for %s.",
             model_path,
@@ -61,10 +73,20 @@ class NativeSLM:
     def is_available(self, value: bool) -> None:
         self._available = value
 
+    @property
+    def mode(self) -> str:
+        return "fallback" if self._fallback_mode else ("native" if self._available else "offline")
+
+    @property
+    def status_detail(self) -> str:
+        return self._status_detail
+
     async def evaluate_proposal(self, context: Dict[str, Any]) -> Dict[str, Any]:
         """Evaluate a trade proposal through the isolated resident SLM worker."""
         if not self._available:
             return self._neutral_vote(context, "Native SLM unavailable.")
+        if self._fallback_mode:
+            return self._fallback_vote(context, self._status_detail)
 
         prompt = self._build_prompt(context)
         request_id = uuid.uuid4().hex
@@ -109,9 +131,33 @@ class NativeSLM:
             return self._neutral_vote(context, "SLM Timeout")
         except Exception as exc:
             await self._kill_worker(str(exc))
-            self._record_failure(str(exc))
-            logger.error("Native SLM: isolated worker failed: %s", exc)
+            hard_failure = self._record_failure(str(exc))
+            level = logging.WARNING if hard_failure else logging.ERROR
+            logger.log(level, "Native SLM: isolated worker failed: %s", exc)
+            if self._fallback_mode:
+                return self._fallback_vote(context, self._status_detail)
             return self._neutral_vote(context, f"Worker Error: {exc}")
+
+    async def warmup(self) -> bool:
+        """Validate native worker startup once so status reporting is honest."""
+        if not self._available or self._fallback_mode:
+            return self._available
+        try:
+            worker = await self._ensure_worker()
+            return worker is not None and worker.returncode is None
+        except Exception as exc:
+            reason = str(exc) or exc.__class__.__name__
+            await self._kill_worker(reason)
+            self._record_failure(reason)
+            if not self._fallback_mode and os.path.exists(self.model_path):
+                self._fallback_mode = True
+                self._available = True
+                self._status_detail = (
+                    f"deterministic fallback after warmup failure: {reason[:140]}"
+                )
+            log = logger.info if self._fallback_mode else logger.warning
+            log("Native SLM warmup completed in degraded mode; %s.", self._status_detail)
+            return self._available
 
     async def _ensure_worker(self) -> asyncio.subprocess.Process | None:
         if self._worker and self._worker.returncode is None:
@@ -193,20 +239,89 @@ class NativeSLM:
             "agent_count": 1,
         }
 
-    def _record_failure(self, reason: str = "") -> None:
+    def _record_failure(self, reason: str = "") -> bool:
         now = time.monotonic()
         if now - self._last_failure_at > 300.0:
             self._sandbox_failures = 0
         self._last_failure_at = now
         self._sandbox_failures += 1
-        hard_native_failure = "ggml_assert" in reason.lower() or "access violation" in reason.lower()
-        if hard_native_failure or self._sandbox_failures >= 3:
-            self._available = False
-            logger.warning(
-                "Native SLM disabled after %s failure(s). Trading continues with "
-                "deterministic quorum agents.",
-                self._sandbox_failures,
+        reason_l = reason.lower()
+        hard_native_failure = any(
+            marker in reason_l
+            for marker in (
+                "ggml_assert",
+                "access violation",
+                "0xc000001d",
+                "winerror -1073741795",
+                "illegal instruction",
             )
+        )
+        if hard_native_failure or self._sandbox_failures >= 3:
+            self._fallback_mode = os.path.exists(self.model_path)
+            self._available = self._fallback_mode
+            self._status_detail = (
+                f"deterministic fallback after native failure: {reason[:140]}"
+                if self._fallback_mode
+                else "offline after native failures"
+            )
+            logger.warning(
+                "Native SLM native worker disabled after %s failure(s). "
+                "Mode is now %s.",
+                self._sandbox_failures,
+                self.mode,
+            )
+            return True
+        return False
+
+    def _fallback_vote(self, context: dict, reason: str) -> dict:
+        """Fast deterministic local scorer used when native llama.cpp is unsafe."""
+
+        def as_float(value: Any, default: float) -> float:
+            try:
+                return float(value)
+            except (TypeError, ValueError):
+                return default
+
+        belief = max(0.0, min(1.0, as_float(context.get("belief"), 0.5)))
+        catalyst = max(0.0, min(1.0, as_float(context.get("catalyst_score"), 0.5)))
+        regime = str(context.get("regime", "")).upper()
+        dhatu = str(context.get("dhatu_state", "")).upper()
+        side = str(context.get("side", "long")).lower()
+
+        score = (belief - 0.5) * 1.35 + (catalyst - 0.5) * 0.75
+        if "TREND" in regime:
+            score += 0.04
+        elif "CRASH" in regime or "PANIC" in regime:
+            score -= 0.12
+        if any(state in dhatu for state in ("SANKOCHA", "ASANTULANA", "TAMAS")):
+            score -= 0.10
+        elif any(state in dhatu for state in ("STHIRA", "TEJAS", "PRANA")):
+            score += 0.06
+
+        if score > 0.12:
+            bias = "BULLISH"
+        elif score < -0.12:
+            bias = "BEARISH"
+        else:
+            bias = "NEUTRAL"
+
+        contradicts = (side == "long" and bias == "BEARISH") or (
+            side == "short" and bias == "BULLISH"
+        )
+        vote = "NO" if contradicts else ("ABSTAIN" if bias == "NEUTRAL" else "YES")
+        confidence = 0.52 + min(0.26, abs(score) * 0.9)
+
+        return {
+            "agent": "Native_SLM",
+            "vote": vote,
+            "confidence": round(confidence, 3),
+            "signal_strength": 1.08 if vote == "YES" else 1.0,
+            "risk_flag": str(vote != "YES"),
+            "timestamp": context.get("timestamp", time.time_ns()),
+            "reason": f"Native SLM {reason}; heuristic bias={bias} score={score:.3f}",
+            "bias": bias,
+            "agent_count": 1,
+        }
 
     def _build_prompt(self, context: dict) -> list:
         sys_prompt = (
@@ -244,3 +359,5 @@ class NativeSLM:
     async def close(self) -> None:
         await self._kill_worker("shutdown")
         self._available = False
+        self._fallback_mode = False
+        self._status_detail = "offline"
