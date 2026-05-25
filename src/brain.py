@@ -1816,10 +1816,22 @@ class TradingBrain:
             )
             self.current_regime = "CHOPPY"
 
-        # 3. Generate morning budget once per day at 8 AM ET window
+        # 3. Generate morning budget once per day, but re-generate if first
+        # time we see the market open (catches overnight starts with stale regime)
         last_budget = self.last_budget_date
-        if last_budget is None or last_budget.date() != now.date():
+        market_now_open = self._is_market_open()
+        _first_open_today = getattr(self, "_budget_open_refreshed_today", None)
+        new_day = last_budget is None or last_budget.date() != now.date()
+        open_refresh_needed = (
+            market_now_open
+            and last_budget is not None
+            and last_budget.date() == now.date()
+            and _first_open_today != now.date()
+        )
+        if new_day or open_refresh_needed:
             await self._generate_morning_budget()
+            if market_now_open:
+                self._budget_open_refreshed_today = now.date()
 
         # Check if any drawdown prevents trading
         if not self.ibkr_drawdown.is_trading_allowed():
@@ -2447,9 +2459,18 @@ class TradingBrain:
                 pos.mfe = max(pos.mfe, gross_r)
                 pos.mae = min(pos.mae, gross_r)
 
-                if current_price > pos.entry_price:
+                is_short = pos.qty < 0
+                price_favourable = (
+                    (current_price > pos.entry_price and not is_short)
+                    or (current_price < pos.entry_price and is_short)
+                )
+                price_adverse = (
+                    (current_price < pos.entry_price and not is_short)
+                    or (current_price > pos.entry_price and is_short)
+                )
+                if price_favourable:
                     pos.current_belief = min(pos.current_belief * 1.01, 0.99)
-                elif current_price < pos.entry_price:
+                elif price_adverse:
                     pos.current_belief = max(pos.current_belief * 0.98, 0.01)
 
                 # Check take profit
