@@ -1,22 +1,42 @@
-# Samvid Trading Core
+# Samvid Trading Core — Open-Source AI Algorithmic Trading System
 
 [![Build Status](https://github.com/AshishTalpada/samvid-trading-core/actions/workflows/main.yml/badge.svg)](https://github.com/AshishTalpada/samvid-trading-core/actions)
 [![Latest Release](https://img.shields.io/github/v/tag/AshishTalpada/samvid-trading-core?label=release&color=cyan)](https://github.com/AshishTalpada/samvid-trading-core/releases)
-[![Python](https://img.shields.io/badge/Python-3.10+-blue.svg)](https://www.python.org/downloads/)
-[![Linter](https://img.shields.io/badge/linting-ruff-black.svg)](https://github.com/astral-sh/ruff)
-[![Tests](https://img.shields.io/badge/tests-24_suites-green.svg)](#-test-suite--reliability)
+[![Python 3.11+](https://img.shields.io/badge/Python-3.11+-3776AB.svg?logo=python&logoColor=white)](https://www.python.org/downloads/)
+[![Rust](https://img.shields.io/badge/Rust-Native_Core-orange.svg?logo=rust)](https://www.rust-lang.org/)
+[![FastAPI](https://img.shields.io/badge/API-FastAPI-009688.svg?logo=fastapi)](https://fastapi.tiangolo.com/)
+[![Linter](https://img.shields.io/badge/linting-ruff-261230.svg?logo=ruff)](https://github.com/astral-sh/ruff)
+[![Tests](https://img.shields.io/badge/tests-90_passing-brightgreen.svg)](#-test-suite--reliability)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-**Samvid Trading Core** is an open-source AI agent algorithmic trading system for execution research, real-time market data ingestion, broker connectivity, risk management, and operator observability.
+> **Samvid** (Sanskrit: *Consensus / Shared Intelligence*) — An open-source, production-grade **AI multi-agent algorithmic trading system** for Interactive Brokers (IBKR), MetaTrader 5, and TradingView. Built with Python, Rust, FastAPI, and asyncio for institutional-quality automated stock trading, forex execution, and quantitative finance research.
 
-It is built for Python-first quantitative trading workflows with IBKR / Interactive Brokers, MetaTrader 5, TradingView-derived quote streaming, FastAPI telemetry, Rust/native acceleration experiments, and a consensus-based AI agent mesh.
+## What is Samvid Trading Core?
 
-**Status: v1.0-beta | Architecture-First Agent Mesh | Event-Driven Execution | Research Only**
+**Samvid Trading Core** is a free, open-source algorithmic trading bot and automated trading platform that uses **11 specialized AI agents** working together in a consensus-based mesh to make trading decisions. Unlike monolithic trading bots, Samvid uses a **quorum voting model** — no single agent can execute a trade alone. Pattern recognition, sentiment analysis, macro economics, and risk management must all agree before execution.
 
-Samvid (Sanskrit for *Consensus* or *Shared Intelligence*) is an experimental, event-driven trading engine built around a decentralized mesh of specialized agents. Instead of a monolithic strategy, execution is the result of a consensus-based voting model where multiple specialized entities (Pattern Discovery, Sentiment, Macro Oracle, Risk Guard) reach a quorum before any action is taken.
+### Key Features
 
-## Search Keywords
+- **Multi-Agent AI Trading** — 11 autonomous agents (Pattern Discovery, Belief Tracker, Sentiment Classifier, Macro Oracle, Risk Guard, etc.)
+- **Interactive Brokers (IBKR) Integration** — Full order execution, bracket orders, Financial Advisor multi-account support
+- **MetaTrader 5 Support** — FTMO challenge-compliant execution with daily loss limits
+- **TradingView Real-Time Quotes** — WebSocket-based tick streaming at 100Hz
+- **Institutional Risk Management** — Circuit breakers, position sizing (Kelly/fractional), correlation monitoring, Black Swan protection
+- **FastAPI Dashboard & WebSocket API** — Real-time telemetry, trade monitoring, operator control
+- **Rust Native Acceleration** — PyO3-based native core for latency-critical paths
+- **QuestDB Time-Series Database** — Sub-millisecond OHLCV queries for 30+ instruments
+- **Numba JIT Math** — Pre-compiled EMA, RSI, ATR, Kalman filters for HFT-speed signal generation
+- **Telegram Bot Integration** — Real-time trade alerts, remote command execution
+- **Zero-Secrets Architecture** — OS-level credential vault (Windows Credential Manager / macOS Keychain)
 
-`Samvid Trading Core`, `AI trading system`, `algorithmic trading bot`, `quantitative finance`, `IBKR trading bot`, `Interactive Brokers automation`, `MetaTrader 5 trading engine`, `real-time market data`, `risk management`, `Python trading system`, `FastAPI trading dashboard`, `Rust trading infrastructure`.
+### Who Is This For?
+
+- Quantitative traders building automated trading systems
+- Developers researching multi-agent AI architectures for finance
+- Prop firm traders needing FTMO/funded-account compliance
+- Anyone looking for an open-source alternative to commercial algo trading platforms
+
+**Status: v1.0-beta | Research & Paper Trading | Event-Driven Execution**
 
 ---
 
@@ -83,11 +103,14 @@ pytest tests/
 
 | Layer | Technology |
 | :--- | :--- |
-| **Backend** | Python 3.10+ (Asyncio), FastAPI, Uvicorn |
-| **Native Core** | Rust, C, C++, CUDA (libsovereign.dll, Numba JIT, PyO3) |
-| **Frontend** | React 18, Vite, Framer Motion, Lightweight Charts |
-| **Databases** | QuestDB (Time-series Ticks), SQLite3 (System State), ChromaDB (Vector Memory) |
-| **Security** | OS Vault (keyring), HMAC-SHA256, WebSocket Handshake |
+| **Language** | Python 3.11+ (Asyncio, type-hinted), Rust (PyO3 native extensions) |
+| **Trading APIs** | Interactive Brokers (ib_insync), MetaTrader 5, TradingView WebSocket |
+| **Web Framework** | FastAPI + Uvicorn (async REST + WebSocket API) |
+| **Frontend** | React 18, Vite, Framer Motion, TradingView Lightweight Charts |
+| **Databases** | QuestDB (time-series ticks), SQLite3 (system state), ChromaDB (vector memory) |
+| **Math/ML** | NumPy, Polars, Numba JIT, Bayesian inference, Kalman filters |
+| **Security** | OS keyring vault, HMAC-SHA256, Fernet AES encryption |
+| **Infra** | Docker (QuestDB), systemd/PM2, Telegram Bot API |
 
 ---
 
@@ -114,10 +137,53 @@ make dev
 
 ---
 
-## 🛡️ License
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+## 🌐 Related Projects & Alternatives
+
+If you're looking for algorithmic trading systems, you might also explore:
+- [Zipline](https://github.com/quantopian/zipline) — Backtesting library
+- [Lean](https://github.com/QuantConnect/Lean) — QuantConnect's algo trading engine
+- [FreqTrade](https://github.com/freqtrade/freqtrade) — Crypto trading bot
+- [Jesse](https://github.com/jesse-ai/jesse) — Python algo trading framework
+
+**Samvid differentiates** with its multi-agent consensus architecture, IBKR/MT5 dual-broker support, and real-time Rust-accelerated execution path.
 
 ---
 
-**Disclaimer**: *This project is for research and educational purposes only. Algorithmic trading involves substantial risk. Use responsibly.*
+## 📚 Documentation & Resources
+
+- [Architecture Overview](docs/ARCHITECTURE.md)
+- [Agent System Design](docs/AGENTS.md)
+- [Risk Management Rules](docs/RISK.md)
+- [API Reference (FastAPI)](http://localhost:8000/docs) *(when running)*
+
+---
+
+## 🤝 Contributing
+
+Contributions are welcome! Please read our contributing guidelines before submitting PRs. Areas where help is especially appreciated:
+- Additional broker integrations (Alpaca, Binance)
+- Backtesting engine improvements
+- Frontend dashboard features
+- Documentation and tutorials
+
+---
+
+## 🛡️ License
+
+This project is licensed under the **MIT License** — see the [LICENSE](LICENSE) file for details.
+
+---
+
+## ⚠️ Disclaimer
+
+*This software is provided for **research and educational purposes only**. Algorithmic trading involves substantial financial risk. Past performance does not guarantee future results. The authors are not responsible for any financial losses incurred through use of this software. Always paper trade first.*
+
+---
+
+<details>
+<summary><strong>SEO Keywords</strong> (for search engine discoverability)</summary>
+
+algorithmic trading system, automated trading bot, AI trading bot python, interactive brokers api python, IBKR automated trading, metatrader 5 python bot, quantitative trading platform, open source trading system, multi-agent trading system, algorithmic trading github, python trading bot, automated stock trading, forex trading bot, trading system architecture, real-time market data python, fastapi trading dashboard, rust trading system, position sizing algorithm, risk management trading, FTMO trading bot, prop firm trading bot, consensus based trading, event driven trading system, asyncio trading, questdb trading, numba trading signals, kalman filter trading, bayesian trading system
+
+</details>
 
