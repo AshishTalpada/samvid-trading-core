@@ -1,7 +1,7 @@
 import logging
 import math
 from collections import deque
-from typing import Deque, List
+from typing import Deque
 
 import numpy as np
 

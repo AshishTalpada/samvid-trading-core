@@ -1,7 +1,5 @@
 import asyncio
 import logging
-import re
-import time
 from typing import Dict, List
 
 import requests

@@ -1,7 +1,4 @@
 import logging
-import time
-
-import numpy as np
 
 logger = logging.getLogger(__name__)
 

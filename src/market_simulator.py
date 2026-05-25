@@ -12,7 +12,6 @@ Usage:
 import asyncio
 import logging
 import random
-import time
 
 from intelligence_bus import SharedIntelligenceBus
 from risk_invariants import ORDER_THROTTLER, RiskInvariants

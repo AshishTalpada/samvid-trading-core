@@ -1,7 +1,6 @@
 import logging
-import math
 import statistics
-from collections import Counter, defaultdict
+from collections import Counter
 from typing import Any
 
 logger = logging.getLogger(__name__)
