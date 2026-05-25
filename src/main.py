@@ -78,6 +78,7 @@ from ibkr_streamer import IBKRStreamer
 from intelligence_bus import get_bus
 from questdb_adapter import QuestDBAdapter
 from telegram_remote import get_remote
+from tv_quote_streamer import TVQuoteStreamer
 
 
 class SovereignFormatter(logging.Formatter):
@@ -291,6 +292,7 @@ class TradingSystem:
         self.questdb: QuestDBAdapter | None = None
         self.api_server: APIServer | None = None
         self.hft_streamer: IBKRStreamer | None = None
+        self.tv_quote_streamer: TVQuoteStreamer | None = None
         self.restorer = SessionRestorer()
         self._openbb_provider: Any = None
         self.native_slm: Any = None
@@ -586,6 +588,11 @@ class TradingSystem:
 
     async def _init_hft_streamer(self) -> None:
         """HFT Streamer (0.01s / 100Hz Tick Ingestion)"""
+        if os.environ.get("SOVEREIGN_TV_QUOTES_ENABLED", "1") == "1":
+            self.tv_quote_streamer = TVQuoteStreamer(bus=self.bus, qdb_adapter=self.questdb)
+        else:
+            self.tv_quote_streamer = None
+
         self.hft_streamer = IBKRStreamer(
             host=self.ibkr_host,
             port=self.ibkr_port,
@@ -1527,11 +1534,25 @@ class TradingSystem:
                     )
 
             # Always start HFT streamer — falls back to Bus-only if QuestDB offline
-            logger.info("\n[9/10] Starting HFT Streamer (10ms updates)...")
+            logger.info("\n[9/10] Starting Real-Time Quote Streamers...")
             # watchlist is already defined in step 8.5
-            if self.hft_streamer:
+            if self.tv_quote_streamer:
+                self._start_supervised_task(
+                    "tv_quote_streamer", lambda: self.tv_quote_streamer.run(watchlist)
+                )
+                logger.info("TVQuoteStreamer active; IBKR remains execution-first.")
+            else:
+                logger.info("TVQuoteStreamer disabled by SOVEREIGN_TV_QUOTES_ENABLED=0.")
+
+            ibkr_hft_enabled = os.environ.get("SOVEREIGN_IBKR_HFT_ENABLED", "0") == "1"
+            if self.hft_streamer and ibkr_hft_enabled:
                 self._start_supervised_task(
                     "hft_streamer", lambda: self.hft_streamer.run(watchlist)
+                )
+            elif self.hft_streamer:
+                logger.info(
+                    "IBKR market-data streamer parked; set SOVEREIGN_IBKR_HFT_ENABLED=1 "
+                    "to use it as a tick fallback."
                 )
             else:
                 logger.warning("HFT Streamer not initialized. Skipping supervised task.")
@@ -2009,6 +2030,13 @@ class TradingSystem:
                     await self.hft_streamer.stop()
                 except Exception as e:
                     logger.error(f"Shutdown: HFT Streamer stop failed: {e}")
+
+            if hasattr(self, "tv_quote_streamer") and self.tv_quote_streamer:
+                try:
+                    logger.info(" -> Stopping TV Quote Streamer...")
+                    await self.tv_quote_streamer.stop()
+                except Exception as e:
+                    logger.error(f"Shutdown: TV Quote Streamer stop failed: {e}")
 
             if hasattr(self, "data_pipeline") and self.data_pipeline:
                 try:
