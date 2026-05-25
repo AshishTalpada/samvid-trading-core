@@ -1748,6 +1748,7 @@ class TradingSystem:
                                 raise
             if os.environ.get("SOVEREIGN_SKIP_PID_CHECK", "0") == "1":
                 logger.info("Smoke-test mode detected - startup complete without run loop.")
+                await self.shutdown()
                 return
             # Keep running
             await self._run_forever()
@@ -2277,6 +2278,10 @@ class TradingSystem:
 
     async def _verify_watchdog(self) -> None:
         """Sovereign Guard: Ensures the watchdog process is active and pulsing."""
+        if os.environ.get("SOVEREIGN_SKIP_PID_CHECK", "0") == "1":
+            logger.info("Smoke-test mode detected - skipping watchdog verification/autostart.")
+            return
+
         try:
             import psutil
         except ImportError:
@@ -2621,6 +2626,9 @@ async def main(s: TradingSystem) -> None:
             logger.warning(f"Watchdog: Registry backup failed: {e}")
 
         await s.startup()
+        if s._shutdown_event.is_set():
+            logger.info("Startup completed a bounded smoke run; shutdown already complete.")
+            return
 
         # This prevents main() from finishing and hitting the 'finally' shutdown block.
         logger.info(" Matrix fully synchronized. System operational.")
