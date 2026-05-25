@@ -115,9 +115,14 @@ class DecisionEngine:
             agent_ts = out.get("timestamp")
             if agent_ts and context_ts:
                 try:
-                    t_ctx = dtparser.parse(context_ts)
-                    t_agt = dtparser.parse(agent_ts)
-                    drift_sec = abs((t_agt - t_ctx).total_seconds())
+                    # Timestamps may be nanosecond ints (time.time_ns()) or ISO strings.
+                    def _to_sec(ts):
+                        if isinstance(ts, (int, float)):
+                            # ns → s if value looks like nanoseconds (>1e15)
+                            return ts / 1e9 if ts > 1e15 else float(ts)
+                        return dtparser.parse(str(ts)).timestamp()
+
+                    drift_sec = abs(_to_sec(agent_ts) - _to_sec(context_ts))
                     if drift_sec > 60.0:
                         logger.warning(
                             f"DecisionEngine: Agent '{agent}' too slow (drift={drift_sec:.2f}s). Excluding from quorum."
