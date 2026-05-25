@@ -15,12 +15,11 @@ import os
 import time
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from datetime import time as dt_time
 from typing import TYPE_CHECKING, Any
-from zoneinfo import ZoneInfo
 
 import websockets
 
+from market_calendar import is_us_equity_market_open
 from tick_batcher import TICK_BATCHER
 
 if TYPE_CHECKING:
@@ -125,10 +124,7 @@ class TVQuoteStreamer:
 
     @staticmethod
     def _is_us_equity_market_open() -> bool:
-        now = datetime.now(ZoneInfo("America/New_York"))
-        if now.weekday() >= 5:
-            return False
-        return dt_time(9, 30) <= now.time() < dt_time(16, 0)
+        return is_us_equity_market_open()
 
     @staticmethod
     def _format_message(data: dict[str, Any]) -> str:
