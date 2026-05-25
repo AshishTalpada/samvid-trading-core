@@ -768,9 +768,8 @@ class DataPipeline:
                             "symbol": symbol,
                             "headline": headline,
                             "summary": summary,
-                            "source": f"YFinance ({article.get('publisher', {}).get('displayName', 'Yahoo')})",
-                            "url": content.get("canonicalUrl", {}).get("url")
-                            or article.get("link", ""),
+                            "source": f"YFinance ({content.get('provider', {}).get('displayName', 'Yahoo')})",
+                            "url": content.get("canonicalUrl", {}).get("url", ""),
                             "published_at": (
                                 pub_time
                                 if isinstance(pub_time, str)
