@@ -6,7 +6,7 @@ Detects 'Revenge Trading' patterns and locks the user out when detected.
 import logging
 import time
 from collections import deque
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any, Optional
 
 logger = logging.getLogger(__name__)

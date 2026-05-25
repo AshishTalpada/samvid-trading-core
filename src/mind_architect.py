@@ -110,7 +110,6 @@ class MindArchitect:
         """
         Provides Agent G's 'Healing Mind' structural integrity vote.
         """
-        from datetime import datetime
 
         # Check syntax on critical files (at least the brain)
         result = await self._tool_check_syntax("src/brain.py")

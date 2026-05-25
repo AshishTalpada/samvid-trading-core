@@ -3,8 +3,6 @@ import math
 from dataclasses import dataclass
 from typing import Dict, List, Tuple
 
-import numpy as np
-
 logger = logging.getLogger(__name__)
 
 

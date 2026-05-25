@@ -1,7 +1,6 @@
 import hashlib
 import hmac
 import os
-import struct
 
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 

@@ -1,5 +1,4 @@
 import logging
-import math
 import re
 from typing import Any
 
@@ -22,7 +21,6 @@ class KolmogorovVetter:
         return len(compressed) / (len(raw) + 1)
 
     def vet(self, reasoning: str, max_complexity: float = 0.6) -> dict[str, Any]:
-        import zlib
 
         complexity = self.lz_complexity(reasoning)
         word_count = len(reasoning.split())
