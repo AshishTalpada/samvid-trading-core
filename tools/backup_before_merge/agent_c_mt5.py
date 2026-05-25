@@ -67,6 +67,7 @@ class MetaTrader5Agent:
         Action must be 'BUY' or 'SELL'.
         """
         import inspect
+
         from trading_state import TradingStateManager
         if not TradingStateManager.allow_order(True): # MT5 orders are usually new entries in this context
             logger.warning(f"[MT5] SAFETY GATE: Market order for {symbol} REJECTED due to TradingState.")

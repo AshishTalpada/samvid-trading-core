@@ -69,12 +69,12 @@ class DataPipeline:
     ) -> None:
         self.db_path = str(db_path)
         self.agg_window_ms = aggregation_window_ms
-        
+
         # Institutional Keys
         if not finnhub_key or finnhub_key == "YOUR_FINNHUB_KEY":
             finnhub_key = Vault.get("FINNHUB_API_KEY", "") or Vault.get("FINNHUB_KEY", "")
         self.finnhub_key = str(finnhub_key) if finnhub_key else ""
-        
+
         self.is_running = False
         self._last_reality_check: dict[str, float] = {}
         self.bus = bus
@@ -142,7 +142,7 @@ class DataPipeline:
             interval_map = {"1m": "1m", "5m": "5m", "15m": "15m", "1h": "1h", "1d": "1d"}
             interval = interval_map.get(tf, tf)
             period = "60d" if interval in ["1m", "5m"] else f"{bars}d"
-            
+
             ticker = await asyncio.to_thread(yf.Ticker, symbol)
             df = None
             for attempt in range(3):
@@ -154,14 +154,14 @@ class DataPipeline:
                         await asyncio.sleep(2**attempt)
                         continue
                     raise e
-            
+
             if df is None or df.empty:
                 logger.warning(f"DataPipeline: Zero-Volume Anomaly for {symbol}. Applying Heuristic Patch.")
                 last_price = await self.get_current_price(symbol)
                 if last_price > 0:
                     df = pd.DataFrame([{"Open": last_price, "High": last_price, "Low": last_price, "Close": last_price, "Volume": 0}], index=[pd.Timestamp.now(tz="UTC")])
                 else: return pl.DataFrame()
-                
+
             df.columns = df.columns.str.lower()
             df.reset_index(inplace=True)
             for col in ["Date", "Datetime", "date"]:
@@ -175,7 +175,7 @@ class DataPipeline:
         if self.qdb and self.qdb.enabled:
             p = await self.qdb.fetch_latest_price(symbol)
             if p: return float(p)
-            
+
         if self.finnhub_key:
             try:
                 url = f"https://finnhub.io/api/v1/quote?symbol={symbol}&token={self.finnhub_key}"
@@ -286,7 +286,7 @@ class DataPipeline:
             def _save():
                 conn = self._get_db_connection()
                 for i in combined:
-                    conn.execute("INSERT OR IGNORE INTO news (symbol, headline, summary, source, url, published_at, sentiment) VALUES (?,?,?,?,?,?,?)", 
+                    conn.execute("INSERT OR IGNORE INTO news (symbol, headline, summary, source, url, published_at, sentiment) VALUES (?,?,?,?,?,?,?)",
                                  (i['symbol'], i['headline'], i['summary'], i['source'], i['url'], i['published_at'], i['sentiment']))
                 conn.commit()
                 conn.close()
@@ -322,7 +322,7 @@ class DataPipeline:
         logger.info("DataPipeline: continuous ingestion active.")
         await self.qdb.start()
         self._sync_task = asyncio.create_task(self._background_sync())
-        
+
         while self.is_running:
             try:
                 is_open = self.is_market_open()
@@ -333,10 +333,10 @@ class DataPipeline:
                         self.qdb.insert_ohlcv(df, s)
                         await self.store_ohlcv(s, df)
                         successful.append(s)
-                
+
                 if self.bus:
                     await self.bus.publish("candle.batch", {"symbols": successful, "timestamp": datetime.now(timezone.utc).isoformat(), "market_open": is_open})
-                
+
                 await asyncio.sleep(60 if is_open else 300)
             except Exception as e:
                 logger.error(f"Pipeline Loop Error: {e}")
@@ -504,7 +504,7 @@ class DataPipeline:
         async with self._db_lock:
             async with self._active_tasks_lock: self._active_db_tasks += 1
             try: await asyncio.to_thread(self._sync_store_ohlcv, symbol, df, tf)
-            finally: 
+            finally:
                 async with self._active_tasks_lock: self._active_db_tasks -= 1
 
     def _sync_store_ohlcv(self, symbol: str, df: "pl.DataFrame", tf: str = "1m") -> None:

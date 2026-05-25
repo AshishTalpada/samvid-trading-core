@@ -3,6 +3,7 @@ import hashlib
 import hmac
 import json
 import logging
+import time
 import weakref
 from collections.abc import Callable
 from typing import Any, Dict, List, Optional
@@ -78,13 +79,13 @@ class SharedIntelligenceBus:
         import inspect
         ref = weakref.WeakMethod(handler) if inspect.ismethod(handler) else weakref.ref(handler)
         self._callbacks.setdefault(topic, []).append(ref)
-        
+
         h_id = id(handler)
         if h_id not in self._callback_workers:
             q = self.PriorityQueueWrapper(maxsize=100)
             worker = asyncio.create_task(self._handler_worker(ref, q))
             self._callback_workers[h_id] = (q, worker)
-        
+
         if self.running:
             self.sub_socket.setsockopt_string(zmq.SUBSCRIBE, topic)
 
@@ -152,7 +153,7 @@ class SharedIntelligenceBus:
                 if len(parts) < 2: continue
                 topic, json_data = parts
                 data = json.loads(json_data)
-                
+
                 # Inbound from ZMQ: Dispatch to local listeners (avoid infinite recursion)
                 for ref in self._subscribers.get(topic, []):
                     q = ref()

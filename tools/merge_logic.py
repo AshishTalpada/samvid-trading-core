@@ -14,10 +14,10 @@ For every file in the D-drive that also exists locally, this script:
 
 This is NON-DESTRUCTIVE. All local logic is preserved. All D-drive logic is added.
 """
+import difflib
 import os
 import re
 import shutil
-import difflib
 from pathlib import Path
 
 D_SRC = Path(r"D:\Claude\samvid-trading-core-main\samvid-trading-core-main\src")
@@ -92,7 +92,7 @@ def merge_files(name: str, d_lines: list[str], c_lines: list[str]) -> list[str]:
     separator = [
         "\n",
         "# " + "=" * 70 + "\n",
-        f"# LOCAL-ONLY SOVEREIGN EXTENSIONS (preserved from local system)\n",
+        "# LOCAL-ONLY SOVEREIGN EXTENSIONS (preserved from local system)\n",
         "# " + "=" * 70 + "\n",
         "\n",
     ]
@@ -102,7 +102,7 @@ def merge_files(name: str, d_lines: list[str], c_lines: list[str]) -> list[str]:
 # ── Main merge loop ───────────────────────────────────────────────────────────
 
 print(f"\n{'='*70}")
-print(f"  SOVEREIGN SURGICAL MERGER")
+print("  SOVEREIGN SURGICAL MERGER")
 print(f"{'='*70}\n")
 
 merged_count = 0
