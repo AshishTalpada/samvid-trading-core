@@ -132,8 +132,9 @@ class GhostExecutionEnvironment:
             "status": "OPERATIONAL"
         }
 
-import socket
 import asyncio
+import socket
+
 
 class GhostInfrastructureMonitor:
     """

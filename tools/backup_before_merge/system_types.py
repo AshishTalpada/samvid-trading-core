@@ -1,7 +1,8 @@
+import uuid
+from dataclasses import dataclass, field
+from datetime import datetime, timedelta, timezone
 from enum import Enum
 from typing import Dict, List, Optional
-from datetime import datetime, timedelta, timezone
-from dataclasses import dataclass, field
 
 # --- INSTITUTIONAL SCHEMA PARITY (D-DRIVE) ---
 

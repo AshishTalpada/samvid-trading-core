@@ -656,7 +656,6 @@ class SwarmPredictor:
             import json
 
             import openai
-
             from thermal_guard import ThermalGuard
 
             if self._openai_client is None:
