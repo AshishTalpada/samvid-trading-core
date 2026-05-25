@@ -194,7 +194,7 @@ class IBKRConnection:
             from config import IBKR_ACCOUNT_ID
 
             target_acc = account_id or IBKR_ACCOUNT_ID.strip()
-            if target_acc and target_acc not in self.ib.wrapper.accounts:
+            if target_acc and self.ib and target_acc not in self.ib.wrapper.accounts:
                 return False, f"ACCOUNT_MISMATCH: Target {target_acc} not found in broker session."
 
             # 2. Purchasing Power Guard
