@@ -114,3 +114,43 @@ def is_us_equity_market_open(now: datetime | None = None) -> bool:
         return dt_time(9, 30) <= now_et.time() < dt_time(16, 0)
     except Exception:
         return False
+
+
+def us_equity_session_status(now: datetime | None = None) -> dict[str, str | bool]:
+    """Return a compact operator-facing regular-session status."""
+    try:
+        et_tz = ZoneInfo("America/New_York")
+        now_et = now.astimezone(et_tz) if now else datetime.now(et_tz)
+        day = now_et.date()
+        if now_et.weekday() >= 5:
+            reason = "weekend"
+            is_open = False
+        elif is_us_equity_holiday(day):
+            reason = "full-day exchange holiday"
+            is_open = False
+        elif now_et.time() < dt_time(9, 30):
+            reason = "pre-market"
+            is_open = False
+        elif now_et.time() >= dt_time(16, 0):
+            reason = "after-hours"
+            is_open = False
+        else:
+            reason = "regular session"
+            is_open = True
+        return {
+            "market": "US_EQUITY",
+            "timezone": "America/New_York",
+            "date": day.isoformat(),
+            "time": now_et.strftime("%H:%M:%S"),
+            "is_open": is_open,
+            "reason": reason,
+        }
+    except Exception as exc:
+        return {
+            "market": "US_EQUITY",
+            "timezone": "America/New_York",
+            "date": "",
+            "time": "",
+            "is_open": False,
+            "reason": f"calendar error: {exc.__class__.__name__}",
+        }
