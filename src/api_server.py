@@ -111,6 +111,7 @@ class APIServer:
             self.system.bus.on("mind.dialogue", self._broadcast_mind_dialogue)
             self.system.bus.on("consensus.update", self._broadcast_consensus)
             self.system.bus.on("system.state", self._broadcast_state)
+            self.system.bus.on("system.health", self._broadcast_health)
             self.system.bus.on("system.pulse", self._broadcast_pulse)
             self.system.bus.on("candle.batch", self._broadcast_candle_batch)
             self.system.bus.on("news.hft", self._broadcast_news)
@@ -187,6 +188,21 @@ class APIServer:
             "timestamp": time.time_ns(),
             "data": payload,
             "meta": {"nodes": payload.get("nodes", ["intel_bus", "brain"])},
+        }
+        for _ws, q in self.active_connections.items():
+            try:
+                q.put_nowait(msg)
+            except asyncio.QueueFull:
+                pass
+
+    async def _broadcast_health(self, payload: dict) -> None:
+        if not self.active_connections:
+            return
+        msg = {
+            "type": "system.health",
+            "timestamp": time.time_ns(),
+            "data": payload,
+            "meta": {"nodes": ["main", "sqlite", "intel_bus"]},
         }
         for _ws, q in self.active_connections.items():
             try:
@@ -349,6 +365,29 @@ class APIServer:
         async def get_ledger_stats(key: str = Depends(self._verify_api_key)):
             """Return aggregate stats from the decision ledger."""
             return LEDGER.summary_stats()
+
+        @self.app.get("/health/latest")
+        async def get_latest_health(key: str = Depends(self._verify_api_key)):
+            """Return the latest persisted production health snapshot."""
+            if not getattr(self.system, "db_conn", None):
+                raise HTTPException(status_code=503, detail="database unavailable")
+            try:
+                cursor = self.system.db_conn.cursor()
+                cursor.execute(
+                    "SELECT value, updated_at FROM system_state WHERE key='service_health'"
+                )
+                row = cursor.fetchone()
+                cursor.close()
+                if not row:
+                    raise HTTPException(status_code=404, detail="health snapshot unavailable")
+                payload = json.loads(row[0])
+                payload["updated_at"] = row[1]
+                return payload
+            except HTTPException:
+                raise
+            except Exception as exc:
+                logger.warning("API Server: health snapshot fetch failed: %s", exc)
+                raise HTTPException(status_code=500, detail="health snapshot fetch failed") from exc
 
         @self.app.websocket("/ws")
         async def websocket_endpoint(websocket: WebSocket, token: str = Query(None)) -> None:
@@ -951,6 +990,20 @@ class APIServer:
                 }
 
             # 4. System Health (Granular Component Feedback)
+            persisted_health = None
+            if self.system.db_conn:
+                try:
+                    cursor = self.system.db_conn.cursor()
+                    cursor.execute(
+                        "SELECT value, updated_at FROM system_state WHERE key='service_health'"
+                    )
+                    row = cursor.fetchone()
+                    cursor.close()
+                    if row:
+                        persisted_health = json.loads(row[0])
+                        persisted_health["updated_at"] = row[1]
+                except Exception as exc:
+                    logger.debug("API Server: persisted health fetch skipped: %s", exc)
             health_data = {
                 "mode": self.system.mode,
                 "dms": "ACTIVE" if hasattr(self.system, "dms") and self.system.dms else "OFFLINE",
@@ -978,6 +1031,8 @@ class APIServer:
                     "sovereign": "ONLINE",
                 },
             }
+            if persisted_health:
+                health_data["production"] = persisted_health
 
             return {
                 "timestamp": time.time_ns(),
