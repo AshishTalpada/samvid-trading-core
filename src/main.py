@@ -77,6 +77,7 @@ from config import (
 from ibkr_streamer import IBKRStreamer
 from intelligence_bus import get_bus
 from questdb_adapter import QuestDBAdapter
+from runtime_health import ComponentHealth, build_health_snapshot
 from telegram_remote import get_remote
 from tv_quote_streamer import TVQuoteStreamer
 
@@ -739,6 +740,72 @@ class TradingSystem:
             )
         except Exception as exc:
             logger.debug("System event write skipped: %s", exc)
+
+    def _build_runtime_health_snapshot(
+        self,
+        *,
+        ibkr_value: str | None = None,
+        mt5_value: str | None = None,
+    ) -> dict[str, Any]:
+        """Return the current operator-facing service health snapshot."""
+        brain = getattr(self, "trading_brain", None)
+        state = getattr(getattr(brain, "state", None), "name", "INIT")
+        open_positions = len(getattr(brain, "positions", []) or []) if brain else 0
+
+        ibkr_status = (ibkr_value or "unknown").upper()
+        mt5_status = (mt5_value or "unknown").upper()
+        openbb = getattr(self, "_openbb_provider", None)
+        dhatu = getattr(self, "dhatu_oracle", None)
+        slm = getattr(self, "native_slm", None)
+        tvq = getattr(self, "tv_quote_streamer", None)
+        ibkr_hft = getattr(self, "hft_streamer", None)
+
+        tv_status = "OFFLINE"
+        tv_detail = "not initialized"
+        if tvq:
+            if getattr(tvq, "connected", False):
+                tv_status = "ONLINE"
+                tv_detail = f"quotes={getattr(tvq, 'quotes_seen', 0)}"
+            elif getattr(tvq, "is_running", False):
+                tv_status = "PAUSED"
+                tv_detail = "waiting for market hours"
+
+        slm_status = "OFFLINE"
+        slm_detail = ""
+        if slm and getattr(slm, "is_available", False):
+            mode = str(getattr(slm, "mode", "native")).upper()
+            slm_status = "FALLBACK" if mode == "FALLBACK" else "NATIVE"
+            slm_detail = str(getattr(slm, "status_detail", mode))
+
+        dropped_ticks = 0
+        if tvq:
+            dropped_ticks += int(getattr(tvq, "dropped_ticks", 0) or 0)
+        if ibkr_hft:
+            dropped_ticks += int(getattr(ibkr_hft, "dropped_ticks", 0) or 0)
+
+        components = [
+            ComponentHealth("ibkr_execution", ibkr_status, critical=self.requires_ibkr_connection),
+            ComponentHealth("mt5", mt5_status, critical=False),
+            ComponentHealth(
+                "openbb",
+                "ONLINE" if openbb and getattr(openbb, "is_available", False) else "OFFLINE",
+                critical=False,
+            ),
+            ComponentHealth("dhatu", "ONLINE" if dhatu else "OFFLINE", critical=True),
+            ComponentHealth("native_slm", slm_status, slm_detail, critical=False),
+            ComponentHealth("tv_quotes", tv_status, tv_detail, critical=False),
+        ]
+        return build_health_snapshot(
+            components,
+            mode=self.mode,
+            state=state,
+            dropped_ticks=dropped_ticks,
+            open_positions=open_positions,
+            extra={
+                "ibkr_hft_enabled": os.environ.get("SOVEREIGN_IBKR_HFT_ENABLED", "0") == "1",
+                "tv_quotes_enabled": os.environ.get("SOVEREIGN_TV_QUOTES_ENABLED", "1") == "1",
+            },
+        )
 
     def _refresh_performance_summary(self) -> None:
         """Refresh the dashboard performance row even when no trade exits occur."""
@@ -1772,12 +1839,23 @@ class TradingSystem:
                             "VALUES (?, ?, CURRENT_TIMESTAMP)",
                             ("mt5_status", mt5_value),
                         )
+                        health_snapshot = self._build_runtime_health_snapshot(
+                            ibkr_value=ibkr_value,
+                            mt5_value=mt5_value,
+                        )
+                        cursor.execute(
+                            "INSERT OR REPLACE INTO system_state (key, value, updated_at) "
+                            "VALUES (?, ?, CURRENT_TIMESTAMP)",
+                            ("service_health", json.dumps(health_snapshot)),
+                        )
                         self._record_system_event(
                             "heartbeat",
                             "Runtime heartbeat",
                             agent="main",
-                            details={"ibkr": ibkr_value, "mt5": mt5_value},
+                            details=health_snapshot,
                         )
+                        if self.bus:
+                            await self.bus.publish("system.health", health_snapshot)
                         self._refresh_performance_summary()
                         db.commit()
                         cursor.close()
