@@ -13,6 +13,7 @@ import asyncio
 import json
 import logging
 import time
+from contextlib import contextmanager
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
@@ -38,13 +39,44 @@ class ProbeReport:
     passed: bool
     duration_sec: float
     checks: list[ProbeCheck]
+    mode: str = "synthetic_closed_market_drill"
+    expected_faults: tuple[str, ...] = (
+        "ORDER_THROTTLED",
+        "NOTIONAL_VETO",
+        "DLQ_ESCALATION",
+        "TradingState.HALTED",
+    )
 
     def to_dict(self) -> dict[str, Any]:
         return {
             "passed": self.passed,
+            "mode": self.mode,
+            "expected_synthetic_faults": list(self.expected_faults),
+            "operator_note": (
+                "This probe intentionally triggers throttle, notional-veto, DLQ, and HALTED "
+                "paths with mocked data. These are expected drill events, not live broker orders."
+            ),
             "duration_sec": round(self.duration_sec, 3),
             "checks": [asdict(check) for check in self.checks],
         }
+
+
+@contextmanager
+def _expected_fault_logging(enabled: bool):
+    """Optionally silence noisy loggers while a synthetic fault drill is running."""
+    if enabled:
+        yield
+        return
+
+    names = ("risk_invariants", "resilience_layer", "TradingState")
+    previous = {name: logging.getLogger(name).disabled for name in names}
+    try:
+        for name in names:
+            logging.getLogger(name).disabled = True
+        yield
+    finally:
+        for name, disabled in previous.items():
+            logging.getLogger(name).disabled = disabled
 
 
 async def _probe_tick_batcher() -> ProbeCheck:
@@ -147,13 +179,12 @@ async def _probe_broker_outage_dlq() -> ProbeCheck:
         TradingStateManager.activate("backend reliability probe complete")
 
 
-async def run_backend_reliability_probe() -> ProbeReport:
+async def run_backend_reliability_probe(*, verbose_expected_faults: bool = False) -> ProbeReport:
     started = time.monotonic()
-    checks = [
-        await _probe_tick_batcher(),
-        await _probe_order_safety(),
-        await _probe_broker_outage_dlq(),
-    ]
+    checks = [await _probe_tick_batcher()]
+    with _expected_fault_logging(verbose_expected_faults):
+        checks.append(await _probe_order_safety())
+        checks.append(await _probe_broker_outage_dlq())
     return ProbeReport(
         passed=all(check.passed for check in checks),
         duration_sec=time.monotonic() - started,
@@ -168,10 +199,17 @@ def main() -> int:
         default="data/backend_reliability_probe.json",
         help="Path to write the probe report JSON.",
     )
+    parser.add_argument(
+        "--verbose-expected-faults",
+        action="store_true",
+        help="Print the intentionally-triggered throttle/veto/DLQ fault logs.",
+    )
     args = parser.parse_args()
 
     logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
-    report = asyncio.run(run_backend_reliability_probe())
+    report = asyncio.run(
+        run_backend_reliability_probe(verbose_expected_faults=args.verbose_expected_faults)
+    )
     payload = report.to_dict()
     out_path = Path(args.json_out)
     out_path.parent.mkdir(parents=True, exist_ok=True)
