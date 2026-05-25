@@ -12,7 +12,6 @@ import time
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from typing import TYPE_CHECKING, Any, Dict
-from zoneinfo import ZoneInfo
 
 import httpx
 import numpy as np
@@ -20,6 +19,7 @@ import websockets
 
 from api_cache import TTLCache
 from database_security import Vault
+from market_calendar import is_us_equity_market_open
 from telegram_alerts import send_telegram_alert
 
 if TYPE_CHECKING:
@@ -641,11 +641,7 @@ class TVNewsScent:
 
     def _is_us_equity_market_open(self) -> bool:
         """Cheap wall-clock gate to avoid hammering the TV socket after-hours."""
-        now = datetime.now(ZoneInfo("America/New_York"))
-        if now.weekday() >= 5:
-            return False
-        minutes = now.hour * 60 + now.minute
-        return (9 * 60 + 30) <= minutes < (16 * 60)
+        return is_us_equity_market_open()
 
     def _format_message(self, data: dict) -> str:
         """TradingView ~m~ framing."""
