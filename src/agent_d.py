@@ -1256,6 +1256,15 @@ class LiveLearningEngine:
                 raise
         raise _sqlite3.OperationalError("SQLite database is locked after 5 retry attempts")
 
+    @staticmethod
+    def _coerce_sql_count(value: Any) -> int:
+        """Return a sane count from SQLite aggregate output or test doubles."""
+        if isinstance(value, bool):
+            return int(value)
+        if isinstance(value, (int, float)) and math.isfinite(value):
+            return max(0, int(value))
+        return 0
+
     def __init__(
         self,
         db_path: str = "data/trading.db",
@@ -1307,8 +1316,8 @@ class LiveLearningEngine:
             row = conn.execute(
                 "SELECT COUNT(*), SUM(CASE WHEN outcome='WIN' THEN 1 ELSE 0 END) FROM agent_d_trades"
             ).fetchone()
-            self._n_trades = row[0] if row else 0
-            self._n_wins = row[1] if row and row[1] else 0
+            self._n_trades = self._coerce_sql_count(row[0]) if row else 0
+            self._n_wins = self._coerce_sql_count(row[1]) if row else 0
 
             # 2. Rebuild Matrix via streaming SQL aggregation
             if self._n_trades >= ConditionalExpectancyMatrix.MIN_TRADES:
@@ -1346,6 +1355,8 @@ class LiveLearningEngine:
                 "SELECT * FROM agent_d_trades ORDER BY id DESC LIMIT 200"
             ).fetchall()
             conn.close()
+            if not isinstance(rows, (list, tuple)):
+                rows = []
             # Store reversed to maintain ASC order in the deque
             for r in reversed(rows):
                 self._recent_trades.append(dict(r))
