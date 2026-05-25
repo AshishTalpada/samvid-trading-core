@@ -1,4 +1,4 @@
-# 🪐 Samvid Trading Core (v1.0-beta)
+# Samvid Trading Core
 
 [![Build Status](https://github.com/AshishTalpada/samvid-trading-core/actions/workflows/main.yml/badge.svg)](https://github.com/AshishTalpada/samvid-trading-core/actions)
 [![Latest Release](https://img.shields.io/github/v/tag/AshishTalpada/samvid-trading-core?label=release&color=cyan)](https://github.com/AshishTalpada/samvid-trading-core/releases)
@@ -6,9 +6,17 @@
 [![Linter](https://img.shields.io/badge/linting-ruff-black.svg)](https://github.com/astral-sh/ruff)
 [![Tests](https://img.shields.io/badge/tests-24_suites-green.svg)](#-test-suite--reliability)
 
-**Status: v1.0-beta | Architecture-First Agent Mesh | Event-Driven Execution**
+**Samvid Trading Core** is an open-source AI agent algorithmic trading system for execution research, real-time market data ingestion, broker connectivity, risk management, and operator observability.
 
-**Samvid** (Sanskrit for *Consensus* or *Shared Intelligence*) is an experimental, event-driven trading engine built around a decentralized mesh of specialized agents. Instead of a monolithic strategy, execution is the result of a consensus-based voting model where multiple specialized entities (Pattern Discovery, Sentiment, Macro Oracle) reach a quorum before any action is taken.
+It is built for Python-first quantitative trading workflows with IBKR / Interactive Brokers, MetaTrader 5, TradingView-derived quote streaming, FastAPI telemetry, Rust/native acceleration experiments, and a consensus-based AI agent mesh.
+
+**Status: v1.0-beta | Architecture-First Agent Mesh | Event-Driven Execution | Research Only**
+
+Samvid (Sanskrit for *Consensus* or *Shared Intelligence*) is an experimental, event-driven trading engine built around a decentralized mesh of specialized agents. Instead of a monolithic strategy, execution is the result of a consensus-based voting model where multiple specialized entities (Pattern Discovery, Sentiment, Macro Oracle, Risk Guard) reach a quorum before any action is taken.
+
+## Search Keywords
+
+`Samvid Trading Core`, `AI trading system`, `algorithmic trading bot`, `quantitative finance`, `IBKR trading bot`, `Interactive Brokers automation`, `MetaTrader 5 trading engine`, `real-time market data`, `risk management`, `Python trading system`, `FastAPI trading dashboard`, `Rust trading infrastructure`.
 
 ---
 
