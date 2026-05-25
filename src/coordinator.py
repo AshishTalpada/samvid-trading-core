@@ -963,7 +963,7 @@ class TradingCoordinator:
     ) -> bool:
         """The dedicated execution nexus for the Sovereign system."""
         try:
-            proposal_id = all_votes[0].get("proposal_id", "CACHE")
+            proposal_id = all_votes[0].get("proposal_id", "CACHE") if all_votes else "CACHE"
             decision = self._maybe_promote_paper_exploration(
                 symbol=symbol,
                 decision=decision,
@@ -1129,7 +1129,7 @@ class TradingCoordinator:
                         trade_id=str(order_id),
                         task_id=task.id if task else "N/A",
                         account_type=self.brain.active_broker.lower(),
-                        catalyst_score=all_votes[0].get("confidence", 0.5) * 100,
+                        catalyst_score=(all_votes[0].get("confidence", 0.5) if all_votes else 0.5) * 100,
                         regime_at_entry=self.brain.current_regime,
                         commission_cost=max(2.0, shares * 0.005),
                         slippage_cost=shares * pattern.entry * 0.0005,
