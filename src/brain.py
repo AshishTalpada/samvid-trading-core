@@ -2325,10 +2325,6 @@ class TradingBrain:
                 self.pending_signals = discoveries
                 async with self._state_lock:
                     self.state = TradingState.ANALYZING
-            else:
-                vix = await self._get_vix()
-                nap_time = self.scan_interval if vix < 25 else (self.scan_interval / 2.0)
-                await asyncio.sleep(nap_time)
 
         finally:
             self._is_scanning = False
@@ -4089,6 +4085,11 @@ class TradingBrain:
 
             # If we have stop/target geometry, we use the bracket executor
             if stop_price > 0 and target_price > 0:
+                # Paper mode without broker: skip pre-flight and token generation
+                if self.mode == "paper" and not self.ibkr_conn.is_connected():
+                    logger.info(f"PAPER [SIM]: Bracket {direction} {shares} {symbol} @ ${limit_price}")
+                    return f"PAPER-{int(time.time())}"
+
                 ok, reason = await asyncio.to_thread(
                     self.ibkr_conn.validate_order_pre_flight, symbol, direction, shares, limit_price
                 )
@@ -4110,6 +4111,11 @@ class TradingBrain:
                     **kwargs,  # Pass Ghost Expansion & Exec Token
                 )
                 return str(ids[0]) if ids else ""
+
+            # Paper mode without broker: skip token generation; place_order handles sim
+            if self.mode == "paper" and not self.ibkr_conn.is_connected():
+                logger.info(f"PAPER [SIM]: Single {direction} {shares} {symbol} (Urgency: {urgency})")
+                return f"PAPER-{int(time.time())}"
 
             exec_token = self.ibkr_conn.generate_exec_token(symbol)
             kwargs["exec_token"] = exec_token
@@ -4270,9 +4276,15 @@ class TradingBrain:
 
         risk_per_trade = getattr(self, "mt5_risk_per_trade", 10.0)
 
-        lots = (
-            self.mt5_sizer.calculate_lots(risk_per_trade, limit_price, stop_price, symbol) or 0.01
-        )
+        # Respect coordinator-calculated shares (already includes all risk modifiers).
+        # Fallback to sizer only if shares was not provided or is zero.
+        if shares and shares > 0:
+            lots = float(shares)
+        else:
+            lots = (
+                self.mt5_sizer.calculate_lots(risk_per_trade, limit_price, stop_price, symbol)
+                or 0.01
+            )
 
         order_id = await asyncio.to_thread(
             self.mt5_conn.place_order,
