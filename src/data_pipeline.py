@@ -5,9 +5,7 @@ import random
 import sqlite3
 import time
 from datetime import datetime, timedelta, timezone
-from datetime import time as dt_time
 from typing import TYPE_CHECKING, Any, Optional
-from zoneinfo import ZoneInfo
 
 import aiohttp
 import pandas as pd
@@ -49,6 +47,7 @@ except Exception as _yf_patch_err:
 import yfinance as yf
 
 from config import QUESTDB_ENABLED
+from market_calendar import is_us_equity_market_open
 from openbb_provider import OpenBBProvider
 from pandas_safety import safe_polars_from_pandas
 from questdb_adapter import QuestDBAdapter
@@ -941,63 +940,7 @@ class DataPipeline:
         Returns:
             True if market is open, False otherwise
         """
-        try:
-            et_tz = ZoneInfo("America/New_York")
-            now = datetime.now(et_tz)
-
-            # Check if weekday (0=Monday, 6=Sunday)
-            if now.weekday() >= 5:  # Saturday or Sunday
-                return False
-
-            date_str = now.strftime("%Y-%m-%d")
-            HOLIDAYS = {
-                "2024-01-01",
-                "2024-01-15",
-                "2024-02-19",
-                "2024-03-29",
-                "2024-05-27",
-                "2024-06-19",
-                "2024-07-04",
-                "2024-09-02",
-                "2024-11-28",
-                "2024-12-25",
-                "2025-01-01",
-                "2025-01-20",
-                "2025-02-17",
-                "2025-04-18",
-                "2025-05-26",
-                "2025-06-19",
-                "2025-07-04",
-                "2025-09-01",
-                "2025-11-27",
-                "2025-12-25",
-                # 2026 NYSE Holidays
-                "2026-01-01",
-                "2026-01-19",
-                "2026-02-16",
-                "2026-04-03",
-                "2026-05-25",
-                "2026-06-19",
-                "2026-07-03",
-                "2026-09-07",
-                "2026-11-26",
-                "2026-12-25",
-            }
-            if date_str in HOLIDAYS:
-                return False
-
-            # Market hours: 9:30 AM - 4:00 PM ET
-            market_open = dt_time(9, 30)
-            market_close = dt_time(16, 0)
-            current_time = now.time()
-
-            is_open = market_open <= current_time <= market_close
-
-            return is_open
-
-        except Exception as e:
-            logger.error(f"Error checking market hours: {e}")
-            return False
+        return is_us_equity_market_open()
 
     async def store_ohlcv(self, symbol: str, df: "pl.DataFrame", tf: str = "1m") -> None:
         """
