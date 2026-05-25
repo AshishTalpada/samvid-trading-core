@@ -1,0 +1,18 @@
+# CODEOWNERS
+# This file defines the owners of paths in this repository.
+# For more details, see: https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-codeowners
+
+# Global default owner
+*       @AshishTalpada
+
+# Security-critical files and directories
+/contracts/                 @AshishTalpada
+/src/native_slm.py          @AshishTalpada
+/src/neural_sandbox.py      @AshishTalpada
+/system_config.py           @AshishTalpada
+
+# GitHub Settings, actions and configuration
+/.github/                   @AshishTalpada
+/.cursorrules               @AshishTalpada
+/pyproject.toml             @AshishTalpada
+/Cargo.toml                 @AshishTalpada
