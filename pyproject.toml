@@ -5,8 +5,9 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "samvid-trading-core"
 version = "1.0.0"
-description = "Sovereign Agentic Trading Mesh"
+description = "Open-source AI multi-agent algorithmic trading system for Interactive Brokers & MetaTrader 5 with consensus-based execution"
 readme = "README.md"
+license = {text = "MIT"}
 requires-python = ">=3.11,<3.14"
 dependencies = [
     "fastapi",
@@ -30,6 +31,42 @@ dependencies = [
     "pytest",
     "pytest-asyncio"
 ]
+keywords = [
+    "algorithmic-trading",
+    "trading-bot",
+    "interactive-brokers",
+    "metatrader5",
+    "quantitative-finance",
+    "automated-trading",
+    "ai-agents",
+    "multi-agent-system",
+    "fastapi",
+    "risk-management",
+    "stock-trading",
+    "forex-trading",
+    "real-time-market-data",
+    "python-trading",
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Financial and Insurance Industry",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Rust",
+    "Topic :: Office/Business :: Financial :: Investment",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+
+[project.urls]
+Homepage = "https://github.com/AshishTalpada/samvid-trading-core"
+Repository = "https://github.com/AshishTalpada/samvid-trading-core"
+"Bug Tracker" = "https://github.com/AshishTalpada/samvid-trading-core/issues"
+Documentation = "https://github.com/AshishTalpada/samvid-trading-core#readme"
+
+[project.optional-dependencies]
+dev = ["ruff", "mypy", "pytest", "pytest-asyncio"]
 
 [tool.pytest.ini_options]
 minversion = "8.0"
