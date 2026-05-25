@@ -1,0 +1,33 @@
+cff-version: 1.2.0
+title: "Samvid Trading Core"
+message: "If you use this software in your research, please cite it as below."
+type: software
+authors:
+  - given-names: Ashish
+    family-names: Talpada
+    alias: AshishTalpada
+repository-code: "https://github.com/AshishTalpada/samvid-trading-core"
+url: "https://github.com/AshishTalpada/samvid-trading-core"
+keywords:
+  - algorithmic-trading
+  - automated-trading
+  - multi-agent-system
+  - interactive-brokers
+  - metatrader5
+  - quantitative-finance
+  - python-trading-bot
+  - risk-management
+  - fastapi
+  - rust
+  - machine-learning
+  - time-series
+license: MIT
+version: "1.0.0"
+date-released: "2025-01-01"
+abstract: >-
+  Samvid Trading Core is an open-source, multi-agent AI algorithmic trading
+  system supporting Interactive Brokers and MetaTrader 5. It features a
+  consensus-based quorum voting model with 11 specialized agents for pattern
+  recognition, sentiment analysis, macro regime detection, and institutional
+  risk management. Built with Python, Rust (PyO3), FastAPI, QuestDB, and
+  Numba JIT for production-grade automated trading research.
