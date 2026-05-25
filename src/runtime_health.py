@@ -22,6 +22,58 @@ class ComponentHealth:
     def is_degraded(self) -> bool:
         return self.status.upper() in {"DEGRADED", "FALLBACK", "DELAYED", "PARKED", "PAUSED"}
 
+    @property
+    def normalized_status(self) -> str:
+        return self.status.upper()
+
+
+def _score_health(
+    components: list[ComponentHealth],
+    *,
+    dropped_ticks: int,
+    critical_offline: list[str],
+    degraded: list[str],
+) -> tuple[int, str, list[str]]:
+    score = 100
+    actions: list[str] = []
+
+    for component in components:
+        status = component.normalized_status
+        if component.name in critical_offline:
+            score -= 45
+            actions.append(f"Restore critical component: {component.name}")
+            continue
+        if component.name in degraded:
+            penalty = 18 if component.critical else 7
+            if status == "FALLBACK":
+                penalty += 5 if component.critical else 3
+                actions.append(f"Investigate fallback mode: {component.name}")
+            elif status == "PAUSED":
+                actions.append(f"Confirm pause is expected: {component.name}")
+            else:
+                actions.append(f"Review degraded component: {component.name}")
+            score -= penalty
+        elif not component.is_online and not component.is_degraded:
+            penalty = 20 if component.critical else 5
+            score -= penalty
+            actions.append(f"Bring optional component online: {component.name}")
+
+    if dropped_ticks > 0:
+        tick_penalty = min(20, max(3, dropped_ticks // 1000 + 3))
+        score -= tick_penalty
+        actions.append(f"Reduce dropped market-data ticks: {dropped_ticks}")
+
+    score = max(0, min(100, score))
+    if critical_offline:
+        readiness = "BLOCKED"
+    elif score >= 92:
+        readiness = "READY"
+    elif score >= 75:
+        readiness = "DEGRADED_READY"
+    else:
+        readiness = "DEGRADED_RISK"
+    return score, readiness, actions[:8]
+
 
 def build_health_snapshot(
     components: list[ComponentHealth],
@@ -37,6 +89,12 @@ def build_health_snapshot(
         c.name for c in components if c.critical and not c.is_online and not c.is_degraded
     ]
     degraded = [c.name for c in components if c.is_degraded]
+    readiness_score, readiness, action_items = _score_health(
+        components,
+        dropped_ticks=int(dropped_ticks),
+        critical_offline=critical_offline,
+        degraded=degraded,
+    )
     if critical_offline:
         overall = "OFFLINE"
     elif degraded or dropped_ticks > 0:
@@ -51,6 +109,14 @@ def build_health_snapshot(
         "state": state,
         "critical_offline": critical_offline,
         "degraded": degraded,
+        "readiness": readiness,
+        "readiness_score": readiness_score,
+        "action_items": action_items,
+        "operator_summary": (
+            f"{readiness} ({readiness_score}/100): "
+            f"{len(critical_offline)} critical offline, {len(degraded)} degraded, "
+            f"{int(dropped_ticks)} dropped ticks"
+        ),
         "dropped_ticks": int(dropped_ticks),
         "open_positions": int(open_positions),
         "components": {
