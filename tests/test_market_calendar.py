@@ -5,6 +5,7 @@ from market_calendar import (
     is_us_equity_holiday,
     is_us_equity_market_open,
     us_equity_full_day_holidays,
+    us_equity_session_status,
 )
 
 
@@ -41,3 +42,12 @@ def test_new_year_observed_on_prior_december() -> None:
 def test_manual_closed_date_override(monkeypatch) -> None:
     monkeypatch.setenv("SOVEREIGN_US_EQUITY_CLOSED_DATES", "2030-08-12")
     assert is_us_equity_holiday(datetime(2030, 8, 12).date())
+
+
+def test_session_status_explains_holiday() -> None:
+    day = datetime(2026, 5, 25, 12, 0, tzinfo=ZoneInfo("America/New_York"))
+    status = us_equity_session_status(day)
+
+    assert status["is_open"] is False
+    assert status["reason"] == "full-day exchange holiday"
+    assert status["date"] == "2026-05-25"

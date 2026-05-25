@@ -45,7 +45,7 @@ from typing import TYPE_CHECKING, Any
 
 import aiohttp
 
-from market_calendar import is_us_equity_market_open
+from market_calendar import is_us_equity_market_open, us_equity_session_status
 from mind_bridge import MindBridge
 from mind_system import MindSystem
 from session_restorer import SessionRestorer
@@ -803,6 +803,7 @@ class TradingSystem:
             extra={
                 "ibkr_hft_enabled": os.environ.get("SOVEREIGN_IBKR_HFT_ENABLED", "0") == "1",
                 "tv_quotes_enabled": os.environ.get("SOVEREIGN_TV_QUOTES_ENABLED", "1") == "1",
+                "market_session": us_equity_session_status(),
             },
         )
 
