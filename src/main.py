@@ -40,13 +40,12 @@ import subprocess
 import time
 from collections.abc import Callable, Coroutine
 from datetime import datetime, timezone
-from datetime import time as dt_time
 from logging.handlers import RotatingFileHandler
 from typing import TYPE_CHECKING, Any
-from zoneinfo import ZoneInfo
 
 import aiohttp
 
+from market_calendar import is_us_equity_market_open
 from mind_bridge import MindBridge
 from mind_system import MindSystem
 from session_restorer import SessionRestorer
@@ -2429,13 +2428,7 @@ class TradingSystem:
 
     def _is_us_equity_market_open(self) -> bool:
         """Return True during regular US equity market hours."""
-        try:
-            now_et = datetime.now(ZoneInfo("America/New_York"))
-            if now_et.weekday() >= 5:
-                return False
-            return dt_time(9, 30) <= now_et.time() <= dt_time(16, 0)
-        except Exception:
-            return True
+        return is_us_equity_market_open()
 
     async def _run_hft_pulse_worker(self) -> None:
         """

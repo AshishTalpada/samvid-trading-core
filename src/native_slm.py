@@ -2,9 +2,11 @@ import asyncio
 import json
 import logging
 import os
+import subprocess
 import sys
 import time
 import uuid
+from pathlib import Path
 from typing import Any, Dict
 
 try:
@@ -29,7 +31,7 @@ class NativeSLM:
     def __init__(self, model_path: str = "models/sovereign_slm.gguf"):
         self._available = False
         self.model_path = model_path
-        self._worker: asyncio.subprocess.Process | None = None
+        self._worker: asyncio.subprocess.Process | subprocess.Popen[bytes] | None = None
         self._sandbox_failures = 0
         self._last_failure_at = 0.0
         self._last_restart_at = 0.0
@@ -37,6 +39,9 @@ class NativeSLM:
         self._status_detail = "offline"
         self._startup_timeout = float(os.environ.get("SOVEREIGN_SLM_STARTUP_TIMEOUT", "45"))
         self._inference_timeout = float(os.environ.get("SOVEREIGN_SLM_TIMEOUT", "8"))
+        self._quarantine_path = Path(
+            os.environ.get("SOVEREIGN_SLM_QUARANTINE_FILE", "data/native_slm_quarantine.json")
+        )
 
         if Llama is None:
             if os.path.exists(model_path):
@@ -56,6 +61,14 @@ class NativeSLM:
                 "Native SLM model not found at %s. Awaiting fine-tuned model.",
                 model_path,
             )
+            return
+
+        quarantined_reason = self._load_quarantine_reason()
+        if quarantined_reason and os.environ.get("SOVEREIGN_SLM_FORCE_NATIVE") != "1":
+            self._available = True
+            self._fallback_mode = True
+            self._status_detail = f"deterministic fallback after native quarantine: {quarantined_reason}"
+            logger.info("Native SLM native worker quarantined; %s.", self._status_detail)
             return
 
         self._available = True
@@ -105,13 +118,19 @@ class NativeSLM:
                 }
                 wire = json.dumps(payload, separators=(",", ":")) + "\n"
                 started = time.monotonic()
-                worker.stdin.write(wire.encode("utf-8"))
-                await worker.stdin.drain()
-
-                raw = await asyncio.wait_for(
-                    worker.stdout.readline(),
-                    timeout=self._inference_timeout,
-                )
+                if isinstance(worker, subprocess.Popen):
+                    await asyncio.to_thread(self._popen_write, worker, wire.encode("utf-8"))
+                    raw = await asyncio.wait_for(
+                        asyncio.to_thread(worker.stdout.readline),
+                        timeout=self._inference_timeout,
+                    )
+                else:
+                    worker.stdin.write(wire.encode("utf-8"))
+                    await worker.stdin.drain()
+                    raw = await asyncio.wait_for(
+                        worker.stdout.readline(),
+                        timeout=self._inference_timeout,
+                    )
                 if not raw:
                     raise RuntimeError("worker exited without response")
 
@@ -159,8 +178,10 @@ class NativeSLM:
             log("Native SLM warmup completed in degraded mode; %s.", self._status_detail)
             return self._available
 
-    async def _ensure_worker(self) -> asyncio.subprocess.Process | None:
-        if self._worker and self._worker.returncode is None:
+    async def _ensure_worker(
+        self,
+    ) -> asyncio.subprocess.Process | subprocess.Popen[bytes] | None:
+        if self._worker and self._worker_alive(self._worker):
             return self._worker
 
         now = time.monotonic()
@@ -192,21 +213,75 @@ class NativeSLM:
                 ready.get("n_batch"),
             )
             return proc
+        except NotImplementedError:
+            return await self._ensure_popen_worker(cmd)
         except Exception:
             if "proc" in locals() and proc.returncode is None:
                 proc.kill()
                 await proc.wait()
             raise
 
+    async def _ensure_popen_worker(
+        self, cmd: list[str]
+    ) -> asyncio.subprocess.Process | subprocess.Popen[bytes] | None:
+        proc = subprocess.Popen(
+            cmd,
+            cwd=os.getcwd(),
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+        try:
+            if proc.stdout is None:
+                raise RuntimeError("worker stdout unavailable")
+            raw = await asyncio.wait_for(
+                asyncio.to_thread(proc.stdout.readline),
+                timeout=self._startup_timeout,
+            )
+            if not raw:
+                raise RuntimeError("worker exited during startup")
+            ready = json.loads(raw.decode("utf-8", errors="replace"))
+            if ready.get("status") != "READY":
+                raise RuntimeError(str(ready.get("reason", "worker startup failed")))
+            self._worker = proc
+            logger.info(
+                "Native SLM worker ready via blocking subprocess (pid=%s, n_ctx=%s, n_batch=%s).",
+                proc.pid,
+                ready.get("n_ctx"),
+                ready.get("n_batch"),
+            )
+            return proc
+        except Exception:
+            if proc.poll() is None:
+                proc.kill()
+                await asyncio.to_thread(proc.wait)
+            raise
+
+    @staticmethod
+    def _worker_alive(proc: asyncio.subprocess.Process | subprocess.Popen[bytes]) -> bool:
+        if isinstance(proc, subprocess.Popen):
+            return proc.poll() is None
+        return proc.returncode is None
+
+    @staticmethod
+    def _popen_write(proc: subprocess.Popen[bytes], payload: bytes) -> None:
+        if proc.stdin is None:
+            raise RuntimeError("worker stdin unavailable")
+        proc.stdin.write(payload)
+        proc.stdin.flush()
+
     async def _kill_worker(self, reason: str) -> None:
         proc = self._worker
         self._worker = None
-        if proc is None or proc.returncode is not None:
+        if proc is None or not self._worker_alive(proc):
             return
         logger.warning("Native SLM: killing worker pid=%s (%s).", proc.pid, reason)
         proc.kill()
         try:
-            await asyncio.wait_for(proc.wait(), timeout=5.0)
+            if isinstance(proc, subprocess.Popen):
+                await asyncio.wait_for(asyncio.to_thread(proc.wait), timeout=5.0)
+            else:
+                await asyncio.wait_for(proc.wait(), timeout=5.0)
         except asyncio.TimeoutError:
             logger.warning("Native SLM: worker pid=%s did not exit after kill.", proc.pid)
 
@@ -257,6 +332,8 @@ class NativeSLM:
             )
         )
         if hard_native_failure or self._sandbox_failures >= 3:
+            if hard_native_failure:
+                self._persist_quarantine(reason)
             self._fallback_mode = os.path.exists(self.model_path)
             self._available = self._fallback_mode
             self._status_detail = (
@@ -272,6 +349,31 @@ class NativeSLM:
             )
             return True
         return False
+
+    def _load_quarantine_reason(self) -> str:
+        try:
+            if not self._quarantine_path.exists():
+                return ""
+            data = json.loads(self._quarantine_path.read_text(encoding="utf-8"))
+            created_at = float(data.get("created_at", 0.0))
+            ttl_hours = float(os.environ.get("SOVEREIGN_SLM_QUARANTINE_TTL_HOURS", "168"))
+            if ttl_hours > 0 and time.time() - created_at > ttl_hours * 3600:
+                return ""
+            return str(data.get("reason", "native worker quarantined"))[:160]
+        except Exception:
+            return "native worker quarantined"
+
+    def _persist_quarantine(self, reason: str) -> None:
+        try:
+            self._quarantine_path.parent.mkdir(parents=True, exist_ok=True)
+            payload = {
+                "created_at": time.time(),
+                "reason": reason[:240],
+                "mode": "deterministic_fallback",
+            }
+            self._quarantine_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+        except Exception as exc:
+            logger.debug("Native SLM quarantine marker write failed: %s", exc)
 
     def _fallback_vote(self, context: dict, reason: str) -> dict:
         """Fast deterministic local scorer used when native llama.cpp is unsafe."""
