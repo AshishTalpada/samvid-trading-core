@@ -773,7 +773,12 @@ class TradingSystem:
         slm_detail = ""
         if slm and getattr(slm, "is_available", False):
             mode = str(getattr(slm, "mode", "native")).upper()
-            slm_status = "FALLBACK" if mode == "FALLBACK" else "NATIVE"
+            if mode == "FALLBACK":
+                slm_status = "FALLBACK"
+            elif mode == "COMPAT":
+                slm_status = "COMPAT"
+            else:
+                slm_status = "NATIVE"
             slm_detail = str(getattr(slm, "status_detail", mode))
 
         dropped_ticks = 0
