@@ -12,7 +12,7 @@ default = []
 experimental_crypto = []
 
 [dependencies]
-pyo3 = { version = "0.20", features = ["extension-module", "abi3-py310"] }
+pyo3 = { version = "0.20", features = ["extension-module", "abi3-py311"] }
 tokio = { version = "1.36", features = ["full"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"

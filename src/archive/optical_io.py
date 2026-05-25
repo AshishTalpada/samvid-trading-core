@@ -1,6 +1,5 @@
 import json
 import logging
-import time
 from pathlib import Path
 
 logger = logging.getLogger(__name__)

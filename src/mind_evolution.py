@@ -165,7 +165,6 @@ class MindEvolution:
         return {"success": False, "error": mutation_result.get("error", "Unknown mutation error")}
 
     async def _tool_report_peak(self) -> dict[str, Any]:
-        from time_sync import TimeSync
 
         return {"peak": self.peak_equity, "at_time": time.time_ns()}
 
@@ -215,7 +214,6 @@ class MindEvolution:
     async def _tool_update_knowledge(self, knowledge_item: str, source: str) -> dict[str, Any]:
         """Synchronizes session-level 'Learnings' across all minds via Team Context."""
         logger.info(f"MindEvolution: Knowledge Update from '{source}': {knowledge_item[:50]}...")
-        from time_sync import TimeSync
 
         self.historical_memory.append(
             {"item": knowledge_item, "source": source, "timestamp": time.time_ns()}

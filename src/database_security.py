@@ -26,7 +26,15 @@ class DatabaseSecurity:
                 logger.critical("DB_ENCRYPTION_KEY MISSING FROM VAULT!")
                 raise RuntimeError("System integrity compromised: DB_ENCRYPTION_KEY not found.")
 
-            cls._fernet = Fernet(key.encode())
+            # Validate key is proper Fernet format (32 url-safe base64 bytes)
+            try:
+                cls._fernet = Fernet(key.encode())
+            except (ValueError, Exception) as e:
+                logger.critical(f"DB_ENCRYPTION_KEY is malformed: {e}")
+                raise RuntimeError(
+                    "System integrity compromised: DB_ENCRYPTION_KEY is not a valid Fernet key. "
+                    "Generate one with: python -c 'from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())'"
+                ) from e
             # Derive a secondary HMAC key for extra layer of integrity
             cls._hmac_key = hashlib.sha256(key.encode() + b"HMAC_INTEGRITY").digest()
 
@@ -37,7 +45,7 @@ class DatabaseSecurity:
         """Generate an HMAC signature for data integrity verification."""
         if cls._hmac_key is None:
             cls._get_fernet()
-        return hmac.new(cls._hmac_key, data, hashlib.sha256).hexdigest()
+        return hmac.HMAC(cls._hmac_key, data, hashlib.sha256).hexdigest()
 
     @classmethod
     def encrypt(cls, data: str) -> str:

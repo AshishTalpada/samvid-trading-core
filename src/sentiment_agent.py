@@ -1,5 +1,4 @@
 import logging
-import re
 from typing import Dict, List
 
 logger = logging.getLogger(__name__)
