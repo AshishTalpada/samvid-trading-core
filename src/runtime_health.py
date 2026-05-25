@@ -16,7 +16,14 @@ class ComponentHealth:
 
     @property
     def is_online(self) -> bool:
-        return self.status.upper() in {"ONLINE", "ACTIVE", "NATIVE", "FALLBACK", "CONNECTED"}
+        return self.status.upper() in {
+            "ONLINE",
+            "ACTIVE",
+            "NATIVE",
+            "COMPAT",
+            "FALLBACK",
+            "CONNECTED",
+        }
 
     @property
     def is_degraded(self) -> bool:
@@ -66,6 +73,8 @@ def _score_health(
     score = max(0, min(100, score))
     if critical_offline:
         readiness = "BLOCKED"
+    elif degraded or dropped_ticks > 0:
+        readiness = "DEGRADED_READY" if score >= 75 else "DEGRADED_RISK"
     elif score >= 92:
         readiness = "READY"
     elif score >= 75:
