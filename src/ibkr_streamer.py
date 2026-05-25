@@ -10,12 +10,12 @@ import sys
 import time
 from collections import defaultdict, deque
 from datetime import datetime, timezone
-from datetime import time as dt_time
 from typing import TYPE_CHECKING, Any, Optional
-from zoneinfo import ZoneInfo
 
 if TYPE_CHECKING:
     from intelligence_bus import SharedIntelligenceBus
+
+from market_calendar import is_us_equity_market_open
 
 
 def _ensure_asyncio_loop() -> None:
@@ -48,13 +48,7 @@ logger = logging.getLogger(__name__)
 
 def _is_us_equity_market_open() -> bool:
     """Return True during regular US equity market hours."""
-    try:
-        now_et = datetime.now(ZoneInfo("America/New_York"))
-        if now_et.weekday() >= 5:
-            return False
-        return dt_time(9, 30) <= now_et.time() <= dt_time(16, 0)
-    except Exception:
-        return True
+    return is_us_equity_market_open()
 
 
 class SpreadTracker:

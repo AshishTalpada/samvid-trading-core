@@ -19,7 +19,6 @@ import traceback
 import uuid
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
-from datetime import time as dt_time
 from enum import Enum
 from typing import (
     TYPE_CHECKING,
@@ -78,6 +77,7 @@ from decision_ledger import LEDGER
 from exit_intelligence import ExitAction, ExitIntelligence
 from intelligence_bus import SharedIntelligenceBus
 from llm_circuit_breaker import HEAVY_BREAKER, LIGHT_BREAKER  # noqa: F401
+from market_calendar import is_us_equity_market_open
 from memdir import MemoryManager
 from mind_architect import MindArchitect
 from mind_bridge import MindBridge
@@ -3204,21 +3204,9 @@ class TradingBrain:
 
     def _is_market_open(self) -> bool:
         """Return True if NYSE is currently in the regular 9:30-16:00 ET session."""
-        from zoneinfo import ZoneInfo
-
         if os.environ.get("FORCED_MARKET_OPEN") == "1":
             return True
-
-        try:
-            et_tz = ZoneInfo("America/New_York")
-            now = datetime.now(et_tz)
-            if now.weekday() >= 5:  # Saturday or Sunday
-                return False
-            market_open = dt_time(9, 30)
-            market_close = dt_time(16, 0)
-            return market_open <= now.time() <= market_close
-        except Exception:
-            return False
+        return is_us_equity_market_open()
 
     async def _fetch_ohlcv(self, symbol: str) -> pl.DataFrame | pd.DataFrame | str | None:
         """
@@ -3374,7 +3362,7 @@ class TradingBrain:
                         last_alert = getattr(self, "_last_stale_alert", {})
                         now = time.time()
                         if now - last_alert.get(symbol, 0) > 14400:  # 4 hours
-                            logger.warning(
+                            logger.info(
                                 f"STALE (MARKET CLOSED): {symbol} newest bar is "
                                 f"{staleness_min:.0f}min old (>24h) — skipping"
                             )
