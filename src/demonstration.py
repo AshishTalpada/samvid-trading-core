@@ -1,8 +1,5 @@
 import asyncio
-import logging
 import random
-import time
-from datetime import datetime, timezone
 
 
 # ANSI Colors for a premium terminal feel

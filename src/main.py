@@ -63,7 +63,6 @@ if TYPE_CHECKING:
 import safety
 from api_server import APIServer
 from config import (
-    FORCED_PAPER_MODE,
     QUESTDB_CONNECT_TIMEOUT_SEC,
     QUESTDB_ENABLED,
     QUESTDB_HOST,
@@ -182,6 +181,11 @@ logging.getLogger("posthog").setLevel(logging.CRITICAL)
 
 
 logger = logging.getLogger(__name__)
+
+# Validate config now that logging is ready (moved from config.py module-level)
+from config import _validate_config
+
+_validate_config()
 
 
 class StartupProfiler:
@@ -434,8 +438,16 @@ class TradingSystem:
 
             try:
                 loop = asyncio.get_running_loop()
+                self._shutdown_task: asyncio.Task | None = None
+
+                def _signal_handler() -> None:
+                    if self._shutdown_task is None or self._shutdown_task.done():
+                        self._shutdown_task = asyncio.create_task(
+                            self.shutdown(), name="signal_shutdown"
+                        )
+
                 for sig in (signal.SIGINT, signal.SIGTERM):
-                    loop.add_signal_handler(sig, lambda: asyncio.create_task(self.shutdown()))
+                    loop.add_signal_handler(sig, _signal_handler)
             except (RuntimeError, NotImplementedError):
                 pass
 
@@ -724,7 +736,8 @@ class TradingSystem:
         if not self.db_conn:
             return
         try:
-            self.db_conn.execute(
+            with self.db_conn:
+                self.db_conn.execute(
                 "INSERT INTO system_events "
                 "(timestamp, event_type, severity, agent, message, details) "
                 "VALUES (?, ?, ?, ?, ?, ?)",

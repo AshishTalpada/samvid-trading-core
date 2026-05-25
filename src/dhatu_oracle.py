@@ -18,9 +18,9 @@ import numpy as np
 import websockets
 
 from api_cache import TTLCache
-from database_security import Vault
 from market_calendar import is_us_equity_market_open
 from telegram_alerts import send_telegram_alert
+from vault import Vault
 
 if TYPE_CHECKING:
     from intelligence_bus import SharedIntelligenceBus

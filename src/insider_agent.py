@@ -1,9 +1,5 @@
 import logging
-import re
-import time
 from typing import Dict, List
-
-import requests
 
 logger = logging.getLogger(__name__)
 
