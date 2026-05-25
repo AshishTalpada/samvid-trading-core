@@ -1,5 +1,4 @@
 import logging
-import statistics
 from typing import Dict
 
 logger = logging.getLogger(__name__)

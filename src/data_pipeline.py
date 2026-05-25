@@ -10,40 +10,6 @@ from typing import TYPE_CHECKING, Any, Optional
 import aiohttp
 import pandas as pd
 import polars as pl
-
-# Resolved: 'NoneType' object is not subscriptable in history.py:224
-try:
-    import yfinance.scrapers.history as yf_history
-
-    _orig_history = (
-        yf_history.History.history if hasattr(yf_history, "History") else yf_history.history
-    )
-
-    def _patched_history(*args, **kwargs):
-        try:
-            # Handle both function and method calls depending on yfinance version
-            if (
-                hasattr(yf_history, "History")
-                and len(args) > 0
-                and isinstance(args[0], yf_history.History)
-            ):
-                return _orig_history(*args, **kwargs)
-            return _orig_history(*args, **kwargs)
-        except Exception as e:
-            # Widen the catch to any subscriptable/NoneType error
-            err_msg = str(e).lower()
-            if "subscriptable" in err_msg or "nonetype" in err_msg:
-                import pandas as pd
-
-                return pd.DataFrame()
-            raise e
-
-    if hasattr(yf_history, "History"):
-        yf_history.History.history = _patched_history
-    else:
-        yf_history.history = _patched_history
-except Exception as _yf_patch_err:
-    pass  # yfinance version mismatch — patch not applied (non-critical)
 import yfinance as yf
 
 from config import QUESTDB_ENABLED
@@ -679,7 +645,6 @@ class DataPipeline:
             self.last_vix = vix_value
 
             def _save_vix():
-                from datetime import datetime, timezone
 
                 conn = self._get_db_connection()
                 try:

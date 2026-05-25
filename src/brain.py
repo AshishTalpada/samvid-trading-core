@@ -16,7 +16,6 @@ import logging
 import os
 import time
 import traceback
-import uuid
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from enum import Enum
@@ -66,7 +65,6 @@ from agent_d import (
     SystemEntropyMonitor,
 )
 from agent_e import CorrelationGuard
-from agent_h_skeptic import SkepticAgent
 from config import (
     FORCED_PAPER_MODE,
     IBKR_MAX_TRADES_PER_DAY,
@@ -95,7 +93,6 @@ from portfolio_analyzer import PORTFOLIO_ANALYZER
 from quant_signals import QuantConsensus
 from questdb_adapter import QuestDBAdapter
 from session_restorer import SessionRestorer
-from shadow_sim import GhostShadowSim
 from sovereign_decision_engine import SovereignDecisionEngine
 from sovereign_task import TaskManager
 from swarm_predictor import SwarmPredictor
@@ -136,9 +133,7 @@ def _safe_entry_time(entry_time_value: Any) -> datetime:
 if TYPE_CHECKING:
     import sqlite3
 
-    from data_pipeline import DataPipeline
     from dhatu_oracle import DhatuOracle
-    from dms import DMSMonitor
     from native_slm import NativeSLM
 
 # DRAWDOWN LADDER
@@ -4571,7 +4566,6 @@ class TradingBrain:
                 }
 
                 # Stage 2: Gated Intelligence (Atomic Parallelization with Watchdogs)
-                from coordinator import TradingCoordinator
 
                 now_iso = time.time_ns()
                 new_convictions = {}

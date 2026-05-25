@@ -1,7 +1,5 @@
 import logging
-from typing import Dict, List
-
-import numpy as np
+from typing import Dict
 
 logger = logging.getLogger(__name__)
 

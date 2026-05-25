@@ -190,7 +190,7 @@ def _validate_config():
     # 2. Risk Invariant Validation
     if SYSTEM_MAX_RISK > 0.10:
         _log.critical(f"FATAL: SYSTEM_MAX_RISK ({SYSTEM_MAX_RISK}) exceeds safety limit (0.10).")
-        sys.exit(1)
+        raise ValueError(f"SYSTEM_MAX_RISK ({SYSTEM_MAX_RISK}) exceeds hard safety limit (0.10)")
 
     # 3. FTMO Compliance Validation
     if FTMO_DAILY_LIMIT > 0.05:
@@ -201,5 +201,5 @@ def _validate_config():
         _log.warning(f"Suspect USD_CAD_RATE ({USD_CAD_RATE}). Expected range: 1.0 - 2.0.")
 
 
-# Auto-run validation on import
-_validate_config()
+# NOTE: Call _validate_config() explicitly after logging is configured (e.g. in main.py).
+# Previously ran on import, which could kill the process before logging was ready.

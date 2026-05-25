@@ -1,6 +1,5 @@
 import logging
 import math
-from typing import List
 
 logger = logging.getLogger(__name__)
 

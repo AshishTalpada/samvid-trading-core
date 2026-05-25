@@ -62,7 +62,6 @@ class MindExperiment:
         self, feature_name: str, variant_id: str, logic: dict
     ) -> dict[str, Any]:
         """Initiates a 'Shadow Experiment' for a specific trading rule."""
-        from time_sync import TimeSync
 
         self.active_experiments[feature_name] = {
             "variant": variant_id,
