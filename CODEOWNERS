@@ -1,0 +1,35 @@
+# This file defines code ownership and review requirements
+# See https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+
+# Core trading logic - requires review from maintainers
+/src/trading/ @AshishTalpada
+/src/engine/ @AshishTalpada
+/src/core/ @AshishTalpada
+
+# Agent mesh and consensus mechanisms
+/src/agents/ @AshishTalpada
+/src/consensus/ @AshishTalpada
+
+# Market data processing
+/src/market_data/ @AshishTalpada
+/src/data/ @AshishTalpada
+
+# API and external interfaces
+/src/api/ @AshishTalpada
+/src/interfaces/ @AshishTalpada
+
+# Performance-critical paths
+/src/execution/ @AshishTalpada
+
+# Configuration and deployment
+/config/ @AshishTalpada
+/docker/ @AshishTalpada
+*.yaml @AshishTalpada
+*.yml @AshishTalpada
+
+# Documentation
+/docs/ @AshishTalpada
+README.md @AshishTalpada
+
+# All files by default
+* @AshishTalpada
