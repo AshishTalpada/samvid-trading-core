@@ -5,7 +5,7 @@ import os
 import time
 import uuid
 from datetime import datetime, timezone
-from typing import TYPE_CHECKING, Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Any, Dict
 
 import numpy as np
 import pandas as pd

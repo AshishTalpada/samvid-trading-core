@@ -1,8 +1,6 @@
 import logging
 import queue
 import threading
-import time
-from typing import Callable
 
 logger = logging.getLogger(__name__)
 

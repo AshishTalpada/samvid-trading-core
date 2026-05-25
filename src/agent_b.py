@@ -445,7 +445,6 @@ class BayesianBeliefTracker:
         """
         Provides Agent B's Bayesian belief vote.
         """
-        from datetime import timezone
 
         temp_tracker = BayesianBeliefTracker(prior=self._prior)
 

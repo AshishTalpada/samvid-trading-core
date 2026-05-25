@@ -26,9 +26,9 @@ import pytz
 # to _ensure_ib_client() which is only called from async methods.
 
 if TYPE_CHECKING:
-    from ib_insync import IB
+    pass
 
-from config import STARTING_CAPITAL_CAD, USD_CAD_RATE
+from config import USD_CAD_RATE
 from execution_audit import ExecutionAuditLog
 from risk_invariants import ORDER_THROTTLER, RiskInvariants
 from trading_state import TradingStateManager

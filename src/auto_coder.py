@@ -1,8 +1,6 @@
 import ast
-import inspect
 import logging
 import os
-from typing import Callable
 
 logger = logging.getLogger(__name__)
 

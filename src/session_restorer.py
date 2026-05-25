@@ -189,7 +189,6 @@ class SessionRestorer:
 
     def save_cognitive_capsule(self, state: Dict[str, Any]) -> None:
         """Persist the short-term market sentiment state for session continuity."""
-        from time_sync import TimeSync
 
         try:
             capsule_path = "data/cognitive_capsule.json"
