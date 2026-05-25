@@ -40,11 +40,19 @@ class DeadLetterQueue:
         asyncio.create_task(DEAD_LETTER_QUEUE.run(retry_fn=agent_c.place_order))
     """
 
-    def __init__(self, max_attempts: int = 3):
-        self._queue: asyncio.Queue[FailedOrder] = asyncio.Queue(maxsize=200)
-        self._max_attempts = max_attempts
+    def __init__(
+        self,
+        max_attempts: int = 3,
+        *,
+        retry_base_delay: float = 1.0,
+        max_queue_size: int = 200,
+    ):
+        self._queue: asyncio.Queue[FailedOrder] = asyncio.Queue(maxsize=max(1, max_queue_size))
+        self._max_attempts = max(1, int(max_attempts))
+        self._retry_base_delay = max(0.0, float(retry_base_delay))
         self._retry_count = 0
         self._escalation_count = 0
+        self._dropped_count = 0
 
     def enqueue(
         self,
@@ -72,6 +80,7 @@ class DeadLetterQueue:
                 f"@ ${price:.2f} | Reason: {reason}"
             )
         except asyncio.QueueFull:
+            self._dropped_count += 1
             logger.error(f"DLQ: Queue FULL — dropping {symbol} order. Escalating.")
             self._escalate(order, "DLQ queue full — order dropped.")
 
@@ -87,8 +96,9 @@ class DeadLetterQueue:
             order.attempt += 1
 
             # Exponential back-off: 1s, 2s, 4s
-            delay = 2 ** (order.attempt - 1)
-            await asyncio.sleep(delay)
+            delay = self._retry_base_delay * (2 ** (order.attempt - 1))
+            if delay > 0:
+                await asyncio.sleep(delay)
 
             try:
                 success = await retry_fn(order.symbol, order.direction, order.shares, order.price)
@@ -137,7 +147,25 @@ class DeadLetterQueue:
             "queue_depth": self._queue.qsize(),
             "retry_successes": self._retry_count,
             "escalations": self._escalation_count,
+            "dropped": self._dropped_count,
+            "max_attempts": self._max_attempts,
         }
+
+    def reset_stats(self) -> None:
+        """Reset counters and drain queued orders for deterministic probes/tests."""
+        self._retry_count = 0
+        self._escalation_count = 0
+        self._dropped_count = 0
+        while True:
+            try:
+                self._queue.get_nowait()
+                self._queue.task_done()
+            except asyncio.QueueEmpty:
+                break
+
+    async def join(self) -> None:
+        """Wait until all queued retry work has either succeeded or escalated."""
+        await self._queue.join()
 
 
 # Module-level singleton
