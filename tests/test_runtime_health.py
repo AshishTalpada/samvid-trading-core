@@ -52,3 +52,20 @@ def test_health_snapshot_scores_clean_stack_ready() -> None:
     assert snapshot["readiness"] == "READY"
     assert snapshot["readiness_score"] == 100
     assert snapshot["action_items"] == []
+
+
+def test_health_snapshot_with_paused_optional_component_stays_degraded_ready() -> None:
+    snapshot = build_health_snapshot(
+        [
+            ComponentHealth("ibkr_execution", "CONNECTED", critical=True),
+            ComponentHealth("dhatu", "ONLINE", critical=True),
+            ComponentHealth("native_slm", "COMPAT", critical=False),
+            ComponentHealth("tv_quotes", "PAUSED", "market closed", critical=False),
+        ],
+        mode="ibkr_paper",
+        state="SCANNING",
+    )
+
+    assert snapshot["overall"] == "DEGRADED"
+    assert snapshot["readiness"] == "DEGRADED_READY"
+    assert snapshot["readiness_score"] >= 90
