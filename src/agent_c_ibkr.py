@@ -29,6 +29,7 @@ if TYPE_CHECKING:
     from ib_insync import IB
 
 from config import STARTING_CAPITAL_CAD, USD_CAD_RATE
+from execution_audit import ExecutionAuditLog
 from risk_invariants import ORDER_THROTTLER, RiskInvariants
 from trading_state import TradingStateManager
 from vault import Vault
@@ -83,6 +84,7 @@ class IBKRConnection:
             # to avoid event loop errors at construction/import time (Python 3.10+).
             self.ib = None
         self._last_heartbeat = datetime.now()
+        self._execution_audit = ExecutionAuditLog()
         self._last_trade_time = datetime.fromtimestamp(0)  # 15-Minute Discipline Lock
         self._positions_cache = {}
         self._account_summary = {}
@@ -897,6 +899,14 @@ class IBKRConnection:
     def _persist_execution(self, symbol: str, order_type: str, details: dict):
         """Write a persistent execution log entry for audit trail and manual recovery."""
         try:
+            audit_record = self._execution_audit.append(
+                event="ORDER_INTENT",
+                symbol=symbol,
+                side=str(details.get("dir", details.get("direction", "UNKNOWN"))),
+                quantity=float(details.get("shares", details.get("quantity", 0)) or 0),
+                order_type=order_type,
+                details=details,
+            )
             log_file = "data/execution_persistence.jsonl"
             import json
             import os
@@ -907,6 +917,7 @@ class IBKRConnection:
                 "symbol": symbol,
                 "type": order_type,
                 "details": details,
+                "audit_hash": audit_record.get("hash"),
             }
             with open(log_file, "a") as f:
                 f.write(json.dumps(entry) + "\n")
