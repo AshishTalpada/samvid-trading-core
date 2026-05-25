@@ -36,6 +36,7 @@ class NativeSLM:
         self._last_failure_at = 0.0
         self._last_restart_at = 0.0
         self._fallback_mode = False
+        self._compat_mode = False
         self._status_detail = "offline"
         self._startup_timeout = float(os.environ.get("SOVEREIGN_SLM_STARTUP_TIMEOUT", "45"))
         self._inference_timeout = float(os.environ.get("SOVEREIGN_SLM_TIMEOUT", "8"))
@@ -66,8 +67,8 @@ class NativeSLM:
         quarantined_reason = self._load_quarantine_reason()
         if quarantined_reason and os.environ.get("SOVEREIGN_SLM_FORCE_NATIVE") != "1":
             self._available = True
-            self._fallback_mode = True
-            self._status_detail = f"deterministic fallback after native quarantine: {quarantined_reason}"
+            self._compat_mode = True
+            self._status_detail = f"compat worker after native quarantine: {quarantined_reason}"
             logger.info("Native SLM native worker quarantined; %s.", self._status_detail)
             return
 
@@ -88,6 +89,8 @@ class NativeSLM:
 
     @property
     def mode(self) -> str:
+        if self._compat_mode:
+            return "compat"
         return "fallback" if self._fallback_mode else ("native" if self._available else "offline")
 
     @property
@@ -98,7 +101,7 @@ class NativeSLM:
         """Evaluate a trade proposal through the isolated resident SLM worker."""
         if not self._available:
             return self._neutral_vote(context, "Native SLM unavailable.")
-        if self._fallback_mode:
+        if self._fallback_mode and not self._compat_mode:
             return self._fallback_vote(context, self._status_detail)
 
         prompt = self._build_prompt(context)
@@ -113,6 +116,7 @@ class NativeSLM:
                 payload = {
                     "id": request_id,
                     "prompt": prompt,
+                    "context": context,
                     "max_tokens": 3,
                     "temperature": 0.1,
                 }
@@ -163,7 +167,7 @@ class NativeSLM:
             return self._available
         try:
             worker = await self._ensure_worker()
-            return worker is not None and worker.returncode is None
+            return worker is not None and self._worker_alive(worker)
         except Exception as exc:
             reason = str(exc) or exc.__class__.__name__
             await self._kill_worker(reason)
@@ -189,7 +193,11 @@ class NativeSLM:
             await asyncio.sleep(2.0 - (now - self._last_restart_at))
         self._last_restart_at = time.monotonic()
 
-        cmd = [sys.executable, "src/neural_sandbox.py", "--worker", self.model_path]
+        cmd = (
+            [sys.executable, "src/slm_compat_worker.py"]
+            if self._compat_mode
+            else [sys.executable, "src/neural_sandbox.py", "--worker", self.model_path]
+        )
         try:
             proc = await asyncio.create_subprocess_exec(
                 *cmd,
@@ -207,7 +215,8 @@ class NativeSLM:
                 raise RuntimeError(str(ready.get("reason", "worker startup failed")))
             self._worker = proc
             logger.info(
-                "Native SLM worker ready (pid=%s, n_ctx=%s, n_batch=%s).",
+                "Native SLM %s worker ready (pid=%s, n_ctx=%s, n_batch=%s).",
+                self.mode,
                 proc.pid,
                 ready.get("n_ctx"),
                 ready.get("n_batch"),
@@ -245,7 +254,9 @@ class NativeSLM:
                 raise RuntimeError(str(ready.get("reason", "worker startup failed")))
             self._worker = proc
             logger.info(
-                "Native SLM worker ready via blocking subprocess (pid=%s, n_ctx=%s, n_batch=%s).",
+                "Native SLM %s worker ready via blocking subprocess "
+                "(pid=%s, n_ctx=%s, n_batch=%s).",
+                self.mode,
                 proc.pid,
                 ready.get("n_ctx"),
                 ready.get("n_batch"),
@@ -462,4 +473,5 @@ class NativeSLM:
         await self._kill_worker("shutdown")
         self._available = False
         self._fallback_mode = False
+        self._compat_mode = False
         self._status_detail = "offline"
