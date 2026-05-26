@@ -1,4 +1,5 @@
 import asyncio
+import dataclasses
 import json
 import logging
 import os
@@ -8,6 +9,18 @@ import time
 import uuid
 from pathlib import Path
 from typing import Any, Dict
+
+
+class _SafeEncoder(json.JSONEncoder):
+    """Handles dataclass and non-serializable objects in SLM context."""
+
+    def default(self, o: Any) -> Any:
+        if dataclasses.is_dataclass(o) and not isinstance(o, type):
+            return dataclasses.asdict(o)
+        try:
+            return str(o)
+        except Exception:
+            return "<unserializable>"
 
 try:
     from llama_cpp import Llama
@@ -113,14 +126,20 @@ class NativeSLM:
                 if worker is None or worker.stdin is None or worker.stdout is None:
                     return self._neutral_vote(context, "Native SLM worker unavailable.")
 
+                # Strip heavy/non-serializable objects from context for wire
+                wire_ctx = {
+                    k: v
+                    for k, v in context.items()
+                    if k not in ("positions",)
+                }
                 payload = {
                     "id": request_id,
                     "prompt": prompt,
-                    "context": context,
+                    "context": wire_ctx,
                     "max_tokens": 3,
                     "temperature": 0.1,
                 }
-                wire = json.dumps(payload, separators=(",", ":")) + "\n"
+                wire = json.dumps(payload, separators=(",", ":"), cls=_SafeEncoder) + "\n"
                 started = time.monotonic()
                 if isinstance(worker, subprocess.Popen):
                     await asyncio.to_thread(self._popen_write, worker, wire.encode("utf-8"))
