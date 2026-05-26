@@ -720,8 +720,8 @@ class TradingSystem:
     def _ensure_runtime_telemetry_schema(self, cursor: sqlite3.Cursor) -> None:
         """Ensure dashboard/API telemetry tables are present and readable."""
         from database.schema import ensure_runtime_telemetry_schema
-        ensure_runtime_telemetry_schema(cursor)
 
+        ensure_runtime_telemetry_schema(cursor)
 
     def _record_system_event(
         self,
@@ -738,18 +738,18 @@ class TradingSystem:
         try:
             with self.db_conn:
                 self.db_conn.execute(
-                "INSERT INTO system_events "
-                "(timestamp, event_type, severity, agent, message, details) "
-                "VALUES (?, ?, ?, ?, ?, ?)",
-                (
-                    datetime.now(timezone.utc).isoformat(),
-                    event_type,
-                    severity,
-                    agent,
-                    message,
-                    json.dumps(details or {}),
-                ),
-            )
+                    "INSERT INTO system_events "
+                    "(timestamp, event_type, severity, agent, message, details) "
+                    "VALUES (?, ?, ?, ?, ?, ?)",
+                    (
+                        datetime.now(timezone.utc).isoformat(),
+                        event_type,
+                        severity,
+                        agent,
+                        message,
+                        json.dumps(details or {}),
+                    ),
+                )
         except Exception as exc:
             logger.debug("System event write skipped: %s", exc)
 
@@ -885,8 +885,8 @@ class TradingSystem:
     def _create_basic_schema(self) -> None:
         """Create minimal schema if schema.sql doesn't exist"""
         from database.schema import create_basic_schema
-        create_basic_schema(self.db_conn)
 
+        create_basic_schema(self.db_conn)
 
     async def _is_ibkr_process_active(self) -> bool:
         """Sovereign Shield: Checks if IBKR software is already running."""
@@ -1419,7 +1419,9 @@ class TradingSystem:
         message = normalize_operator_text(message)
         logger.info(f"Telegram: Attempting to send message (Prefix check: {message[:10]}...)")
         msg_upper = message.upper()
-        is_allowed_prefix = any(prefix.upper() in msg_upper for prefix in allowed_prefixes if prefix)
+        is_allowed_prefix = any(
+            prefix.upper() in msg_upper for prefix in allowed_prefixes if prefix
+        )
         is_error = any(
             term in msg_upper for term in ("ERROR", "FAILED", "EXCEPTION", "CRITICAL", "FATAL")
         )
@@ -1667,9 +1669,7 @@ class TradingSystem:
             if hasattr(self, "native_slm") and self.native_slm and self.native_slm.is_available:
                 slm_mode = getattr(self.native_slm, "mode", "native")
                 slm_status = (
-                    "GREEN NATIVE READY"
-                    if slm_mode == "native"
-                    else "YELLOW FALLBACK ONLINE"
+                    "GREEN NATIVE READY" if slm_mode == "native" else "YELLOW FALLBACK ONLINE"
                 )
             else:
                 slm_status = "RED OFFLINE"
@@ -2027,7 +2027,9 @@ class TradingSystem:
             current_task = asyncio.current_task()
             active_task = getattr(self, "_shutdown_task", None)
             if active_task and active_task != current_task and not active_task.done():
-                logger.info("Shutdown: Shutdown sequence already running in another task. Waiting for completion...")
+                logger.info(
+                    "Shutdown: Shutdown sequence already running in another task. Waiting for completion..."
+                )
                 should_wait = True
 
             if not should_wait:
@@ -2620,8 +2622,8 @@ class TradingSystem:
     def _display_dashboard(self) -> None:
         """Final Aesthetit Polish: Displays a terminal-grade dashboard of active Minds."""
         from dashboard.console import render_dashboard
-        render_dashboard(self)
 
+        render_dashboard(self)
 
 
 async def main(s: TradingSystem) -> None:

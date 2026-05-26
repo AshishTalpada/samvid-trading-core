@@ -51,7 +51,9 @@ def _build_db() -> sqlite3.Connection:
     return conn
 
 
-def _vote(agent: str, choice: str = "YES", confidence: float = 0.82, reason: str = "offline replay"):
+def _vote(
+    agent: str, choice: str = "YES", confidence: float = 0.82, reason: str = "offline replay"
+):
     return {
         "agent": agent,
         "vote": choice,

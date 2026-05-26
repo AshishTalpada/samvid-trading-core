@@ -191,8 +191,7 @@ class RiskInvariants:
 
         if not math.isfinite(quantity) or not math.isfinite(price) or quantity == 0 or price <= 0:
             logger.critical(
-                "NOTIONAL VETO: Invalid order economics for %s "
-                "(qty=%r, price=%r). Order DENIED.",
+                "NOTIONAL VETO: Invalid order economics for %s (qty=%r, price=%r). Order DENIED.",
                 symbol,
                 quantity,
                 price,
