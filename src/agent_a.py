@@ -650,7 +650,9 @@ class PatternDetector:
         entry = resistance * 1.005  # Breakout above
         stop = np.polyval(low_coef, len(lows) - 1)
         wedge_height = recent["high"].max() - recent["low"].min()
-        target = entry + wedge_height
+        # Floor: target must be at least 1.5x the risk (viable R:R after spread)
+        min_move_fw = 1.5 * abs(entry - stop)
+        target = entry + max(wedge_height, min_move_fw)
 
         r_r = (target - entry) / (entry - stop + 1e-10)
         prev_close = df["close"][-2]
@@ -697,7 +699,10 @@ class PatternDetector:
 
         entry = support * 0.995  # Breakdown
         stop = np.polyval(high_coef, len(highs) - 1)
-        target = entry - (recent["high"].max() - recent["low"].min())
+        wedge_height_rw = recent["high"].max() - recent["low"].min()
+        # Floor: target must be at least 1.5x the risk (viable R:R after spread)
+        min_move_rw = 1.5 * abs(stop - entry)
+        target = entry - max(wedge_height_rw, min_move_rw)
 
         r_r = (entry - target) / (stop - entry + 1e-10)
         prev_close = df["close"][-2]
