@@ -106,13 +106,16 @@ def _safe_entry_time(entry_time_value: Any) -> datetime:
     """Safely convert any entry_time (str, int, float, datetime) to tz-aware datetime.
 
     Prevents 'str' object has no attribute 'tzinfo' errors during reconciliation.
+    On corruption, logs the issue and returns epoch minimum (allows exits rather
+    than blocking them with a fabricated 'now' timestamp).
     """
     if isinstance(entry_time_value, str):
         try:
             cleaned = entry_time_value.replace("Z", "+00:00")
             dt = datetime.fromisoformat(cleaned)
-        except Exception:
-            return datetime.now(timezone.utc)
+        except Exception as e:
+            logger.warning(f"_safe_entry_time: corrupted string timestamp '{entry_time_value!r}': {e}. Defaulting to epoch.")
+            return datetime(1970, 1, 1, tzinfo=timezone.utc)
         if dt.tzinfo is None:
             dt = dt.replace(tzinfo=timezone.utc)
         return dt
@@ -122,13 +125,16 @@ def _safe_entry_time(entry_time_value: Any) -> datetime:
             if ts > 10_000_000_000_000_000:
                 return datetime.fromtimestamp(ts / 1_000_000_000, tz=timezone.utc)
             return datetime.fromtimestamp(ts, tz=timezone.utc)
-        except Exception:
-            return datetime.now(timezone.utc)
+        except Exception as e:
+            logger.warning(f"_safe_entry_time: corrupted numeric timestamp {entry_time_value!r}: {e}. Defaulting to epoch.")
+            return datetime(1970, 1, 1, tzinfo=timezone.utc)
     if isinstance(entry_time_value, datetime):
         if entry_time_value.tzinfo is None:
             return entry_time_value.replace(tzinfo=timezone.utc)
         return entry_time_value
-    return datetime.now(timezone.utc)
+    logger.warning(f"_safe_entry_time: unknown type {type(entry_time_value)} value {entry_time_value!r}. Defaulting to epoch.")
+    return datetime(1970, 1, 1, tzinfo=timezone.utc)
+
 
 if TYPE_CHECKING:
     import sqlite3
@@ -894,7 +900,7 @@ class TradingBrain:
                             filtered_data = {k: v for k, v in p_data.items() if k in valid_keys}
                             self.positions.append(Position(**filtered_data))
                         except Exception as _pos_err:
-                            logger.debug(
+                            logger.warning(
                                 f"Brain: Skipping malformed position state entry: {_pos_err}"
                             )
 
@@ -911,7 +917,7 @@ class TradingBrain:
                                 lt_state["last_loss_time"]
                             )
                         except Exception as _dt_err:
-                            logger.debug(f"Brain: Skipping bad last_loss_time format: {_dt_err}")
+                            logger.warning(f"Brain: Skipping bad last_loss_time format: {_dt_err}")
 
                 logger.info(
                     "MindBrain: Legacy state thawed in background. "
@@ -926,7 +932,7 @@ class TradingBrain:
                 self.session_restorer.restore_peak_equity, self.db_path, self.ibkr_drawdown
             )
         except Exception as _sr_err:
-            logger.debug(f"Brain: Non-critical session restore error (continuing): {_sr_err}")
+            logger.warning(f"Brain: Session restore error (peak_equity may be stale): {_sr_err}")
 
     async def quant_gate(self, symbol: str, side: str, market_data: dict) -> dict:
         """Returns {'approved': bool, 'reason': str, 'consensus': dict}"""
@@ -1109,6 +1115,58 @@ class TradingBrain:
         except Exception as exc:
             logger.warning("Broker connectivity check failed: %s", exc)
             return False
+
+    async def _pre_market_health_check(self) -> tuple[bool, str]:
+        """
+        Validate all critical execution paths before the first scan cycle.
+        Returns (ok, reason). If not ok, system stays in STANDBY.
+        """
+        checks: list[str] = []
+
+        # 1. Position state consistency — no NaN or None in critical fields
+        for i, pos in enumerate(self.positions):
+            if pos.entry_price is None or pos.entry_price <= 0:
+                checks.append(f"Position[{i}] {pos.symbol}: invalid entry_price={pos.entry_price}")
+            if pos.qty is None or abs(pos.qty) < 0.0001:
+                checks.append(f"Position[{i}] {pos.symbol}: zero/None qty={pos.qty}")
+            if pos.stop_loss is None or pos.stop_loss <= 0:
+                checks.append(f"Position[{i}] {pos.symbol}: invalid stop_loss={pos.stop_loss}")
+
+        # 2. Broker connectivity sanity (paper mode always passes)
+        if self.mode == "paper":
+            broker_ok = True
+        elif self.active_broker == "IBKR":
+            broker_ok = self._broker_is_connected(self.ibkr_conn)
+        elif self.active_broker == "MT5":
+            broker_ok = self._broker_is_connected(self.mt5_conn)
+        else:
+            broker_ok = False
+            checks.append(f"Unknown active_broker={self.active_broker}")
+
+        if not broker_ok and self.mode != "paper":
+            checks.append(f"Broker {self.active_broker} not connected")
+
+        # 3. Budget generated for today
+        if self.last_budget_date is None or self.last_budget_date.date() != datetime.now(timezone.utc).date():
+            checks.append("Morning budget not generated for today")
+
+        # 4. Regime detected (not stale default)
+        if self.current_regime is None or self.current_regime == "UNKNOWN":
+            checks.append("Market regime not detected")
+
+        # 5. Database connection alive (if configured)
+        if self.db_conn:
+            try:
+                cursor = self.db_conn.cursor()
+                cursor.execute("SELECT 1")
+                cursor.fetchone()
+                cursor.close()
+            except Exception as db_e:
+                checks.append(f"Database connection failed: {db_e}")
+
+        if checks:
+            return False, "; ".join(checks)
+        return True, "ALL_CLEAR"
 
     async def _maybe_send_execution_status(self, stats: dict[str, Any], vix_str: str) -> None:
         """Send a throttled Telegram heartbeat when scans produce no executable trade."""
@@ -1319,6 +1377,22 @@ class TradingBrain:
                             await self.mind_ghost.update_heartbeat("IBKR")
                         if hasattr(self, "mt5_client") and self.mt5_client:
                             await self.mind_ghost.update_heartbeat("MT5")
+
+                    # Circuit breaker: per-cycle safety gate
+                    if self._is_oracle_entry_frozen():
+                        logger.warning("CIRCUIT BREAKER: Oracle freeze active. Skipping cycle.")
+                        await asyncio.sleep(self.scan_interval)
+                        continue
+
+                    if not self.ibkr_drawdown.is_trading_allowed():
+                        logger.critical("CIRCUIT BREAKER: Drawdown breach. Trading halted.")
+                        await asyncio.sleep(60)
+                        continue
+
+                    if not self.loss_tracker.is_trading_allowed():
+                        logger.critical("CIRCUIT BREAKER: Loss streak. Trading halted.")
+                        await asyncio.sleep(60)
+                        continue
 
                     if self.emergency_halted:
                         await self._handle_emergency()
@@ -1845,6 +1919,13 @@ class TradingBrain:
                 f"(consecutive losses: {self.loss_tracker.consecutive_losses})"
             )
             await asyncio.sleep(60)
+            return
+
+        # Pre-market health check — validate all critical paths before risking capital
+        health_ok, health_reason = await self._pre_market_health_check()
+        if not health_ok:
+            logger.critical(f"PRE-MARKET HEALTH CHECK FAILED: {health_reason}. Remaining in STANDBY.")
+            await asyncio.sleep(30)
             return
 
         # Advance to scanning
@@ -2931,7 +3012,7 @@ class TradingBrain:
                         },
                     )
                 except Exception as _le:
-                    logger.debug(f"DecisionLedger exit skipped: {_le}")
+                    logger.error(f"DecisionLedger exit record FAILED for {pos.symbol}: {_le}")
 
                 # Reset failure count on successful full exit
                 self._exit_failure_count[symbol] = 0
@@ -3039,7 +3120,10 @@ class TradingBrain:
                 "───────────────────\n"
                 f"<b>SESSION P&L:</b> <code>${self.session_pnl:+.2f}</code>"
             )
-            await send_telegram_alert(msg)
+            try:
+                await send_telegram_alert(msg)
+            except Exception as tg_err:
+                logger.warning(f"Telegram alert failed for {pos.symbol} exit: {tg_err}")
 
         except Exception as e:
             logger.error(f"Failed to process exit for {pos.symbol}: {e}")
