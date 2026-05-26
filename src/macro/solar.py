@@ -39,4 +39,3 @@ class SolarActivityMonitor:
         if kp >= 3.0:
             return 0.8
         return 1.0
-

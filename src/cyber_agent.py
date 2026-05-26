@@ -48,4 +48,3 @@ class CyberRiskAgent:
         hits = [h for feed_hits in results for h in feed_hits]
         risk_score = min(1.0, sum(h["mentions"] for h in hits) / 10.0)
         return {"ticker": ticker, "risk_score": risk_score, "hits": hits}
-

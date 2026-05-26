@@ -72,7 +72,6 @@ def _monte_carlo_outcome_simulation(vix: float, roi: float) -> float:
     return successes / 100.0
 
 
-
 def _calculate_epistemic_entropy(ctx: str) -> float:
     """
     Quantifies 'Information Entropy' (How much do we NOT know?).

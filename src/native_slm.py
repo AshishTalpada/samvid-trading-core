@@ -175,9 +175,7 @@ class NativeSLM:
             if not self._fallback_mode and os.path.exists(self.model_path):
                 self._fallback_mode = True
                 self._available = True
-                self._status_detail = (
-                    f"deterministic fallback after warmup failure: {reason[:140]}"
-                )
+                self._status_detail = f"deterministic fallback after warmup failure: {reason[:140]}"
             log = logger.info if self._fallback_mode else logger.warning
             log("Native SLM warmup completed in degraded mode; %s.", self._status_detail)
             return self._available
@@ -353,8 +351,7 @@ class NativeSLM:
                 else "offline after native failures"
             )
             logger.warning(
-                "Native SLM native worker disabled after %s failure(s). "
-                "Mode is now %s.",
+                "Native SLM native worker disabled after %s failure(s). Mode is now %s.",
                 self._sandbox_failures,
                 self.mode,
             )

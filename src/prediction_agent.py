@@ -48,4 +48,3 @@ class PredictionMarketAgent:
         if prob <= (1 - threshold):
             return "HIGH_CONVICTION_NO"
         return "UNCERTAIN"
-

@@ -35,6 +35,7 @@ def brain(mock_db_conn):
         tb.is_running = False
 
         import asyncio
+
         tb._get_vix = AsyncMock(return_value=15.0)  # pyre-ignore[21]
         tb._detect_regime = AsyncMock(return_value="BULL")  # pyre-ignore[21]
         tb._update_drawdowns = AsyncMock()  # pyre-ignore[21]

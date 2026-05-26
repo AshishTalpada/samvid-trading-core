@@ -94,9 +94,11 @@ def run_worker(model_path: str) -> None:
         except Exception as exc:
             print(
                 json.dumps(
-                    {"id": request.get("id") if "request" in locals() else None,
-                     "status": "ERROR",
-                     "reason": str(exc)},
+                    {
+                        "id": request.get("id") if "request" in locals() else None,
+                        "status": "ERROR",
+                        "reason": str(exc),
+                    },
                     separators=(",", ":"),
                 ),
                 flush=True,

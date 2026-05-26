@@ -465,11 +465,7 @@ class IBKRStreamer:
                     seconds_since_tick = (
                         datetime.now(timezone.utc) - self._last_tick_time
                     ).total_seconds()
-                    if (
-                        seconds_since_tick > 180
-                        and self.is_running
-                        and _is_us_equity_market_open()
-                    ):
+                    if seconds_since_tick > 180 and self.is_running and _is_us_equity_market_open():
                         logger.warning(
                             f"IBKRStreamer: SILENT DATA GAP detected ({seconds_since_tick:.0f}s). Re-initializing..."
                         )

@@ -42,4 +42,3 @@ class SensorIngestAgent:
             f"[SENSOR] Composite risk={composite:.3f} (seismic={seismic_risk:.2f}, solar={solar_risk:.2f})"
         )
         return round(composite, 3)  # type: ignore
-
