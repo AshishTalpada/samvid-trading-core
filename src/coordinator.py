@@ -592,14 +592,23 @@ class TradingCoordinator:
                             pattern.name, self.brain.current_regime
                         )
 
+                        # Only hard-veto if we have statistically significant data
+                        # (n >= 30). Below that, trust the built-in evaluate_proposal
+                        # which uses data ratings and defaults to neutral.
+                        agent_d_n = (
+                            self.brain.live_learner._n_trades
+                            if hasattr(self.brain, "live_learner")
+                            else 0
+                        )
                         if (
                             learned_wr is not None
                             and isinstance(learned_wr, float)
                             and learned_wr < 0.40
+                            and agent_d_n >= 30
                         ):
                             agent_d_vote["vote"] = "NO"
                             agent_d_vote["reason"] = (
-                                f" IMPERIAL VETO: Internal WR too low ({learned_wr:.2%})"
+                                f" IMPERIAL VETO: Internal WR too low ({learned_wr:.2%}, n={agent_d_n})"
                             )
 
                         return agent_d_vote

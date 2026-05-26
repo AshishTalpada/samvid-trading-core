@@ -622,6 +622,16 @@ class TradingSystem:
 
         if self.mode not in ["paper", "ibkr_paper"]:
             logger.warning("   LIVE TRADING MODE DETECTED!")
+            # In non-TTY environments (services, scheduled tasks) input() hangs forever
+            if not sys.stdin.isatty():
+                logger.error(
+                    "Live trading mode detected in non-interactive environment. "
+                    "Set TRADING_MODE=paper or TRADING_MODE=ibkr_paper in the Vault."
+                )
+                raise SystemExit(
+                    "Live trading aborted — non-interactive session. "
+                    "Use paper or ibkr_paper mode for automated/background execution."
+                )
             print("\n" + "=" * 60)
             print("   WARNING: NOT IN PAPER TRADING MODE!")
             print(f"   Current mode: {self.mode}")

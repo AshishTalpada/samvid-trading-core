@@ -1001,21 +1001,40 @@ class PatternDetector:
         HFT Pattern: 100ms Volatility Breakout
         Tight bollinger band squeeze followed by structural break.
         """
-        if len(df) < 20:
+        if len(df) < 40:
             return None
 
-        # Calculate 20-period std dev (Bollinger Bands)
-        closes = df["close"].to_numpy()[-20:]
-        sma = np.mean(closes)
-        std = np.std(closes)
-
-        upper_band = sma + (2 * std)
+        closes = df["close"].to_numpy()
         current_price = closes[-1]
 
-        # Squeeze check: Bands must be very tight
-        band_width_pct = (upper_band - sma) / sma
-        if band_width_pct > 0.002:  # Relaxed to 0.20% width
+        # Calculate rolling 20-period std dev and band width for the last 20 bars
+        rolling_std = np.array([
+            np.std(closes[max(0, i - 20):i])
+            for i in range(20, len(closes))
+        ])
+        if len(rolling_std) < 20:
             return None
+
+        rolling_sma = np.array([
+            np.mean(closes[max(0, i - 20):i])
+            for i in range(20, len(closes))
+        ])
+
+        # Band width as % of SMA for each window
+        band_widths = (2 * rolling_std) / rolling_sma
+        current_band_width = band_widths[-1]
+        median_band_width = np.median(band_widths)
+
+        # Squeeze: current bands must be tighter than 30% of the 20-period median
+        # AND absolute guard: bands < 2.0% (prevents firing on dead/flat stocks)
+        if current_band_width > median_band_width * 0.30:
+            return None
+        if current_band_width > 0.020:  # Absolute guard: 2% max
+            return None
+
+        sma = rolling_sma[-1]
+        std = rolling_std[-1]
+        upper_band = sma + (2 * std)
 
         prev_close = closes[-2]
         if current_price > upper_band and prev_close > (upper_band * 0.999):
@@ -1104,7 +1123,7 @@ class PatternDetector:
             target=target,
             r_r_ratio=r_r,
             confirmed=confirmed,
-            lambda_val=0 if confirmed else -10,
+            lambda_val=0 if confirmed else UNCONFIRMED_PENALTY,
         )
 
     def get_market_pivots(self, df: "pl.DataFrame") -> dict[str, float]:
@@ -1453,7 +1472,7 @@ class PatternDetector:
             target=target,
             r_r_ratio=r_r,
             confirmed=confirmed,
-            lambda_val=0 if confirmed else -10,
+            lambda_val=0 if confirmed else UNCONFIRMED_PENALTY,
         )
 
     def detect_all(self, df: "pl.DataFrame") -> list[PatternResult | None]:
