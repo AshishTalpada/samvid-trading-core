@@ -81,4 +81,3 @@ async def stream_hn_stories(min_score: float = 0.3) -> AsyncGenerator[dict, None
             logger.error(f"[HACKER FEED] Request failure: {exc}")
 
         await asyncio.sleep(60)
-

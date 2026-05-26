@@ -45,4 +45,3 @@ class CryptoBridgeAgent:
         if btc_24h_return > 0.05:
             return "RISK_ON"
         return "NEUTRAL"
-

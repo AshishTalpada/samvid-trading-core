@@ -152,7 +152,9 @@ async def _probe_broker_outage_dlq() -> ProbeCheck:
     async def failing_retry(symbol: str, direction: str, shares: int, price: float) -> bool:
         nonlocal attempts
         attempts += 1
-        raise ConnectionError(f"synthetic broker outage for {direction} {shares} {symbol} @ {price}")
+        raise ConnectionError(
+            f"synthetic broker outage for {direction} {shares} {symbol} @ {price}"
+        )
 
     worker = asyncio.create_task(dlq.run(failing_retry))
     try:
@@ -206,7 +208,9 @@ def main() -> int:
     )
     args = parser.parse_args()
 
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+    logging.basicConfig(
+        level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    )
     report = asyncio.run(
         run_backend_reliability_probe(verbose_expected_faults=args.verbose_expected_faults)
     )

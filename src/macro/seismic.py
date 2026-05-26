@@ -58,4 +58,3 @@ class SeismicRiskMonitor:
                         max_risk = risk
                         logger.warning(f"[SEISMIC] M{quake['mag']} near {name} -> risk={risk:.2f}")
         return round(max_risk, 3)
-

@@ -59,5 +59,3 @@ class SECSemanticAgent:
             if hits:
                 logger.warning(f"[SEC] Red flag '{phrase}' for {ticker}: {len(hits)} filings")
         return results
-
-
