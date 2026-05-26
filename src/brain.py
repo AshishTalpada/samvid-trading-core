@@ -1128,14 +1128,32 @@ class TradingBrain:
         """
         checks: list[str] = []
 
-        # 1. Position state consistency — no NaN or None in critical fields
+        # 1. Position state consistency — prune corrupt restored positions instead of hard-failing.
+        # A hard-fail here locks the engine in STANDBY forever; pruning is safer.
+        bad_positions = []
         for i, pos in enumerate(self.positions):
+            reasons = []
             if pos.entry_price is None or pos.entry_price <= 0:
-                checks.append(f"Position[{i}] {pos.symbol}: invalid entry_price={pos.entry_price}")
+                reasons.append(f"entry_price={pos.entry_price}")
             if pos.qty is None or abs(pos.qty) < 0.0001:
-                checks.append(f"Position[{i}] {pos.symbol}: zero/None qty={pos.qty}")
+                reasons.append(f"qty={pos.qty}")
             if pos.stop_loss is None or pos.stop_loss <= 0:
-                checks.append(f"Position[{i}] {pos.symbol}: invalid stop_loss={pos.stop_loss}")
+                reasons.append(f"stop_loss={pos.stop_loss}")
+            if reasons:
+                bad_positions.append((i, pos, reasons))
+
+        if bad_positions:
+            pruned_symbols = []
+            for _, pos, reasons in bad_positions:
+                logger.critical(
+                    f"Pruning corrupt restored position {pos.symbol}: "
+                    + ", ".join(reasons)
+                )
+                pruned_symbols.append(pos.symbol)
+            # Remove them so scanning can proceed
+            self.positions = [
+                p for p in self.positions if p.symbol not in pruned_symbols
+            ]
 
         # 2. Broker connectivity sanity (paper mode always passes)
         if self.mode == "paper":
@@ -3548,19 +3566,35 @@ class TradingBrain:
                         orphaned += 1
                         continue
 
+                    # Guard: corrupt DB record — no valid entry price
+                    entry_f = float(entry) if entry else 0.0
+                    stop_f = float(stop) if stop else 0.0
+                    qty_f = float(qty) if qty else 0.0
+                    if entry_f <= 0.0 or qty_f == 0.0:
+                        cursor.execute(
+                            "UPDATE trades SET outcome = 'ORPHANED', notes = ? WHERE id = ?",
+                            (f"Corrupt restore: entry_price={entry_f} qty={qty_f}", tid),
+                        )
+                        orphaned += 1
+                        logger.warning(
+                            f"Orphaned corrupt position {symbol} (id={tid}): "
+                            f"entry={entry_f}, qty={qty_f}"
+                        )
+                        continue
+
                     # Restore as a live position
                     seen_symbols.add((symbol, broker))
                     pos = Position(
                         symbol=symbol,
-                        qty=float(qty),
-                        entry_price=float(entry),
+                        qty=qty_f,
+                        entry_price=entry_f,
                         entry_time=entry_time,
                         pattern=pattern or "Unknown",
                         initial_belief=0.50,
                         current_belief=0.50,
-                        initial_stop=float(stop) if stop else float(entry) * 0.99,
-                        stop_loss=float(stop) if stop else float(entry) * 0.99,
-                        take_profit=float(target) if target else float(entry) * 1.02,
+                        initial_stop=stop_f if stop_f > 0 else entry_f * 0.99,
+                        stop_loss=stop_f if stop_f > 0 else entry_f * 0.99,
+                        take_profit=float(target) if target else entry_f * 1.02,
                         target_exit_time=datetime.now(timezone.utc) + timedelta(days=5),
                         trade_id=f"RESTORED-{tid}",
                         account_type=broker or "ibkr",
