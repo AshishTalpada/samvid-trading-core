@@ -466,7 +466,10 @@ class PatternDetector:
         # Entry on breakout above resistance
         entry = resistance * 1.002  # 0.2% above
         stop = flag_period["low"].min()
-        target = entry + (pole_end - pole_start)  # Project pole height
+        pole_height = pole_end - pole_start
+        # Floor: target must be at least 1.5x the risk (viable R:R after spread)
+        min_move_bf = 1.5 * abs(entry - stop)
+        target = entry + max(pole_height, min_move_bf)
 
         r_r = (target - entry) / (entry - stop + 1e-10)
 
@@ -518,7 +521,10 @@ class PatternDetector:
         # Entry on breakdown
         entry = support * 0.998
         stop = flag_period["high"].max()
-        target = entry - (pole_start - pole_end)
+        pole_height = pole_start - pole_end
+        # Floor: target must be at least 1.5x the risk (viable R:R after spread)
+        min_move_bf = 1.5 * abs(stop - entry)
+        target = entry - max(pole_height, min_move_bf)
 
         r_r = (entry - target) / (stop - entry + 1e-10)
         prev_close = df["close"][-2]
@@ -582,7 +588,10 @@ class PatternDetector:
         current_price = df["close"][-1]
         entry = neckline * 0.998  # Enter on neckline break
         stop = head_price
-        target = entry - (head_price - neckline)  # Project pattern height
+        pattern_height = head_price - neckline
+        # Floor: target must be at least 1.5x the risk (viable R:R after spread)
+        min_move_hs = 1.5 * abs(stop - entry)
+        target = entry - max(pattern_height, min_move_hs)
 
         r_r = (entry - target) / (stop - entry + 1e-10)
         prev_close = df["close"][-2]
