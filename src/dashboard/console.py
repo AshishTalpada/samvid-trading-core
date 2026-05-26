@@ -7,13 +7,21 @@ logger = logging.getLogger(__name__)
 def get_status_icon(system: Any, component: str) -> str:
     """Helper to return dynamic status icons including Probing states."""
     if component == "ibkr":
-        if hasattr(system, "ibkr_client") and system.ibkr_client and system.ibkr_client.isConnected():
+        if (
+            hasattr(system, "ibkr_client")
+            and system.ibkr_client
+            and system.ibkr_client.isConnected()
+        ):
             return "🟢 ONLINE"
         if "connect_ibkr" in system.background_tasks:
             return "🟠 PROBING"
         return "🔴 OFFLINE"
     if component == "mt5":
-        if hasattr(system, "mt5_client") and system.mt5_client and system.mt5_client.terminal_info():
+        if (
+            hasattr(system, "mt5_client")
+            and system.mt5_client
+            and system.mt5_client.terminal_info()
+        ):
             return "🟢 ONLINE"
         if "connect_mt5" in system.background_tasks:
             return "🟠 PROBING"

@@ -242,12 +242,12 @@ class TVQuoteStreamer:
             "currency_code",
             "pricescale",
         ]
-        await ws.send(self._format_message({"m": "quote_set_fields", "p": [self.session_id, *fields]}))
+        await ws.send(
+            self._format_message({"m": "quote_set_fields", "p": [self.session_id, *fields]})
+        )
         for tv_symbol in symbols:
             await ws.send(
-                self._format_message(
-                    {"m": "quote_add_symbols", "p": [self.session_id, tv_symbol]}
-                )
+                self._format_message({"m": "quote_add_symbols", "p": [self.session_id, tv_symbol]})
             )
 
     async def _publish_quote(self, quote: TVQuote) -> None:

@@ -1129,7 +1129,8 @@ class TradingCoordinator:
                         trade_id=str(order_id),
                         task_id=task.id if task else "N/A",
                         account_type=self.brain.active_broker.lower(),
-                        catalyst_score=(all_votes[0].get("confidence", 0.5) if all_votes else 0.5) * 100,
+                        catalyst_score=(all_votes[0].get("confidence", 0.5) if all_votes else 0.5)
+                        * 100,
                         regime_at_entry=self.brain.current_regime,
                         commission_cost=max(2.0, shares * 0.005),
                         slippage_cost=shares * pattern.entry * 0.0005,
@@ -1280,7 +1281,9 @@ class TradingCoordinator:
         cognitive_only = (
             "Mind_Ultrathink" in metrics["no_agents"]
             and not metrics["hard_no_agents"]
-            and all(agent in {"Mind_Ultrathink", "Swarm_Predictor"} for agent in metrics["no_agents"])
+            and all(
+                agent in {"Mind_Ultrathink", "Swarm_Predictor"} for agent in metrics["no_agents"]
+            )
         )
         enough_fast_agreement = metrics["yes_votes"] >= 5 and metrics["avg_confidence"] >= 0.50
         pattern_conf = float(getattr(pattern, "confidence", 0.0) or 0.0)

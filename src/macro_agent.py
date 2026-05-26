@@ -31,4 +31,3 @@ class MacroAgent:
     def composite_risk_multiplier(self) -> float:
         """Returns 0.0 (no risk) to 1.0 (extreme risk). Use to scale position sizing down."""
         return max(self.seismic_risk, self.solar_risk)
-

@@ -19,6 +19,7 @@ class OceanFreightAgent:
 
     async def get_bdi_estimate(self) -> float:
         """Returns a normalised BDI score 0.0-1.0 from public proxy."""
+
         def _fetch():
             r = requests.get(
                 "https://fred.stlouisfed.org/graph/fredgraph.csv?id=BDIYINDEX", timeout=5
@@ -38,4 +39,3 @@ class OceanFreightAgent:
         if bdi < 0.3:
             return self.COMMODITY_MAP["shipping"]
         return []
-
