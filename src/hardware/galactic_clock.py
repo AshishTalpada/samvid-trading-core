@@ -48,4 +48,3 @@ class GalacticClockSync:
         drift_us = (median_ntp - time.time()) * 1e6
         logger.info(f"[CLOCK] Synced. Drift={drift_us:.1f}μs")
         return median_ntp
-

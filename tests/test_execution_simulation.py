@@ -32,20 +32,26 @@ from trading_state import TradingState
 def mock_brain():
     """Create a TradingBrain in paper mode with all external deps mocked."""
     with (
-        patch("brain.Vault.get", return_value=""),
+        patch(
+            "brain.Vault.get",
+            side_effect=lambda key, default=None: (
+                "dummy_secret" if key == "SESSION_SECRET" else (default or "")
+            ),
+        ),
         patch("brain.FORCED_PAPER_MODE", True),
         patch("brain.STARTING_CAPITAL_CAD", 100_000.0),
         patch("brain.SharedIntelligenceBus", MagicMock),
         patch("brain.IBKRConnection", MagicMock),
-        patch("brain.MT5Connection", MagicMock),
+        patch("agent_c_mt5.MT5Connection", MagicMock),
         patch("brain.LEDGER", MagicMock()),
         patch("brain.PORTFOLIO_ANALYZER", MagicMock()),
-        patch("brain.send_telegram_alert", new_callable=AsyncMock),
+        patch("telegram_alerts.send_telegram_alert", new_callable=AsyncMock),
     ):
-        brain = TradingBrain(mode="paper", symbols=["AAPL", "TSLA"])
+        brain = TradingBrain(mode="paper")
         # Mock broker connections to be "offline" (paper mode bypass)
         brain.ibkr_conn = MagicMock()
         brain.ibkr_conn.is_connected.return_value = False
+        brain.ibkr_conn.has_pending_order.return_value = False
         brain.mt5_conn = MagicMock()
         brain.mt5_conn.is_connected.return_value = False
         brain.is_running = True
@@ -110,9 +116,8 @@ async def test_belief_update_long_favourable(mock_brain):
     # We test the logic directly
     current_price = 155.0  # Above entry
     is_short = pos.qty < 0
-    price_favourable = (
-        (current_price > pos.entry_price and not is_short)
-        or (current_price < pos.entry_price and is_short)
+    price_favourable = (current_price > pos.entry_price and not is_short) or (
+        current_price < pos.entry_price and is_short
     )
     assert price_favourable is True
 
@@ -139,9 +144,8 @@ async def test_belief_update_short_favourable(mock_brain):
 
     current_price = 195.0  # Below entry (favourable for short)
     is_short = pos.qty < 0
-    price_favourable = (
-        (current_price > pos.entry_price and not is_short)
-        or (current_price < pos.entry_price and is_short)
+    price_favourable = (current_price > pos.entry_price and not is_short) or (
+        current_price < pos.entry_price and is_short
     )
     assert price_favourable is True
 
@@ -167,9 +171,8 @@ async def test_belief_update_short_adverse(mock_brain):
 
     current_price = 205.0  # Above entry (adverse for short)
     is_short = pos.qty < 0
-    price_adverse = (
-        (current_price < pos.entry_price and not is_short)
-        or (current_price > pos.entry_price and is_short)
+    price_adverse = (current_price < pos.entry_price and not is_short) or (
+        current_price > pos.entry_price and is_short
     )
     assert price_adverse is True
 
@@ -275,8 +278,8 @@ async def test_paper_exit_does_not_increment_strikes_on_telegram_failure(mock_br
     brain._exit_failure_count["AAPL"] = 0
 
     # Force Telegram to fail but broker to succeed
-    with patch("brain.send_telegram_alert", side_effect=ConnectionError("Telegram down")):
-        await brain._process_exit("AAPL", pos, "STOP_LOSS", 145.0)
+    with patch("telegram_alerts.send_telegram_alert", side_effect=ConnectionError("Telegram down")):
+        await brain._process_exit(pos, "STOP_LOSS", 145.0)
 
     # Telegram failure should NOT increment strikes
     assert brain._exit_failure_count.get("AAPL", 0) == 0
@@ -294,10 +297,17 @@ async def test_circuit_breaker_oracle_freeze(mock_brain):
 async def test_circuit_breaker_drawdown_halt(mock_brain):
     """Main loop should skip cycles when drawdown breached."""
     brain = mock_brain
-    # Simulate a deep drawdown
+    from brain import DrawdownLevel
+    from trading_state import TradingStateManager
+
+    TradingStateManager.activate()
+    # Simulate a deep drawdown that triggers RED level
     brain.ibkr_drawdown.peak_equity = 100_000.0
-    brain.ibkr_drawdown.current_equity = 85_000.0  # 15% drawdown
-    brain.ibkr_drawdown._recalc()
+    brain.ibkr_drawdown.update(70_000.0)  # 30% drawdown -> RED
+    assert TradingStateManager.is_halted() is True
+
+    # Test CIRCUIT_BREAKER level blocks trading allowed check
+    brain.ibkr_drawdown.level = DrawdownLevel.CIRCUIT_BREAKER
     assert not brain.ibkr_drawdown.is_trading_allowed()
 
 
@@ -323,6 +333,7 @@ async def test_timestamp_drift_ns_parsing():
         if isinstance(ts, (int, float)):
             return ts / 1e9 if ts > 1e15 else float(ts)
         from dateutil import parser as dtparser
+
         return dtparser.parse(str(ts)).timestamp()
 
     ns_now = int(datetime.now(timezone.utc).timestamp() * 1e9)

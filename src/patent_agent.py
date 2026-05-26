@@ -29,7 +29,9 @@ class PatentVelocityAgent:
                 "f": ["patent_number"],
                 "o": {"per_page": 500},
             }
-            r = await asyncio.to_thread(requests.post, self.PATENTSVIEW_API, json=payload, timeout=8)
+            r = await asyncio.to_thread(
+                requests.post, self.PATENTSVIEW_API, json=payload, timeout=8
+            )
             return r.json().get("total_patent_count", 0)  # type: ignore
         except Exception as e:
             logger.error(f"[PATENT] API error for {assignee}: {e}")
@@ -48,4 +50,3 @@ class PatentVelocityAgent:
             "velocity": round(velocity, 3),
             "signal": signal,
         }
-

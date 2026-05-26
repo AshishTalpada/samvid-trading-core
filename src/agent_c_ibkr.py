@@ -1038,18 +1038,34 @@ class IBKRConnection:
                         if price <= 0.0:
                             # Try to get real-time price from the brain's tick cache
                             if direction == "BUY":
-                                price = self.brain.last_tick_asks.get(symbol, 0.0) or self.brain.last_tick_prices.get(symbol, 0.0)
+                                price = self.brain.last_tick_asks.get(
+                                    symbol, 0.0
+                                ) or self.brain.last_tick_prices.get(symbol, 0.0)
                             else:
-                                price = self.brain.last_tick_bids.get(symbol, 0.0) or self.brain.last_tick_prices.get(symbol, 0.0)
+                                price = self.brain.last_tick_bids.get(
+                                    symbol, 0.0
+                                ) or self.brain.last_tick_prices.get(symbol, 0.0)
 
                             # If still 0, try to get from ib.ticker
                             if price <= 0.0:
                                 t = self.ib.ticker(contract)
                                 if t:
                                     if direction == "BUY":
-                                        price = t.ask if t.ask > 0 else t.last if t.last > 0 else t.close or 0.0
+                                        price = (
+                                            t.ask
+                                            if t.ask > 0
+                                            else t.last
+                                            if t.last > 0
+                                            else t.close or 0.0
+                                        )
                                     else:
-                                        price = t.bid if t.bid > 0 else t.last if t.last > 0 else t.close or 0.0
+                                        price = (
+                                            t.bid
+                                            if t.bid > 0
+                                            else t.last
+                                            if t.last > 0
+                                            else t.close or 0.0
+                                        )
 
                         if price <= 0.0:
                             # Fallback to MarketOrder if price cannot be resolved

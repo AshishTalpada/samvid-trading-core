@@ -44,4 +44,3 @@ class DebtCycleTracker:
         stage = "EXPANSION" if credit_gdp < 100 else "PEAK" if credit_gdp < 130 else "DELEVERAGING"
         logger.info(f"[DEBT] Fed Debt/GDP={credit_gdp:.1f}% | Stage={stage}")
         return {"credit_to_gdp": credit_gdp, "m2": m2, "cycle_stage": stage}
-
