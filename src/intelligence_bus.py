@@ -159,15 +159,16 @@ class SharedIntelligenceBus:
             worker = asyncio.create_task(self._handler_worker(ref, q))
             self._callback_workers[h_id] = (q, worker)
 
-            def _cleanup_worker(task: asyncio.Task, bus_ref: weakref.ReferenceType, hid: int):
+            def _cleanup_worker(task: asyncio.Task):
+                # ONLY cancel the task — this is thread-safe (sets a flag).
+                # NEVER touch _callback_workers here; that runs in a GC thread
+                # and would race with the event loop. Dead worker cleanup is
+                # handled safely by _prune_dead_references in the async loop.
                 task.cancel()
-                target_bus = bus_ref()
-                if target_bus:
-                    target_bus._callback_workers.pop(hid, None)
 
             # Target the underlying object to prevent immediate GC of transient bound methods
             target_obj = getattr(handler, "__self__", handler)
-            weakref.finalize(target_obj, _cleanup_worker, worker, weakref.ref(self), h_id)
+            weakref.finalize(target_obj, _cleanup_worker, worker)
 
         logger.debug(f"BUS: callback registered for '{topic}' (Memory-Safe Matrix ONLINE)")
 
@@ -194,10 +195,18 @@ class SharedIntelligenceBus:
             if not self._subscribers[topic]:
                 del self._subscribers[topic]
 
-        # 3. Prune Callback Workers...
-        # We periodically check if any of our keys are instance methods whose 'self' is dead
-        # Note: dict keys keep the handler alive! This is a known risk.
-        # For full safety, we'd need a WeakKeyDictionary for _callback_workers.
+        # 3. Prune Callback Workers (runs in event loop — thread-safe)
+        dead_workers = [
+            hid
+            for hid, (_, task) in list(self._callback_workers.items())
+            if task.done() or task.cancelled()
+        ]
+        for hid in dead_workers:
+            self._callback_workers.pop(hid, None)
+        if dead_workers:
+            logger.debug(
+                f"BUS: Pruned {len(dead_workers)} dead callback worker(s)"
+            )
 
     async def _handler_worker(self, handler_ref: Any, q: asyncio.PriorityQueue) -> None:
         """Dedicated worker for a callback handler to prevent task-bombing."""
@@ -229,11 +238,21 @@ class SharedIntelligenceBus:
 
     def off(self, topic: str, handler: Callable) -> None:
         """Remove an async callback."""
-        if topic in self._callbacks:
-            try:
-                self._callbacks[topic].remove(handler)
-            except ValueError:
-                pass
+        if topic not in self._callbacks:
+            return
+        # _callbacks stores weak references, not raw handlers.
+        # We must find and remove the weak ref that points to handler.
+        refs = self._callbacks[topic]
+        to_remove = None
+        for r in refs:
+            pointed = r() if isinstance(r, (weakref.WeakMethod, weakref.ReferenceType)) else r
+            if pointed is handler:
+                to_remove = r
+                break
+        if to_remove is not None:
+            refs.remove(to_remove)
+        if not refs:
+            del self._callbacks[topic]
 
     # Publish
 

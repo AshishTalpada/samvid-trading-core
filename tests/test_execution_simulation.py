@@ -193,7 +193,13 @@ async def test_pre_market_health_check_all_clear(mock_brain):
 
 @pytest.mark.asyncio
 async def test_pre_market_health_check_bad_position(mock_brain):
-    """Health check fails on corrupted position state."""
+    """Corrupt positions are pruned at health check, not a hard failure.
+
+    Old behaviour: health check returned False, locking engine in STANDBY forever.
+    New behaviour: corrupt positions are pruned (logged as CRITICAL) and the
+    check proceeds so the engine can still start.  The position must be absent
+    from brain.positions afterwards.
+    """
     brain = mock_brain
     brain.positions.append(
         Position(
@@ -206,8 +212,10 @@ async def test_pre_market_health_check_bad_position(mock_brain):
         )
     )
     ok, reason = await brain._pre_market_health_check()
-    assert ok is False
-    assert "zero/None qty" in reason
+    # Engine must NOT be blocked — corrupt position is pruned, not fatal
+    assert ok is True
+    # The bad position must have been removed
+    assert not any(p.symbol == "BAD" for p in brain.positions)
 
 
 @pytest.mark.asyncio
