@@ -593,7 +593,7 @@ class NewsHarvester:
 
                             self.status_summary = f"Monitoring {len(data)} Feeds"
                         else:
-                            logger.error(
+                            logger.warning(
                                 f"NewsHarvester: API Error {resp.status_code} from Finnhub."
                             )
 
