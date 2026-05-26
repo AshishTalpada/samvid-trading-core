@@ -1,0 +1,32 @@
+name: Quality Gate
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+    branches: [main, develop]
+
+jobs:
+  quality:
+    name: quality
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install ruff
+        run: pip install ruff
+
+      - name: Ruff lint — src/
+        run: ruff check src/ --output-format=github
+
+      - name: Ruff lint — scripts/
+        run: ruff check scripts/ --output-format=github
+
+      - name: Ruff lint — tests/
+        run: ruff check tests/ --output-format=github
