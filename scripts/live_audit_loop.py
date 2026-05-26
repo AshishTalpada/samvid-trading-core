@@ -122,8 +122,10 @@ ERROR_RE = re.compile(r"\b(ERROR|CRITICAL|Exception|Traceback|raise |assert )\b"
 WARN_RE  = re.compile(r"\bWARNING\b", re.IGNORECASE)
 OFFLINE_RE = re.compile(
     r"(offline|not connected|connection (failed|refused|lost|closed)|"
-    r"failed to connect|unable to connect|timeout|timed out|"
-    r"IBKR.*not|MT5.*not|Dhatu.*not|OpenBB.*not|SLM.*not)",
+    r"failed to connect|unable to connect|timed? ?out|"
+    r"IBKR.{0,40}not (connected|available|ready|responding)|"
+    r"MT5.{0,40}not (connected|available|ready|responding)|"
+    r"Dhatu.{0,40}not |OpenBB.{0,40}not |SLM.{0,40}not )",
     re.IGNORECASE,
 )
 SERVICE_RE = re.compile(
