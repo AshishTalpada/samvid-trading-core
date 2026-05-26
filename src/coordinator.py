@@ -501,14 +501,16 @@ class TradingCoordinator:
                             )
 
                         # 3. Dynamic ATR for sizing resonance
-                        tr = np.maximum(
-                            (ohlcv_1m["high"] - ohlcv_1m["low"]).abs(),
-                            np.maximum(
-                                (ohlcv_1m["high"] - ohlcv_1m["close"].shift(1)).abs(),
-                                (ohlcv_1m["low"] - ohlcv_1m["close"].shift(1)).abs(),
-                            ),
-                        )
-                        atr_20 = float(tr.tail(20).mean())
+                        # Convert to numpy FIRST — np.maximum cannot handle Polars Series
+                        # (shift(1) introduces a null which makes numpy fall back to dtype('O'))
+                        _h = ohlcv_1m["high"].to_numpy(allow_copy=True).astype(float)
+                        _l = ohlcv_1m["low"].to_numpy(allow_copy=True).astype(float)
+                        _c = ohlcv_1m["close"].to_numpy(allow_copy=True).astype(float)
+                        _hl = _h - _l
+                        _hc = np.abs(_h[1:] - _c[:-1])
+                        _lc = np.abs(_l[1:] - _c[:-1])
+                        _tr = np.maximum(_hl[1:], np.maximum(_hc, _lc))
+                        atr_20 = float(np.mean(_tr[-20:])) if len(_tr) >= 20 else float(np.mean(_tr)) if len(_tr) > 0 else 0.5
 
                         # 4. EXPLICIT AGENT A VALIDATION (The Defensive Fortress)
                         # Wrapped in to_thread because it's heavy math/neural logic.
