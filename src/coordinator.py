@@ -512,6 +512,10 @@ class TradingCoordinator:
 
                         # 4. EXPLICIT AGENT A VALIDATION (The Defensive Fortress)
                         # Wrapped in to_thread because it's heavy math/neural logic.
+                        # Agent A now queries Agent D's live win rates for Kelly edge calc.
+                        learned = getattr(self.brain, "_learned_win_rates", {})
+                        regime_key = f"{pattern.name}:{self.brain.current_regime}"
+                        learned_wr = learned.get(regime_key) or learned.get(pattern.name)
                         a_result = await asyncio.to_thread(
                             agent_a_validate_trade,
                             pattern=pattern,
@@ -523,6 +527,7 @@ class TradingCoordinator:
                             oracle=self.brain.dhatu_oracle,
                             neural_engine=self.brain.neural_engine,
                             regime_classifier=self.brain.regime_classifier_neural,
+                            live_learner=self.brain.live_learner,
                             ohlcv_df=ohlcv_1m,
                             volume_surge=(
                                 ohlcv_1m["volume"][-1] > ohlcv_1m["volume"][-20:-1].mean() * 2.0
@@ -537,6 +542,10 @@ class TradingCoordinator:
                             atr_20=atr_20,
                             dd_level=self.brain.ibkr_drawdown.level.value,
                             tension=tension,
+                            agent_d_win_rate=learned_wr,
+                            agent_d_n_trades=self.brain.live_learner._n_trades
+                            if hasattr(self.brain, "live_learner")
+                            else 0,
                         )
 
                         return a_result
@@ -735,36 +744,38 @@ class TradingCoordinator:
                 vote_registry["Agent_A"] = agent_a_out
 
                 if not dummy_tail:
-                    deterministic_deny = any(
-                        v["vote"] == "NO"
+                    no_agents_tier1 = [
+                        str(v.get("agent", "UNKNOWN"))
                         for v in vote_registry.values()
-                        if v.get("agent")
+                        if v.get("vote") == "NO"
+                        and v.get("agent")
                         in ["Agent_B", "Agent_C", "Risk_Guard", "Agent_E", "Agent_F", "Agent_G"]
-                    )
-                    if deterministic_deny and not is_probe:
+                    ]
+                    if no_agents_tier1 and not is_probe:
+                        veto_list = ", ".join(no_agents_tier1)
                         logger.warning(
-                            f"Coordinator [{proposal_id}]  EARLY EXIT: Tier 1 agents rejected. Standing down."
+                            f"Coordinator [{proposal_id}]  EARLY EXIT: {veto_list} voted NO. Standing down."
                         )
                         dummy_tail = [
                             {
                                 "agent": "Dhatu_Oracle",
                                 "vote": "NO",
                                 "confidence": 0.0,
-                                "reason": "Skipped",
+                                "reason": f"Skipped (blocked by {veto_list})",
                                 "timestamp": timestamp,
                             },
                             {
                                 "agent": "Swarm_Predictor",
                                 "vote": "NO",
                                 "confidence": 0.0,
-                                "reason": "Skipped",
+                                "reason": f"Skipped (blocked by {veto_list})",
                                 "timestamp": timestamp,
                             },
                             {
                                 "agent": "Mind_Ultrathink",
                                 "vote": "NO",
                                 "confidence": 0.0,
-                                "reason": "Skipped",
+                                "reason": f"Skipped (blocked by {veto_list})",
                                 "timestamp": timestamp,
                             },
                         ]
