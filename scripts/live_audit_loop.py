@@ -22,42 +22,59 @@ LOG_DIR.mkdir(exist_ok=True)
 
 def _kill_existing_engine() -> None:
     """Kill any running main.py instances to prevent duplicate-instance errors."""
-    sentinel = ROOT / ".session.bin"
-    pid = None
-    if sentinel.exists():
-        try:
-            import struct
-            data = sentinel.read_bytes()
-            if len(data) >= 4:
-                pid = struct.unpack_from("<I", data, 0)[0]
-        except Exception:
-            pass
+    killed: list[int] = []
 
-    # Also scan running processes for python main.py
+    # 1. tasklist CSV — most reliable on Windows
     try:
         r = subprocess.run(
-            ["wmic", "process", "where",
-             "name='python.exe'", "get", "processid,commandline"],
+            ["tasklist", "/FI", "IMAGENAME eq python.exe", "/FO", "CSV", "/NH"],
             capture_output=True, text=True, timeout=5,
         )
+        pids_alive = set()
         for line in r.stdout.splitlines():
-            if "main.py" in line and "live_audit_loop" not in line:
-                parts = line.strip().split()
+            line = line.strip().strip('"')
+            parts = [p.strip('"') for p in line.split('","')]
+            if len(parts) >= 2:
                 try:
-                    candidate = int(parts[-1])
-                    if candidate != os.getpid():
-                        subprocess.run(
-                            ["taskkill", "/F", "/PID", str(candidate)],
-                            capture_output=True,
-                        )
-                        print(f"  [KILL] Terminated stale engine PID {candidate}")
-                except Exception:
+                    pids_alive.add(int(parts[1]))
+                except ValueError:
                     pass
+
+        # 2. wmic to get command lines of those PIDs
+        for pid in list(pids_alive):
+            if pid == os.getpid():
+                continue
+            try:
+                rr = subprocess.run(
+                    ["wmic", "process", "where", f"ProcessId={pid}",
+                     "get", "CommandLine", "/value"],
+                    capture_output=True, text=True, timeout=5,
+                )
+                cmdline = rr.stdout
+                if "main.py" in cmdline and "live_audit_loop" not in cmdline:
+                    subprocess.run(["taskkill", "/F", "/PID", str(pid)],
+                                   capture_output=True)
+                    killed.append(pid)
+                    print(f"  [KILL] Terminated stale engine PID {pid}")
+            except Exception:
+                pass
     except Exception:
         pass
 
-    if pid and pid != os.getpid():
-        subprocess.run(["taskkill", "/F", "/PID", str(pid)], capture_output=True)
+    # 3. Fallback: read PID from .session.bin
+    try:
+        sentinel = ROOT / ".session.bin"
+        if sentinel.exists():
+            import struct
+            data = sentinel.read_bytes()
+            if len(data) >= 4:
+                stored_pid = struct.unpack_from("<I", data, 0)[0]
+                if stored_pid and stored_pid != os.getpid() and stored_pid not in killed:
+                    subprocess.run(["taskkill", "/F", "/PID", str(stored_pid)],
+                                   capture_output=True)
+                    print(f"  [KILL] Terminated session.bin engine PID {stored_pid}")
+    except Exception:
+        pass
 
 
 def run_cycle(cycle: int, duration: int = 90) -> Path:
@@ -222,7 +239,7 @@ def save_summary(results: list[dict], log_paths: list[Path]) -> None:
     with open(summary_path, "w", encoding="utf-8") as f:
         f.write(f"LIVE AUDIT SUMMARY — {datetime.now()}\n")
         f.write(f"Cycles run: {len(results)}\n\n")
-        for i, (r, p) in enumerate(zip(results, log_paths), 1):
+        for i, (r, p) in enumerate(zip(results, log_paths, strict=False), 1):
             f.write(f"Cycle {i:03d}: {p.name}\n")
             f.write(f"  errors={len(r['errors'])} warnings={len(r['warnings'])} "
                     f"tracebacks={len(r['tracebacks'])} offline={len(r['offline'])}\n")
