@@ -249,9 +249,22 @@ class ApexExoskeleton:
                 regime_key = f"{pattern.name}:{self.brain.current_regime}"
                 learned_wr = learned.get(regime_key) or learned.get(pattern.name)
 
-                if learned_wr is not None and isinstance(learned_wr, float) and learned_wr < 0.40:
+                # Only veto if statistically significant (n >= 30)
+                agent_d_n = (
+                    self.brain.live_learner._n_trades
+                    if hasattr(self.brain, "live_learner")
+                    else 0
+                )
+                if (
+                    learned_wr is not None
+                    and isinstance(learned_wr, float)
+                    and learned_wr < 0.40
+                    and agent_d_n >= 30
+                ):
                     vote["vote"] = "NO"
-                    vote["reason"] = f" IMPERIAL VETO: Internal WR too low ({learned_wr:.2%})"
+                    vote["reason"] = (
+                        f" IMPERIAL VETO: Internal WR too low ({learned_wr:.2%}, n={agent_d_n})"
+                    )
 
                     if hasattr(self.brain, "bus"):
                         await self.brain.bus.publish(
