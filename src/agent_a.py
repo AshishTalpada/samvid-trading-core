@@ -1110,7 +1110,13 @@ class PatternDetector:
 
         entry = pivot_resistance * 1.001
         stop = np.min(c3)
-        target = entry + (np.max(c1) - np.min(c1))  # Target is height of first base
+        # Minervini measured-move target: project full base depth (base_low → pivot) above breakout.
+        # Using only c1 range underestimates the target when c1 is a tight squeeze window.
+        base_low = float(np.min(data))
+        measured_move = float(pivot_resistance) - base_low
+        # Minimum target = 1.5× the risk (ensures viable R:R after spread deduction)
+        min_move_for_rr = 1.5 * abs(float(entry) - float(stop))
+        target = entry + max(measured_move, min_move_for_rr)
 
         r_r = abs(target - entry) / abs(entry - stop + 1e-10)
 
