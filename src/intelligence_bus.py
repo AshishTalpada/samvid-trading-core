@@ -305,9 +305,17 @@ class SharedIntelligenceBus:
         if len(self._pending_publish_tasks) >= self._max_publish_tasks:
             # Low-priority drop to preserve event loop health
             if priority >= 10:
+                logger.warning(
+                    f"BUS BACKPRESSURE: Dropped {topic} (P{priority}) — "
+                    f"{len(self._pending_publish_tasks)} tasks pending"
+                )
                 return
             else:
                 # High-priority: run synchronously but briefly
+                logger.warning(
+                    f"BUS BACKPRESSURE: Running {topic} (P{priority}) synchronously — "
+                    f"{len(self._pending_publish_tasks)} tasks pending"
+                )
                 await self._publish_with_concurrency(topic, p_item, r_item)
                 return
 
