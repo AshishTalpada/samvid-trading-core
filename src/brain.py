@@ -3515,9 +3515,12 @@ class TradingBrain:
                 cursor = self.db_conn.cursor()
 
                 # 1. Find all OPEN trades
+                # IMPORTANT: include 'direction' so we can restore the correct qty sign.
+                # 'shares' is always stored as abs(qty); direction tells us LONG vs SHORT.
                 cursor.execute(
                     "SELECT id, timestamp, instrument, entry_price, stop_price, target_price, "
-                    "shares, r_r_ratio, pattern, regime, broker, account_id, trading_mode "
+                    "shares, r_r_ratio, pattern, regime, broker, account_id, trading_mode, "
+                    "direction "
                     "FROM trades WHERE outcome = 'OPEN' ORDER BY id DESC"
                 )
                 rows = cursor.fetchall()
@@ -3545,6 +3548,7 @@ class TradingBrain:
                         broker,
                         acc_id,
                         _tmode,
+                        direction_col,
                     ) = row
 
                     # Parse entry time
@@ -3569,8 +3573,11 @@ class TradingBrain:
                     # Guard: corrupt DB record — no valid entry price
                     entry_f = float(entry) if entry else 0.0
                     stop_f = float(stop) if stop else 0.0
-                    qty_f = float(qty) if qty else 0.0
-                    if entry_f <= 0.0 or qty_f == 0.0:
+                    # Apply direction sign: shares column is always abs(); direction tells us sign
+                    qty_raw = float(qty) if qty else 0.0
+                    is_short = str(direction_col or "").upper() == "SHORT"
+                    qty_f = -abs(qty_raw) if is_short else abs(qty_raw)
+                    if entry_f <= 0.0 or qty_raw == 0.0:
                         cursor.execute(
                             "UPDATE trades SET outcome = 'ORPHANED', notes = ? WHERE id = ?",
                             (f"Corrupt restore: entry_price={entry_f} qty={qty_f}", tid),
@@ -4172,16 +4179,16 @@ class TradingBrain:
 
             if direction == "SELL" and broker_qty < 0:
                 logger.critical(
-                    f" POLARITY SHIELD: Blocked SELL for {symbol} "
-                    f"(Short exposure: {broker_qty}). Next cycle will BUY to close."
+                    f" POLARITY SHIELD: Corrected SELL→BUY for {symbol} "
+                    f"(Short exposure: {broker_qty}). Closing short with BUY."
                 )
-                return None
-            if direction == "BUY" and broker_qty > 0:
+                direction = "BUY"  # flip direction to correctly close the short
+            elif direction == "BUY" and broker_qty > 0:
                 logger.critical(
-                    f" POLARITY SHIELD: Blocked BUY for {symbol} "
-                    f"(Long exposure: {broker_qty}). Next cycle will SELL to close."
+                    f" POLARITY SHIELD: Corrected BUY→SELL for {symbol} "
+                    f"(Long exposure: {broker_qty}). Closing long with SELL."
                 )
-                return None
+                direction = "SELL"  # flip direction to correctly close the long
         except Exception as guard_e:
             logger.debug(f"Polarity Guard Live Check skipped (Recovery mode active): {guard_e}")
 
