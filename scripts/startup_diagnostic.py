@@ -276,6 +276,7 @@ def check_pattern_detection():
 
     try:
         import polars as pl
+
         from agent_a import PatternRecognizer
 
         recognizer = PatternRecognizer()
@@ -348,8 +349,8 @@ async def check_async_components():
 
     # QuestDB (if enabled)
     try:
-        from vault import Vault
         from questdb_adapter import QuestDBAdapter
+        from vault import Vault
 
         qdb_enabled = Vault.get("QUESTDB_ENABLED", "true").lower() == "true"
         if qdb_enabled:
