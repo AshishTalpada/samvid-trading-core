@@ -29,7 +29,9 @@ def _send_safety_alert(message: str, category: str = "Safety") -> None:
         else:
             asyncio.run(send_telegram_alert(message))
     except RuntimeError:
-        logger.debug(f"{category} alert skipped because a running event loop prevented asyncio.run().")
+        logger.debug(
+            f"{category} alert skipped because a running event loop prevented asyncio.run()."
+        )
     except Exception as exc:
         logger.error(f"{category} alert failed: {exc}")
 
@@ -39,7 +41,7 @@ def _force_paper_mode(system: Any, reason: str) -> None:
     logger.warning(f"Startup Safety: {reason} — forcing paper mode")
     _send_safety_alert(
         " SOVEREIGN: Startup safety enforced PAPER mode. Live trading is disabled until explicitly authorized.",
-        category="Startup"
+        category="Startup",
     )
 
 

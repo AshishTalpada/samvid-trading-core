@@ -730,9 +730,7 @@ class TVNewsScent:
 
                     connected_at = time.monotonic()
                     if connected_at - self._last_connect_log > 300.0:
-                        logger.info(
-                            "TVNewsScent: Neural Scent Feed established (TradingView WS)."
-                        )
+                        logger.info("TVNewsScent: Neural Scent Feed established (TradingView WS).")
                         self._last_connect_log = connected_at
                     else:
                         logger.debug("TVNewsScent: TradingView WS reconnected.")
@@ -1231,11 +1229,13 @@ class DhatuOracle:
                 )
                 ignore_cache = True
             else:
-                age = (datetime.now(timezone.utc) - self._current_state.generated_at).total_seconds()
+                age = (
+                    datetime.now(timezone.utc) - self._current_state.generated_at
+                ).total_seconds()
                 if age > 300:  # 5 minutes
                     logger.info(
                         f"DhatuOracle: Persisted state {self._current_state.dhatu_state} is stale "
-                        f"({age/60:.1f}m old). Triggering fresh synthesis."
+                        f"({age / 60:.1f}m old). Triggering fresh synthesis."
                     )
                     ignore_cache = True
 
@@ -1961,7 +1961,9 @@ class DhatuOracle:
                             f"with VIX={vix:.2f} (healthy). Overriding to {mapped_dhatu}."
                         )
                         state.dhatu_state = mapped_dhatu
-                        protocol = DHATU_PROTOCOL_MAP.get(mapped_dhatu, DHATU_PROTOCOL_MAP["Sthiti"])
+                        protocol = DHATU_PROTOCOL_MAP.get(
+                            mapped_dhatu, DHATU_PROTOCOL_MAP["Sthiti"]
+                        )
                         state.action_protocol = protocol["action"]
                         state.risk_modifier = protocol["risk_modifier"]
             except Exception as be:

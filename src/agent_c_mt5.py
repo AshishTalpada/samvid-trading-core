@@ -647,7 +647,9 @@ class MetaTrader5Agent:
         is_close: bool = False,
     ) -> int:
         """Compatibility wrapper used by TradingBrain._place_mt5_order."""
-        result = self.execute_market_order(sym, str(dir).upper(), vol, sl=sl, tp=tp, is_close=is_close)
+        result = self.execute_market_order(
+            sym, str(dir).upper(), vol, sl=sl, tp=tp, is_close=is_close
+        )
         if result.get("status") != "filled":
             return 0
         return int(result.get("ticket") or 0)
@@ -680,7 +682,9 @@ class MetaTrader5Agent:
             logger.error("[MT5] close_position: no tick for %s.", pos.symbol)
             return False
 
-        close_type = mt5.ORDER_TYPE_SELL if pos.type == mt5.POSITION_TYPE_BUY else mt5.ORDER_TYPE_BUY
+        close_type = (
+            mt5.ORDER_TYPE_SELL if pos.type == mt5.POSITION_TYPE_BUY else mt5.ORDER_TYPE_BUY
+        )
         price = float(tick.bid if close_type == mt5.ORDER_TYPE_SELL else tick.ask)
         request = {
             "action": mt5.TRADE_ACTION_DEAL,

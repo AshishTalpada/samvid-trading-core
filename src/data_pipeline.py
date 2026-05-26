@@ -134,9 +134,7 @@ class DataPipeline:
         self.closed_market_interval = max(
             300, int(os.getenv("SOVEREIGN_DATA_PULSE_CLOSED_SEC", "900"))
         )
-        self.open_market_interval_override = int(
-            os.getenv("SOVEREIGN_DATA_PULSE_OPEN_SEC", "0")
-        )
+        self.open_market_interval_override = int(os.getenv("SOVEREIGN_DATA_PULSE_OPEN_SEC", "0"))
 
         try:
             self.news_memory = ChromaDeepMemory(collection_name="market_news_v8")
@@ -575,6 +573,7 @@ class DataPipeline:
         Returns:
             Current VIX value or 0.0 if error
         """
+
         async def _fetch_yahoo_chart_vix() -> float | None:
             session = await self._get_http_session()
             url = "https://query1.finance.yahoo.com/v8/finance/chart/%5EVIX"
@@ -598,9 +597,7 @@ class DataPipeline:
 
             if vix_value is None:
                 ticker = await asyncio.to_thread(yf.Ticker, "^VIX")
-                for attempt, (period, interval) in enumerate(
-                    (("1d", "1m"), ("5d", "1d")), start=1
-                ):
+                for attempt, (period, interval) in enumerate((("1d", "1m"), ("5d", "1d")), start=1):
                     try:
                         hist = await asyncio.to_thread(
                             ticker.history, period=period, interval=interval
@@ -1066,7 +1063,9 @@ class DataPipeline:
                     ]
                 )
                 self._quiet_pulse_logging = not is_open
-                state_changed = self._last_market_state is None or self._last_market_state != is_open
+                state_changed = (
+                    self._last_market_state is None or self._last_market_state != is_open
+                )
                 if state_changed or is_open:
                     logger.info(
                         "DataPipeline: Market is %s - starting %s pulse across %d symbols.",
@@ -1243,9 +1242,7 @@ class DataPipeline:
                 self.INSTRUMENTS
                 if market_open or full_closed_backfill
                 else [
-                    sym
-                    for sym in self.CLOSED_MARKET_PULSE_SYMBOLS
-                    if sym in set(self.INSTRUMENTS)
+                    sym for sym in self.CLOSED_MARKET_PULSE_SYMBOLS if sym in set(self.INSTRUMENTS)
                 ]
             )
             if not market_open and not full_closed_backfill:

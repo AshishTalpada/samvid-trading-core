@@ -371,8 +371,7 @@ def run_watchdog():
                         startupinfo = None
                         if sys.platform == "win32":
                             creationflags = (
-                                subprocess.CREATE_NEW_PROCESS_GROUP
-                                | subprocess.CREATE_NO_WINDOW
+                                subprocess.CREATE_NEW_PROCESS_GROUP | subprocess.CREATE_NO_WINDOW
                             )
                             startupinfo = subprocess.STARTUPINFO()
                             startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW

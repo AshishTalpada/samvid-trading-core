@@ -114,7 +114,9 @@ def _safe_entry_time(entry_time_value: Any) -> datetime:
             cleaned = entry_time_value.replace("Z", "+00:00")
             dt = datetime.fromisoformat(cleaned)
         except Exception as e:
-            logger.warning(f"_safe_entry_time: corrupted string timestamp '{entry_time_value!r}': {e}. Defaulting to epoch.")
+            logger.warning(
+                f"_safe_entry_time: corrupted string timestamp '{entry_time_value!r}': {e}. Defaulting to epoch."
+            )
             return datetime(1970, 1, 1, tzinfo=timezone.utc)
         if dt.tzinfo is None:
             dt = dt.replace(tzinfo=timezone.utc)
@@ -126,13 +128,17 @@ def _safe_entry_time(entry_time_value: Any) -> datetime:
                 return datetime.fromtimestamp(ts / 1_000_000_000, tz=timezone.utc)
             return datetime.fromtimestamp(ts, tz=timezone.utc)
         except Exception as e:
-            logger.warning(f"_safe_entry_time: corrupted numeric timestamp {entry_time_value!r}: {e}. Defaulting to epoch.")
+            logger.warning(
+                f"_safe_entry_time: corrupted numeric timestamp {entry_time_value!r}: {e}. Defaulting to epoch."
+            )
             return datetime(1970, 1, 1, tzinfo=timezone.utc)
     if isinstance(entry_time_value, datetime):
         if entry_time_value.tzinfo is None:
             return entry_time_value.replace(tzinfo=timezone.utc)
         return entry_time_value
-    logger.warning(f"_safe_entry_time: unknown type {type(entry_time_value)} value {entry_time_value!r}. Defaulting to epoch.")
+    logger.warning(
+        f"_safe_entry_time: unknown type {type(entry_time_value)} value {entry_time_value!r}. Defaulting to epoch."
+    )
     return datetime(1970, 1, 1, tzinfo=timezone.utc)
 
 
@@ -1064,8 +1070,7 @@ class TradingBrain:
 
             if self._is_oracle_entry_frozen():
                 logger.debug(
-                    "BRAIN: News action ignored during oracle freeze "
-                    "(%s, modifier=%.2f): %s",
+                    "BRAIN: News action ignored during oracle freeze (%s, modifier=%.2f): %s",
                     self._oracle_dhatu,
                     self._oracle_risk_modifier,
                     headline[:80],
@@ -1147,7 +1152,10 @@ class TradingBrain:
             checks.append(f"Broker {self.active_broker} not connected")
 
         # 3. Budget generated for today
-        if self.last_budget_date is None or self.last_budget_date.date() != datetime.now(timezone.utc).date():
+        if (
+            self.last_budget_date is None
+            or self.last_budget_date.date() != datetime.now(timezone.utc).date()
+        ):
             checks.append("Morning budget not generated for today")
 
         # 4. Regime detected (not stale default)
@@ -1191,7 +1199,10 @@ class TradingBrain:
         if watchlist <= 0:
             return
 
-        if not self._is_market_open() and os.environ.get("SOVEREIGN_ALLOW_CLOSED_MARKET_SCANS") != "1":
+        if (
+            not self._is_market_open()
+            and os.environ.get("SOVEREIGN_ALLOW_CLOSED_MARKET_SCANS") != "1"
+        ):
             reason = "Market closed; live entries are intentionally paused."
         elif scanned == 0 and gated >= watchlist:
             reason = (
@@ -1924,7 +1935,9 @@ class TradingBrain:
         # Pre-market health check — validate all critical paths before risking capital
         health_ok, health_reason = await self._pre_market_health_check()
         if not health_ok:
-            logger.critical(f"PRE-MARKET HEALTH CHECK FAILED: {health_reason}. Remaining in STANDBY.")
+            logger.critical(
+                f"PRE-MARKET HEALTH CHECK FAILED: {health_reason}. Remaining in STANDBY."
+            )
             await asyncio.sleep(30)
             return
 
@@ -2012,11 +2025,9 @@ class TradingBrain:
                 not self._is_market_open()
                 and os.environ.get("SOVEREIGN_ALLOW_CLOSED_MARKET_SCANS") != "1"
             )
-            if (
-                self.last_regime_update is None
-                or (now - self.last_regime_update).total_seconds()
-                >= (900 if closed_market_scans_disabled else 60)
-            ):
+            if self.last_regime_update is None or (
+                now - self.last_regime_update
+            ).total_seconds() >= (900 if closed_market_scans_disabled else 60):
                 try:
                     # Use a short timeout so regime detection doesn't stall the scanning pulse
                     new_regime = await asyncio.wait_for(self._detect_regime(), timeout=10.0)
@@ -2340,11 +2351,7 @@ class TradingBrain:
             # Guard: skip entropy check if no symbols were successfully scanned
             # to avoid false flushes.
             scanned_count = stats["scanned"]
-            if (
-                scanned_count == 0
-                and stats["gated"] >= len(watchlist)
-                and not discoveries
-            ):
+            if scanned_count == 0 and stats["gated"] >= len(watchlist) and not discoveries:
                 await asyncio.sleep(5.0)
 
             # Corrected: Density should reflect actual Task Registry occupancy
@@ -2537,13 +2544,11 @@ class TradingBrain:
                 pos.mae = min(pos.mae, gross_r)
 
                 is_short = pos.qty < 0
-                price_favourable = (
-                    (current_price > pos.entry_price and not is_short)
-                    or (current_price < pos.entry_price and is_short)
+                price_favourable = (current_price > pos.entry_price and not is_short) or (
+                    current_price < pos.entry_price and is_short
                 )
-                price_adverse = (
-                    (current_price < pos.entry_price and not is_short)
-                    or (current_price > pos.entry_price and is_short)
+                price_adverse = (current_price < pos.entry_price and not is_short) or (
+                    current_price > pos.entry_price and is_short
                 )
                 if price_favourable:
                     pos.current_belief = min(pos.current_belief * 1.01, 0.99)
@@ -3084,9 +3089,7 @@ class TradingBrain:
                 reason = "Sovereign Safety Veto"
 
             # Duration Formatting
-            duration_min = (
-                now - _safe_entry_time(pos.entry_time)
-            ).total_seconds() / 60
+            duration_min = (now - _safe_entry_time(pos.entry_time)).total_seconds() / 60
             duration_str = (
                 f"{duration_min:.1f}m" if duration_min < 60 else f"{duration_min / 60:.1f}h"
             )
@@ -3385,6 +3388,7 @@ class TradingBrain:
                     "ORDER BY timestamp DESC LIMIT 200"
                 )
                 try:
+
                     def _read_sqlite_ohlcv() -> pd.DataFrame:
                         import sqlite3
 
@@ -4171,7 +4175,9 @@ class TradingBrain:
             if stop_price > 0 and target_price > 0:
                 # Paper mode without broker: skip pre-flight and token generation
                 if self.mode == "paper" and not self.ibkr_conn.is_connected():
-                    logger.info(f"PAPER [SIM]: Bracket {direction} {shares} {symbol} @ ${limit_price}")
+                    logger.info(
+                        f"PAPER [SIM]: Bracket {direction} {shares} {symbol} @ ${limit_price}"
+                    )
                     return f"PAPER-{int(time.time())}"
 
                 ok, reason = await asyncio.to_thread(
@@ -4198,7 +4204,9 @@ class TradingBrain:
 
             # Paper mode without broker: skip token generation; place_order handles sim
             if self.mode == "paper" and not self.ibkr_conn.is_connected():
-                logger.info(f"PAPER [SIM]: Single {direction} {shares} {symbol} (Urgency: {urgency})")
+                logger.info(
+                    f"PAPER [SIM]: Single {direction} {shares} {symbol} (Urgency: {urgency})"
+                )
                 return f"PAPER-{int(time.time())}"
 
             exec_token = self.ibkr_conn.generate_exec_token(symbol)
@@ -4218,7 +4226,13 @@ class TradingBrain:
 
             if urgency == "LOW" and limit_price > 0:
                 oid = await self.ibkr_conn.place_order(
-                    symbol, direction, shares, order_type="LMT", limit_price=limit_price, urgency=urgency, **kwargs
+                    symbol,
+                    direction,
+                    shares,
+                    order_type="LMT",
+                    limit_price=limit_price,
+                    urgency=urgency,
+                    **kwargs,
                 )
             else:
                 oid = await self.ibkr_conn.place_order(
@@ -4593,8 +4607,7 @@ class TradingBrain:
             try:
                 if self._is_oracle_entry_frozen():
                     logger.info(
-                        "Brain: Phantom probe skipped during oracle freeze "
-                        "(%s, modifier=%.2f).",
+                        "Brain: Phantom probe skipped during oracle freeze (%s, modifier=%.2f).",
                         self._oracle_dhatu,
                         self._oracle_risk_modifier,
                     )
@@ -4660,14 +4673,11 @@ class TradingBrain:
             try:
                 market_open = self._is_market_open()
                 closed_market = (
-                    not market_open
-                    and os.environ.get("SOVEREIGN_ALLOW_CLOSED_MARKET_SCANS") != "1"
+                    not market_open and os.environ.get("SOVEREIGN_ALLOW_CLOSED_MARKET_SCANS") != "1"
                 )
                 if closed_market:
                     if getattr(self, "_last_closed_conviction_log", 0) + 900 < time.time():
-                        logger.info(
-                            "TradingBrain: Conviction sync idling while market is closed."
-                        )
+                        logger.info("TradingBrain: Conviction sync idling while market is closed.")
                         self._last_closed_conviction_log = time.time()
                     await asyncio.sleep(300)
                     continue

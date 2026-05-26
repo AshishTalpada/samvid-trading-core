@@ -70,4 +70,3 @@ class MacroNewsAgent:
             0.5 + statement_score * 0.3 + (cpi_yoy - 2.0) * 0.05 - (unemployment - 4.0) * 0.03
         )
         return max(0.0, min(1.0, hike_prob))
-

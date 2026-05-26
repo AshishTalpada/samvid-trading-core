@@ -57,12 +57,8 @@ def ensure_runtime_telemetry_schema(cursor: sqlite3.Cursor) -> None:
         if column not in performance_cols:
             cursor.execute(f"ALTER TABLE performance_summary ADD COLUMN {column} {decl}")
 
-    cursor.execute(
-        "CREATE INDEX IF NOT EXISTS idx_system_events_ts ON system_events(timestamp)"
-    )
-    cursor.execute(
-        "CREATE INDEX IF NOT EXISTS idx_dhatu_readings_ts ON dhatu_readings(timestamp)"
-    )
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_system_events_ts ON system_events(timestamp)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_dhatu_readings_ts ON dhatu_readings(timestamp)")
 
 
 def create_basic_schema(db_conn: sqlite3.Connection) -> None:
