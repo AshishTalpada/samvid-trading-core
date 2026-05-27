@@ -153,7 +153,7 @@ class ImpactOracle:
             volatility = np.std(returns) if len(returns) > 0 else 0.001
 
             # 2. Daily Volume Approximation (Assuming 1m scale, 390 mins/day)
-            avg_volume_1m = df["volume"][-21:-1].mean()
+            avg_volume_1m = df["volume"].tail(21).head(20).mean()
             estimated_day_volume = avg_volume_1m * 390
 
             # 3. Square Root Impact Formula
@@ -326,16 +326,16 @@ class PatternDetector:
         # Criteria: Volume Explosion (>3x avg) with near-zero Price Delta (<0.01%).
         # This signals 'Layering' or 'Spoofing' where orders are being flashed
         # without intention to fill.
-        last_vol = float(df["volume"][-1])
-        _m_vol = df["volume"][-10:-1].mean()
+        last_vol = float(df["volume"].tail(1).item())
+        _m_vol = df["volume"].tail(10).head(9).mean()
         avg_vol = float(_m_vol) if _m_vol is not None and _m_vol != 0 else 1.0
-        price_move = abs(float(df["close"][-1] - df["close"][-2]))
-        price_threshold = float(df["close"][-1] * 0.0001)  # 1 basis point
+        price_move = abs(float(df["close"].tail(1).item() - df["close"].tail(2).to_numpy()[-1]))
+        price_threshold = float(df["close"].tail(1).item() * 0.0001)  # 1 basis point
 
         if last_vol > (avg_vol * 3.5) and price_move < price_threshold:
-            entry = float(df["close"][-1])
-            prev_close = df["close"][-2]
-            is_long = df["close"][-1] > df["close"][-5]  # Trend alignment
+            entry = float(df["close"].tail(1).item())
+            prev_close = df["close"].tail(2).to_numpy()[-1]
+            is_long = df["close"].tail(1).item() > df["close"].tail(5).to_numpy()[-1]  # Trend alignment
 
             # Confirm the 'flicker' is actually creating a directional pivot
             confirmed = (is_long and entry > prev_close) or (not is_long and entry < prev_close)
@@ -364,16 +364,16 @@ class PatternDetector:
         if len(df) < 20:
             return None
 
-        last_5 = df[-5:]
-        avg_vol = df["volume"][-20:-5].mean()
-        avg_range = (df["high"][-20:-5] - df["low"][-20:-5]).mean()
+        last_5 = df.tail(5)
+        avg_vol = df["volume"].tail(20).head(15).mean()
+        avg_range = (df["high"].tail(20).head(15) - df["low"].tail(20).head(15)).mean()
 
         current_vol = last_5["volume"].mean()
         current_range = last_5["high"].max() - last_5["low"].min()
 
         # We mirror the institution. If vol is 1.8x and range is <60% of avg, it's a Wall.
         if current_vol > (avg_vol * 1.8) and current_range < (avg_range * 0.6):
-            is_accumulation = df["close"][-1] < df["close"][-20]
+            is_accumulation = df["close"].tail(1).item() < df["close"].tail(20).to_numpy()[-1]
             name = "Institutional Accumulation" if is_accumulation else "Institutional Distribution"
 
             entry = last_5["high"].max() if is_accumulation else last_5["low"].min()
@@ -403,12 +403,12 @@ class PatternDetector:
             return None
 
         # Volatility Compression (Volatility 'Scents' the Breakout)
-        std_20 = df["close"][-20:].std()
-        avg_std = df["close"][-50:-20].std()
+        std_20 = df["close"].tail(20).std()
+        avg_std = df["close"].tail(50).head(30).std()
 
         if std_20 < (avg_std * 0.4):  # Massive compression (The Sovereign Calm)
-            if df["volume"][-1] > df["volume"][-2]:  # Volume Scent detected
-                entry = df["close"][-1]
+            if df["volume"].tail(1).item() > df["volume"].tail(2).to_numpy()[-1]:  # Volume Scent detected
+                entry = df["close"].tail(1).item()
                 # Project target based on 'Historical Velocity' from Atlas
                 target = entry * 1.03
                 stop = entry * 0.99
@@ -438,29 +438,29 @@ class PatternDetector:
             return None
 
         # Require strong prior uptrend (pole)
-        pole_start = df["close"][-20]
-        pole_end = df["close"][-10]
+        pole_start = df["close"].tail(20).to_numpy()[-1]
+        pole_end = df["close"].tail(10).to_numpy()[-1]
         pole_gain = (pole_end - pole_start) / (pole_start + 1e-10)
 
         if pole_gain < 0.002:  # Massively relaxed: 0.2%+ pole
             return None
 
         # Detect consolidation (flag)
-        flag_period = df[-10:]
+        flag_period = df.tail(10)
         flag_range = (flag_period["high"].max() - flag_period["low"].min()) / (pole_end + 1e-10)
 
         if flag_range > 0.025:  # Relaxed further
             return None
 
         # Volume should contract during flag
-        vol_ratio = flag_period["volume"].mean() / (df["volume"][-20:-10].mean() + 1e-10)
+        vol_ratio = flag_period["volume"].mean() / (df["volume"].tail(20).head(10).mean() + 1e-10)
         if vol_ratio > 0.95:  # Allow almost any volume action
             return None
 
-        current_price = df["close"][-1]
+        current_price = df["close"].tail(1).item()
         resistance = flag_period["high"].max()
 
-        prev_close = df["close"][-2]
+        prev_close = df["close"].tail(2).to_numpy()[-1]
         confirmed = current_price > resistance and prev_close > (resistance * 0.999)
 
         # Entry on breakout above resistance
@@ -497,25 +497,25 @@ class PatternDetector:
             return None
 
         # Prior downtrend (pole)
-        pole_start = df["close"][-20]
-        pole_end = df["close"][-10]
+        pole_start = df["close"].tail(20).to_numpy()[-1]
+        pole_end = df["close"].tail(10).to_numpy()[-1]
         pole_drop = (pole_start - pole_end) / (pole_start + 1e-10)
 
         if pole_drop < 0.002:
             return None
 
         # Consolidation (flag)
-        flag_period = df[-10:]
+        flag_period = df.tail(10)
         flag_range = (flag_period["high"].max() - flag_period["low"].min()) / pole_end
         if flag_range > 0.025:
             return None
 
         # Volume contract
-        vol_ratio = flag_period["volume"].mean() / df["volume"][-20:-10].mean()
+        vol_ratio = flag_period["volume"].mean() / df["volume"].tail(20).head(10).mean()
         if vol_ratio > 1.05:
             return None
 
-        current_price = df["close"][-1]
+        current_price = df["close"].tail(1).item()
         support = flag_period["low"].min()
 
         # Entry on breakdown
@@ -527,7 +527,7 @@ class PatternDetector:
         target = entry - max(pole_height, min_move_bf)
 
         r_r = (entry - target) / (stop - entry + 1e-10)
-        prev_close = df["close"][-2]
+        prev_close = df["close"].tail(2).to_numpy()[-1]
         confirmed = current_price < support and prev_close < (support * 1.001)
 
         return PatternResult(
@@ -583,9 +583,9 @@ class PatternDetector:
             return None
 
         # Calculate neckline (support connecting troughs) — pandas-compatible rolling min
-        neckline = float(df["low"][-30:].rolling_min(5).tail(10).mean())
+        neckline = float(df["low"].tail(30).rolling_min(5).tail(10).mean())
 
-        current_price = df["close"][-1]
+        current_price = df["close"].tail(1).item()
         entry = neckline * 0.998  # Enter on neckline break
         stop = head_price
         pattern_height = head_price - neckline
@@ -594,7 +594,7 @@ class PatternDetector:
         target = entry - max(pattern_height, min_move_hs)
 
         r_r = (entry - target) / (stop - entry + 1e-10)
-        prev_close = df["close"][-2]
+        prev_close = df["close"].tail(2).to_numpy()[-1]
         confirmed = current_price < neckline and prev_close < (neckline * 1.001)
 
         confidence = 89.0 if confirmed else 78.0
@@ -623,7 +623,7 @@ class PatternDetector:
         if len(df) < 25:
             return None
 
-        recent = df[-25:]
+        recent = df.tail(25)
 
         # Identify converging trendlines (wedge narrows)
         highs = recent["high"].to_numpy()
@@ -647,13 +647,13 @@ class PatternDetector:
             return None
 
         # Volume should decline into apex
-        early_vol = recent["volume"][:10].mean()
-        late_vol = recent["volume"][-10:].mean()
+        early_vol = recent["volume"].head(10).mean()
+        late_vol = recent["volume"].tail(10).mean()
 
         if late_vol > early_vol * 0.8:
             return None
 
-        current_price = df["close"][-1]
+        current_price = df["close"].tail(1).item()
         resistance = np.polyval(high_coef, len(highs) - 1)
 
         entry = resistance * 1.005  # Breakout above
@@ -664,7 +664,7 @@ class PatternDetector:
         target = entry + max(wedge_height, min_move_fw)
 
         r_r = (target - entry) / (entry - stop + 1e-10)
-        prev_close = df["close"][-2]
+        prev_close = df["close"].tail(2).to_numpy()[-1]
         confirmed = current_price > resistance and prev_close > (resistance * 0.999)
 
         confidence = 83.0 if confirmed else 72.0
@@ -689,7 +689,7 @@ class PatternDetector:
         """
         if len(df) < 25:
             return None
-        recent = df[-25:]
+        recent = df.tail(25)
         highs = recent["high"].to_numpy()
         lows = recent["low"].to_numpy()
         x = np.arange(len(highs))
@@ -703,7 +703,7 @@ class PatternDetector:
         if low_coef[0] <= high_coef[0]:
             return None
 
-        current_price = df["close"][-1]
+        current_price = df["close"].tail(1).item()
         support = np.polyval(low_coef, len(lows) - 1)
 
         entry = support * 0.995  # Breakdown
@@ -714,7 +714,7 @@ class PatternDetector:
         target = entry - max(wedge_height_rw, min_move_rw)
 
         r_r = (entry - target) / (stop - entry + 1e-10)
-        prev_close = df["close"][-2]
+        prev_close = df["close"].tail(2).to_numpy()[-1]
         confirmed = current_price < support and prev_close < (support * 1.001)
 
         return PatternResult(
@@ -740,40 +740,40 @@ class PatternDetector:
         if len(df) < 20 or "rsi" not in df.columns:
             return None
 
-        current_rsi = df["rsi"][-1]
+        current_rsi = df["rsi"].tail(1).item()
 
         # Oversold condition: RSI < 45 (Aggressive entry)
         if current_rsi >= 45:
             return None
 
         # Bullish divergence: price making lower low, RSI making higher low
-        price_window = df[-10:]
+        price_window = df.tail(10)
         price_low_idx = price_window["low"].arg_min()
 
         if price_low_idx != len(price_window) - 1:  # Not at current bar
-            recent_price_low = df["low"][-5:].min()
+            recent_price_low = df["low"].tail(5).min()
             prior_price_low = price_window["low"].min()
 
             if recent_price_low < prior_price_low:
-                recent_rsi_low = df["rsi"][-5:].min()
+                recent_rsi_low = df["rsi"].tail(5).min()
                 prior_rsi_low = price_window["rsi"].min()
 
                 if recent_rsi_low <= prior_rsi_low:  # No divergence
                     return None
 
-                if df["volume"][-1] <= df["volume"][-2]:
+                if df["volume"].tail(1).item() <= df["volume"].tail(2).to_numpy()[-1]:
                     return None
 
-        current_price = df["close"][-1]
+        current_price = df["close"].tail(1).item()
 
         # Support level from recent lows
-        support = df["low"][-20:].min()
+        support = df["low"].tail(20).min()
 
         entry = current_price
         stop = support * 0.98
 
         # Target first resistance (20-period high)
-        target = df["high"][-20:].quantile(0.75)
+        target = df["high"].tail(20).quantile(0.75)
 
         r_r = (target - entry) / (entry - stop + 1e-10)
         confirmed = current_rsi < 25  # Deep oversold
@@ -809,30 +809,30 @@ class PatternDetector:
             return None
 
         # Sector must be strongly up (leader)
-        sector_gain = (sector_df["close"][-1] - sector_df["close"][-5]) / (
-            sector_df["close"][-5] + 1e-10
+        sector_gain = (sector_df["close"].tail(1).item() - sector_df["close"].tail(5).to_numpy()[-1]) / (
+            sector_df["close"].tail(5).to_numpy()[-1] + 1e-10
         )
 
         if sector_gain < 0.003:  # Sector up 0.3%+ (intraday 1m scale)
             return None
 
         # Stock lagging but starting to move
-        stock_gain = (df["close"][-1] - df["close"][-5]) / (df["close"][-5] + 1e-10)
+        stock_gain = (df["close"].tail(1).item() - df["close"].tail(5).to_numpy()[-1]) / (df["close"].tail(5).to_numpy()[-1] + 1e-10)
 
         if stock_gain < 0 or stock_gain > sector_gain:
             return None
 
         # Volume surge on stock
-        avg_volume = df["volume"][-20:-1].mean()
-        current_volume = df["volume"][-1]
+        avg_volume = df["volume"].tail(20).head(19).mean()
+        current_volume = df["volume"].tail(1).item()
 
         if current_volume < avg_volume * 1.5:
             return None
 
-        current_price = df["close"][-1]
+        current_price = df["close"].tail(1).item()
 
         entry = current_price
-        stop = df["low"][-5:].min()
+        stop = df["low"].tail(5).min()
 
         # Target: catch up to sector performance
         datetime.now(timezone.utc).strftime("%Y%m%d_%H%M")
@@ -868,9 +868,9 @@ class PatternDetector:
             return None
 
         # Detect gap between yesterday's close and today's open
-        prev_close = df["close"][-2]
-        today_open = df["open"][-1]
-        current_price = df["close"][-1]
+        prev_close = df["close"].tail(2).to_numpy()[-1]
+        today_open = df["open"].tail(1).item()
+        current_price = df["close"].tail(1).item()
 
         gap_pct = abs(today_open - prev_close) / prev_close
 
@@ -882,9 +882,9 @@ class PatternDetector:
             # Trade to fill gap (short)
             entry = today_open
             target = prev_close
-            stop = df["high"][-1] * 1.01
+            stop = df["high"].tail(1).item() * 1.01
 
-            prev_close_val = df["close"][-2]
+            prev_close_val = df["close"].tail(2).to_numpy()[-1]
             confirmed = (
                 current_price < (today_open + prev_close) / 2
                 and prev_close_val < (today_open + prev_close) / 1.99
@@ -895,9 +895,9 @@ class PatternDetector:
             # Trade to fill gap (long)
             entry = today_open
             target = prev_close
-            stop = df["low"][-1] * 0.99
+            stop = df["low"].tail(1).item() * 0.99
 
-            prev_close_val = df["close"][-2]
+            prev_close_val = df["close"].tail(2).to_numpy()[-1]
             confirmed = (
                 current_price > (today_open + prev_close) / 2
                 and prev_close_val > (today_open + prev_close) / 2.01
@@ -931,16 +931,16 @@ class PatternDetector:
         if len(df) < 5:
             return None
 
-        recent = df[-5:]
-        avg_vol = df["volume"][-20:-5].mean() if len(df) >= 20 else recent["volume"].mean()
+        recent = df.tail(5)
+        avg_vol = df["volume"].tail(20).head(15).mean() if len(df) >= 20 else recent["volume"].mean()
 
         # We need a volume spike on minimal price movement (absorption)
-        current_vol = recent["volume"][-1]
+        current_vol = recent["volume"].tail(1).item()
         if current_vol < avg_vol * 1.5:  # Lowered requirement
             return None
 
         price_range = recent["high"].max() - recent["low"].min()
-        current_price = recent["close"][-1]
+        current_price = recent["close"].tail(1).item()
 
         if price_range / current_price > 0.001:  # Movement too large for absorption
             return None
@@ -973,7 +973,7 @@ class PatternDetector:
             return None
 
         # Check if last 2 ticks closed higher
-        last_3 = df[-3:]
+        last_3 = df.tail(3)
         closes = last_3["close"].to_numpy()
         if not (closes[2] > closes[1]):  # Relaxed to 2 bars
             return None
@@ -987,7 +987,7 @@ class PatternDetector:
 
         # Bearish divergence scalp
         entry = current_price
-        stop = df["high"][-5:].max() * 1.001
+        stop = df["high"].tail(5).max() * 1.001
         target = closes[0]  # Revert to start of move
 
         # Guard against zero-division if stop == entry
@@ -1088,8 +1088,8 @@ class PatternDetector:
             return None
 
         # 1. Identify primary uptrend
-        sma_200 = df["close"].rolling_mean(window_size=50)[-1]  # Scaled for window
-        current_price = df["close"][-1]
+        sma_200 = df["close"].rolling_mean(window_size=50).tail(1).item()  # Scaled for window
+        current_price = df["close"].tail(1).item()
 
         if current_price < sma_200:
             return None
@@ -1115,7 +1115,7 @@ class PatternDetector:
         # 3. Identify Pivot Point (Resistance at high of last contraction)
         pivot_resistance = np.max(c3)
 
-        prev_close = df["close"][-2]
+        prev_close = df["close"].tail(2).to_numpy()[-1]
         if current_price < pivot_resistance:
             # Pattern forming but not confirmed
             confirmed = False
@@ -1209,8 +1209,8 @@ class PatternDetector:
         if len(df) < 10:
             return None
 
-        recent = df[-5:]
-        avg_vol = df["volume"][-20:-5].mean()
+        recent = df.tail(5)
+        avg_vol = df["volume"].tail(20).head(15).mean()
 
         # Adjust sensitivity - institutional fingerprints are often subtle
         vol_threshold = 2.5 / sensitivity
@@ -1231,9 +1231,9 @@ class PatternDetector:
                     name=f"Deep Tape Absorption ({direction})",
                     category="HFT",
                     confidence=94.0,
-                    entry=recent["close"][-1],
+                    entry=recent["close"].tail(1).item(),
                     stop=recent["low"].min() if ofi > 0 else recent["high"].max(),
-                    target=recent["close"][-1] * (1 + (0.005 if ofi > 0 else -0.005)),
+                    target=recent["close"].tail(1).item() * (1 + (0.005 if ofi > 0 else -0.005)),
                     r_r_ratio=3.0,
                     confirmed=True,
                     lambda_val=20,
@@ -1251,20 +1251,20 @@ class PatternDetector:
             return None
 
         # High volume on ultra-low range (Zero-Result Effort VSA principle)
-        vol_window = df["volume"][-5:]
-        avg_vol = df["volume"][-60:-5].mean()
+        vol_window = df["volume"].tail(5)
+        avg_vol = df["volume"].tail(60).head(55).mean()
 
         vol_explosion = vol_window.max() > avg_vol * 4.0
 
-        price_range = df["high"][-5:].max() - df["low"][-5:].min()
-        price_std = df["close"][-60:].std()
+        price_range = df["high"].tail(5).max() - df["low"].tail(5).min()
+        price_std = df["close"].tail(60).std()
         range_compression = price_range < (price_std * 0.15)
 
         # We ensure that the massive volume is actually 'sinking' into a specific level
         # rather than just volatile churning over a wide range.
-        typical_price = df["close"][-5:].mean()
+        typical_price = df["close"].tail(5).mean()
         concentration_window = (
-            df["close"][-5:].between(typical_price * 0.9995, typical_price * 1.0005).sum()
+            df["close"].tail(5).between(typical_price * 0.9995, typical_price * 1.0005).sum()
         )
         is_concentrated = concentration_window >= 4  # 4 out of 5 bars at same level
 
@@ -1276,7 +1276,7 @@ class PatternDetector:
             # If OFI is strongly negative = Distribution Sink (Bearish)
             if abs(ofi) > 0.6:
                 is_bullish = ofi > 0
-                entry = float(df["close"][-1])
+                entry = float(df["close"].tail(1).item())
                 # HFT Liquidity sinks move FAST once filled
                 target = entry * (1.015 if is_bullish else 0.985)
                 stop = entry * (0.997 if is_bullish else 1.003)
@@ -1358,7 +1358,7 @@ class PatternDetector:
 
         # Peaks should be within 1% of each other
         if abs(peak1 - peak2) / peak1 < 0.01 and peak1 > trough * 1.05:
-            current_price = df["close"][-1]
+            current_price = df["close"].tail(1).item()
             confirmed = current_price < trough
             return PatternResult(
                 name="Double Top (Reversal)",
@@ -1378,8 +1378,8 @@ class PatternDetector:
         b2 = np.min(lows[25:])
 
         if abs(b1 - b2) / b1 < 0.01 and peak > b1 * 1.05:
-            current_price = df["close"][-1]
-            prev_close = df["close"][-2]
+            current_price = df["close"].tail(1).item()
+            prev_close = df["close"].tail(2).to_numpy()[-1]
             confirmed = current_price > peak and prev_close > (peak * 0.999)
             return PatternResult(
                 name="Double Bottom (Reversal)",
@@ -1418,8 +1418,8 @@ class PatternDetector:
         if slope <= 0:
             return None
 
-        current_price = df["close"][-1]
-        prev_close = df["close"][-2]
+        current_price = df["close"].tail(1).item()
+        prev_close = df["close"].tail(2).to_numpy()[-1]
         entry = resistance * 1.002
         stop = lows[-1]
 
@@ -1454,7 +1454,7 @@ class PatternDetector:
         """
         if len(df) < 25:
             return None
-        recent = df[-30:]
+        recent = df.tail(30)
         highs = recent["high"].to_numpy()
         lows = recent["low"].to_numpy()
 
@@ -1470,9 +1470,9 @@ class PatternDetector:
         if high_coef[0] >= 0:
             return None  # Must slope down
 
-        current_price = df["close"][-1]
+        current_price = df["close"].tail(1).item()
         entry = support * 0.998
-        stop = recent["high"][-10:].max()
+        stop = recent["high"].tail(10).max()
 
         # Ensure target is sufficiently far away from entry
         target_dist = max((recent["high"].max() - support), support * 0.005)
@@ -1484,7 +1484,7 @@ class PatternDetector:
         if r_r < 0.5:
             return None
 
-        prev_close = df["close"][-2]
+        prev_close = df["close"].tail(2).to_numpy()[-1]
         confirmed = current_price < support and prev_close < (support * 1.001)
 
         return PatternResult(
@@ -1625,8 +1625,8 @@ class NeuralRegimeClassifier:
         if len(df) < 50:
             return "INDETERMINATE"
 
-        atr_pct = (df["high"][-20:].max() - df["low"][-20:].min()) / df["close"][-1]
-        vol_ratio = df["volume"][-1] / (df["volume"][-20:].mean() + 1e-10)
+        atr_pct = (df["high"].tail(20).max() - df["low"].tail(20).min()) / df["close"].tail(1).item()
+        vol_ratio = df["volume"].tail(1).item() / (df["volume"].tail(20).mean() + 1e-10)
 
         if atr_pct < 0.015:
             return "LOW_VOL_ACCUMULATION"
@@ -1724,7 +1724,7 @@ class MultiTimeframeAligner:
 
             # Simple trend determination: last close vs. moving average
             if "close" in df.columns:
-                current = df["close"][-1]
+                current = df["close"].tail(1).item()
                 ma = df["close"].rolling_mean(window_size=min(20, len(df)))[-1]
 
                 # Bullish if above MA
