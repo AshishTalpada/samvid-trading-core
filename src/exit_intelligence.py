@@ -30,10 +30,19 @@ class ExitIntelligence:
 
     def __init__(self, config: dict | None = None) -> None:
         self.config = config or {}
-        self.belief_threshold = self.config.get("belief_threshold", 0.35)
+        # HARDENED: Belief threshold aligned with mind_ultrathink (0.15, not 0.35).
+        # Previous 0.35 caused premature exits for scalp patterns in CHOPPY regime.
+        # Belief decays at 2% per adverse tick; 0.5 → 0.35 in ~8 ticks, which
+        # is too aggressive for short-duration patterns.
+        self.belief_threshold = self.config.get("belief_threshold", 0.15)
         self.daily_loss_limit = self.config.get("daily_loss_limit", 0.04)
         self.vix_spike_threshold = self.config.get("vix_spike_threshold", 0.15)
         self.safety_factor = 2.0  # Require expected profit to be 2x slippage+comm
+        
+        # HARDENED: Minimum hold time before belief collapse can trigger (prevent immediate exits)
+        self.min_hold_minutes = self.config.get("min_hold_minutes", 2.0)
+        # HARDENED: Don't exit on belief collapse if already in profit (R > 0.5)
+        self.min_r_for_belief_exit = self.config.get("min_r_for_belief_exit", 0.5)
 
     def evaluate(
         self, position: dict, market: dict, account: dict, dhatu_state: str = "Sthiti"
@@ -48,12 +57,24 @@ class ExitIntelligence:
         P6: Default -> HOLD
         """
 
-        # Unpack critical fields
+        # HARDENED: Input validation with fallbacks
+        if not position or not market:
+            return ExitDecision(
+                action=ExitAction.HOLD, priority=0, reason="Invalid input: position or market is None"
+            )
+
+        # Unpack critical fields with defensive defaults
         current_price = market.get("price", 0.0)
         entry_price = position.get("entry_price", 0.0)
         stop_loss = position.get("stop_loss", 0.0)
         side = position.get("side", "long")
         qty = position.get("quantity", 0.0)
+
+        # HARDENED: Validate critical numeric values
+        if current_price <= 0 or entry_price <= 0:
+            return ExitDecision(
+                action=ExitAction.HOLD, priority=0, reason=f"Invalid prices: current={current_price}, entry={entry_price}"
+            )
 
         if qty == 0:
             return ExitDecision(
@@ -214,7 +235,41 @@ class ExitIntelligence:
         belief = position.get("bayesian_belief")
         if belief is None:
             belief = market.get("belief")
+        
         if belief is not None and belief < self.belief_threshold:
+            # HARDENED: Check minimum hold time before allowing belief collapse exit
+            entry_time = position.get("entry_time")
+            if entry_time:
+                from datetime import datetime
+                hold_minutes = (datetime.now() - entry_time).total_seconds() / 60
+                if hold_minutes < self.min_hold_minutes:
+                    return ExitDecision(
+                        action=ExitAction.HOLD,
+                        priority=5,
+                        reason=f"Belief collapsed ({belief:.2f}) but minimum hold time ({self.min_hold_minutes}m) not yet reached ({hold_minutes:.1f}m)",
+                        confidence=belief,
+                    )
+            
+            # HARDENED: Don't exit on belief collapse if already in profit (R > 0.5)
+            current_price = market.get("price", 0)
+            entry_price = position.get("entry_price", 0)
+            initial_stop = position.get("initial_stop") or position.get("stop_loss", entry_price)
+            initial_risk = abs(entry_price - initial_stop)
+            if initial_risk > 0:
+                side = position.get("side", "long")
+                r_multiple = (
+                    ((current_price - entry_price) / initial_risk)
+                    if side == "long"
+                    else ((entry_price - current_price) / initial_risk)
+                )
+                if r_multiple > self.min_r_for_belief_exit:
+                    return ExitDecision(
+                        action=ExitAction.HOLD,
+                        priority=5,
+                        reason=f"Belief collapsed ({belief:.2f}) but position in profit ({r_multiple:.2f}R > {self.min_r_for_belief_exit}R threshold)",
+                        confidence=belief,
+                    )
+            
             return ExitDecision(
                 action=ExitAction.EXIT,
                 priority=5,
