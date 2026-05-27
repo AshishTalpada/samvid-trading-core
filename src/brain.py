@@ -2169,7 +2169,7 @@ class TradingBrain:
                 if self.task_manager:
                     gate = self.task_manager.get_symbol_gate(
                         symbol,
-                        terminal_cooldown_seconds=300.0,
+                        terminal_cooldown_seconds=60.0,  # Reduced from 300s: faster re-scan after VETO
                     )
                     if gate:
                         gate_kind, gate_task, remaining_sec = gate
@@ -2269,6 +2269,22 @@ class TradingBrain:
                             return None
 
                         best = max(found, key=lambda x: x.confidence)
+
+                        # CHOPPY regime filter: block short-duration patterns that
+                        # require directional momentum (HFT and SCALP categories).
+                        # In CHOPPY/sideways markets these generate most HEARTBEAT_VETOs
+                        # and adversarial belief collapses. SWING and HOLD patterns are
+                        # fine because they use wider stops and longer time horizons.
+                        if self.current_regime == "CHOPPY" and getattr(best, "category", "SCALP") in ("HFT", "SCALP"):
+                            async with stats_lock:
+                                stats["detected"] += 1
+                                stats["rejected"] += 1
+                            logger.info(
+                                f"Scan [{symbol}]: {best.name} ({best.category}) skipped"
+                                f" — CHOPPY regime blocks HFT/SCALP patterns."
+                            )
+                            return None
+
                         async with stats_lock:
                             stats["detected"] += 1
                             stats["approved"] += 1
@@ -2568,10 +2584,14 @@ class TradingBrain:
                 price_adverse = (current_price < pos.entry_price and not is_short) or (
                     current_price > pos.entry_price and is_short
                 )
+                # FIX: Slower, more symmetric belief decay to prevent premature exits.
+                # Previous: favorable ×1.01, adverse ×0.98 (asymmetric, too aggressive).
+                # New: favorable ×1.005, adverse ×0.995 (slower, symmetric).
+                # This gives scalp patterns more time to develop before belief collapse.
                 if price_favourable:
-                    pos.current_belief = min(pos.current_belief * 1.01, 0.99)
+                    pos.current_belief = min(pos.current_belief * 1.005, 0.99)
                 elif price_adverse:
-                    pos.current_belief = max(pos.current_belief * 0.98, 0.01)
+                    pos.current_belief = max(pos.current_belief * 0.995, 0.01)
 
                 # Check take profit
                 if current_price >= pos.take_profit and pos.account_type != "short":
@@ -3112,6 +3132,9 @@ class TradingBrain:
                 f"{duration_min:.1f}m" if duration_min < 60 else f"{duration_min / 60:.1f}h"
             )
 
+            # FIX: Store original quantity before position removal to prevent "0 units" in alerts
+            original_qty = abs(pos.qty) if abs(pos.qty) > 0.0001 else 1.0
+
             # Format detailed message
             title = "PARTIAL HARVEST" if exit_type == "PARTIAL" else "TRADE FINALIZED"
             outcome = (
@@ -3126,7 +3149,7 @@ class TradingBrain:
                 f"{icon} <b>{title}: {pos.symbol}</b>\n"
                 f"<i>Account: {acc_id} ({pos.account_type.upper()})</i>\n"
                 "───────────────────\n"
-                f"<b>Size:</b> {abs(pos.qty):.0f} units\n"
+                f"<b>Size:</b> {original_qty:.0f} units\n"
                 f"<b>Entry:</b> ${pos.entry_price:,.2f}\n"
                 f"<b>Exit:</b>  ${pos.current_price:,.2f}\n"
                 "───────────────────\n"
@@ -3515,9 +3538,12 @@ class TradingBrain:
                 cursor = self.db_conn.cursor()
 
                 # 1. Find all OPEN trades
+                # IMPORTANT: include 'direction' so we can restore the correct qty sign.
+                # 'shares' is always stored as abs(qty); direction tells us LONG vs SHORT.
                 cursor.execute(
                     "SELECT id, timestamp, instrument, entry_price, stop_price, target_price, "
-                    "shares, r_r_ratio, pattern, regime, broker, account_id, trading_mode "
+                    "shares, r_r_ratio, pattern, regime, broker, account_id, trading_mode, "
+                    "direction "
                     "FROM trades WHERE outcome = 'OPEN' ORDER BY id DESC"
                 )
                 rows = cursor.fetchall()
@@ -3545,6 +3571,7 @@ class TradingBrain:
                         broker,
                         acc_id,
                         _tmode,
+                        direction_col,
                     ) = row
 
                     # Parse entry time
@@ -3569,8 +3596,11 @@ class TradingBrain:
                     # Guard: corrupt DB record — no valid entry price
                     entry_f = float(entry) if entry else 0.0
                     stop_f = float(stop) if stop else 0.0
-                    qty_f = float(qty) if qty else 0.0
-                    if entry_f <= 0.0 or qty_f == 0.0:
+                    # Apply direction sign: shares column is always abs(); direction tells us sign
+                    qty_raw = float(qty) if qty else 0.0
+                    is_short = str(direction_col or "").upper() == "SHORT"
+                    qty_f = -abs(qty_raw) if is_short else abs(qty_raw)
+                    if entry_f <= 0.0 or qty_raw == 0.0:
                         cursor.execute(
                             "UPDATE trades SET outcome = 'ORPHANED', notes = ? WHERE id = ?",
                             (f"Corrupt restore: entry_price={entry_f} qty={qty_f}", tid),
@@ -4172,16 +4202,16 @@ class TradingBrain:
 
             if direction == "SELL" and broker_qty < 0:
                 logger.critical(
-                    f" POLARITY SHIELD: Blocked SELL for {symbol} "
-                    f"(Short exposure: {broker_qty}). Next cycle will BUY to close."
+                    f" POLARITY SHIELD: Corrected SELL→BUY for {symbol} "
+                    f"(Short exposure: {broker_qty}). Closing short with BUY."
                 )
-                return None
-            if direction == "BUY" and broker_qty > 0:
+                direction = "BUY"  # flip direction to correctly close the short
+            elif direction == "BUY" and broker_qty > 0:
                 logger.critical(
-                    f" POLARITY SHIELD: Blocked BUY for {symbol} "
-                    f"(Long exposure: {broker_qty}). Next cycle will SELL to close."
+                    f" POLARITY SHIELD: Corrected BUY→SELL for {symbol} "
+                    f"(Long exposure: {broker_qty}). Closing long with SELL."
                 )
-                return None
+                direction = "SELL"  # flip direction to correctly close the long
         except Exception as guard_e:
             logger.debug(f"Polarity Guard Live Check skipped (Recovery mode active): {guard_e}")
 

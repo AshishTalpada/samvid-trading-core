@@ -1301,6 +1301,22 @@ class TradingCoordinator:
         if not (cognitive_only and enough_fast_agreement and pattern_conf >= 65.0):
             return decision
 
+        # STRONG-VETO GUARD: If Mind_Ultrathink's score is below 0.40 the signal is a hard
+        # rejection (stat-prob < 40%).  Do NOT override that — it is the primary cause of
+        # exploration trades with negative expectancy.
+        ut_vote = next(
+            (v for v in all_votes if v.get("agent") == "Mind_Ultrathink"), {}
+        )
+        ut_score = float(ut_vote.get("confidence", 1.0) or 1.0)
+        if ut_score < 0.40:
+            logger.warning(
+                "Coordinator: %s exploration BLOCKED — Mind_Ultrathink hard veto "
+                "(score=%.2f < 0.40 threshold).",
+                symbol,
+                ut_score,
+            )
+            return decision
+
         promoted = dict(decision)
         promoted["decision"] = "EXECUTE"
         promoted["confidence"] = min(0.61, max(float(decision.get("confidence", 0.0) or 0.0), 0.50))

@@ -23,45 +23,40 @@ LOG_DIR.mkdir(exist_ok=True)
 def _kill_existing_engine() -> None:
     """Kill any running main.py instances to prevent duplicate-instance errors."""
     killed: list[int] = []
+    own_pid = os.getpid()
 
-    # 1. tasklist CSV — most reliable on Windows
+    # 1. Single PowerShell WMI call — gets all python PIDs + CommandLines atomically.
+    #    Much faster and more reliable than per-PID wmic queries.
     try:
-        r = subprocess.run(
-            ["tasklist", "/FI", "IMAGENAME eq python.exe", "/FO", "CSV", "/NH"],
-            capture_output=True, text=True, timeout=5,
+        ps_script = (
+            "Get-WmiObject Win32_Process -Filter \"Name='python.exe'\" "
+            "| Select-Object ProcessId,CommandLine "
+            "| ForEach-Object { $_.ProcessId.ToString() + '|' + $_.CommandLine }"
         )
-        pids_alive = set()
+        r = subprocess.run(
+            ["powershell", "-NoProfile", "-Command", ps_script],
+            capture_output=True, text=True, timeout=10,
+        )
         for line in r.stdout.splitlines():
-            line = line.strip().strip('"')
-            parts = [p.strip('"') for p in line.split('","')]
-            if len(parts) >= 2:
-                try:
-                    pids_alive.add(int(parts[1]))
-                except ValueError:
-                    pass
-
-        # 2. wmic to get command lines of those PIDs
-        for pid in list(pids_alive):
-            if pid == os.getpid():
+            line = line.strip()
+            if "|" not in line:
                 continue
+            pid_str, cmdline = line.split("|", 1)
             try:
-                rr = subprocess.run(
-                    ["wmic", "process", "where", f"ProcessId={pid}",
-                     "get", "CommandLine", "/value"],
-                    capture_output=True, text=True, timeout=5,
-                )
-                cmdline = rr.stdout
-                if "main.py" in cmdline and "live_audit_loop" not in cmdline:
-                    subprocess.run(["taskkill", "/F", "/PID", str(pid)],
-                                   capture_output=True)
-                    killed.append(pid)
-                    print(f"  [KILL] Terminated stale engine PID {pid}")
-            except Exception:
-                pass
+                pid = int(pid_str.strip())
+            except ValueError:
+                continue
+            if pid == own_pid:
+                continue
+            if "main.py" in cmdline and "live_audit_loop" not in cmdline:
+                subprocess.run(["taskkill", "/F", "/PID", str(pid)],
+                               capture_output=True)
+                killed.append(pid)
+                print(f"  [KILL] Terminated stale engine PID {pid}")
     except Exception:
         pass
 
-    # 3. Fallback: read PID from .session.bin
+    # 2. Fallback: read PID from .session.bin (sanity-check range to ignore garbage)
     try:
         sentinel = ROOT / ".session.bin"
         if sentinel.exists():
@@ -69,10 +64,12 @@ def _kill_existing_engine() -> None:
             data = sentinel.read_bytes()
             if len(data) >= 4:
                 stored_pid = struct.unpack_from("<I", data, 0)[0]
-                if stored_pid and stored_pid != os.getpid() and stored_pid not in killed:
-                    subprocess.run(["taskkill", "/F", "/PID", str(stored_pid)],
-                                   capture_output=True)
-                    print(f"  [KILL] Terminated session.bin engine PID {stored_pid}")
+                # Valid OS PIDs on Windows are 4–65536; ignore obviously bogus values
+                if 4 <= stored_pid <= 65536 and stored_pid != own_pid and stored_pid not in killed:
+                    r2 = subprocess.run(["taskkill", "/F", "/PID", str(stored_pid)],
+                                        capture_output=True)
+                    if r2.returncode == 0:
+                        print(f"  [KILL] Terminated session.bin engine PID {stored_pid}")
     except Exception:
         pass
 
@@ -121,12 +118,17 @@ IGNORE_PATTERNS = [
 
 _IGNORE_RE = [re.compile(p, re.IGNORECASE) for p in IGNORE_PATTERNS]
 
-ERROR_RE = re.compile(r"\b(ERROR|CRITICAL|Exception|Traceback|raise |assert )\b", re.IGNORECASE)
+ERROR_RE = re.compile(
+    r"(\s-\s(ERROR|CRITICAL)\s-\s|Traceback \(most recent call last\)|^\w+Error:|^\w+Exception:)",
+    re.IGNORECASE,
+)
 WARN_RE  = re.compile(r"\bWARNING\b", re.IGNORECASE)
 OFFLINE_RE = re.compile(
     r"(offline|not connected|connection (failed|refused|lost|closed)|"
-    r"failed to connect|unable to connect|timeout|timed out|"
-    r"IBKR.*not|MT5.*not|Dhatu.*not|OpenBB.*not|SLM.*not)",
+    r"failed to connect|unable to connect|timed? ?out|"
+    r"IBKR.{0,40}not (connected|available|ready|responding)|"
+    r"MT5.{0,40}not (connected|available|ready|responding)|"
+    r"Dhatu.{0,40}not |OpenBB.{0,40}not |SLM.{0,40}not )",
     re.IGNORECASE,
 )
 SERVICE_RE = re.compile(

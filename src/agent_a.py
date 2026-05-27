@@ -466,7 +466,10 @@ class PatternDetector:
         # Entry on breakout above resistance
         entry = resistance * 1.002  # 0.2% above
         stop = flag_period["low"].min()
-        target = entry + (pole_end - pole_start)  # Project pole height
+        pole_height = pole_end - pole_start
+        # Floor: target must be at least 1.5x the risk (viable R:R after spread)
+        min_move_bf = 1.5 * abs(entry - stop)
+        target = entry + max(pole_height, min_move_bf)
 
         r_r = (target - entry) / (entry - stop + 1e-10)
 
@@ -518,7 +521,10 @@ class PatternDetector:
         # Entry on breakdown
         entry = support * 0.998
         stop = flag_period["high"].max()
-        target = entry - (pole_start - pole_end)
+        pole_height = pole_start - pole_end
+        # Floor: target must be at least 1.5x the risk (viable R:R after spread)
+        min_move_bf = 1.5 * abs(stop - entry)
+        target = entry - max(pole_height, min_move_bf)
 
         r_r = (entry - target) / (stop - entry + 1e-10)
         prev_close = df["close"][-2]
@@ -582,7 +588,10 @@ class PatternDetector:
         current_price = df["close"][-1]
         entry = neckline * 0.998  # Enter on neckline break
         stop = head_price
-        target = entry - (head_price - neckline)  # Project pattern height
+        pattern_height = head_price - neckline
+        # Floor: target must be at least 1.5x the risk (viable R:R after spread)
+        min_move_hs = 1.5 * abs(stop - entry)
+        target = entry - max(pattern_height, min_move_hs)
 
         r_r = (entry - target) / (stop - entry + 1e-10)
         prev_close = df["close"][-2]
@@ -650,7 +659,9 @@ class PatternDetector:
         entry = resistance * 1.005  # Breakout above
         stop = np.polyval(low_coef, len(lows) - 1)
         wedge_height = recent["high"].max() - recent["low"].min()
-        target = entry + wedge_height
+        # Floor: target must be at least 1.5x the risk (viable R:R after spread)
+        min_move_fw = 1.5 * abs(entry - stop)
+        target = entry + max(wedge_height, min_move_fw)
 
         r_r = (target - entry) / (entry - stop + 1e-10)
         prev_close = df["close"][-2]
@@ -697,7 +708,10 @@ class PatternDetector:
 
         entry = support * 0.995  # Breakdown
         stop = np.polyval(high_coef, len(highs) - 1)
-        target = entry - (recent["high"].max() - recent["low"].min())
+        wedge_height_rw = recent["high"].max() - recent["low"].min()
+        # Floor: target must be at least 1.5x the risk (viable R:R after spread)
+        min_move_rw = 1.5 * abs(stop - entry)
+        target = entry - max(wedge_height_rw, min_move_rw)
 
         r_r = (entry - target) / (stop - entry + 1e-10)
         prev_close = df["close"][-2]
@@ -1110,7 +1124,13 @@ class PatternDetector:
 
         entry = pivot_resistance * 1.001
         stop = np.min(c3)
-        target = entry + (np.max(c1) - np.min(c1))  # Target is height of first base
+        # Minervini measured-move target: project full base depth (base_low → pivot) above breakout.
+        # Using only c1 range underestimates the target when c1 is a tight squeeze window.
+        base_low = float(np.min(data))
+        measured_move = float(pivot_resistance) - base_low
+        # Minimum target = 1.5× the risk (ensures viable R:R after spread deduction)
+        min_move_for_rr = 1.5 * abs(float(entry) - float(stop))
+        target = entry + max(measured_move, min_move_for_rr)
 
         r_r = abs(target - entry) / abs(entry - stop + 1e-10)
 
@@ -1405,7 +1425,9 @@ class PatternDetector:
 
         # Ensure target is sufficiently far away from entry
         target_dist = max((resistance - lows[0]), resistance * 0.005)
-        target = entry + target_dist
+        # Floor: target must be at least 1.5x the risk (viable R:R after spread)
+        min_move_at = 1.5 * abs(entry - stop)
+        target = entry + max(target_dist, min_move_at)
 
         r_r = (target - entry) / (entry - stop) if entry > stop else 0.0
         if r_r < 0.5:
@@ -1454,7 +1476,9 @@ class PatternDetector:
 
         # Ensure target is sufficiently far away from entry
         target_dist = max((recent["high"].max() - support), support * 0.005)
-        target = entry - target_dist
+        # Floor: target must be at least 1.5x the risk (viable R:R after spread)
+        min_move_dt = 1.5 * abs(stop - entry)
+        target = entry - max(target_dist, min_move_dt)
 
         r_r = (entry - target) / (stop - entry) if stop > entry else 0.0
         if r_r < 0.5:

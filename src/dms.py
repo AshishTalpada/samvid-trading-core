@@ -375,7 +375,14 @@ class DMSMonitor:
                                     ticker = await asyncio.to_thread(
                                         self.ibkr_client.ticker, pos.contract
                                     )
-                                    price = ticker.last or ticker.close or pos.avgCost
+                                    # Guard against None ticker (IBKR returns None if market data not subscribed)
+                                    if ticker is not None:
+                                        price = ticker.last or ticker.close or pos.avgCost
+                                    else:
+                                        logger.warning(
+                                            f"DMS: ticker returned None for {pos.contract.symbol}, using avgCost fallback."
+                                        )
+                                        price = pos.avgCost
 
                                     from ib_insync import LimitOrder, MarketOrder
 
