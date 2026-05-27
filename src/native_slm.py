@@ -52,7 +52,7 @@ class NativeSLM:
         self._compat_mode = False
         self._status_detail = "offline"
         self._startup_timeout = float(os.environ.get("SOVEREIGN_SLM_STARTUP_TIMEOUT", "45"))
-        self._inference_timeout = float(os.environ.get("SOVEREIGN_SLM_TIMEOUT", "8"))
+        self._inference_timeout = float(os.environ.get("SOVEREIGN_SLM_TIMEOUT", "30"))
         self._quarantine_path = Path(
             os.environ.get("SOVEREIGN_SLM_QUARANTINE_FILE", "data/native_slm_quarantine.json")
         )
