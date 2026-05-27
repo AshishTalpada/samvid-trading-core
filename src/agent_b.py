@@ -457,8 +457,8 @@ class BayesianBeliefTracker:
                 price_change = (last_close - prev_close) / (prev_close + 1e-10)
 
                 # Volatility (20-bar range)
-                h20 = float(ohlcv["high"][-20:].max())
-                l20 = float(ohlcv["low"][-20:].min())
+                h20 = float(ohlcv["high"].tail(20).max())
+                l20 = float(ohlcv["low"].tail(20).min())
                 volatility = (h20 - l20) / (last_close + 1e-10)
 
                 # Volume Ratio
