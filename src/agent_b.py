@@ -452,8 +452,8 @@ class BayesianBeliefTracker:
         if ohlcv is not None and len(ohlcv) >= 5:
             try:
                 # 1. Market Data Extraction
-                last_close = float(ohlcv["close"][-1])
-                prev_close = float(ohlcv["close"][-2])
+                last_close = float(ohlcv["close"].tail(1).item())
+                prev_close = float(ohlcv["close"].tail(2).to_numpy()[-1])
                 price_change = (last_close - prev_close) / (prev_close + 1e-10)
 
                 # Volatility (20-bar range)
@@ -462,8 +462,8 @@ class BayesianBeliefTracker:
                 volatility = (h20 - l20) / (last_close + 1e-10)
 
                 # Volume Ratio
-                avg_vol = float(ohlcv["volume"][-20:].mean())
-                curr_vol = float(ohlcv["volume"][-1])
+                avg_vol = float(ohlcv["volume"].tail(20).mean())
+                curr_vol = float(ohlcv["volume"].tail(1).item())
                 vol_ratio = curr_vol / (avg_vol + 1e-10)
 
                 # 2. Dhatu Classification

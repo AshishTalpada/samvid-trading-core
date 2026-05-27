@@ -3766,8 +3766,8 @@ class TradingBrain:
             if snapshot["price"] is None:
                 df = await self._fetch_ohlcv(symbol)  # type: ignore
                 if df is not None and not isinstance(df, str) and len(df) > 0:
-                    latest_close = float(df["close"][-1])
-                    prev_close = float(df["close"][-2]) if len(df) > 1 else latest_close
+                    latest_close = float(df["close"].tail(1).item())
+                    prev_close = float(df["close"].tail(2).to_numpy()[-1]) if len(df) > 1 else latest_close
 
                     snapshot["price"] = latest_close
                     snapshot["price_change_pct"] = (latest_close - prev_close) / (
