@@ -7,7 +7,9 @@ that is independent of the main Brain orchestrator.
 
 from __future__ import annotations
 
+import asyncio
 import logging
+import time
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from enum import Enum
@@ -262,3 +264,104 @@ class ConsecutiveLossTracker:
         if pause and datetime.now(timezone.utc) < pause:
             return False
         return True
+
+
+
+@dataclass
+class MorningBudget:
+    """Daily risk budget set by Agent A at 8 AM ET."""
+
+    max_trades: int = 2
+    min_catalyst: int = 70
+    max_risk_per_trade_pct: float = 0.02
+    max_daily_risk_pct: float = 0.04
+    regime: str = "UNKNOWN"
+    generated_at: datetime | None = None
+
+    def generate(
+        self,
+        regime: str,
+        consecutive_losses: int,
+        dd_level: DrawdownLevel,
+        breadth_score: float = 50.0,
+        fomc_proximity_days: int = 30,
+    ) -> None:
+        """Generate morning budget based on current conditions."""
+        self.regime = regime
+        self.generated_at = datetime.now(timezone.utc)
+
+        # Base config by regime
+        regime_config = {
+            "BULL": {"max_trades": 20, "min_catalyst": 55, "risk_pct": 0.02},
+            "TRENDING": {"max_trades": 15, "min_catalyst": 58, "risk_pct": 0.018},
+            "CHOPPY": {"max_trades": 10, "min_catalyst": 58, "risk_pct": 0.015},
+            "VOLATILE": {"max_trades": 10, "min_catalyst": 60, "risk_pct": 0.01},
+            "BEAR": {"max_trades": 8, "min_catalyst": 58, "risk_pct": 0.005},
+        }
+
+        config = regime_config.get(regime, regime_config["CHOPPY"])
+        self.max_trades = int(config["max_trades"])
+        self.min_catalyst = int(config["min_catalyst"])
+        self.max_risk_per_trade_pct = float(config["risk_pct"])
+
+        # Consecutive loss modifier
+        if consecutive_losses >= 3:
+            self.max_trades = min(self.max_trades, 1)
+            self.min_catalyst += 10
+        elif consecutive_losses >= 2:
+            self.min_catalyst += 5
+
+        # Drawdown modifier
+        if dd_level in (DrawdownLevel.ORANGE, DrawdownLevel.RED):
+            self.max_trades = 0
+        elif dd_level == DrawdownLevel.YELLOW:
+            self.max_trades = min(self.max_trades, 1)
+            self.min_catalyst += 5
+
+        # FOMC proximity (within 2 days)
+        if fomc_proximity_days <= 2:
+            self.max_trades = min(self.max_trades, 1)
+            self.min_catalyst += 10
+
+        # Low breadth modifier
+        if breadth_score < 40:
+            self.min_catalyst += 5
+
+        # Broker-specific max trade cap (IBKR paper/live is not FTMO constrained)
+        from config import IBKR_MAX_TRADES_PER_DAY
+        self.max_trades = min(self.max_trades, IBKR_MAX_TRADES_PER_DAY)
+
+        logger.info(
+            f"Morning Budget: regime={regime} max_trades={self.max_trades} "
+            f"min_catalyst={self.min_catalyst} max_risk={self.max_risk_per_trade_pct:.2%}"
+        )
+
+
+class TokenBucketRateLimiter:
+    """
+    Asynchronous Token Bucket for IBKR 50 msgs/sec limit protection.
+    Caps order routing to a safe burst frequency.
+    """
+
+    def __init__(self, rate: float, capacity: int) -> None:
+        self.rate = rate
+        self.capacity = capacity
+        self.tokens = float(capacity)
+        self.last_update = time.monotonic()
+        self.lock = asyncio.Lock()
+
+    async def acquire(self) -> None:
+        """Wait until a token is available, then consume it."""
+        while True:
+            async with self.lock:
+                now = time.monotonic()
+                elapsed = now - self.last_update
+                self.tokens = min(float(self.capacity), self.tokens + elapsed * self.rate)
+                self.last_update = now
+
+                if self.tokens >= 1.0:
+                    self.tokens -= 1.0
+                    return
+
+                # Calculate wait time for the next token
+            await asyncio.sleep(0.01)
