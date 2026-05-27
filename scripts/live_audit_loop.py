@@ -118,7 +118,10 @@ IGNORE_PATTERNS = [
 
 _IGNORE_RE = [re.compile(p, re.IGNORECASE) for p in IGNORE_PATTERNS]
 
-ERROR_RE = re.compile(r"\b(ERROR|CRITICAL|Exception|Traceback|raise |assert )\b", re.IGNORECASE)
+ERROR_RE = re.compile(
+    r"(\s-\s(ERROR|CRITICAL)\s-\s|Traceback \(most recent call last\)|^\w+Error:|^\w+Exception:)",
+    re.IGNORECASE,
+)
 WARN_RE  = re.compile(r"\bWARNING\b", re.IGNORECASE)
 OFFLINE_RE = re.compile(
     r"(offline|not connected|connection (failed|refused|lost|closed)|"
