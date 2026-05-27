@@ -14,16 +14,19 @@ async def test_qdb_handshake() -> None:
     qdb = QuestDBAdapter(host="localhost", ilp_port=9009, enabled=True)
     await qdb.start()
 
-    # We don't assert live connection since local dev might not have QDB running
-    # but we check if the class initialized correctly.
-    assert qdb.host == "localhost"
+    try:
+        # We don't assert live connection since local dev might not have QDB running
+        # but we check if the class initialized correctly.
+        assert qdb.host == "localhost"
 
-    if qdb.enabled and not qdb.is_simulated:
-        print("✅ SUCCESS: QuestDB is LIVE and REACHABLE.")
-    elif qdb.is_simulated:
-        print("✅ NOTE: QuestDB is in SIMULATED mode (Expected if local).")
-    else:
-        print("❌ FAILED: QuestDB is DISABLED.")
+        if qdb.enabled and not qdb.is_simulated:
+            print("✅ SUCCESS: QuestDB is LIVE and REACHABLE.")
+        elif qdb.is_simulated:
+            print("✅ NOTE: QuestDB is in SIMULATED mode (Expected if local).")
+        else:
+            print("❌ FAILED: QuestDB is DISABLED.")
+    finally:
+        await qdb.stop()
 
 
 if __name__ == "__main__":
