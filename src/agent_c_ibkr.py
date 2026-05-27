@@ -1497,12 +1497,41 @@ class VIXProtocol:
         return "CONTINUE"
 
 
+SECTOR_MAP = {
+    "AAPL": "TECH", "MSFT": "TECH", "GOOGL": "TECH", "GOOG": "TECH",
+    "AMZN": "TECH", "META": "TECH", "NVDA": "TECH", "TSLA": "TECH",
+    "AMD": "TECH", "INTC": "TECH", "CRM": "TECH", "ORCL": "TECH",
+    "ADBE": "TECH", "AVGO": "TECH", "QCOM": "TECH", "TXN": "TECH",
+    "NFLX": "TECH", "UBER": "TECH", "ABNB": "TECH", "PYPL": "TECH",
+    "JPM": "FIN", "BAC": "FIN", "WFC": "FIN", "GS": "FIN",
+    "MS": "FIN", "C": "FIN", "BLK": "FIN", "AXP": "FIN",
+    "V": "FIN", "MA": "FIN", "COF": "FIN", "SPGI": "FIN",
+    "JNJ": "HEALTH", "PFE": "HEALTH", "UNH": "HEALTH", "ABBV": "HEALTH",
+    "MRK": "HEALTH", "LLY": "HEALTH", "TMO": "HEALTH", "ABT": "HEALTH",
+    "DHR": "HEALTH", "BMY": "HEALTH", "AMGN": "HEALTH", "GILD": "HEALTH",
+    "XOM": "ENERGY", "CVX": "ENERGY", "COP": "ENERGY", "EOG": "ENERGY",
+    "SLB": "ENERGY", "OXY": "ENERGY", "MPC": "ENERGY", "VLO": "ENERGY",
+    "WMT": "CONS", "COST": "CONS", "HD": "CONS", "LOW": "CONS",
+    "TGT": "CONS", "PG": "CONS", "KO": "CONS", "PEP": "CONS",
+    "MCD": "CONS", "SBUX": "CONS", "NKE": "CONS", "TJX": "CONS",
+    "GE": "IND", "CAT": "IND", "HON": "IND", "UPS": "IND",
+    "BA": "IND", "RTX": "IND", "LMT": "IND", "DE": "IND",
+    "MMM": "IND", "CSX": "IND", "UNP": "IND", "FDX": "IND",
+    "SPY": "BROAD", "QQQ": "BROAD", "IWM": "BROAD", "VTI": "BROAD",
+    "DIA": "BROAD", "VOO": "BROAD", "IVV": "BROAD", "VTV": "BROAD",
+}
+
+
+def _get_sector(symbol: str) -> str:
+    return SECTOR_MAP.get(symbol.upper(), symbol.upper())
+
+
 class CorrelationCascade:
     def check_exposure(self, symbol: str, positions: list[Any], equity: float) -> bool:
-        # Prevent more than 30% exposure in a single sector (first 2 chars of symbol)
-        sector = symbol[:2]
+        # Prevent more than 30% exposure in a single sector using real sector map
+        sector = _get_sector(symbol)
         sector_exposure = sum(
-            abs(p.qty * p.entry_price) for p in positions if p.symbol[:2] == sector
+            abs(p.qty * p.entry_price) for p in positions if _get_sector(p.symbol) == sector
         )
         if sector_exposure / max(equity, 1) > 0.35:
             return False
