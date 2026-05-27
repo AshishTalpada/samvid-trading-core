@@ -337,6 +337,33 @@ class TradingBrain:
         self.belief_tracker = BayesianBeliefTracker(prior=0.50)
         self.abhava_detector = ABHAVADetector()
 
+        # Advisory agents: non-blocking signals that feed into decision context
+        # but do NOT have veto power over the primary A-E quorum.
+        try:
+            from contrarian_agent import ContrarianAgent
+            self.contrarian_agent = ContrarianAgent()
+        except Exception as _ca_err:
+            logger.warning(f"ContrarianAgent init skipped: {_ca_err}")
+            self.contrarian_agent = None
+        try:
+            from chaos_agent import ChaosAgent
+            self.chaos_agent = ChaosAgent()
+        except Exception as _cha_err:
+            logger.warning(f"ChaosAgent init skipped: {_cha_err}")
+            self.chaos_agent = None
+        try:
+            from contagion_sentinel import ContagionSentinel
+            self.contagion_sentinel = ContagionSentinel()
+        except Exception as _cs_err:
+            logger.warning(f"ContagionSentinel init skipped: {_cs_err}")
+            self.contagion_sentinel = None
+        try:
+            from audit_agent import AuditAgent
+            self.audit_agent = AuditAgent()
+        except Exception as _aa_err:
+            logger.warning(f"AuditAgent init skipped: {_aa_err}")
+            self.audit_agent = None
+
         self.ibkr_conn = IBKRConnection(ibkr_client)
         self.ibkr_conn.brain = self
         self.ibkr_sizer = PositionSizingChain()
