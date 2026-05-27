@@ -240,8 +240,9 @@ class ExitIntelligence:
             # HARDENED: Check minimum hold time before allowing belief collapse exit
             entry_time = position.get("entry_time")
             if entry_time:
-                from datetime import datetime
-                hold_minutes = (datetime.now() - entry_time).total_seconds() / 60
+                from datetime import datetime, timezone
+                now = datetime.now(timezone.utc) if getattr(entry_time, "tzinfo", None) else datetime.now()
+                hold_minutes = (now - entry_time).total_seconds() / 60
                 if hold_minutes < self.min_hold_minutes:
                     return ExitDecision(
                         action=ExitAction.HOLD,
