@@ -565,7 +565,7 @@ class PatternDetector:
             return None
 
         # Validate H&S structure: left shoulder, head, right shoulder
-        peaks = sorted(peaks, key=lambda x: x[1], reverse=True)
+        peaks = sorted(peaks, key=lambda x: x[0])
         head_idx, head_price = peaks[0]
 
         # Find shoulders (lower than head, roughly symmetric)
