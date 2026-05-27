@@ -38,7 +38,7 @@ class ExitIntelligence:
         self.daily_loss_limit = self.config.get("daily_loss_limit", 0.04)
         self.vix_spike_threshold = self.config.get("vix_spike_threshold", 0.15)
         self.safety_factor = 2.0  # Require expected profit to be 2x slippage+comm
-        
+
         # HARDENED: Minimum hold time before belief collapse can trigger (prevent immediate exits)
         self.min_hold_minutes = self.config.get("min_hold_minutes", 2.0)
         # HARDENED: Don't exit on belief collapse if already in profit (R > 0.5)
@@ -235,7 +235,7 @@ class ExitIntelligence:
         belief = position.get("bayesian_belief")
         if belief is None:
             belief = market.get("belief")
-        
+
         if belief is not None and belief < self.belief_threshold:
             # HARDENED: Check minimum hold time before allowing belief collapse exit
             entry_time = position.get("entry_time")
@@ -249,7 +249,7 @@ class ExitIntelligence:
                         reason=f"Belief collapsed ({belief:.2f}) but minimum hold time ({self.min_hold_minutes}m) not yet reached ({hold_minutes:.1f}m)",
                         confidence=belief,
                     )
-            
+
             # HARDENED: Don't exit on belief collapse if already in profit (R > 0.5)
             current_price = market.get("price", 0)
             entry_price = position.get("entry_price", 0)
@@ -269,7 +269,7 @@ class ExitIntelligence:
                         reason=f"Belief collapsed ({belief:.2f}) but position in profit ({r_multiple:.2f}R > {self.min_r_for_belief_exit}R threshold)",
                         confidence=belief,
                     )
-            
+
             return ExitDecision(
                 action=ExitAction.EXIT,
                 priority=5,
