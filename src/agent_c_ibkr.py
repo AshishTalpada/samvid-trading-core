@@ -1289,8 +1289,11 @@ class PositionSizingChain:
 
         # We apply a high 'Safety Floor' (0.8) to bypass the ghost loss memory
         # while keeping the logic dynamic enough for the Phantom Probe monitor.
-        dd_mod = max(0.8, kwargs.get("drawdown_modifier", 1.0))
-        loss_mod = max(0.8, kwargs.get("loss_modifier", 1.0))
+        # Apply drawdown/loss modifiers: <1.0 REDUCES size during losses,
+        # >1.0 is allowed for verified winning streaks. Floor at 0.5 to
+        # prevent total paralysis; cap at 1.5 to prevent runaway.
+        dd_mod = min(max(kwargs.get("drawdown_modifier", 1.0), 0.5), 1.5)
+        loss_mod = min(max(kwargs.get("loss_modifier", 1.0), 0.5), 1.5)
 
         base_risk_limit = balance * RISK_PER_TRADE_PCT if RISK_PER_TRADE_PCT > 0 else balance * 0.01
         self_risk_limit = base_risk_limit * max(1.0, bounded_regime_mod)
