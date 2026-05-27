@@ -453,9 +453,9 @@ class TradingCoordinator:
                         # 2. Derive context for Agent A
                         tension = (
                             self.brain.dhatu_oracle.calculate_spread_tension(
-                                bid=float(ohlcv_1m["low"][-1]),
-                                ask=float(ohlcv_1m["high"][-1]),
-                                volume=float(ohlcv_1m["volume"][-1]),
+                                bid=float(ohlcv_1m["low"].tail(1).item()),
+                                ask=float(ohlcv_1m["high"].tail(1).item()),
+                                volume=float(ohlcv_1m["volume"].tail(1).item()),
                             )
                             if self.brain.dhatu_oracle
                             else 0.0
@@ -494,10 +494,10 @@ class TradingCoordinator:
                                 )
                         except Exception:
                             trend_5d = (
-                                "bull" if ohlcv_1m["close"][-1] > ohlcv_1m["close"][-5] else "bear"
+                                "bull" if ohlcv_1m["close"].tail(1).item() > ohlcv_1m["close"].tail(5).to_numpy()[-1] else "bear"
                             )
                             trend_1m = (
-                                "bull" if ohlcv_1m["close"][-1] > ohlcv_1m["close"][-20] else "bear"
+                                "bull" if ohlcv_1m["close"].tail(1).item() > ohlcv_1m["close"].tail(20).to_numpy()[-1] else "bear"
                             )
 
                         # 3. Dynamic ATR for sizing resonance
@@ -527,7 +527,7 @@ class TradingCoordinator:
                             regime_classifier=self.brain.regime_classifier_neural,
                             ohlcv_df=ohlcv_1m,
                             volume_surge=(
-                                ohlcv_1m["volume"][-1] > ohlcv_1m["volume"][-20:-1].mean() * 2.0
+                                ohlcv_1m["volume"].tail(1).item() > ohlcv_1m["volume"][-20:-1].mean() * 2.0
                             ),
                             trend_5d=trend_5d,
                             trend_1m=trend_1m,
