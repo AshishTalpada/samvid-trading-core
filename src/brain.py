@@ -2169,7 +2169,7 @@ class TradingBrain:
                 if self.task_manager:
                     gate = self.task_manager.get_symbol_gate(
                         symbol,
-                        terminal_cooldown_seconds=300.0,
+                        terminal_cooldown_seconds=60.0,  # Reduced from 300s: faster re-scan after VETO
                     )
                     if gate:
                         gate_kind, gate_task, remaining_sec = gate
@@ -2269,6 +2269,22 @@ class TradingBrain:
                             return None
 
                         best = max(found, key=lambda x: x.confidence)
+
+                        # CHOPPY regime filter: block short-duration patterns that
+                        # require directional momentum (HFT and SCALP categories).
+                        # In CHOPPY/sideways markets these generate most HEARTBEAT_VETOs
+                        # and adversarial belief collapses. SWING and HOLD patterns are
+                        # fine because they use wider stops and longer time horizons.
+                        if self.current_regime == "CHOPPY" and getattr(best, "category", "SCALP") in ("HFT", "SCALP"):
+                            async with stats_lock:
+                                stats["detected"] += 1
+                                stats["rejected"] += 1
+                            logger.info(
+                                f"Scan [{symbol}]: {best.name} ({best.category}) skipped"
+                                f" — CHOPPY regime blocks HFT/SCALP patterns."
+                            )
+                            return None
+
                         async with stats_lock:
                             stats["detected"] += 1
                             stats["approved"] += 1
@@ -2568,10 +2584,14 @@ class TradingBrain:
                 price_adverse = (current_price < pos.entry_price and not is_short) or (
                     current_price > pos.entry_price and is_short
                 )
+                # FIX: Slower, more symmetric belief decay to prevent premature exits.
+                # Previous: favorable ×1.01, adverse ×0.98 (asymmetric, too aggressive).
+                # New: favorable ×1.005, adverse ×0.995 (slower, symmetric).
+                # This gives scalp patterns more time to develop before belief collapse.
                 if price_favourable:
-                    pos.current_belief = min(pos.current_belief * 1.01, 0.99)
+                    pos.current_belief = min(pos.current_belief * 1.005, 0.99)
                 elif price_adverse:
-                    pos.current_belief = max(pos.current_belief * 0.98, 0.01)
+                    pos.current_belief = max(pos.current_belief * 0.995, 0.01)
 
                 # Check take profit
                 if current_price >= pos.take_profit and pos.account_type != "short":
@@ -3112,6 +3132,9 @@ class TradingBrain:
                 f"{duration_min:.1f}m" if duration_min < 60 else f"{duration_min / 60:.1f}h"
             )
 
+            # FIX: Store original quantity before position removal to prevent "0 units" in alerts
+            original_qty = abs(pos.qty) if abs(pos.qty) > 0.0001 else 1.0
+
             # Format detailed message
             title = "PARTIAL HARVEST" if exit_type == "PARTIAL" else "TRADE FINALIZED"
             outcome = (
@@ -3126,7 +3149,7 @@ class TradingBrain:
                 f"{icon} <b>{title}: {pos.symbol}</b>\n"
                 f"<i>Account: {acc_id} ({pos.account_type.upper()})</i>\n"
                 "───────────────────\n"
-                f"<b>Size:</b> {abs(pos.qty):.0f} units\n"
+                f"<b>Size:</b> {original_qty:.0f} units\n"
                 f"<b>Entry:</b> ${pos.entry_price:,.2f}\n"
                 f"<b>Exit:</b>  ${pos.current_price:,.2f}\n"
                 "───────────────────\n"
