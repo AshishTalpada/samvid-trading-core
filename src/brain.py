@@ -212,7 +212,7 @@ class DrawdownLadder:
             return DrawdownLevel.NORMAL
 
         dd_pct = (self.peak_equity - equity) / self.peak_equity
-        thresholds = self.PROP_THRESHOLDS if self.account_type == "prop" else self.IBKR_THRESHOLDS
+        thresholds = self._get_thresholds(self.peak_equity)
 
         old_level = self.level
 
