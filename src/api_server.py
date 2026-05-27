@@ -92,6 +92,15 @@ class APIServer:
             if any(v in ["DISCONNECTED", "DOWN", "OFFLINE"] for v in components.values()):
                 status = "DEGRADED"
 
+            # Advisory agents (non-blocking, intelligence-only)
+            brain = getattr(self.system, "brain", None) or self.system
+            advisory = {}
+            for agent_name in ("contrarian_agent", "chaos_agent", "contagion_sentinel", "audit_agent"):
+                agent = getattr(brain, agent_name, None)
+                advisory[agent_name] = "UP" if agent is not None else "DOWN"
+
+            components["advisory_agents"] = advisory
+
             return {
                 "status": status,
                 "timestamp": time.time_ns(),
