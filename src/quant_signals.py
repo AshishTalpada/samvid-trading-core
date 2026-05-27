@@ -53,8 +53,8 @@ class RegimeFilter:
             returns = np.diff(np.log(np.abs(prices) + 1e-10)).reshape(-1, 1)
             returns = returns[np.isfinite(returns).all(axis=1)]
 
-            if len(returns) < 500:
-                logger.warning(f"RegimeFilter: insufficient data ({len(returns)} < 500)")
+            if len(returns) < 100:
+                logger.warning(f"RegimeFilter: insufficient data ({len(returns)} < 100)")
                 return
 
             # Statistical Floor: Reject if variance is too low (e.g., flat market/bad data)
