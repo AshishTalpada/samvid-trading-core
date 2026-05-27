@@ -369,9 +369,11 @@ class ConsecutiveLossTracker:
             return 0.50
 
         if self.win_streak >= 3:
-            # 1.2x for streak 3, 1.4x for streak 4, up to 2.0x cap
-            multiplier = 1.0 + (min(self.win_streak, 8) - 3) * 0.2
-            return min(float(multiplier), 2.0)
+            # Capped compounding: max 1.15x (15% boost) to prevent runaway sizing.
+            # Previously uncapped up to 2.0x — a 5-win streak could double position size
+            # beyond the F6 Kelly chain limits, bypassing risk controls.
+            multiplier = 1.0 + (min(self.win_streak, 4) - 3) * 0.05
+            return min(float(multiplier), 1.15)
 
         return 1.0
 
@@ -4664,6 +4666,8 @@ class TradingBrain:
             self._oracle_dhatu = "Abhava"
         elif self.loss_tracker.win_streak >= 3:
             # We are in a groove, maintain or shift to Vriddhi
+            # NOTE: size modifier is HARD CAPPED at 1.15x — state is psychological,
+            #       not a license to bypass risk limits.
             if self._oracle_dhatu != "Vriddhi":
                 logger.info(
                     f" WIN STREAK ({self.loss_tracker.win_streak}): Shifting to VRIDDHI state."
