@@ -88,6 +88,7 @@ Thumbs.db
 !/.env.example
 !/README.md
 !/CHANGELOG.md
+!/AGENTS.md
 !/pyproject.toml
 
 # Local roadmaps, plans, checklists, audits, backups and recovery reports
