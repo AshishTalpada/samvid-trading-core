@@ -185,6 +185,20 @@ class DrawdownLadder:
         DrawdownLevel.RED: 0.09,
     }
 
+    def _get_thresholds(self, peak: float) -> dict:
+        """Scale thresholds to account size: tighter for small accounts."""
+        base = self.PROP_THRESHOLDS if self.account_type == "prop" else self.IBKR_THRESHOLDS
+        # For accounts under $2K, compress RED/ORANGE to prevent catastrophic loss
+        if peak < 2000:
+            scale = max(0.5, peak / 2000)  # 0.5x at near-zero, 1.0x at $2K
+            return {
+                DrawdownLevel.NORMAL: base[DrawdownLevel.NORMAL],
+                DrawdownLevel.YELLOW: base[DrawdownLevel.YELLOW] * scale,
+                DrawdownLevel.ORANGE: base[DrawdownLevel.ORANGE] * scale,
+                DrawdownLevel.RED: base[DrawdownLevel.RED] * scale,
+            }
+        return base
+
     def update(self, equity: float) -> DrawdownLevel:
         """Update drawdown state and return current level."""
         if self.peak_equity == 0:
