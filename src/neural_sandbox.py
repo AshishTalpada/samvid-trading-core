@@ -19,10 +19,10 @@ def _safe_int_env(name: str, default: int, minimum: int, maximum: int) -> int:
 
 def _load_model(model_path: str) -> tuple[Llama, dict[str, int]]:
     n_ctx = _safe_int_env("SOVEREIGN_SLM_N_CTX", 256, 128, 1024)
-    n_threads = _safe_int_env("SOVEREIGN_SLM_THREADS", 4, 1, 4)
+    n_threads = _safe_int_env("SOVEREIGN_SLM_THREADS", 4, 1, 8)
     n_gpu_layers = _safe_int_env("SOVEREIGN_SLM_GPU_LAYERS", 0, 0, 99)
-    n_batch = _safe_int_env("SOVEREIGN_SLM_N_BATCH", 4, 1, 16)
-    n_ubatch = _safe_int_env("SOVEREIGN_SLM_N_UBATCH", min(n_batch, 4), 1, n_batch)
+    n_batch = _safe_int_env("SOVEREIGN_SLM_N_BATCH", 64, 1, 512)
+    n_ubatch = _safe_int_env("SOVEREIGN_SLM_N_UBATCH", min(n_batch, 32), 1, n_batch)
 
     kwargs: dict[str, Any] = {
         "model_path": model_path,
