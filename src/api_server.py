@@ -898,6 +898,7 @@ class APIServer:
 
                 # 4. Populate Evolutionary Data
                 if hasattr(brain, "evolution_manager") and brain.evolution_manager:
+                    ev_conn = None
                     try:
                         ev_conn = sqlite3.connect(brain.evolution_manager.db_path, timeout=60)
                         ev_conn.execute("PRAGMA journal_mode=WAL;")
@@ -911,9 +912,11 @@ class APIServer:
                             r[0]: {"value": r[1], "confidence": r[2], "last_updated": r[3]}
                             for r in rows
                         }
-                        ev_conn.close()
                     except Exception as e:
                         logger.warning(f"API Server: Evolution data fetch failed: {e}")
+                    finally:
+                        if ev_conn is not None:
+                            ev_conn.close()
 
                 brain_data["minds"] = {
                     "architect": "ACTIVE" if hasattr(brain, "mind_architect") else "STANDBY",
