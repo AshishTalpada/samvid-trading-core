@@ -1126,15 +1126,12 @@ class IBKRConnection:
 
         for symbol in symbols:
             if symbol not in self._warm_slots:
-                contract = self._qualified_contracts.get(symbol, Stock(symbol, "SMART", "USD"))
-                # Place a 'Placeholder' order very far from market to avoid fill
-                order = LimitOrder("BUY", 1, 0.01)  # $0.01 Placeholder
-                trade = self.ib.placeOrder(contract, order)
-                self._warm_slots[symbol] = trade
+                # SAFETY: Do NOT place live orders for warm slots.
+                # and bypass paper-mode leakage.
+                self._warm_slots[symbol] = None
                 logger.debug(
-                    f"IBKR: Warm-Slot initialized for {symbol} (Order ID: {trade.order.orderId})"
+                    f"IBKR: Warm-Slot tracked internally for {symbol} (no live order placed)"
                 )
-
     async def _execute_via_warm_slot(
         self, symbol: str, direction: str, shares: int, price: float
     ) -> int | None:
@@ -1143,6 +1140,10 @@ class IBKRConnection:
             return None
 
         trade = self._warm_slots[symbol]
+        # If warm slot is None (safety mode: no dormant orders placed),
+        # fall back to a normal fresh order instead of modifying.
+        if trade is None:
+            return None
         status = getattr(getattr(trade, "orderStatus", None), "status", "")
         if status in ("Filled", "Cancelled", "Inactive"):
             del self._warm_slots[symbol]
