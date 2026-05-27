@@ -2150,6 +2150,14 @@ class TradingBrain:
             async def _scan_symbol(symbol: str):
                 from mind_ultrathink import LatencyWatchdog
 
+                # Black Swan circuit breaker: halt ALL new trade discovery
+                dd_pct = (self.ibkr_drawdown.peak_equity - self.ibkr_drawdown.current_equity) / max(self.ibkr_drawdown.peak_equity, 1)
+                if self.blackswan.check(await self._get_vix(), dd_pct) == "FREEZE":
+                    async with stats_lock:
+                        stats["gated"] += 1
+                    logger.warning("Scan [%s]: BLACK SWAN FREEZE active — scanning suspended.", symbol)
+                    return None
+
                 last_vet = self._vetting_cooldowns.get(symbol)
                 if last_vet:
                     if last_vet.tzinfo is None:
