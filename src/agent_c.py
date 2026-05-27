@@ -481,6 +481,15 @@ class EvolutionManager:
         except Exception as e:
             logger.error(f"EvolutionManager: Failed to load optimizations: {e}")
 
+    def close(self) -> None:
+        """Close the persistent database connection."""
+        if hasattr(self, "conn") and self.conn:
+            try:
+                self.conn.close()
+            except Exception:
+                pass
+            self.conn = None
+
     async def run_evolution_cycle(self) -> None:
         """Continuous background task to refine system parameters."""
         logger.info("Evolution: Recursive Feedback loop active (1-hour pulse).")
