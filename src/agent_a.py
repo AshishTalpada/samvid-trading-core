@@ -1425,7 +1425,9 @@ class PatternDetector:
 
         # Ensure target is sufficiently far away from entry
         target_dist = max((resistance - lows[0]), resistance * 0.005)
-        target = entry + target_dist
+        # Floor: target must be at least 1.5x the risk (viable R:R after spread)
+        min_move_at = 1.5 * abs(entry - stop)
+        target = entry + max(target_dist, min_move_at)
 
         r_r = (target - entry) / (entry - stop) if entry > stop else 0.0
         if r_r < 0.5:
@@ -1474,7 +1476,9 @@ class PatternDetector:
 
         # Ensure target is sufficiently far away from entry
         target_dist = max((recent["high"].max() - support), support * 0.005)
-        target = entry - target_dist
+        # Floor: target must be at least 1.5x the risk (viable R:R after spread)
+        min_move_dt = 1.5 * abs(stop - entry)
+        target = entry - max(target_dist, min_move_dt)
 
         r_r = (entry - target) / (stop - entry) if stop > entry else 0.0
         if r_r < 0.5:
