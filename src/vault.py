@@ -111,8 +111,8 @@ class Vault:
         """Remove a secret from the Windows Vault."""
         try:
             keyring.delete_password(Vault.SERVICE_NAME, key)
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug("Vault: could not delete key %s from keyring: %s", key, e)
         Vault._cache.pop(key, None)
 
     @classmethod
