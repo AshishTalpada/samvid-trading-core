@@ -210,8 +210,8 @@ def check_memory_usage() -> float:
             try:
                 with open(pid_file, "r") as f:
                     target_pid = int(f.read().strip())
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug("Watchdog: could not read PID from file %s: %s", pid_file, e)
 
         if not target_pid or not psutil.pid_exists(target_pid):
             if target_pid:
