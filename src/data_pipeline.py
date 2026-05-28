@@ -1120,7 +1120,7 @@ class DataPipeline:
                             continue
 
                         try:
-                            last_p = float(df["Close"].tail(1).item())
+                            last_p = float(df["close"].tail(1).item())
 
                             now_mono = time.monotonic()
                             last_check = self._last_reality_check.get(symbol, 0)

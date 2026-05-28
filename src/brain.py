@@ -876,13 +876,16 @@ class TradingBrain:
 
         # 5. Database connection alive (if configured)
         if self.db_conn:
+            cursor = None
             try:
                 cursor = self.db_conn.cursor()
                 cursor.execute("SELECT 1")
                 cursor.fetchone()
-                cursor.close()
             except Exception as db_e:
                 checks.append(f"Database connection failed: {db_e}")
+            finally:
+                if cursor is not None:
+                    cursor.close()
 
         if checks:
             return False, "; ".join(checks)
@@ -2990,12 +2993,12 @@ class TradingBrain:
         """Get current VIX level from database (populated by data pipeline)."""
 
         def _sync_get_vix() -> float:
+            cursor = None
             try:
                 if self.db_conn:
                     cursor = self.db_conn.cursor()
                     cursor.execute("SELECT value FROM vix_data ORDER BY timestamp DESC LIMIT 1")
                     row = cursor.fetchone()
-                    cursor.close()
                     if row and row[0] is not None and float(row[0]) > 0:
                         vix_val = min(100.0, float(row[0]))
                         self._last_vix = vix_val
@@ -3003,6 +3006,9 @@ class TradingBrain:
                 return getattr(self, "_last_vix", 18.0)
             except Exception:
                 return getattr(self, "_last_vix", 18.0)
+            finally:
+                if cursor is not None:
+                    cursor.close()
 
         return await asyncio.to_thread(_sync_get_vix)  # type: ignore
 
@@ -3234,6 +3240,7 @@ class TradingBrain:
         """Restore OPEN positions from prior sessions and clean up orphans."""
 
         def _sync_restore() -> None:
+            cursor = None
             try:
                 if not self.db_conn:
                     return
@@ -3251,7 +3258,6 @@ class TradingBrain:
                 rows = cursor.fetchall()
                 if not rows:
                     logger.info("No orphaned OPEN positions found — clean start.")
-                    cursor.close()
                     return
 
                 restored = 0
@@ -3340,7 +3346,6 @@ class TradingBrain:
                     restored += 1
 
                 self.db_conn.commit()
-                cursor.close()
 
                 if restored:
                     logger.info(
@@ -3352,6 +3357,9 @@ class TradingBrain:
 
             except Exception as e:
                 logger.error(f"Position restoration failed: {e}")
+            finally:
+                if cursor is not None:
+                    cursor.close()
 
         await asyncio.to_thread(_sync_restore)  # type: ignore
         self._sanitize_positions()  # Pre-emptive purge before first cycle
@@ -3850,6 +3858,7 @@ class TradingBrain:
         """Get today's P&L."""
 
         def _sync_daily_pnl() -> float:
+            cursor = None
             try:
                 if self.db_conn:
                     cursor = self.db_conn.cursor()
@@ -3860,12 +3869,14 @@ class TradingBrain:
                         (f"{today}%", account_type),
                     )
                     result = cursor.fetchone()
-                    cursor.close()
                     if result and result[0] is not None:
                         return float(result[0])
                 return 0.0
             except Exception:
                 return 0.0
+            finally:
+                if cursor is not None:
+                    cursor.close()
 
         return await asyncio.to_thread(_sync_daily_pnl)
 
@@ -4028,18 +4039,22 @@ class TradingBrain:
         ibkr_equity = await self._get_account_value("ibkr")
         self.ibkr_drawdown.update(ibkr_equity)
         if self.db_conn:
-            cursor = self.db_conn.cursor()
-            cursor.execute(
-                "INSERT OR REPLACE INTO system_state (key, value) VALUES (?, ?)",
-                ("last_heartbeat", time.time_ns()),
-            )
-            # Fix A: persist peak_equity so restore_peak_equity() can read it on restart
-            cursor.execute(
-                "INSERT OR REPLACE INTO system_state (key, value) VALUES (?, ?)",
-                ("peak_equity", str(self.ibkr_drawdown.peak_equity)),
-            )
-            self.db_conn.commit()
-            cursor.close()
+            cursor = None
+            try:
+                cursor = self.db_conn.cursor()
+                cursor.execute(
+                    "INSERT OR REPLACE INTO system_state (key, value) VALUES (?, ?)",
+                    ("last_heartbeat", time.time_ns()),
+                )
+                # Fix A: persist peak_equity so restore_peak_equity() can read it on restart
+                cursor.execute(
+                    "INSERT OR REPLACE INTO system_state (key, value) VALUES (?, ?)",
+                    ("peak_equity", str(self.ibkr_drawdown.peak_equity)),
+                )
+                self.db_conn.commit()
+            finally:
+                if cursor is not None:
+                    cursor.close()
 
         # Checkpoint every 5 minutes to protect against Windows crashes
         # Throttled to ONCE per window to avoid slamming the disk
@@ -4071,6 +4086,7 @@ class TradingBrain:
         """Log signal to database (Shadow Portfolio tracking)."""
 
         def _sync_log() -> None:
+            cursor = None
             try:
                 if self.db_conn:
                     cursor = self.db_conn.cursor()
@@ -4087,9 +4103,11 @@ class TradingBrain:
                             reason,
                         ),
                     )
-                    cursor.close()
             except Exception as e:
                 logger.debug(f"Could not log signal: {e}")
+            finally:
+                if cursor is not None:
+                    cursor.close()
 
         await asyncio.to_thread(_sync_log)  # type: ignore
 
@@ -4173,6 +4191,7 @@ class TradingBrain:
         """Log trade entry to database."""
 
         def _sync_log() -> None:
+            cursor = None
             try:
                 if self.db_conn:
                     cursor = self.db_conn.cursor()
@@ -4217,7 +4236,6 @@ class TradingBrain:
                                 broker,
                                 account_id,
                             )
-                            cursor.close()
                             return
 
                     cursor.execute(
@@ -4253,9 +4271,11 @@ class TradingBrain:
                     # Capture the RowID for precise exit tracking (Stop the Race Condition)
                     pos.db_id = cursor.lastrowid
                     self.db_conn.commit()
-                    cursor.close()
             except Exception as e:
                 logger.debug(f"Could not log trade entry: {e}")
+            finally:
+                if cursor is not None:
+                    cursor.close()
 
         await asyncio.to_thread(_sync_log)  # type: ignore
 
@@ -4285,63 +4305,69 @@ class TradingBrain:
                             )
 
                 if self.db_conn:
-                    cursor = self.db_conn.cursor()
-                    _entry_ts = _safe_entry_time(pos.entry_time)
-                    hold_hours = (datetime.now(timezone.utc) - _entry_ts).total_seconds() / 3600
-                    cursor.execute(
-                        "UPDATE trades SET exit_price=?, outcome=?, pnl_dollars=?, r_multiple=?, "
-                        "hold_hours=?, belief_at_exit=?, net_pnl=? WHERE rowid=?",
-                        (
-                            exit_price,
-                            exit_type,
-                            pnl,  # Plaintext for Learning Engine
-                            r_multiple,
-                            hold_hours,
-                            pos.current_belief,
-                            pnl,  # Net Pnl Sync
-                            getattr(pos, "db_id", 0),  # Use the specific ID
-                        ),
-                    )
-                    cursor.execute("""
-                        CREATE TABLE IF NOT EXISTS performance_summary (
-                            key TEXT PRIMARY KEY,
-                            value TEXT,
-                            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                        )
-                    """)
-                    cursor.execute("PRAGMA table_info(performance_summary)")
-                    summary_cols = {row[1] for row in cursor.fetchall()}
-                    if {"key", "value"}.issubset(summary_cols):
-                        cursor.execute("""
-                            SELECT
-                                COUNT(*) AS closed_count,
-                                SUM(CASE WHEN COALESCE(net_pnl, pnl_dollars, 0) > 0 THEN 1 ELSE 0 END) AS wins,
-                                SUM(CASE WHEN COALESCE(net_pnl, pnl_dollars, 0) < 0 THEN 1 ELSE 0 END) AS losses,
-                                SUM(COALESCE(net_pnl, pnl_dollars, 0)) AS net_pnl,
-                                AVG(r_multiple) AS avg_r
-                            FROM trades
-                            WHERE outcome NOT IN ('OPEN', 'ORPHANED')
-                        """)
-                        row = cursor.fetchone()
-                        closed_count = int(row[0] or 0)
-                        wins = int(row[1] or 0)
-                        losses = int(row[2] or 0)
-                        summary = {
-                            "closed_count": closed_count,
-                            "wins": wins,
-                            "losses": losses,
-                            "win_rate": (wins / closed_count) if closed_count else 0.0,
-                            "net_pnl": float(row[3] or 0.0),
-                            "avg_r": float(row[4] or 0.0),
-                            "updated_from": "brain._log_trade_exit",
-                        }
+                    cursor = None
+                    try:
+                        cursor = self.db_conn.cursor()
+                        _entry_ts = _safe_entry_time(pos.entry_time)
+                        hold_hours = (datetime.now(timezone.utc) - _entry_ts).total_seconds() / 3600
                         cursor.execute(
-                            "INSERT OR REPLACE INTO performance_summary (key, value, updated_at) "
-                            "VALUES (?, ?, ?)",
-                            ("latest", json.dumps(summary), datetime.now(timezone.utc)),
+                            "UPDATE trades SET exit_price=?, outcome=?, pnl_dollars=?, r_multiple=?, "
+                            "hold_hours=?, belief_at_exit=?, net_pnl=? WHERE rowid=?",
+                            (
+                                exit_price,
+                                exit_type,
+                                pnl,  # Plaintext for Learning Engine
+                                r_multiple,
+                                hold_hours,
+                                pos.current_belief,
+                                pnl,  # Net Pnl Sync
+                                getattr(pos, "db_id", 0),  # Use the specific ID
+                            ),
                         )
-                    self.db_conn.commit()
-                    cursor.close()
+                        cursor.execute("""
+                            CREATE TABLE IF NOT EXISTS performance_summary (
+                                key TEXT PRIMARY KEY,
+                                value TEXT,
+                                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                            )
+                        """)
+                        cursor.execute("PRAGMA table_info(performance_summary)")
+                        summary_cols = {row[1] for row in cursor.fetchall()}
+                        if {"key", "value"}.issubset(summary_cols):
+                            cursor.execute("""
+                                SELECT
+                                    COUNT(*) AS closed_count,
+                                    SUM(CASE WHEN COALESCE(net_pnl, pnl_dollars, 0) > 0 THEN 1 ELSE 0 END) AS wins,
+                                    SUM(CASE WHEN COALESCE(net_pnl, pnl_dollars, 0) < 0 THEN 1 ELSE 0 END) AS losses,
+                                    SUM(COALESCE(net_pnl, pnl_dollars, 0)) AS net_pnl,
+                                    AVG(r_multiple) AS avg_r
+                                FROM trades
+                                WHERE outcome NOT IN ('OPEN', 'ORPHANED')
+                            """)
+                            row = cursor.fetchone()
+                            closed_count = int(row[0] or 0)
+                            wins = int(row[1] or 0)
+                            losses = int(row[2] or 0)
+                            summary = {
+                                "closed_count": closed_count,
+                                "wins": wins,
+                                "losses": losses,
+                                "win_rate": (wins / closed_count) if closed_count else 0.0,
+                                "net_pnl": float(row[3] or 0.0),
+                                "avg_r": float(row[4] or 0.0),
+                                "updated_from": "brain._log_trade_exit",
+                            }
+                            cursor.execute(
+                                "INSERT OR REPLACE INTO performance_summary (key, value, updated_at) "
+                                "VALUES (?, ?, ?)",
+                                ("latest", json.dumps(summary), datetime.now(timezone.utc)),
+                            )
+                        self.db_conn.commit()
+                    except Exception as e:
+                        logger.debug(f"Could not log trade exit: {e}")
+                    finally:
+                        if cursor is not None:
+                            cursor.close()
             except Exception as e:
                 logger.debug(f"Could not log trade exit: {e}")
 
