@@ -555,15 +555,17 @@ class IBKRConnection:
                 return
 
             conn = sqlite3.connect(db_path, timeout=60.0)
-            conn.execute("PRAGMA journal_mode=WAL;")
-            conn.execute("PRAGMA busy_timeout = 60000;")
-            cursor = conn.cursor()
-            cursor.execute(
-                "SELECT orderId, symbol, status FROM persistent_orders "
-                "WHERE status NOT IN ('Filled', 'Cancelled', 'Inactive')"
-            )
-            orphans = cursor.fetchall()
-            conn.close()
+            try:
+                conn.execute("PRAGMA journal_mode=WAL;")
+                conn.execute("PRAGMA busy_timeout = 60000;")
+                cursor = conn.cursor()
+                cursor.execute(
+                    "SELECT orderId, symbol, status FROM persistent_orders "
+                    "WHERE status NOT IN ('Filled', 'Cancelled', 'Inactive')"
+                )
+                orphans = cursor.fetchall()
+            finally:
+                conn.close()
 
             if not orphans:
                 logger.info("IBKR: No orphaned orders found in local cache.")

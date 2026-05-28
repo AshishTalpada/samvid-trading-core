@@ -839,6 +839,7 @@ class DataPipeline:
 
     def get_last_timestamp(self, symbol: str) -> datetime | None:
         """Query the most recent OHLCV timestamp for a symbol."""
+        conn = None
         try:
             conn = self._get_db_connection()
             cursor = conn.cursor()
@@ -847,7 +848,6 @@ class DataPipeline:
                 (symbol,),
             )
             row = cursor.fetchone()
-            conn.close()
             if row:
                 # Handle varying timestamp formats from yfinance/SQLite
                 ts_str = row[0]
@@ -861,6 +861,9 @@ class DataPipeline:
         except Exception as e:
             logger.error(f"Error getting last timestamp for {symbol}: {e}")
             return None
+        finally:
+            if conn is not None:
+                conn.close()
 
     async def backfill_gap(self, symbol: str) -> None:
         """Identify and fill the data gap since last shutdown."""

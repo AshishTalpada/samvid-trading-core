@@ -703,12 +703,9 @@ class TradingBrain:
         }
 
     async def get_ibkr_cushion(self) -> float:
-        """Proxy to Agent C's margin probe."""
-        if hasattr(self.coordinator, "agents") and "agent_c_ibkr" in self.coordinator.agents:
-            # Type check before calling
-            agent = self.coordinator.agents["agent_c_ibkr"]
-            if hasattr(agent, "get_margin_cushion"):
-                return agent.get_margin_cushion()
+        """Proxy to Agent C's margin probe via direct IBKR connection."""
+        if self.ibkr_conn and hasattr(self.ibkr_conn, "get_margin_cushion"):
+            return self.ibkr_conn.get_margin_cushion()
         return 1.0  # Default to safe
 
     async def _on_hft_tick(self, payload: dict) -> None:
@@ -4540,33 +4537,29 @@ class TradingBrain:
     async def _panic_liquidate_all(self) -> None:
         """Sovereign Shield: Emergency Total Portfolio Liquidation Sequence."""
         try:
-            # 1. Access Agent C
-            if hasattr(self.coordinator, "agents") and "agent_c_ibkr" in self.coordinator.agents:
-                agent = self.coordinator.agents["agent_c_ibkr"]
-
-                # Directly get positions from IB
+            # Access IBKR directly via the brain's connection
+            if self.ibkr_conn and self.ibkr_conn.ib and self.ibkr_conn.is_connected():
                 import ib_insync
 
-                if hasattr(agent, "ib") and agent.ib.isConnected():
-                    positions = agent.ib.positions()
-                    if not positions:
-                        logger.info(" SHIELD: No positions to liquidate. Clean Slate.")
-                        return
+                positions = self.ibkr_conn.ib.positions()
+                if not positions:
+                    logger.info(" SHIELD: No positions to liquidate. Clean Slate.")
+                    return
 
-                    logger.critical(f" SHIELD: Liquidating {len(positions)} positions immediately.")
-                    for p in positions:
-                        contract = p.contract
-                        qty = p.position
-                        action = "SELL" if qty > 0 else "BUY"
-                        abs_qty = abs(qty)
+                logger.critical(f" SHIELD: Liquidating {len(positions)} positions immediately.")
+                for p in positions:
+                    contract = p.contract
+                    qty = p.position
+                    action = "SELL" if qty > 0 else "BUY"
+                    abs_qty = abs(qty)
 
-                        logger.warning(f" SHIELD: Closing {contract.symbol} ({action} {abs_qty})")
-                        order = ib_insync.MarketOrder(action, abs_qty)
-                        agent.ib.placeOrder(contract, order)
+                    logger.warning(f" SHIELD: Closing {contract.symbol} ({action} {abs_qty})")
+                    order = ib_insync.MarketOrder(action, abs_qty)
+                    self.ibkr_conn.ib.placeOrder(contract, order)
 
-                    logger.info(" SHIELD: Liquidation orders broadcast. Waiting for sync...")
-                    await asyncio.sleep(5)
-                    logger.critical(" SOVEREIGN SHIELD: TOTAL LIQUIDATION COMPLETE.")
+                logger.info(" SHIELD: Liquidation orders broadcast. Waiting for sync...")
+                await asyncio.sleep(5)
+                logger.critical(" SOVEREIGN SHIELD: TOTAL LIQUIDATION COMPLETE.")
         except Exception as e:
             logger.error(f"SHIELD: Panic Liquidation Failed: {e}")
 

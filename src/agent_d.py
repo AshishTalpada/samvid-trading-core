@@ -1288,6 +1288,7 @@ class LiveLearningEngine:
 
     def _ensure_table(self) -> None:
         """Create the agent_d_trades table if it doesn't exist."""
+        conn = None
         try:
             conn = self._connect()
             conn.execute(self.TABLE_DDL)
@@ -1302,12 +1303,15 @@ class LiveLearningEngine:
                 conn.execute("ALTER TABLE agent_d_trades ADD COLUMN trade_id TEXT;")
 
             conn.commit()
-            conn.close()
         except Exception as e:
             _lld_logger.warning(f"LiveLearningEngine: cannot ensure table: {e}")
+        finally:
+            if conn is not None:
+                conn.close()
 
     def _load_history(self) -> None:
         """Load historical trade metrics from SQLite without bloating RAM."""
+        conn = None
         try:
             conn = self._connect()
             conn.row_factory = _sqlite3.Row
@@ -1354,7 +1358,6 @@ class LiveLearningEngine:
             rows = conn.execute(
                 "SELECT * FROM agent_d_trades ORDER BY id DESC LIMIT 200"
             ).fetchall()
-            conn.close()
             if not isinstance(rows, (list, tuple)):
                 rows = []
             # Store reversed to maintain ASC order in the deque
@@ -1370,6 +1373,9 @@ class LiveLearningEngine:
             self._n_trades = 0
             self._n_wins = 0
             self._recent_trades.clear()
+        finally:
+            if conn is not None:
+                conn.close()
 
     def _persist_trade(self, trade: dict) -> None:
         """Persist a single trade to SQLite (legacy)."""
@@ -1381,6 +1387,7 @@ class LiveLearningEngine:
             return
 
         for attempt in range(1, 4):
+            conn = None
             try:
                 conn = self._connect()
                 # High-performance PRAGMAs for massive data ingestion
@@ -1406,7 +1413,6 @@ class LiveLearningEngine:
                     ],
                 )
                 conn.commit()
-                conn.close()
                 return
             except _sqlite3.OperationalError as e:
                 message = str(e).lower()
@@ -1427,6 +1433,9 @@ class LiveLearningEngine:
             except Exception as e:
                 _lld_logger.warning(f"LiveLearningEngine: batch persist failed: {e}")
                 return
+            finally:
+                if conn is not None:
+                    conn.close()
 
         _lld_logger.warning("LiveLearningEngine: batch persist failed after repeated retries")
 
