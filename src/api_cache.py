@@ -72,8 +72,8 @@ class TTLCache:
             self._cleanup_task.cancel()
             try:
                 await self._cleanup_task
-            except asyncio.CancelledError:
-                pass
+            except asyncio.CancelledError as e:
+                logger.debug("APICache: cleanup task cancelled: %s", e)
 
     async def get(self, key: str) -> Any | None:
         """Return cached value if it exists and hasn't expired, else None."""
