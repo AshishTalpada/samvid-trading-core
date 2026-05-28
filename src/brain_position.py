@@ -123,12 +123,6 @@ class PositionMonitor:
                 elif price_adverse:
                     pos.current_belief = max(pos.current_belief * 0.995, 0.01)
 
-                # Check take profit
-                if current_price >= pos.take_profit and pos.account_type != "short":
-                    # Do not exit instantly on Target, wait for ExitIntelligence
-                    # to scale-out/runner.
-                    pass
-
                 # Build dictionaries for Exit Intelligence Engine
                 pos_dict = {
                     "symbol": pos.symbol,
