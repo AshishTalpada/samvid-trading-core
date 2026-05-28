@@ -389,8 +389,8 @@ class OpenBBProvider:
                     df = result.to_df()
                     if not df.empty:
                         macro[key] = float(df["close"].iloc[-1])
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug("OpenBBProvider: macro data fetch failed for %s: %s", key, e)
 
         await asyncio.gather(
             _last_close("^VIX", "vix"),
