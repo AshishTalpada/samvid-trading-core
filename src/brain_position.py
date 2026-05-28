@@ -19,8 +19,8 @@ from brain_fsm import TradingState
 from brain_reconcile import _safe_entry_time
 from decision_ledger import LEDGER
 from exit_intelligence import ExitAction
-from system_types import Position
 from portfolio_analyzer import PORTFOLIO_ANALYZER
+from system_types import Position
 
 logger = logging.getLogger(__name__)
 

@@ -32,13 +32,15 @@ import threading
 from typing import Any
 
 from prometheus_client import (
+    REGISTRY as _DEFAULT_REGISTRY,
+)
+from prometheus_client import (
     CollectorRegistry,
     Counter,
     Gauge,
     Histogram,
     generate_latest,
     start_http_server,
-    REGISTRY as _DEFAULT_REGISTRY,
 )
 
 logger = logging.getLogger(__name__)
