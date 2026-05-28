@@ -10,6 +10,8 @@ jobs:
   quality:
     name: quality
     runs-on: ubuntu-latest
+    env:
+      UV_SYSTEM_PYTHON: 1
 
     steps:
       - uses: actions/checkout@v4
@@ -19,14 +21,33 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Install ruff
-        run: pip install ruff
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Install dependencies
+        run: uv sync --locked
 
       - name: Ruff lint — src/
-        run: ruff check src/ --output-format=github
+        run: uv run ruff check src/ --output-format=github
 
       - name: Ruff lint — scripts/
-        run: ruff check scripts/ --output-format=github
+        run: uv run ruff check scripts/ --output-format=github
 
       - name: Ruff lint — tests/
-        run: ruff check tests/ --output-format=github
+        run: uv run ruff check tests/ --output-format=github
+
+      - name: Run tests with coverage
+        env:
+          SESSION_SECRET: "TEST_SESSION_SECRET_UNSECURE_MOCK_FOR_TESTS_ONLY"
+          MT5_LOGIN: "999999"
+          MT5_PASSWORD: "test_password"
+          MT5_SERVER: "MetaQuotes-Demo"
+          MT5_PATH: "/mock/path/to/terminal64.exe"
+          TELEGRAM_BOT_TOKEN: "123456789:ABCdefGhIJKlmNoPQRsTUVwxyZ"
+          TELEGRAM_CHAT_ID: "987654321"
+        run: uv run python -m pytest tests/ -q --tb=short --cov=src --cov-report=term-missing --cov-fail-under=25
+
+      - name: Compile check
+        run: uv run python -m compileall -q src/ tests/ scripts/
