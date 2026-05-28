@@ -431,11 +431,16 @@ class ExecutionMixin:
                         hold_hours = (
                             datetime.now(timezone.utc) - _entry_ts
                         ).total_seconds() / 3600
-                        # Determine outcome from realized PnL — never store raw exit_type as outcome.
-                        # exit_type (EXIT_P1, LIQUIDATED, etc.) is appended to notes for audit trail.
-                        if pnl > 0:
+                        # pnl_dollars = gross PnL (price move only, pre-cost)
+                        # net_pnl     = after commission + slippage deduction
+                        commission = getattr(pos, "commission_cost", 0.0) or 0.0
+                        slippage   = getattr(pos, "slippage_cost", 0.0) or 0.0
+                        net_pnl = pnl - commission - slippage
+
+                        # Outcome is based on net (after-cost) PnL
+                        if net_pnl > 0:
                             db_outcome = "WIN"
-                        elif pnl < 0:
+                        elif net_pnl < 0:
                             db_outcome = "LOSS"
                         else:
                             db_outcome = "BREAKEVEN"
@@ -447,11 +452,11 @@ class ExecutionMixin:
                             (
                                 exit_price,
                                 db_outcome,
-                                pnl,
+                                pnl,        # gross (pre-cost)
                                 r_multiple,
                                 hold_hours,
                                 pos.current_belief,
-                                pnl,
+                                net_pnl,    # after commission + slippage
                                 f"exit_type={exit_type}",
                                 getattr(pos, "db_id", 0),
                             ),
