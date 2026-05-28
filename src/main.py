@@ -525,8 +525,11 @@ class TradingSystem:
         # Launch health-Pulse Monitor
         self._aegis_task = asyncio.create_task(self._run_aegis_watchdog())
         self._sentinel_task = asyncio.create_task(self._run_persistence_sentinel())
-
         self._perf_task = asyncio.create_task(self._run_performance_monitor())
+        # Track in background_tasks so shutdown cancels them cleanly
+        self.background_tasks["aegis_watchdog"] = self._aegis_task
+        self.background_tasks["persistence_sentinel"] = self._sentinel_task
+        self.background_tasks["performance_monitor"] = self._perf_task
 
     async def _init_questdb(self) -> None:
         _qdb_timeout = Vault.get("QUESTDB_CONNECT_TIMEOUT_SEC", str(QUESTDB_CONNECT_TIMEOUT_SEC))
@@ -1733,6 +1736,7 @@ class TradingSystem:
                     )
 
                 self._awaken_task = asyncio.create_task(_awaken())
+                self.background_tasks["awaken_sequence"] = self._awaken_task
 
             # Store startup info (Hardened with Retry Matrix)
             async with self.db_lock:
