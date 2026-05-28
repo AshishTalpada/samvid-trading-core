@@ -169,8 +169,8 @@ class ExecutionMixin:
                 if oid:
                     try:
                         self._order_submit_times[int(oid)] = datetime.now(timezone.utc)
-                    except (ValueError, TypeError):
-                        pass
+                    except (ValueError, TypeError) as e:
+                        logger.debug("BrainExecution: could not store order submit time for oid %s: %s", oid, e)
                 return oid
 
             if urgency == "LOW" and limit_price > 0:
@@ -190,8 +190,8 @@ class ExecutionMixin:
             if oid:
                 try:
                     self._order_submit_times[int(oid)] = datetime.now(timezone.utc)
-                except (ValueError, TypeError):
-                    pass
+                except (ValueError, TypeError) as e:
+                    logger.debug("BrainExecution: could not store order submit time for oid %s: %s", oid, e)
             return oid
         except Exception as e:
             logger.error("IBKR order failed: %s", e)
