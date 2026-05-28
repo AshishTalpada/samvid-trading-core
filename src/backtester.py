@@ -62,8 +62,9 @@ def generate_ohlcv(
         closes.append(round(close, 4))
         volumes.append(vol)
 
-    import polars as pl
     from datetime import datetime, timedelta
+
+    import polars as pl
 
     base_dt = datetime(2024, 1, 1, 9, 30)
     timestamps = [base_dt + timedelta(minutes=i) for i in range(n_bars)]

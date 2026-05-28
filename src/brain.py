@@ -59,6 +59,12 @@ from agent_d import (
     SystemEntropyMonitor,
 )
 from agent_e import CorrelationGuard
+from brain_accounting import AccountingMixin
+from brain_data import DataProvider
+from brain_execution import ExecutionMixin
+from brain_health import HealthChecker
+from brain_position import PositionMonitor
+from brain_reconcile import BrokerReconciler
 from config import (
     FORCED_PAPER_MODE,
     QUESTDB_ENABLED,
@@ -90,13 +96,6 @@ from system_types import Position
 from vault import Vault
 from wisdom import SkillTreeManager, WisdomRepository
 from workload_manager import WorkloadManager
-from brain_reconcile import BrokerReconciler
-from brain_health import HealthChecker
-from brain_data import DataProvider
-from brain_accounting import AccountingMixin
-from brain_execution import ExecutionMixin
-from brain_position import PositionMonitor
-
 
 if TYPE_CHECKING:
     import sqlite3
@@ -105,6 +104,10 @@ if TYPE_CHECKING:
     from native_slm import NativeSLM
 
 # Re-export state primitives for backward compatibility (tests, other agents)
+# TRADING STATE MACHINE
+# TradingState FSM moved to brain_fsm.py so mixins can import it
+from brain_fsm import TradingState
+from brain_reconcile import _safe_entry_time  # noqa: F401 -- re-exported for tests
 from brain_state import (
     ConsecutiveLossTracker,
     DrawdownLadder,
@@ -112,16 +115,8 @@ from brain_state import (
     MorningBudget,
     TokenBucketRateLimiter,
 )
-from brain_reconcile import _safe_entry_time  # noqa: F401 -- re-exported for tests
 from decision_ledger import LEDGER  # noqa: F401 -- re-exported for tests/patching
 from portfolio_analyzer import PORTFOLIO_ANALYZER  # noqa: F401 -- re-exported for tests/patching
-
-# TRADING STATE MACHINE
-
-
-# TradingState FSM moved to brain_fsm.py so mixins can import it
-from brain_fsm import TradingState
-
 
 # Position class removed (Transferred to src/types.py for Coordinator-Safe Inversion)
 
