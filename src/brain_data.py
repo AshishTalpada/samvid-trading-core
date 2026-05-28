@@ -319,8 +319,10 @@ class DataProvider:
     # ------------------------------------------------------------------
     async def _detect_regime(self) -> str:
         """Use Agent D's regime classifier with REAL market data from database."""
+        _t0 = time.perf_counter()
         try:
             vix = await self._get_vix()
+            logger.debug("Regime step 'vix_fetch' took %.2fs", time.perf_counter() - _t0)
 
             momentum = 0.0
             spy_above_200ma = True
@@ -354,6 +356,7 @@ class DataProvider:
                             )
                 except Exception as e:
                     logger.debug("Regime data fallback (1d): %s", e)
+            logger.debug("Regime step 'ma_check' took %.2fs", time.perf_counter() - _t0)
 
             breadth = 0.55
             if self.db_conn:
@@ -386,6 +389,7 @@ class DataProvider:
                         return 0.55
 
                 breadth = await asyncio.to_thread(_sync_breadth)
+            logger.debug("Regime step 'breadth_check' took %.2fs", time.perf_counter() - _t0)
 
             regime = self.regime_classifier.classify(
                 vix=vix,
@@ -393,6 +397,7 @@ class DataProvider:
                 breadth=breadth,
                 momentum=momentum,
             )
+            logger.debug("Regime step 'classify' took %.2fs", time.perf_counter() - _t0)
             logger.info(
                 "Regime: %s (VIX=%.1f, Mom=%.4f, Breadth=%.2f, SPY>200MA=%s)",
                 regime, vix, momentum, breadth, spy_above_200ma,
@@ -407,6 +412,8 @@ class DataProvider:
                     "timestamp": time.time_ns(),
                 }
             )
+            logger.debug("Regime step 'capsule_save' took %.2fs", time.perf_counter() - _t0)
             return regime
-        except Exception:
+        except Exception as e:
+            logger.warning("Regime detection TIMEOUT/FAIL after %.2fs: %s", time.perf_counter() - _t0, e)
             return "CHOPPY"
