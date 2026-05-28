@@ -24,7 +24,7 @@ class MarketGANTrainer:
         if len(real_data) < self.seq_len:
             return
 
-        noise = np.random.normal(0, 1, (len(real_data), self.seq_len))
+        _noise = np.random.normal(0, 1, (len(real_data), self.seq_len))
         # Simulated generator/discriminator updates
         d_loss = float(np.random.uniform(0.3, 0.7))
         g_loss = float(np.random.uniform(0.5, 1.5))

@@ -1180,7 +1180,7 @@ class IBKRConnection:
         Polls the portfolio every 10s for 60s to ensure Reality Alignment.
         Prevents false-positive shutdowns caused by IBKR sync latency.
         """
-        target_acc = trade.order.account
+        _target_acc = trade.order.account
         for _attempt in range(6):  # Poll for 60s total
             await asyncio.sleep(10)
             if trade.orderStatus.status == "Filled":

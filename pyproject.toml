@@ -92,17 +92,17 @@ exclude = [
 select = ["E", "F", "I", "B", "W"]
 ignore = [
     "E501", # Line length
-    "E722", # Bare except
     "E701", # Multiple statements on one line (colon)
     "E702", # Multiple statements on one line (semicolon)
     "B017", # Asserting blind exceptions
-    "F401", # Unused imports
-    "E402", # Module level import not at top
-    "F841", # Local variable is assigned to but never used
+    "F401", # Unused imports (legitimate in __init__.py re-exports)
+    "E402", # Module level import not at top (dynamic imports required in some paths)
     "B023", # Function definition does not bind loop variable
     "B007", # Loop control variable not used
     "B904", # Exception chaining
     "E741", # Ambiguous variable name (used for 'l' in OHLCV)
+    # E722 (bare except) and F841 (unused variable) removed from ignore list
+    # -- both are now fully fixed across the codebase.
 ]
 
 [tool.mypy]

@@ -32,7 +32,7 @@ class GarbageCollectorTuner:
         )
 
     def force_collect_non_critical(self) -> int:
-        before = gc.get_count()
+        _before = gc.get_count()
         collected = gc.collect(2)
         logger.debug(f"[GC TUNER] Forced full GC: collected {collected} objects")
         return collected

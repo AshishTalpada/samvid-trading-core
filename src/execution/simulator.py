@@ -120,9 +120,9 @@ class ImpactSimulator:
         if order_size_shares <= 0 or current_price <= 0:
             return []
 
-        daily_vol = self.adv.get(ticker, 1_000_000)
+        self.adv.get(ticker, 1_000_000)
         daily_vol_pct = self.volatility.get(ticker, 0.02)
-        variance = (current_price * daily_vol_pct) ** 2
+        _variance = (current_price * daily_vol_pct) ** 2
 
         # Simplified half-life parameter 'kappa' balancing impact and variance
         # kappa = sqrt((risk_aversion * variance) / temp_impact_coefficient)
