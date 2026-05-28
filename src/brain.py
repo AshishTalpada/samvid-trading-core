@@ -11,25 +11,20 @@ Implements:
 import asyncio
 import collections
 import inspect
-import json
 import logging
 import os
 import time
 import traceback
-from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
-from enum import Enum
 from typing import (
     TYPE_CHECKING,
     Any,
     Optional,
-    cast,
 )
 
 import numpy as np
 import pandas as pd
 import polars as pl
-import pytz
 
 logger = logging.getLogger(__name__)
 
@@ -41,7 +36,6 @@ from agent_a import (
     MultiTimeframeAligner,
     NeuralRegimeClassifier,
     PatternDetector,
-    PatternResult,
     SignalEntropyCalculator,
 )
 from agent_b import ABHAVADetector, BayesianBeliefTracker, DhatuClassifier
@@ -67,15 +61,12 @@ from agent_d import (
 from agent_e import CorrelationGuard
 from config import (
     FORCED_PAPER_MODE,
-    IBKR_MAX_TRADES_PER_DAY,
     QUESTDB_ENABLED,
     STARTING_CAPITAL_CAD,
 )
-from decision_ledger import LEDGER
-from exit_intelligence import ExitAction, ExitIntelligence
+from exit_intelligence import ExitIntelligence
 from intelligence_bus import SharedIntelligenceBus
 from llm_circuit_breaker import HEAVY_BREAKER, LIGHT_BREAKER  # noqa: F401
-from market_calendar import is_us_equity_market_open
 from memdir import MemoryManager
 from mind_architect import MindArchitect
 from mind_bridge import MindBridge
@@ -89,7 +80,6 @@ from mind_prompts import MindPrompts
 from mind_system import MindSystem
 from mind_ultrathink import MindUltrathink
 from pandas_safety import safe_polars_from_pandas
-from portfolio_analyzer import PORTFOLIO_ANALYZER
 from quant_signals import QuantConsensus
 from questdb_adapter import QuestDBAdapter
 from session_restorer import SessionRestorer
@@ -100,7 +90,7 @@ from system_types import Position
 from vault import Vault
 from wisdom import SkillTreeManager, WisdomRepository
 from workload_manager import WorkloadManager
-from brain_reconcile import BrokerReconciler, _safe_entry_time
+from brain_reconcile import BrokerReconciler
 from brain_health import HealthChecker
 from brain_data import DataProvider
 from brain_accounting import AccountingMixin
@@ -118,20 +108,19 @@ if TYPE_CHECKING:
 from brain_state import (
     ConsecutiveLossTracker,
     DrawdownLadder,
-    DrawdownLevel,
+    DrawdownLevel,  # noqa: F401 -- re-exported for tests/other modules
     MorningBudget,
     TokenBucketRateLimiter,
 )
+from brain_reconcile import _safe_entry_time  # noqa: F401 -- re-exported for tests
+from decision_ledger import LEDGER  # noqa: F401 -- re-exported for tests/patching
+from portfolio_analyzer import PORTFOLIO_ANALYZER  # noqa: F401 -- re-exported for tests/patching
 
 # TRADING STATE MACHINE
 
 
-class TradingState(Enum):
-    STANDBY = 1
-    SCANNING = 2
-    ANALYZING = 3
-    POSITIONED = 4
-    EXIT = 5
+# TradingState FSM moved to brain_fsm.py so mixins can import it
+from brain_fsm import TradingState
 
 
 # Position class removed (Transferred to src/types.py for Coordinator-Safe Inversion)
