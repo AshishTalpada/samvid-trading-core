@@ -156,7 +156,6 @@ async def test_belief_update_short_favourable(mock_brain):
 @pytest.mark.asyncio
 async def test_belief_update_short_adverse(mock_brain):
     """Short position: price rise should decrease belief."""
-    brain = mock_brain
     pos = Position(
         symbol="TSLA",
         qty=-50,
