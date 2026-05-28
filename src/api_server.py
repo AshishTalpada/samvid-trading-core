@@ -43,6 +43,8 @@ class APIServer:
         self._state_lock = asyncio.Lock()
         self._http_semaphore = asyncio.Semaphore(10)  # Max 10 concurrent /state callers
         self.active_connections: dict[WebSocket, asyncio.Queue] = {}  # {WS: Queue}
+        self._ip_connection_counts: dict[str, int] = {}  # rate-limit by IP
+        self._max_connections_per_ip: int = 3  # max simultaneous WS connections per IP
 
         self._last_tick_broadcast: dict[str, float] = {}  # symbol -> ts
 
@@ -433,6 +435,17 @@ class APIServer:
                     await websocket.close(code=1008)
                     return
 
+            # Per-IP connection limit (DoS protection)
+            client_ip = websocket.client.host if websocket.client else "unknown"
+            current_count = self._ip_connection_counts.get(client_ip, 0)
+            if current_count >= self._max_connections_per_ip:
+                logger.warning(
+                    f"API Server: WebSocket REJECTED — {client_ip} exceeded {self._max_connections_per_ip} connections."
+                )
+                await websocket.close(code=1008)
+                return
+            self._ip_connection_counts[client_ip] = current_count + 1
+
             # 3. ACCEPT HANDSHAKE (Only if authorized)
             await websocket.accept()
             logger.info(
@@ -477,6 +490,10 @@ class APIServer:
                 writer_task.cancel()
                 if websocket in self.active_connections:
                     del self.active_connections[websocket]
+                # Release per-IP slot
+                client_ip = websocket.client.host if websocket.client else "unknown"
+                count = self._ip_connection_counts.get(client_ip, 1)
+                self._ip_connection_counts[client_ip] = max(0, count - 1)
 
     async def _safe_send_json(self, websocket: WebSocket, data: dict[str, Any]) -> None:
         """Send JSON with connection state check."""

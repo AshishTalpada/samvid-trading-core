@@ -2,8 +2,7 @@
 Tests for TradingCoordinator logic and wiring.
 """
 
-import asyncio
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 

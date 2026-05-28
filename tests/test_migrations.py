@@ -15,9 +15,7 @@ Verifies:
 
 import sqlite3
 import sys
-from pathlib import Path
 
-import pytest
 
 sys.path.insert(0, "src")
 

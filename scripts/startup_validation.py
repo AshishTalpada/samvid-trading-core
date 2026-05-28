@@ -102,6 +102,17 @@ def validate_env() -> list[str]:
     return warnings
 
 
+def validate_telegram_alerting() -> list[str]:
+    """Check that Telegram alerting is configured (advisory — not required to start)."""
+    from vault import Vault
+
+    # [Telegram Alerting]
+    _tg_token = Vault.get("TELEGRAM_BOT_TOKEN", "")
+    if not _tg_token:
+        return ["TELEGRAM_BOT_TOKEN not set — no live alerts on drawdown/halt events"]
+    return []
+
+
 def validate_agent_wiring() -> list[str]:
     """Check that advisory agents can be instantiated."""
     _ensure_paths()
@@ -164,6 +175,7 @@ def main() -> int:
         ("Critical Imports", validate_imports, True),
         ("Database Schema", validate_db_schema, True),
         ("Environment / Vault", validate_env, False),
+        ("Telegram Alerting", validate_telegram_alerting, False),
         ("Agent Wiring", validate_agent_wiring, True),
         ("Brain State Primitives", validate_brain_state, True),
     ]

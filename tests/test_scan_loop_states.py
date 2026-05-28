@@ -2,7 +2,6 @@
 Tests for TradingBrain scan loop state transitions and circuit breakers.
 """
 
-import asyncio
 from datetime import datetime, timezone
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -124,7 +123,6 @@ async def test_vetting_cooldown_blocks_symbol(minimal_brain) -> None:
     last_vet = brain._vetting_cooldowns.get("TSLA")
     assert last_vet is not None
     # Simulate the cooldown check logic
-    from datetime import timedelta
     cooldown_age = (datetime.now(timezone.utc) - last_vet).total_seconds()
     assert cooldown_age < 30
 

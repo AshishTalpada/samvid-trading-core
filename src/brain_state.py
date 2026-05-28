@@ -102,6 +102,23 @@ class DrawdownLadder:
 
             if self.level == DrawdownLevel.RED:
                 TradingStateManager.halt(f"Drawdown Ladder [{self.account_type}] reached RED-ZONE.")
+                # Page the operator immediately — RED is a critical capital preservation event
+                try:
+                    import asyncio as _asyncio
+                    from telegram_alerts import send_telegram_alert as _tg
+                    msg = (
+                        f"[SOVEREIGN ALERT] DRAWDOWN RED-ZONE [{self.account_type.upper()}]\n"
+                        f"Peak: ${self.peak_equity:,.2f} → Current: ${self.current_equity:,.2f}\n"
+                        f"DD: {((self.peak_equity - self.current_equity) / max(self.peak_equity, 1)):.2%}\n"
+                        f"Trading HALTED. Manual review required."
+                    )
+                    loop = _asyncio.get_event_loop()
+                    if loop.is_running():
+                        _asyncio.ensure_future(_tg(msg))
+                    else:
+                        logger.warning("Drawdown RED alert queued (no running loop): %s", msg)
+                except Exception as _tg_exc:
+                    logger.error("Could not send RED drawdown Telegram alert: %s", _tg_exc)
             elif self.level in (DrawdownLevel.YELLOW, DrawdownLevel.ORANGE):
                 TradingStateManager.reduce_only(
                     f"Drawdown Ladder [{self.account_type}] escalation: {self.level.name}"
@@ -285,6 +302,7 @@ class MorningBudget:
         dd_level: DrawdownLevel,
         breadth_score: float = 50.0,
         fomc_proximity_days: int = 30,
+        broker: str = "ibkr",
     ) -> None:
         """Generate morning budget based on current conditions."""
         self.regime = regime
@@ -330,6 +348,15 @@ class MorningBudget:
         # Broker-specific max trade cap (IBKR paper/live is not FTMO constrained)
         from config import IBKR_MAX_TRADES_PER_DAY
         self.max_trades = min(self.max_trades, IBKR_MAX_TRADES_PER_DAY)
+
+        # Prop firm (MT5/FTMO) hard cap — NEVER exceed 2 trades/day regardless of regime
+        if broker.lower() in ("mt5", "prop", "ftmo"):
+            from config import MAX_TRADES_PER_DAY
+            self.max_trades = min(self.max_trades, MAX_TRADES_PER_DAY)
+            logger.info(
+                f"MorningBudget: Prop firm cap applied — max_trades clamped to {self.max_trades} "
+                f"(FTMO limit: {MAX_TRADES_PER_DAY})"
+            )
 
         logger.info(
             f"Morning Budget: regime={regime} max_trades={self.max_trades} "

@@ -1,105 +1,243 @@
+"""
+src/backtester.py
+Walk-Forward Backtester — validates PatternDetector signal quality.
+
+Generates synthetic but realistic OHLCV bars and runs the actual
+PatternDetector.detect_all() on rolling windows to measure:
+  - Signal frequency
+  - Simulated win rate (price hits target before stop)
+  - Average R-multiple
+  - Expectancy
+
+Usage:
+    python src/backtester.py           # quick 500-bar test
+    python src/backtester.py --bars 2000  # full walk-forward
+"""
+from __future__ import annotations
+
+import argparse
 import logging
+import sys
+from pathlib import Path
 
 import numpy as np
+import polars as pl
 
-from mind_experiment import MindExperiment
+# Allow running as a script or as an imported module
+_SRC = Path(__file__).resolve().parent
+if str(_SRC) not in sys.path:
+    sys.path.insert(0, str(_SRC))
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
+logging.basicConfig(level=logging.WARNING, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger(__name__)
+
+
+def generate_ohlcv(
+    n_bars: int = 500,
+    seed: int = 42,
+    trend_strength: float = 0.0002,
+    volatility: float = 0.012,
+    start_price: float = 450.0,
+) -> pl.DataFrame:
+    """
+    Generate synthetic OHLCV data with a mild upward trend and realistic noise.
+    Volume follows log-normal distribution.  ATR ≈ volatility × price.
+    """
+    rng = np.random.default_rng(seed)
+    prices = [start_price]
+    for _ in range(n_bars - 1):
+        ret = trend_strength + rng.normal(0, volatility)
+        prices.append(max(prices[-1] * (1 + ret), 1.0))
+
+    opens, highs, lows, closes, volumes = [], [], [], [], []
+    for i, close in enumerate(prices):
+        spread = close * volatility * rng.uniform(0.5, 1.5)
+        open_ = close * (1 + rng.normal(0, volatility * 0.3))
+        high = max(close, open_) + abs(rng.normal(0, spread))
+        low = min(close, open_) - abs(rng.normal(0, spread))
+        vol = int(rng.lognormal(15, 0.8))
+        opens.append(round(open_, 4))
+        highs.append(round(high, 4))
+        lows.append(round(low, 4))
+        closes.append(round(close, 4))
+        volumes.append(vol)
+
+    import polars as pl
+    from datetime import datetime, timedelta
+
+    base_dt = datetime(2024, 1, 1, 9, 30)
+    timestamps = [base_dt + timedelta(minutes=i) for i in range(n_bars)]
+
+    return pl.DataFrame({
+        "timestamp": timestamps,
+        "open": opens,
+        "high": highs,
+        "low": lows,
+        "close": closes,
+        "volume": volumes,
+    })
+
+
+def simulate_trade(
+    df: pl.DataFrame,
+    signal_idx: int,
+    entry: float,
+    stop: float,
+    target: float,
+    direction: str = "long",
+    max_bars: int = 50,
+) -> dict:
+    """
+    Simulate a trade from signal_idx forward.
+    Returns dict with outcome, r_multiple, bars_held.
+    """
+    risk = abs(entry - stop)
+    if risk <= 0:
+        return {"outcome": "invalid", "r_multiple": 0.0, "bars_held": 0}
+
+    for offset in range(1, min(max_bars + 1, len(df) - signal_idx)):
+        bar_idx = signal_idx + offset
+        row_high = df["high"][bar_idx]
+        row_low = df["low"][bar_idx]
+
+        if direction == "long":
+            if row_low <= stop:
+                r = (stop - entry) / risk  # negative
+                return {"outcome": "loss", "r_multiple": round(r, 3), "bars_held": offset}
+            if row_high >= target:
+                r = (target - entry) / risk  # positive
+                return {"outcome": "win", "r_multiple": round(r, 3), "bars_held": offset}
+        else:  # short
+            if row_high >= stop:
+                r = (entry - stop) / risk
+                return {"outcome": "loss", "r_multiple": round(-r, 3), "bars_held": offset}
+            if row_low <= target:
+                r = (entry - target) / risk
+                return {"outcome": "win", "r_multiple": round(r, 3), "bars_held": offset}
+
+    # Expired without hitting either level
+    last_close = df["close"][signal_idx + min(max_bars, len(df) - signal_idx - 1)]
+    if direction == "long":
+        r = (last_close - entry) / risk
+    else:
+        r = (entry - last_close) / risk
+    return {"outcome": "timeout", "r_multiple": round(r, 3), "bars_held": max_bars}
 
 
 class WalkForwardBacktester:
     """
-    Phase 4: Institutional-grade Walk-Forward Validation.
-    This backtester rigorously tests the Autonomous Neuro-Evolution to ensure
-    the genetic algorithm is actually finding signal, rather than just over-fitting
-    to historical noise.
+    Walk-Forward Backtester using real PatternDetector.
+    Runs detect_all() on each window of real-ish OHLCV bars.
     """
 
-    def __init__(self, experiment: MindExperiment):
-        self.experiment = experiment
+    def __init__(self, window_size: int = 100, step_size: int = 20):
+        self.window_size = window_size
+        self.step_size = step_size
 
-    def run_walk_forward(
-        self,
-        data_series: np.ndarray,
-        labels: np.ndarray,
-        train_window: int,
-        test_window: int,
-        generations: int = 50,
-    ):
+    def run(self, df: pl.DataFrame) -> dict:
         """
-        Runs a rolling Walk-Forward Analysis (e.g. Train on 2 years, Test on 1 year, roll forward).
+        Walk forward through df, running PatternDetector on each window.
+        Returns aggregate statistics.
         """
-        total_length = data_series.shape[0]
-        logger.info(f"Starting Walk-Forward Analysis on {total_length} periods.")
+        from agent_a import PatternDetector
 
-        # Initialize an arbitrary starting "brain" weight
-        base_weights = np.random.randn(data_series.shape[1])
+        detector = PatternDetector()
+        all_trades: list[dict] = []
+        signal_count = 0
 
-        test_pnl = []
+        n = len(df)
+        for start in range(0, n - self.window_size, self.step_size):
+            window = df.slice(start, self.window_size)
+            try:
+                patterns = detector.detect_all(window)
+            except Exception as exc:
+                logger.debug("PatternDetector error on window %d: %s", start, exc)
+                continue
 
-        for start_idx in range(0, total_length - train_window - test_window + 1, test_window):
-            train_end = start_idx + train_window
-            test_end = train_end + test_window
+            for p in patterns:
+                if p is None or p.confidence < 60.0:
+                    continue
+                signal_count += 1
+                signal_bar = start + self.window_size - 1
+                if signal_bar + 1 >= n:
+                    continue
+                direction = "long" if getattr(p, "direction", "long") in ("long", "BUY", "buy") else "short"
+                result = simulate_trade(df, signal_bar, p.entry, p.stop, p.target, direction)
+                result["pattern"] = p.name
+                result["confidence"] = p.confidence
+                result["r_r_ratio"] = getattr(p, "r_r_ratio", 0.0)
+                all_trades.append(result)
 
-            train_data = data_series[start_idx:train_end]
-            train_labels = labels[start_idx:train_end]
+        if not all_trades:
+            return {
+                "total_signals": signal_count,
+                "simulated_trades": 0,
+                "win_rate": 0.0,
+                "avg_r_multiple": 0.0,
+                "expectancy": 0.0,
+                "sharpe_proxy": 0.0,
+                "patterns_found": [],
+            }
 
-            test_data = data_series[train_end:test_end]
-            test_labels = labels[train_end:test_end]
+        wins = [t for t in all_trades if t["outcome"] == "win"]
+        losses = [t for t in all_trades if t["outcome"] == "loss"]
+        total = len(all_trades)
+        win_rate = len(wins) / total if total > 0 else 0.0
+        r_multiples = [t["r_multiple"] for t in all_trades]
+        avg_r = sum(r_multiples) / total if total else 0.0
+        expectancy = win_rate * (sum(t["r_multiple"] for t in wins) / max(len(wins), 1)) - \
+                     (1 - win_rate) * abs(sum(t["r_multiple"] for t in losses) / max(len(losses), 1))
 
-            logger.info(
-                f"--- Walk-Forward Window [{start_idx}:{train_end}] (Train) -> [{train_end}:{test_end}] (Test) ---"
-            )
+        std_r = float(np.std(r_multiples)) if len(r_multiples) > 1 else 1.0
+        sharpe_proxy = avg_r / std_r if std_r > 0 else 0.0
 
-            # 1. Train Phase (Neuro-Evolution)
-            self.experiment.init_population(base_weights)
-            apex_weights = base_weights
+        pattern_counts: dict[str, int] = {}
+        for t in all_trades:
+            pattern_counts[t["pattern"]] = pattern_counts.get(t["pattern"], 0) + 1
 
-            for gen in range(generations):
-                self.experiment.evaluate_fitness(train_data, train_labels)
-                apex_weights = self.experiment.breed_next_generation()
+        return {
+            "total_signals": signal_count,
+            "simulated_trades": total,
+            "win_rate": round(win_rate, 4),
+            "avg_r_multiple": round(avg_r, 4),
+            "expectancy": round(expectancy, 4),
+            "sharpe_proxy": round(sharpe_proxy, 4),
+            "patterns_found": sorted(pattern_counts.items(), key=lambda x: -x[1]),
+        }
 
-            # 2. Test Phase (Out-of-Sample)
-            # Simplified PnL proxy: dot product represents position sizing (-1 to 1)
-            # Multiplied by actual label (next period return)
-            predictions = np.dot(test_data, apex_weights)
 
-            # Simple thresholding: go long if > 0, short if < 0
-            positions = np.sign(predictions)
-            window_pnl = np.sum(positions * test_labels)
-
-            test_pnl.append(window_pnl)
-            logger.info(f"Out-of-Sample PnL for window: {window_pnl:.4f}")
-
-            # Roll forward: The new base_weights for the next training window are the apex weights from this one
-            base_weights = apex_weights
-
-        total_oos_pnl = np.sum(test_pnl)
-        logger.info("=== Walk-Forward Analysis Complete ===")
-        logger.info(f"Total Out-Of-Sample PnL: {total_oos_pnl:.4f}")
-        return test_pnl
+def run_walk_forward(
+    n_bars: int = 500,
+    window_size: int = 100,
+    step_size: int = 20,
+    seed: int = 42,
+) -> dict:
+    """Convenience function for tests and CLI."""
+    df = generate_ohlcv(n_bars=n_bars, seed=seed)
+    bt = WalkForwardBacktester(window_size=window_size, step_size=step_size)
+    return bt.run(df)
 
 
 if __name__ == "__main__":
-    # Mock integration test
-    logger.info("Initializing Walk-Forward Backtester with simulated market data...")
+    parser = argparse.ArgumentParser(description="Sovereign Walk-Forward Backtester")
+    parser.add_argument("--bars", type=int, default=500, help="Number of synthetic bars")
+    parser.add_argument("--window", type=int, default=100, help="Detection window size")
+    parser.add_argument("--step", type=int, default=20, help="Step size between windows")
+    parser.add_argument("--seed", type=int, default=42, help="Random seed")
+    args = parser.parse_args()
 
-    # Simulate 10 years of daily data (2520 trading days) across 10 features
-    sim_data = np.random.randn(2520, 10)
-    # Simulate next-day returns (with a tiny embedded linear signal for the GA to find)
-    hidden_signal = np.random.randn(10)
-    sim_labels = np.dot(sim_data, hidden_signal) * 0.05 + np.random.randn(2520) * 0.1
+    print(f"Running walk-forward backtest: {args.bars} bars, window={args.window}, step={args.step}")
+    results = run_walk_forward(args.bars, args.window, args.step, args.seed)
 
-    # Mock Bridge
-    class MockBridge:
-        def register_tool(self, *args):
-            pass
-
-    exp = MindExperiment(MockBridge())
-    backtester = WalkForwardBacktester(exp)
-
-    # Train on 500 days, test on 250 days
-    backtester.run_walk_forward(
-        sim_data, sim_labels, train_window=500, test_window=250, generations=20
-    )
+    print("\n=== BACKTEST RESULTS ===")
+    print(f"  Total signals detected : {results['total_signals']}")
+    print(f"  Simulated trades       : {results['simulated_trades']}")
+    print(f"  Win rate               : {results['win_rate']:.1%}")
+    print(f"  Avg R-multiple         : {results['avg_r_multiple']:+.3f}R")
+    print(f"  Expectancy             : {results['expectancy']:+.3f}R/trade")
+    print(f"  Sharpe proxy           : {results['sharpe_proxy']:+.3f}")
+    if results["patterns_found"]:
+        print("\n  Top patterns by signal count:")
+        for name, count in results["patterns_found"][:5]:
+            print(f"    {name}: {count}")
+    print()
