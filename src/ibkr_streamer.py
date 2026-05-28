@@ -23,8 +23,8 @@ def _ensure_asyncio_loop() -> None:
     if sys.platform == "win32":
         try:
             asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug("IBKRStreamer: could not set Windows event loop policy: %s", e)
 
     try:
         loop = asyncio.get_running_loop()
@@ -220,8 +220,8 @@ class IBKRStreamer:
                     if self.ib is not None:
                         try:
                             self.ib.disconnect()
-                        except Exception:
-                            pass
+                        except Exception as e:
+                            logger.debug("IBKRStreamer: error during disconnect on retry: %s", e)
 
             wait_time = min(2**attempt, 30)  # Exponential backoff
             logger.warning(
@@ -506,8 +506,8 @@ class IBKRStreamer:
             self._publisher_task.cancel()
             try:
                 await self._publisher_task
-            except asyncio.CancelledError:
-                pass
+            except asyncio.CancelledError as e:
+                logger.debug("IBKRStreamer: publisher task cancelled during stop: %s", e)
         if self.ib is not None:
             try:
                 await asyncio.to_thread(self.ib.disconnect)
