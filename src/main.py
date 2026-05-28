@@ -570,7 +570,7 @@ class TradingSystem:
         _api_port = int(_api_port_raw) if _api_port_raw else 8000
         original_port = _api_port
         while is_port_in_use(_api_port) and _api_port < original_port + 10:
-            logger.warning(f"API Server: Port {_api_port} in use. Trying {_api_port + 1}...")
+            logger.info(f"API Server: Port {_api_port} in use (fallback). Trying {_api_port + 1}...")
             _api_port += 1
 
         self.api_server = APIServer(
