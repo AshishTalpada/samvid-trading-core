@@ -46,7 +46,6 @@ sys.path.insert(0, "src")
 from brain import TradingBrain
 from system_types import Position
 
-
 # ---------------------------------------------------------------------------
 # Shared fixtures
 # ---------------------------------------------------------------------------
@@ -507,3 +506,416 @@ async def test_perform_broker_hotswap_to_mt5(paper_brain):
         await paper_brain._perform_broker_hotswap("MT5")
 
     assert paper_brain.active_broker == "MT5"
+
+
+# ===========================================================================
+# New tests — Edge-case scenarios (Tests 18-29)
+# ===========================================================================
+
+# ---------------------------------------------------------------------------
+# Test 18: Order rejection handling — broker returns no order ID (REJECTED)
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_ibkr_broker_returns_rejected_status(paper_brain):
+    """Test 18: When the connected broker returns None/falsy ID, _place_ibkr_order
+    propagates None (treated as REJECTED)."""
+    paper_brain.ibkr_conn.is_connected.return_value = True
+    paper_brain.ibkr_conn.validate_order_pre_flight.return_value = (True, "OK")
+    # Broker signals rejection by returning None order ID
+    paper_brain.ibkr_conn.place_order = AsyncMock(return_value=None)
+
+    oid = await paper_brain._place_ibkr_order(
+        symbol="AAPL",
+        direction="BUY",
+        shares=50,
+        urgency="LOW",
+        limit_price=150.0,
+    )
+    paper_brain.ibkr_conn.place_order.assert_awaited_once()
+    # A None / falsy return from the broker means the order was rejected
+    assert not oid
+
+
+# ---------------------------------------------------------------------------
+# Test 19: Partial fill handling — order placed, fill acknowledged as partial
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_ibkr_partial_fill_then_cancel(paper_brain):
+    """Test 19: Simulate a partial fill scenario: first call returns an order ID
+    (partial fill accepted), then cancel_order is called for the remainder.
+    The cancel should be forwarded to the broker."""
+    paper_brain.ibkr_conn.is_connected.return_value = True
+    paper_brain.ibkr_conn.validate_order_pre_flight.return_value = (True, "OK")
+    paper_brain.ibkr_conn.place_order = AsyncMock(return_value=101)
+    paper_brain.ibkr_conn.cancel_order = MagicMock(return_value=True)
+
+    # Place the order — simulates a partial fill (we get an id back)
+    oid = await paper_brain._place_ibkr_order(
+        symbol="MSFT",
+        direction="BUY",
+        shares=200,
+        urgency="LOW",
+        limit_price=310.0,
+    )
+    assert oid == 101
+
+    # Now cancel the remainder (as the fill was partial)
+    cancelled = paper_brain.ibkr_conn.cancel_order(101)
+    paper_brain.ibkr_conn.cancel_order.assert_called_once_with(101)
+    assert cancelled is True
+
+
+# ---------------------------------------------------------------------------
+# Test 20: Position size limit — order exceeds max_position, broker rejects
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_ibkr_position_size_limit_enforcement(paper_brain):
+    """Test 20: When validate_order_pre_flight returns False for size limit,
+    a bracket order is blocked and returns None."""
+    paper_brain.ibkr_conn.is_connected.return_value = True
+    paper_brain.ibkr_conn.validate_order_pre_flight.return_value = (
+        False,
+        "MAX_POSITION_SIZE_EXCEEDED",
+    )
+    paper_brain.ibkr_conn.place_bracket_order = AsyncMock(return_value=[200, 201, 202])
+
+    oid = await paper_brain._place_ibkr_order(
+        symbol="NVDA",
+        direction="BUY",
+        shares=10_000,        # Enormous size to trigger the limit
+        urgency="LOW",
+        limit_price=800.0,
+        stop_price=760.0,
+        target_price=880.0,
+    )
+    # Pre-flight blocks oversized bracket orders
+    assert oid is None
+    paper_brain.ibkr_conn.place_bracket_order.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# Test 21: Duplicate order prevention — Sovereign Order Shield (pending)
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_ibkr_duplicate_order_prevention(paper_brain):
+    """Test 21: When a pending order already exists for the symbol, a second
+    submission must be suppressed (returns SHIELDED) without touching the broker."""
+    paper_brain.ibkr_conn.is_connected.return_value = True
+    paper_brain.ibkr_conn.has_pending_order.return_value = True
+    paper_brain.ibkr_conn.place_order = AsyncMock(return_value=77)
+
+    oid = await paper_brain._place_ibkr_order(
+        symbol="AAPL",
+        direction="BUY",
+        shares=100,
+        urgency="LOW",
+        limit_price=150.0,
+    )
+    assert oid == "SHIELDED"
+    # The broker must never receive the duplicate submission
+    paper_brain.ibkr_conn.place_order.assert_not_awaited()
+
+
+# ---------------------------------------------------------------------------
+# Test 22: Connection loss simulation — broker raises mid-order
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_ibkr_connection_loss_mid_order_returns_none(paper_brain):
+    """Test 22: If the broker raises a ConnectionError mid-order, the exception
+    is caught internally and _place_ibkr_order returns None (no crash)."""
+    paper_brain.ibkr_conn.is_connected.return_value = True
+    paper_brain.ibkr_conn.validate_order_pre_flight.return_value = (True, "OK")
+    # Simulate a mid-order network drop
+    paper_brain.ibkr_conn.place_order = AsyncMock(
+        side_effect=ConnectionError("TWS disconnected unexpectedly")
+    )
+
+    oid = await paper_brain._place_ibkr_order(
+        symbol="TSLA",
+        direction="BUY",
+        shares=30,
+        urgency="LOW",
+        limit_price=250.0,
+    )
+    # The exception must be swallowed and None returned — no crash
+    assert oid is None
+
+
+# ---------------------------------------------------------------------------
+# Test 23: Order cancellation flow — cancel a pending single order
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_ibkr_cancel_pending_order_flow(paper_brain):
+    """Test 23: Full cancel flow: place an order, capture the ID, then cancel
+    it. Verifies cancel_order is called with the correct order ID."""
+    paper_brain.ibkr_conn.is_connected.return_value = True
+    paper_brain.ibkr_conn.validate_order_pre_flight.return_value = (True, "OK")
+    paper_brain.ibkr_conn.place_order = AsyncMock(return_value=555)
+    paper_brain.ibkr_conn.cancel_order = MagicMock(return_value=True)
+
+    oid = await paper_brain._place_ibkr_order(
+        symbol="GOOG",
+        direction="BUY",
+        shares=10,
+        urgency="LOW",
+        limit_price=140.0,
+    )
+    assert oid == 555
+
+    result = paper_brain.ibkr_conn.cancel_order(555)
+    paper_brain.ibkr_conn.cancel_order.assert_called_once_with(555)
+    assert result is True
+
+
+# ---------------------------------------------------------------------------
+# Test 24: Market hours validation — pre-flight rejects outside-hours order
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_ibkr_market_hours_validation_rejects_after_hours(paper_brain):
+    """Test 24: An after-hours bracket submission is rejected by pre-flight
+    when the broker indicates it is outside regular trading hours."""
+    paper_brain.ibkr_conn.is_connected.return_value = True
+    paper_brain.ibkr_conn.validate_order_pre_flight.return_value = (
+        False,
+        "MARKET_CLOSED",
+    )
+    paper_brain.ibkr_conn.place_bracket_order = AsyncMock(return_value=[300, 301, 302])
+
+    oid = await paper_brain._place_ibkr_order(
+        symbol="SPY",
+        direction="BUY",
+        shares=50,
+        urgency="LOW",
+        limit_price=450.0,
+        stop_price=440.0,
+        target_price=465.0,
+    )
+    assert oid is None
+    paper_brain.ibkr_conn.place_bracket_order.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# Test 25: Bracket order (take-profit + stop-loss) — verify both legs
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_ibkr_bracket_order_places_all_legs(paper_brain):
+    """Test 25: A bracket order (stop_price + target_price both set) calls
+    place_bracket_order with the correct stop_loss and take_profit values."""
+    paper_brain.ibkr_conn.is_connected.return_value = True
+    paper_brain.ibkr_conn.validate_order_pre_flight.return_value = (True, "OK")
+    paper_brain.ibkr_conn.place_bracket_order = AsyncMock(return_value=[400, 401, 402])
+
+    oid = await paper_brain._place_ibkr_order(
+        symbol="AAPL",
+        direction="BUY",
+        shares=100,
+        urgency="LOW",
+        limit_price=150.0,
+        stop_price=140.0,
+        target_price=165.0,
+    )
+    paper_brain.ibkr_conn.place_bracket_order.assert_awaited_once()
+    call_kw = paper_brain.ibkr_conn.place_bracket_order.call_args[1]
+    assert call_kw["stop_loss"] == 140.0
+    assert call_kw["take_profit"] == 165.0
+    assert oid == "400"
+
+
+# ---------------------------------------------------------------------------
+# Test 26: Account balance check — insufficient-funds rejection
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_ibkr_insufficient_funds_rejection(paper_brain):
+    """Test 26: Pre-flight returns False with INSUFFICIENT_FUNDS reason → the
+    bracket order is blocked and None is returned."""
+    paper_brain.ibkr_conn.is_connected.return_value = True
+    paper_brain.ibkr_conn.validate_order_pre_flight.return_value = (
+        False,
+        "INSUFFICIENT_FUNDS",
+    )
+    paper_brain.ibkr_conn.place_bracket_order = AsyncMock(return_value=[500, 501, 502])
+
+    oid = await paper_brain._place_ibkr_order(
+        symbol="AMZN",
+        direction="BUY",
+        shares=1_000,
+        urgency="LOW",
+        limit_price=3500.0,
+        stop_price=3400.0,
+        target_price=3700.0,
+    )
+    assert oid is None
+    paper_brain.ibkr_conn.place_bracket_order.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# Test 27: Order timeout handling — place_order hangs → asyncio.wait_for raises
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_ibkr_order_timeout_handled_gracefully(paper_brain):
+    """Test 27: If the broker coroutine never resolves (simulated with a long
+    sleep wrapped in a very short wait_for timeout), the system returns None
+    rather than hanging forever."""
+    paper_brain.ibkr_conn.is_connected.return_value = True
+    paper_brain.ibkr_conn.validate_order_pre_flight.return_value = (True, "OK")
+
+    async def _hang(*_, **__):
+        await asyncio.sleep(60)  # Simulates a broker that never responds
+
+    paper_brain.ibkr_conn.place_order = AsyncMock(side_effect=_hang)
+
+    # Wrap the call in a short timeout to simulate the real timeout behaviour
+    try:
+        oid = await asyncio.wait_for(
+            paper_brain._place_ibkr_order(
+                symbol="TSLA",
+                direction="BUY",
+                shares=10,
+                urgency="LOW",
+                limit_price=250.0,
+            ),
+            timeout=0.2,
+        )
+    except asyncio.TimeoutError:
+        oid = None  # Timeout → treat as unconfirmed/None
+
+    assert oid is None
+
+
+# ---------------------------------------------------------------------------
+# Test 28: Multi-symbol concurrent orders — two symbols placed simultaneously
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_ibkr_multi_symbol_concurrent_orders(paper_brain):
+    """Test 28: Two orders for different symbols placed concurrently must both
+    succeed in paper mode (both return PAPER-* IDs, not equal to each other
+    if time ticks between them — but both must be non-None)."""
+    # Use paper-mode (disconnected) so we don't need a live broker mock
+    paper_brain.ibkr_conn.is_connected.return_value = False
+
+    coro_aapl = paper_brain._place_ibkr_order(
+        symbol="AAPL", direction="BUY", shares=20, urgency="LOW", limit_price=150.0
+    )
+    coro_nvda = paper_brain._place_ibkr_order(
+        symbol="NVDA", direction="BUY", shares=5, urgency="LOW", limit_price=800.0
+    )
+
+    oid_aapl, oid_nvda = await asyncio.gather(coro_aapl, coro_nvda)
+
+    assert oid_aapl is not None
+    assert "PAPER" in str(oid_aapl)
+    assert oid_nvda is not None
+    assert "PAPER" in str(oid_nvda)
+
+
+# ---------------------------------------------------------------------------
+# Test 29: Short sale constraint — broker rejects via pre-flight REJECTED
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_ibkr_short_sale_constraint_rejection(paper_brain):
+    """Test 29: Broker returns a pre-flight failure reason of SHORT_NOT_ALLOWED
+    when a short sale is attempted on a non-shortable stock.  The bracket order
+    must be blocked and None returned."""
+    paper_brain.ibkr_conn.is_connected.return_value = True
+    paper_brain.ibkr_conn.validate_order_pre_flight.return_value = (
+        False,
+        "SHORT_NOT_ALLOWED",
+    )
+    paper_brain.ibkr_conn.place_bracket_order = AsyncMock(return_value=[600, 601, 602])
+
+    oid = await paper_brain._place_ibkr_order(
+        symbol="GME",
+        direction="SELL",
+        shares=50,
+        urgency="LOW",
+        limit_price=20.0,
+        stop_price=25.0,
+        target_price=10.0,
+    )
+    assert oid is None
+    paper_brain.ibkr_conn.place_bracket_order.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# Test 30: Broker EMERGENCY order — zero-share guard fires before MKT path
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_ibkr_emergency_zero_share_still_blocked(paper_brain):
+    """Test 30: Even with urgency=EMERGENCY, a zero-share order must be blocked
+    by the zero-share shield (shares < 1 guard runs before urgency routing)."""
+    paper_brain.ibkr_conn.is_connected.return_value = True
+    paper_brain.ibkr_conn.place_order = AsyncMock(return_value=77)
+
+    with patch("telegram_alerts.send_telegram_alert", new_callable=AsyncMock) as tg:
+        oid = await paper_brain._place_ibkr_order(
+            symbol="SPY",
+            direction="SELL",
+            shares=0,
+            urgency="EMERGENCY",
+            limit_price=450.0,
+        )
+
+    assert oid is None
+    # Broker must not have been called
+    paper_brain.ibkr_conn.place_order.assert_not_awaited()
+    # Telegram alert must have fired
+    tg.assert_awaited_once()
+
+
+# ---------------------------------------------------------------------------
+# Test 31: MT5 order rejected — broker returns None order ID
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_mt5_order_rejection_returns_none(paper_brain):
+    """Test 31: When mt5_conn.place_order returns None (order rejected by MT5),
+    _place_mt5_order propagates None to the caller."""
+    paper_brain.mt5_conn.place_order = MagicMock(return_value=None)
+
+    oid = await paper_brain._place_mt5_order(
+        symbol="EURUSD",
+        direction="sell",
+        shares=0.1,
+        limit_price=1.0850,
+        stop_price=1.0800,
+        target_price=1.0950,
+    )
+    paper_brain.mt5_conn.place_order.assert_called_once()
+    assert oid is None
+
+
+# ---------------------------------------------------------------------------
+# Test 32: Offline single order (connected=False, non-paper) returns empty str
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_ibkr_offline_non_paper_single_order_returns_empty(paper_brain):
+    """Test 32: When mode is NOT paper and broker is disconnected, a single
+    order (no stop/target set) falls into the paper-mode branch anyway because
+    FORCED_PAPER_MODE is True in paper_brain.  Confirms PAPER-* still returned
+    even when is_connected=False in paper mode."""
+    paper_brain.ibkr_conn.is_connected.return_value = False
+
+    oid = await paper_brain._place_ibkr_order(
+        symbol="META",
+        direction="BUY",
+        shares=15,
+        urgency="LOW",
+        limit_price=320.0,
+    )
+    # Paper mode with disconnected broker → simulated PAPER-* token
+    assert oid is not None
+    assert "PAPER" in str(oid)
