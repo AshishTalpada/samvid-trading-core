@@ -672,8 +672,8 @@ class TVNewsScent:
                 json_str = raw_data[start_json:end_json]
                 try:
                     results.append(json.loads(json_str))
-                except json.JSONDecodeError:
-                    pass
+                except json.JSONDecodeError as e:
+                    logger.debug("DhatuOracle: malformed JSON fragment skipped: %s", e)
 
                 ptr = end_json
         except Exception as _dh_err:
@@ -1074,8 +1074,8 @@ class DhatuOracle:
             if hasattr(self._news_scent, "_ws") and self._news_scent._ws:
                 try:
                     await self._news_scent._ws.close()
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.debug("DhatuOracle: error closing news scent WebSocket: %s", e)
         if hasattr(self, "_news_harvester") and self._news_harvester:
             self._news_harvester._running = False
 
