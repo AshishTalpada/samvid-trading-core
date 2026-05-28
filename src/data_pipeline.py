@@ -841,8 +841,8 @@ class DataPipeline:
                                         news_item["sentiment"],
                                     ),
                                 )
-                            except sqlite3.IntegrityError:
-                                pass
+                            except sqlite3.IntegrityError as e:
+                                logger.debug("DataPipeline: duplicate news row skipped: %s", e)
                         conn.commit()
                         break  # Success
                     except sqlite3.OperationalError as e:
