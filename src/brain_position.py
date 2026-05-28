@@ -397,6 +397,8 @@ class PositionMonitor:
             self._exit_last_attempt[symbol] = now
 
             # 1. Physical Exit (Broker Handshake)
+            # Capture direction sign before any async work that might flip pos.qty
+            entry_direction_sign = 1 if pos.qty > 0 else -1
             direction = "SELL" if pos.qty > 0 else "BUY"
 
             # Handling Partials
@@ -496,9 +498,11 @@ class PositionMonitor:
             # 2. Mathematical Reflection
             slice_qty = exit_shares if pos.qty > 0 else -exit_shares
             # Removed redundant expression
+            # Use entry_direction_sign (captured before async ops) to avoid sign flip
+            # from IBKR callbacks modifying pos.qty during execution.
             r_multiple = (
                 ((exit_price - pos.entry_price) / abs(pos.entry_price - pos.stop_loss))
-                * (1 if pos.qty > 0 else -1)
+                * entry_direction_sign
                 if abs(pos.entry_price - pos.stop_loss) > 0
                 else 0
             )
