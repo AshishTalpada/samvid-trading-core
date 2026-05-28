@@ -1893,6 +1893,17 @@ class TradingBrain(BrokerReconciler, HealthChecker, DataProvider, AccountingMixi
                 }
                 status_snapshot = dict(self.last_scan_stats)
 
+            # Emit structured Prometheus metrics (non-fatal)
+            try:
+                from metrics import METRICS
+                METRICS.scan_symbols_processed.inc(stats.get("scanned", 0))
+                METRICS.scan_cycle_duration_seconds.observe(
+                    time.monotonic() - getattr(self, "_scan_start_ts", time.monotonic())
+                )
+                METRICS.update_from_brain(self)
+            except Exception as _m_err:
+                pass  # metrics must never interrupt trading
+
             await self._maybe_send_execution_status(status_snapshot, vix_str)
 
             # Routine Memory Maintenance (Every 10 cycles)
