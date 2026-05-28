@@ -17,8 +17,8 @@ def create_task_safe(coro):
         _background_tasks.discard(t)
         try:
             t.result()
-        except asyncio.CancelledError:
-            pass
+        except asyncio.CancelledError as e:
+            logger.debug("BackgroundTask: cancelled as expected: %s", e)
         except Exception as e:
             task_name = getattr(t, "get_name", lambda: "Unknown")()
             logger.critical(f"BackgroundTask: CRITICAL FAILURE in {task_name}: {e}")
