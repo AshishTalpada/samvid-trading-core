@@ -268,15 +268,15 @@ class SharedIntelligenceBus:
             if q:
                 try:
                     q.put_nowait(p_item)
-                except (asyncio.QueueFull, Exception):
-                    pass
+                except (asyncio.QueueFull, Exception) as e:
+                    logger.debug("IntelligenceBus: subscriber queue full or error for topic %s: %s", topic, e)
 
         # 2. Push to wildcard relay queues
         for q in list(self._relay_queues):
             try:
                 q.put_nowait(r_item)
-            except (asyncio.QueueFull, Exception):
-                pass
+            except (asyncio.QueueFull, Exception) as e:
+                logger.debug("IntelligenceBus: relay queue full or error for topic %s: %s", topic, e)
 
         # 3. Push to callback workers
         for ref in self._callbacks.get(topic, []):
@@ -287,8 +287,8 @@ class SharedIntelligenceBus:
                     q, _ = self._callback_workers[h_id]
                     try:
                         q.put_nowait(p_item)
-                    except asyncio.QueueFull:
-                        pass
+                    except asyncio.QueueFull as e:
+                        logger.debug("IntelligenceBus: callback worker queue full for topic %s: %s", topic, e)
 
     async def publish(self, topic: str, payload: Any = None) -> None:
         self._publish_count += 1
@@ -479,8 +479,8 @@ class SharedIntelligenceBus:
                     return float(obj)
                 if isinstance(obj, np.ndarray):
                     return obj.tolist()
-            except ImportError:
-                pass
+            except ImportError as e:
+                logger.debug("IntelligenceBus: numpy not available for JSON serialization: %s", e)
             if hasattr(obj, "to_dict"):
                 return obj.to_dict()
             if hasattr(obj, "__dict__"):
