@@ -499,6 +499,7 @@ class TradingBrain(BrokerReconciler, HealthChecker, DataProvider, AccountingMixi
         self._scan_cycle: int = 0
         self.last_scan_time: datetime | None = None
         self._vetting_cooldowns: dict[str, datetime] = {}  # Symbol -> last vet time
+        self._seen_news_hashes: dict[str, float] = {}  # hash -> monotonic ts (24h dedup)
         self._last_runtime_wall = datetime.now(timezone.utc)
         self._resume_quarantine_until: datetime | None = None
         self._last_resume_notice_at: datetime | None = None
@@ -667,6 +668,19 @@ class TradingBrain(BrokerReconciler, HealthChecker, DataProvider, AccountingMixi
 
     async def _on_hft_news(self, payload: dict) -> None:
         """Neural News Trigger: Triggers re-scans on high-impact headlines."""
+        import hashlib
+        import time as _time
+
+        _headline = str(payload.get("headline", "") or "")
+        _url = str(payload.get("url", "") or "")
+        _dedup_key = hashlib.md5((_headline + _url).encode()).hexdigest()
+        _now = _time.monotonic()
+        # Expire old entries (older than 24h)
+        self._seen_news_hashes = {k: v for k, v in self._seen_news_hashes.items() if _now - v < 86400}
+        if _dedup_key in self._seen_news_hashes:
+            return  # already processed this article
+        self._seen_news_hashes[_dedup_key] = _now
+
         raw_headline = str(payload.get("headline", ""))
         try:
             from auth.prompt_guard import PromptGuard
@@ -1658,14 +1672,14 @@ class TradingBrain(BrokerReconciler, HealthChecker, DataProvider, AccountingMixi
                     if last_vet.tzinfo is None:
                         last_vet = last_vet.replace(tzinfo=timezone.utc)
                     cooldown_age = (datetime.now(timezone.utc) - last_vet).total_seconds()
-                    if cooldown_age < 30:
+                    if cooldown_age < 300:
                         async with stats_lock:
                             stats["gated"] += 1
                             stats["gate_vetting"] += 1
                         logger.debug(
                             "Scan [%s]: skipped during post-vetting cooldown (%.1fs remaining).",
                             symbol,
-                            30 - cooldown_age,
+                            300 - cooldown_age,
                         )
                         return None
 
