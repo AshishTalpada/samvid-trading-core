@@ -343,6 +343,25 @@ class TradingCoordinator:
                 # Fetch spread for sizing
                 spread_data = await self.brain.get_current_spread(symbol)
 
+                # Early Agent D veto gate — avoid sizing cost for statistically doomed trades
+                if not is_probe:
+                    try:
+                        agent_d_early = self.brain.live_learner.evaluate_proposal(
+                            pattern_name=pattern.name,
+                            regime=self.brain.current_regime,
+                            session=proposal.get("session", "RTH"),
+                        )
+                        if agent_d_early.get("vote") == "NO":
+                            logger.info(
+                                "Coordinator [%s] EARLY_VETO by Agent_D: %s — skipping sizing.",
+                                symbol,
+                                agent_d_early.get("reason", ""),
+                            )
+                            return
+                    except Exception as _early_d_err:
+                        logger.debug("Agent D early veto check failed: %s", _early_d_err)
+                        # Non-fatal — fall through to normal path
+
                 # Sizing Calculation for Context
                 # For probes: skip the sizer entirely — it will return 0 shares with no live data.
                 # A probe is a wiring test, not a real order, so shares=1 is sufficient to pass guards.
