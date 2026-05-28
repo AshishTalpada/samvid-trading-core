@@ -81,7 +81,29 @@ def apply_migrations(
                 len(pending),
                 [m.id for m in pending],
             )
-            backend.apply_migrations(pending)
+            # Apply migrations one at a time so that a "duplicate column name"
+            # error (columns already added by schema.sql) is treated as a no-op
+            # rather than a hard failure.  All other errors still propagate.
+            import sqlite3 as _sqlite3
+
+            for m in pending:
+                try:
+                    backend.apply_one(m)
+                except _sqlite3.OperationalError as col_err:
+                    err_msg = str(col_err).lower()
+                    if "duplicate column name" in err_msg or "already exists" in err_msg:
+                        logger.info(
+                            "Migration %s: column already exists — marking as applied (schema is up-to-date).",
+                            m.id,
+                        )
+                        # Mark migration as applied in yoyo's tracking table so
+                        # it won't be retried on every startup.
+                        try:
+                            backend.mark_one(m)
+                        except Exception as _mark_err:
+                            logger.debug("Could not mark migration %s: %s", m.id, _mark_err)
+                    else:
+                        raise
             logger.info("All migrations applied successfully.")
     except Exception as exc:
         logger.error("Migration failed: %s", exc, exc_info=True)
