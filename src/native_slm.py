@@ -169,7 +169,7 @@ class NativeSLM:
         except asyncio.TimeoutError:
             await self._kill_worker("timeout")
             self._record_failure("timeout")
-            logger.error("Native SLM: worker timed out after %.1fs.", self._inference_timeout)
+            logger.warning("Native SLM: worker timed out after %.1fs (will retry).", self._inference_timeout)
             return self._neutral_vote(context, "SLM Timeout")
         except Exception as exc:
             await self._kill_worker(str(exc))

@@ -218,7 +218,19 @@ class DMSMonitor:
             tmp_path = TASK_HEARTBEAT_FILE.with_suffix(".json.tmp")
             with tmp_path.open("w", encoding="utf-8") as f:
                 json.dump(payload, f, separators=(",", ":"))
-            os.replace(tmp_path, TASK_HEARTBEAT_FILE)
+            try:
+                os.replace(tmp_path, TASK_HEARTBEAT_FILE)
+            except OSError:
+                # Windows: os.replace can fail with WinError 5 (Access Denied) if the
+                # target file is briefly locked by a dying sibling process on restart.
+                # Fall back to a direct overwrite which is slightly less atomic but safe.
+                # Direct overwrite as fallback
+                with TASK_HEARTBEAT_FILE.open("w", encoding="utf-8") as f:
+                    json.dump(payload, f, separators=(",", ":"))
+                try:
+                    tmp_path.unlink(missing_ok=True)
+                except OSError:
+                    pass
             self._heartbeat_file_error_logged = False
         except Exception as exc:
             if not self._heartbeat_file_error_logged:
