@@ -170,17 +170,17 @@ class TradingCoordinator:
                 dollar_risk = total_risk_dollars * est_shares
                 risk_pct = (dollar_risk / balance_usd) if (balance_usd > 0) else 0.05
 
-                # Bypass the friction veto entirely.
-                # The user wants to see trades execute regardless of mathematical friction
-                # on small accounts (e.g. flat commissions killing scalp profits).
-                threshold = -99.0
-
+                # Friction veto: block trades where net RR (after spread + commission) is too low.
+                # Standard institutional threshold is 1.3. Small accounts (<$2k) get 1.0
+                # since fixed commissions compress ratio on small size.
                 if is_small_account:
-                    threshold = -99.0  # Relax significantly for small accounts
+                    threshold = 1.0
                     if task:
                         task.log(
-                            f"RR_RELAX: Small account detected. Dynamic threshold set to {threshold:.2f} (Risk: ${dollar_risk:.2f} USD)."
+                            f"RR_RELAX: Small account detected. Threshold relaxed to {threshold:.2f} (Risk: ${dollar_risk:.2f} USD)."
                         )
+                else:
+                    threshold = 1.3
 
                 if real_rr < threshold and not is_probe:
                     if task:
