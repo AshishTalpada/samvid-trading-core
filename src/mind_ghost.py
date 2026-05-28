@@ -55,8 +55,8 @@ class MindGhost:
                 t.cancel()
                 try:
                     await t
-                except (asyncio.CancelledError, Exception):
-                    pass
+                except (asyncio.CancelledError, Exception) as e:
+                    logger.debug("MindGhost: task cancelled during stop: %s", e)
         logger.info("MindGhost (Agent J): Stopped cleanly.")
 
     async def start(self) -> None:
