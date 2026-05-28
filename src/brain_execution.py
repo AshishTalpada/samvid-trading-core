@@ -431,17 +431,28 @@ class ExecutionMixin:
                         hold_hours = (
                             datetime.now(timezone.utc) - _entry_ts
                         ).total_seconds() / 3600
+                        # Determine outcome from realized PnL — never store raw exit_type as outcome.
+                        # exit_type (EXIT_P1, LIQUIDATED, etc.) is appended to notes for audit trail.
+                        if pnl > 0:
+                            db_outcome = "WIN"
+                        elif pnl < 0:
+                            db_outcome = "LOSS"
+                        else:
+                            db_outcome = "BREAKEVEN"
+
                         cursor.execute(
                             "UPDATE trades SET exit_price=?, outcome=?, pnl_dollars=?, r_multiple=?, "
-                            "hold_hours=?, belief_at_exit=?, net_pnl=? WHERE rowid=?",
+                            "hold_hours=?, belief_at_exit=?, net_pnl=?, "
+                            "notes=COALESCE(notes || ' | ', '') || ? WHERE rowid=?",
                             (
                                 exit_price,
-                                exit_type,
+                                db_outcome,
                                 pnl,
                                 r_multiple,
                                 hold_hours,
                                 pos.current_belief,
                                 pnl,
+                                f"exit_type={exit_type}",
                                 getattr(pos, "db_id", 0),
                             ),
                         )
@@ -455,15 +466,17 @@ class ExecutionMixin:
                         cursor.execute("PRAGMA table_info(performance_summary)")
                         summary_cols = {row[1] for row in cursor.fetchall()}
                         if {"key", "value"}.issubset(summary_cols):
+                            # Only aggregate genuine closed trades with real numeric pnl
                             cursor.execute("""
                                 SELECT
                                     COUNT(*) AS closed_count,
-                                    SUM(CASE WHEN COALESCE(net_pnl, pnl_dollars, 0) > 0 THEN 1 ELSE 0 END) AS wins,
-                                    SUM(CASE WHEN COALESCE(net_pnl, pnl_dollars, 0) < 0 THEN 1 ELSE 0 END) AS losses,
-                                    SUM(COALESCE(net_pnl, pnl_dollars, 0)) AS net_pnl,
+                                    SUM(CASE WHEN net_pnl > 0 THEN 1 ELSE 0 END) AS wins,
+                                    SUM(CASE WHEN net_pnl < 0 THEN 1 ELSE 0 END) AS losses,
+                                    SUM(net_pnl) AS net_pnl,
                                     AVG(r_multiple) AS avg_r
                                 FROM trades
-                                WHERE outcome NOT IN ('OPEN', 'ORPHANED')
+                                WHERE outcome IN ('WIN', 'LOSS', 'BREAKEVEN')
+                                  AND net_pnl IS NOT NULL
                             """)
                             row = cursor.fetchone()
                             closed_count = int(row[0] or 0)
