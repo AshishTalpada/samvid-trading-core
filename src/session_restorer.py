@@ -85,8 +85,8 @@ class SessionRestorer:
                 )
                 try:
                     tmp_obj.unlink(missing_ok=True)
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.debug("SessionRestorer: could not remove tmp freeze file: %s", e)
                 return False
 
             self.last_frozen = now_ts
