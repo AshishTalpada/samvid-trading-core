@@ -486,8 +486,8 @@ class EvolutionManager:
         if hasattr(self, "conn") and self.conn:
             try:
                 self.conn.close()
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug("AgentC: error closing DB connection: %s", e)
             self.conn = None
 
     async def run_evolution_cycle(self) -> None:
