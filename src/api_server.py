@@ -52,8 +52,8 @@ class APIServer:
         async def lifespan(app: FastAPI):
             try:
                 yield
-            except asyncio.CancelledError:
-                pass
+            except asyncio.CancelledError as e:
+                logger.debug("APIServer: lifespan cancelled: %s", e)
             finally:
                 # Graceful shutdown: close all active WebSocket connections
                 for ws in list(self.active_connections.keys()):
@@ -141,8 +141,8 @@ class APIServer:
         for _ws, q in self.active_connections.items():
             try:
                 q.put_nowait(msg)
-            except asyncio.QueueFull:
-                pass
+            except asyncio.QueueFull as e:
+                logger.debug("APIServer: WebSocket broadcast queue full, message dropped: %s", e)
 
     async def _broadcast_candle_batch(self, payload: dict) -> None:
         if not self.active_connections:
@@ -172,8 +172,8 @@ class APIServer:
         for _ws, q in self.active_connections.items():
             try:
                 q.put_nowait(msg)
-            except asyncio.QueueFull:
-                pass
+            except asyncio.QueueFull as e:
+                logger.debug("APIServer: WebSocket broadcast queue full, message dropped: %s", e)
 
     async def _broadcast_pulse(self, payload: dict) -> None:
         """Forward telemetry pulses (Agent A scans) to frontend."""
@@ -188,8 +188,8 @@ class APIServer:
         for _ws, q in self.active_connections.items():
             try:
                 q.put_nowait(msg)
-            except asyncio.QueueFull:
-                pass
+            except asyncio.QueueFull as e:
+                logger.debug("APIServer: WebSocket broadcast queue full, message dropped: %s", e)
 
     async def _broadcast_state(self, payload: dict) -> None:
         if not self.active_connections:
@@ -203,8 +203,8 @@ class APIServer:
         for _ws, q in self.active_connections.items():
             try:
                 q.put_nowait(msg)
-            except asyncio.QueueFull:
-                pass
+            except asyncio.QueueFull as e:
+                logger.debug("APIServer: WebSocket broadcast queue full, message dropped: %s", e)
 
     async def _broadcast_health(self, payload: dict) -> None:
         if not self.active_connections:
@@ -218,8 +218,8 @@ class APIServer:
         for _ws, q in self.active_connections.items():
             try:
                 q.put_nowait(msg)
-            except asyncio.QueueFull:
-                pass
+            except asyncio.QueueFull as e:
+                logger.debug("APIServer: WebSocket broadcast queue full, message dropped: %s", e)
 
     async def _run_tick_broadcaster(self) -> None:
         """Background worker to broadcast ticks at a sane frequency."""
@@ -253,8 +253,8 @@ class APIServer:
         for _ws, q in self.active_connections.items():
             try:
                 q.put_nowait(msg)
-            except asyncio.QueueFull:
-                pass
+            except asyncio.QueueFull as e:
+                logger.debug("APIServer: WebSocket broadcast queue full, message dropped: %s", e)
 
     async def _broadcast_oracle(self, payload: dict) -> None:
         if not self.active_connections:
@@ -269,8 +269,8 @@ class APIServer:
         for _ws, q in self.active_connections.items():
             try:
                 q.put_nowait(msg)
-            except asyncio.QueueFull:
-                pass
+            except asyncio.QueueFull as e:
+                logger.debug("APIServer: WebSocket broadcast queue full, message dropped: %s", e)
 
     async def _broadcast_calibration(self, payload: dict) -> None:
         if not self.active_connections:
@@ -284,8 +284,8 @@ class APIServer:
         for _ws, q in self.active_connections.items():
             try:
                 q.put_nowait(msg)
-            except asyncio.QueueFull:
-                pass
+            except asyncio.QueueFull as e:
+                logger.debug("APIServer: WebSocket broadcast queue full, message dropped: %s", e)
 
     async def _broadcast_mind_dialogue(self, payload: dict) -> None:
         if not self.active_connections:
@@ -306,8 +306,8 @@ class APIServer:
         for _ws, q in self.active_connections.items():
             try:
                 q.put_nowait(msg)
-            except asyncio.QueueFull:
-                pass
+            except asyncio.QueueFull as e:
+                logger.debug("APIServer: WebSocket broadcast queue full, message dropped: %s", e)
 
     async def _broadcast_consensus(self, payload: dict) -> None:
         if not self.active_connections:
@@ -322,8 +322,8 @@ class APIServer:
         for _ws, q in self.active_connections.items():
             try:
                 q.put_nowait(msg)
-            except asyncio.QueueFull:
-                pass
+            except asyncio.QueueFull as e:
+                logger.debug("APIServer: WebSocket broadcast queue full, message dropped: %s", e)
 
     def _is_port_available(self) -> bool:
         """Check whether host:port can be bound by this process."""
@@ -461,8 +461,8 @@ class APIServer:
                         msg = await q.get()
                         await self._safe_send_json(websocket, msg)
                         q.task_done()
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.debug("APIServer: WebSocket message loop ended: %s", e)
                 finally:
                     if websocket in self.active_connections:
                         del self.active_connections[websocket]
@@ -1130,8 +1130,8 @@ class APIServer:
                 task.cancel()
                 try:
                     await asyncio.wait_for(task, timeout=2.0)
-                except (asyncio.CancelledError, asyncio.TimeoutError):
-                    pass
+                except (asyncio.CancelledError, asyncio.TimeoutError) as e:
+                    logger.debug("APIServer: task %s cancelled/timed out during stop: %s", attr, e)
                 except Exception as e:
                     logger.error(f"Error stopping API Server task {attr}: {e}")
 
