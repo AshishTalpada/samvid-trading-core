@@ -856,12 +856,13 @@ class TradingSystem:
             cursor.execute("""
                 SELECT
                     COUNT(*) AS total_count,
-                    SUM(CASE WHEN COALESCE(net_pnl, pnl_dollars, 0) > 0 THEN 1 ELSE 0 END) AS wins,
-                    SUM(CASE WHEN COALESCE(net_pnl, pnl_dollars, 0) < 0 THEN 1 ELSE 0 END) AS losses,
-                    SUM(COALESCE(net_pnl, pnl_dollars, 0)) AS net_pnl,
+                    SUM(CASE WHEN net_pnl > 0 THEN 1 ELSE 0 END) AS wins,
+                    SUM(CASE WHEN net_pnl < 0 THEN 1 ELSE 0 END) AS losses,
+                    SUM(net_pnl) AS net_pnl,
                     AVG(r_multiple) AS avg_r
                 FROM trades
-                WHERE outcome NOT IN ('OPEN', 'ORPHANED')
+                WHERE outcome IN ('WIN', 'LOSS', 'BREAKEVEN')
+                  AND net_pnl IS NOT NULL
             """)
             row = cursor.fetchone()
             total_count = int(row[0] or 0)
