@@ -128,8 +128,8 @@ class DecisionEngine:
                             f"DecisionEngine: Agent '{agent}' too slow (drift={drift_sec:.2f}s). Excluding from quorum."
                         )
                         continue  # Skip this agent, don't reject the whole cycle
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.debug("DecisionEngine: timing check failed for agent %s: %s", agent, e)
 
             # Processing Vote
             if vote == "YES":
