@@ -96,7 +96,8 @@ def validate_env() -> list[str]:
     except Exception:
         warnings.append("TELEGRAM_BOT_TOKEN not in Vault")
 
-    mode = os.environ.get("TRADING_MODE", "")
+    # Use Vault.get so that .env-loaded values and Windows Vault are both checked.
+    mode = Vault.get("TRADING_MODE", "") or os.environ.get("TRADING_MODE", "")
     if not mode:
         warnings.append("TRADING_MODE not set (defaulting to paper) — SAFE")
     return warnings

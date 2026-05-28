@@ -168,7 +168,25 @@ DATA_INGESTION_INTERVAL = int(Vault.get("DATA_INGESTION_INTERVAL", "40"))
 DATA_MAINTENANCE_INTERVAL = int(Vault.get("DATA_MAINTENANCE_INTERVAL", "300"))
 BRAIN_SCAN_INTERVAL = 0.01
 
-QUESTDB_ENABLED = True  # Activated after successful installation
+def _probe_questdb(host: str = "localhost", port: int = 9009, timeout: float = 1.5) -> bool:
+    """Quick TCP probe to check if QuestDB ILP port is reachable."""
+    import socket
+    try:
+        with socket.create_connection((host, port), timeout=timeout):
+            return True
+    except OSError:
+        return False
+
+# Auto-detect QuestDB: honour explicit override from .env/Vault, else probe.
+_questdb_env = Vault.get("QUESTDB_ENABLED", "").strip().lower()
+if _questdb_env in ("true", "1", "yes"):
+    QUESTDB_ENABLED = True
+elif _questdb_env in ("false", "0", "no"):
+    QUESTDB_ENABLED = False
+else:
+    # Not explicitly set — probe at import time (fast, 1.5s max).
+    QUESTDB_ENABLED = _probe_questdb("localhost", 9009)
+
 QUESTDB_HOST = "localhost"
 QUESTDB_PORT = 9009  # ILP (Influx Line Protocol over TCP)
 QUESTDB_PG_PORT = 8812  # psycopg2 queries for brain OHLCV reads

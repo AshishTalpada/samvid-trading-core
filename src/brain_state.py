@@ -112,10 +112,11 @@ class DrawdownLadder:
                         f"DD: {((self.peak_equity - self.current_equity) / max(self.peak_equity, 1)):.2%}\n"
                         f"Trading HALTED. Manual review required."
                     )
-                    loop = _asyncio.get_event_loop()
-                    if loop.is_running():
-                        _asyncio.ensure_future(_tg(msg))
-                    else:
+                    try:
+                        loop = _asyncio.get_running_loop()
+                        loop.call_soon_threadsafe(_asyncio.ensure_future, _tg(msg))
+                    except RuntimeError:
+                        # No running event loop (e.g. called from sync startup validation).
                         logger.warning("Drawdown RED alert queued (no running loop): %s", msg)
                 except Exception as _tg_exc:
                     logger.error("Could not send RED drawdown Telegram alert: %s", _tg_exc)

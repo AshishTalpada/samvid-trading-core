@@ -279,7 +279,12 @@ class BrokerReconciler:
                 _p_entry = _safe_entry_time(p.entry_time)
                 age_seconds = (now_ts - _p_entry).total_seconds()
 
-                if uptime > 300 and age_seconds > 300 and abs(broker_qty) < 0.1:
+                # Purge threshold: 60s uptime if symbol is completely absent from broker,
+                # or 300s if it's present but shows qty=0 (could be a brief fill delay).
+                symbol_absent_from_broker = p.symbol not in (ibkr_reality if broker == "ibkr" else mt5_reality)
+                purge_uptime_threshold = 60 if symbol_absent_from_broker else 300
+                purge_age_threshold = 60 if symbol_absent_from_broker else 300
+                if uptime > purge_uptime_threshold and age_seconds > purge_age_threshold and abs(broker_qty) < 0.1:
                     logger.warning(
                         "SYNC PURGE [%s]: %s is flat in reality. Removing from memory.",
                         broker.upper(),
