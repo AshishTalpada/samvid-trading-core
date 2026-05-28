@@ -113,6 +113,10 @@ class DataPipeline:
         self.last_vix: float | None = None
         self._last_reality_check: dict[str, float] = {}  # symbol -> timestamp (time.monotonic)
 
+        self._last_pulse_time: dict[str, float] = {}  # symbol -> last successful fetch (monotonic)
+        self._vix_cache_ts: float = 0.0  # monotonic time of last successful VIX fetch
+        self._vix_cache_ttl: float = 300.0  # seconds: only fetch VIX every 5 min to avoid 429
+
         # SharedIntelligenceBus — publishes candle.batch so Brain wakes immediately
         self.bus: SharedIntelligenceBus | None = bus
 
@@ -587,6 +591,10 @@ class DataPipeline:
         Returns:
             Current VIX value or 0.0 if error
         """
+        # Rate-limit guard: return cached value if fetched recently (avoids HTTP 429).
+        now_mono = time.monotonic()
+        if self.last_vix is not None and (now_mono - self._vix_cache_ts) < self._vix_cache_ttl:
+            return self.last_vix
 
         async def _fetch_yahoo_chart_vix() -> float | None:
             session = await self._get_http_session()
@@ -594,7 +602,10 @@ class DataPipeline:
             params = {"range": "5d", "interval": "1d"}
             async with session.get(url, params=params) as response:
                 if response.status != 200:
-                    logger.info("VIX Yahoo chart fallback returned HTTP %s", response.status)
+                    if response.status == 429:
+                        logger.debug("VIX Yahoo chart rate-limited (429) — using cached value.")
+                    else:
+                        logger.info("VIX Yahoo chart fallback returned HTTP %s", response.status)
                     return None
                 payload = await response.json()
             result = payload.get("chart", {}).get("result") or []
@@ -663,6 +674,7 @@ class DataPipeline:
                 return 0.0
 
             self.last_vix = vix_value
+            self._vix_cache_ts = time.monotonic()  # update cache timestamp
 
             def _save_vix():
 
@@ -1165,6 +1177,7 @@ class DataPipeline:
                             self.qdb.insert_ohlcv(df, symbol)
                             await self.store_ohlcv(symbol, df, tf="1m")
                             successful.append(symbol)
+                            self._last_pulse_time[symbol] = time.monotonic()
                 except Exception as loop_err:
                     logger.error(f"Persistence Loop Error: {loop_err}")
                 finally:
@@ -1187,8 +1200,15 @@ class DataPipeline:
 
                 if self.bus is not None:
                     now_mono = time.monotonic()
+                    # Use _last_pulse_time (updated on every successful fetch) to detect stale data.
+                    # _last_reality_check is only updated hourly (price sanity cooldown) and must NOT
+                    # be used for staleness detection — it would fire as stale after every 60s gap.
                     stale_detect = (
-                        any((now_mono - ts) > 60.0 for ts in self._last_reality_check.values())
+                        bool(self._last_pulse_time)
+                        and any(
+                            (now_mono - ts) > 120.0
+                            for ts in self._last_pulse_time.values()
+                        )
                         if is_open
                         else False
                     )
