@@ -122,8 +122,8 @@ class SovereignBrain:
             try:
                 with open(self.weights_path, "r") as f:
                     return json.load(f)
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug("MindUltrathink: could not load weights from %s: %s", self.weights_path, e)
 
         # Initial Global Knowledge (Baseline Intelligence)
         return {
@@ -298,8 +298,8 @@ class MindUltrathink:
             if os.path.exists(path):
                 with open(path, "r") as f:
                     wisdom_text = f.read()
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug("MindUltrathink: could not read wisdom file: %s", e)
         return wisdom_text
 
     def _load_memory(self) -> None:
@@ -309,8 +309,8 @@ class MindUltrathink:
                 with open(self.memory_path, encoding="utf-8") as f:
                     self.reasoning_history = json.load(f)
                 self._distill_wisdom_index()  # Run a Dream cycle on startup
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug("MindUltrathink: could not load memory from %s: %s", self.memory_path, e)
 
     def _save_memory(self, entry: str) -> None:
         """Appends to memory and triggers periodic distillation."""
@@ -326,8 +326,8 @@ class MindUltrathink:
             # Every 10 entries, 'Dream' and distill
             if len(self.reasoning_history) % 10 == 0:
                 self._distill_wisdom_index()
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug("MindUltrathink: could not save memory entry: %s", e)
 
     async def start(self) -> None:
         self.is_running = True
@@ -381,8 +381,8 @@ class MindUltrathink:
                 end = cleaned.rfind("}")
                 if start != -1 and end != -1:
                     return json.loads(cleaned[start : end + 1])
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug("MindUltrathink: could not parse JSON from response: %s", e)
             return {}
 
     async def _tool_pause_and_reason(
