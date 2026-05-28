@@ -28,7 +28,7 @@ from prometheus_client import CollectorRegistry, Counter, Gauge
 sys.path.insert(0, "src")
 
 # Import using the module-level singleton (uses default registry)
-from metrics import METRICS, generate_latest_text, start_metrics_server, TradingMetrics
+from metrics import METRICS, generate_latest_text, start_metrics_server
 
 
 # ---------------------------------------------------------------------------

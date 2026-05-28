@@ -4,7 +4,7 @@ Tests for exit_intelligence.py safety guards.
 
 from datetime import datetime, timezone
 
-from exit_intelligence import ExitDecision, ExitIntelligence
+from exit_intelligence import ExitIntelligence
 
 
 def test_belief_exit_blocked_by_min_hold_time() -> None:

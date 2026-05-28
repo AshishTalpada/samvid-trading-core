@@ -36,7 +36,6 @@ from prometheus_client import (
     Counter,
     Gauge,
     Histogram,
-    Summary,
     generate_latest,
     start_http_server,
     REGISTRY as _DEFAULT_REGISTRY,
@@ -221,13 +220,13 @@ class TradingMetrics:
             total_upnl = sum(getattr(p, "unrealized_pnl", 0.0) for p in positions)
             self.position_unrealized_pnl.set(total_upnl)
         except Exception as exc:
-            logger.debug("metrics.update_from_brain: positions: %s", exc)
+            logger.warning("metrics.update_from_brain: positions: %s", exc)
 
         # Session P&L
         try:
             self.session_pnl_dollars.set(float(getattr(brain, "session_pnl", 0.0)))
         except Exception as exc:
-            logger.debug("metrics.update_from_brain: session_pnl: %s", exc)
+            logger.warning("metrics.update_from_brain: session_pnl: %s", exc)
 
         # Risk modifier & belief
         try:

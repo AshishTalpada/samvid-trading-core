@@ -36,9 +36,8 @@ Hotswap / routing:
 
 import asyncio
 import sys
-import time
 from datetime import datetime, timezone
-from unittest.mock import AsyncMock, MagicMock, patch, call
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -46,7 +45,6 @@ sys.path.insert(0, "src")
 
 from brain import TradingBrain
 from system_types import Position
-from trading_state import TradingState
 
 
 # ---------------------------------------------------------------------------

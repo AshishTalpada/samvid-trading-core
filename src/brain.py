@@ -1469,6 +1469,7 @@ class TradingBrain(BrokerReconciler, HealthChecker, DataProvider, AccountingMixi
             regime=self.current_regime,
             consecutive_losses=self.loss_tracker.consecutive_losses,
             dd_level=self.ibkr_drawdown.level,
+            broker=getattr(self, 'active_broker', 'ibkr'),
         )
         self.last_budget_date = datetime.now(timezone.utc)
 
