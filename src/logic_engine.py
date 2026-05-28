@@ -221,8 +221,8 @@ class SovereignLogicEngine:
                         f"Black-Swan: Negated trigger '{found_trigger}' detected — Veto suppressed."
                     )
                     return {"veto": False}
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug("LogicEngine: error during black-swan negation check: %s", e)
 
             return {
                 "veto": True,

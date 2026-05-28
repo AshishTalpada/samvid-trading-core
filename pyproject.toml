@@ -118,3 +118,8 @@ show_error_codes = true
 ignore_missing_imports = true
 files = "src"
 exclude = "(venv|\\.venv|data|logs|outputs)"
+
+[dependency-groups]
+dev = [
+    "pytest-cov>=7.1.0",
+]
