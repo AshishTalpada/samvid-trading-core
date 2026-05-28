@@ -229,8 +229,8 @@ class DMSMonitor:
                     json.dump(payload, f, separators=(",", ":"))
                 try:
                     tmp_path.unlink(missing_ok=True)
-                except OSError:
-                    pass
+                except OSError as e:
+                    logger.debug("DMS: could not remove tmp heartbeat file: %s", e)
             self._heartbeat_file_error_logged = False
         except Exception as exc:
             if not self._heartbeat_file_error_logged:
