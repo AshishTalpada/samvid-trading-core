@@ -231,8 +231,8 @@ class QuestDBAdapter:
         line = f"{safe_table} {','.join(fields)} {ts}"
         try:
             self._queue.put_nowait(line)
-        except asyncio.QueueFull:
-            pass
+        except asyncio.QueueFull as e:
+            logger.debug("QuestDB: metric queue full, line dropped: %s", e)
 
     def log_signal(
         self,
@@ -278,8 +278,8 @@ class QuestDBAdapter:
         line = f"trades,symbol={safe_symbol},side={safe_side},strategy={safe_strategy} price={price},quantity={quantity} {ts}"
         try:
             self._queue.put_nowait(line)
-        except asyncio.QueueFull:
-            pass
+        except asyncio.QueueFull as e:
+            logger.debug("QuestDB: trade queue full, line dropped: %s", e)
 
     def log_tick(self, symbol: str, price: float, size: float) -> None:
         """Log a real-time HFT tick to QuestDB via the managed ILP queue."""
@@ -526,8 +526,8 @@ class QuestDBAdapter:
             worker.cancel()
             try:
                 await worker
-            except asyncio.CancelledError:
-                pass
+            except asyncio.CancelledError as e:
+                logger.debug("QuestDB: worker task cancelled during stop: %s", e)
             self._worker_task = None
 
         # 2. Close ILP Socket
@@ -535,8 +535,8 @@ class QuestDBAdapter:
         if sock is not None:
             try:
                 sock.close()
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug("QuestDB: error closing ILP socket: %s", e)
             self._sock = None
 
         # 3. Shutdown PG Pool and Executor
@@ -554,8 +554,8 @@ class QuestDBAdapter:
         if self._executor:
             try:
                 self._executor.shutdown(wait=False)
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug("QuestDB: error shutting down executor: %s", e)
             self._executor = None
 
         self.is_active = False
