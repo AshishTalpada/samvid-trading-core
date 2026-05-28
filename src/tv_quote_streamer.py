@@ -153,8 +153,8 @@ class TVQuoteStreamer:
                 break
             try:
                 results.append(json.loads(raw_data[start_json:end_json]))
-            except json.JSONDecodeError:
-                pass
+            except json.JSONDecodeError as e:
+                logger.debug("TVQuoteStreamer: malformed JSON frame skipped: %s", e)
             ptr = end_json
         return results
 
@@ -396,7 +396,7 @@ class TVQuoteStreamer:
         if ws is not None:
             try:
                 await ws.close()
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug("TVQuoteStreamer: error closing WebSocket on stop: %s", e)
         self._connected = False
         logger.info("TVQuoteStreamer: stopped.")
