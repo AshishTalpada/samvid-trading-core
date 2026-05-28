@@ -13,11 +13,11 @@ These tests verify:
 """
 from __future__ import annotations
 
-import sys
 import os
+import sys
 
-import pytest
 import polars as pl
+import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 

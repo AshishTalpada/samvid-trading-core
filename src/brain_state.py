@@ -105,6 +105,7 @@ class DrawdownLadder:
                 # Page the operator immediately — RED is a critical capital preservation event
                 try:
                     import asyncio as _asyncio
+
                     from telegram_alerts import send_telegram_alert as _tg
                     msg = (
                         f"[SOVEREIGN ALERT] DRAWDOWN RED-ZONE [{self.account_type.upper()}]\n"

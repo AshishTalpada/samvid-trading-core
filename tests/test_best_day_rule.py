@@ -2,10 +2,12 @@
 tests/test_best_day_rule.py
 Tests for FTMO Best Day Rule enforcement in TradingCoordinator.
 """
-import pytest
-from unittest.mock import MagicMock, patch
-import sys
 import os
+import sys
+from unittest.mock import MagicMock, patch
+
+import pytest
+
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
 
 

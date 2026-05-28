@@ -11,16 +11,18 @@ Verifies:
   6. list_migrations() prints APPLIED status after applying
   7. list_migrations() prints PENDING on a fresh database
   8. Can INSERT a valid trade row after migrations (schema is runtime-compatible)
+  9. Rollback migration 0003 removes regime_at_entry from trades
+ 10. Rollback migration 0002 removes key/value/updated_at from performance_summary
+ 11. Full rollback of all migrations removes all core tables
+ 12. Rollback then re-apply is idempotent (round-trip)
 """
 
 import sqlite3
 import sys
 
-
 sys.path.insert(0, "src")
 
-from database.migrate import apply_migrations, list_migrations, _MIGRATIONS_DIR
-
+from database.migrate import _MIGRATIONS_DIR, apply_migrations, list_migrations, rollback_migrations
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -152,3 +154,125 @@ def test_trades_row_insertable_after_migration(tmp_path):
     count = cur.fetchone()[0]
     conn.close()
     assert count == 1
+
+
+# ---------------------------------------------------------------------------
+# Rollback tests — require rollback .sql files to be present
+# ---------------------------------------------------------------------------
+
+def test_rollback_0003_removes_regime_at_entry(tmp_path):
+    """Test 9: rolling back migration 0003 drops trades.regime_at_entry."""
+    import yoyo
+
+    db_path = str(tmp_path / "rb3.db")
+    apply_migrations(db_path=db_path, migrations_dir=_MIGRATIONS_DIR)
+
+    # Confirm column exists before rollback
+    assert "regime_at_entry" in _columns(db_path, "trades")
+
+    # Roll back only the last migration (0003)
+    db_url = f"sqlite:///{db_path}"
+    backend = yoyo.get_backend(db_url)
+    migs = yoyo.read_migrations(str(_MIGRATIONS_DIR))
+    with backend.lock():
+        to_rb = list(backend.to_rollback(migs))
+    # to_rb is ordered newest-first; 0003 is first
+    assert to_rb[0].id == "0003.add-trades-regime-at-entry"
+    backend2 = yoyo.get_backend(db_url)
+    with backend2.lock():
+        to_rb2 = list(backend2.to_rollback(migs))
+        backend2.rollback_one(to_rb2[0])
+
+    assert "regime_at_entry" not in _columns(db_path, "trades"), (
+        "regime_at_entry should be gone after rollback of 0003"
+    )
+    # Earlier tables must still exist
+    assert "trades" in _tables(db_path)
+    assert "key" in _columns(db_path, "performance_summary")
+
+
+def test_rollback_0002_removes_kv_columns(tmp_path):
+    """Test 10: rolling back migrations 0003+0002 removes kv cols from performance_summary."""
+    import yoyo
+
+    db_path = str(tmp_path / "rb2.db")
+    apply_migrations(db_path=db_path, migrations_dir=_MIGRATIONS_DIR)
+
+    assert "key" in _columns(db_path, "performance_summary")
+
+    db_url = f"sqlite:///{db_path}"
+    backend = yoyo.get_backend(db_url)
+    migs = yoyo.read_migrations(str(_MIGRATIONS_DIR))
+    # Roll back 0003 then 0002
+    with backend.lock():
+        to_rb = list(backend.to_rollback(migs))
+    backend2 = yoyo.get_backend(db_url)
+    with backend2.lock():
+        to_rb2 = list(backend2.to_rollback(migs))
+        backend2.rollback_one(to_rb2[0])  # 0003
+    backend3 = yoyo.get_backend(db_url)
+    with backend3.lock():
+        to_rb3 = list(backend3.to_rollback(migs))
+        backend3.rollback_one(to_rb3[0])  # 0002
+
+    ps_cols = _columns(db_path, "performance_summary")
+    assert "key" not in ps_cols, "performance_summary.key should be gone after rollback 0002"
+    assert "value" not in ps_cols, "performance_summary.value should be gone after rollback 0002"
+    assert "updated_at" not in ps_cols, (
+        "performance_summary.updated_at should be gone after rollback 0002"
+    )
+    # Core tables from 0001 must still be present
+    assert "trades" in _tables(db_path)
+
+
+def test_rollback_all_removes_core_tables(tmp_path):
+    """Test 11: rolling back all migrations removes all core tables."""
+    db_path = str(tmp_path / "rb_all.db")
+    apply_migrations(db_path=db_path, migrations_dir=_MIGRATIONS_DIR)
+
+    core_tables = {
+        "trades", "signals", "positions", "system_state", "ohlcv",
+        "performance_summary", "calibration_log", "system_events",
+        "dhatu_readings", "decision_snapshots", "brain_optimization",
+        "vix_data", "news", "agent_d_trades",
+    }
+    assert core_tables.issubset(_tables(db_path)), "Core tables must exist before rollback"
+
+    rollback_migrations(db_path=db_path, migrations_dir=_MIGRATIONS_DIR)
+
+    # None of the core tables should remain after full rollback
+    remaining = core_tables & _tables(db_path)
+    assert not remaining, f"Expected all core tables dropped; still present: {remaining}"
+
+
+def test_rollback_then_reapply_is_idempotent(tmp_path):
+    """Test 12: rollback → re-apply leaves the schema intact (round-trip)."""
+    db_path = str(tmp_path / "round_trip.db")
+
+    # First apply
+    apply_migrations(db_path=db_path, migrations_dir=_MIGRATIONS_DIR)
+    tables_first = _tables(db_path)
+    cols_trades_first = _columns(db_path, "trades")
+    cols_ps_first = _columns(db_path, "performance_summary")
+
+    # Full rollback
+    rollback_migrations(db_path=db_path, migrations_dir=_MIGRATIONS_DIR)
+
+    # Re-apply
+    apply_migrations(db_path=db_path, migrations_dir=_MIGRATIONS_DIR)
+    tables_second = _tables(db_path)
+    cols_trades_second = _columns(db_path, "trades")
+    cols_ps_second = _columns(db_path, "performance_summary")
+
+    # Yoyo internal tables differ; compare only user tables
+    _yoyo_prefix = ("_yoyo", "yoyo", "sqlite_sequence")
+    user_first = {t for t in tables_first if not any(t.startswith(p) for p in _yoyo_prefix)}
+    user_second = {t for t in tables_second if not any(t.startswith(p) for p in _yoyo_prefix)}
+
+    assert user_first == user_second, (
+        f"Tables differ after round-trip.\nBefore: {user_first}\nAfter:  {user_second}"
+    )
+    assert cols_trades_first == cols_trades_second, "trades columns differ after round-trip"
+    assert cols_ps_first == cols_ps_second, (
+        "performance_summary columns differ after round-trip"
+    )
