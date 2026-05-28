@@ -154,13 +154,26 @@ class PositionMonitor:
 
                 # Perform a 500ms 'Heartbeat Re-vet' using Mind_Ultrathink
                 # This checks if the reasons we entered the trade are still valid.
+                # Gate: skip stop-breach vetoes for positions under 60s to avoid
+                # ghost-stop exits from stale first-tick prices after fill.
+                _pos_age_s = (datetime.now(timezone.utc) - _safe_entry_time(pos.entry_time)).total_seconds()
                 thought_dna = await self.mind_ultrathink.heartbeat_vet(pos_dict, market_dict)
                 if thought_dna.get("veto"):
-                    logger.warning(
-                        f" Sovereign HEARTBEAT VETO: {pos.symbol} — {thought_dna.get('reason')}"
-                    )
-                    exits_triggered.append((pos, "HEARTBEAT_VETO", current_price))
-                    continue  # Skip further monitoring for this tick
+                    _veto_reason = thought_dna.get("reason", "")
+                    # Allow VIX panic and belief-collapse vetoes immediately.
+                    # Suppress stop-breach vetoes on positions under 60s (first-tick noise).
+                    _is_stop_breach = "stop breached" in _veto_reason.lower()
+                    if _is_stop_breach and _pos_age_s < 60:
+                        logger.debug(
+                            "HEARTBEAT VETO suppressed for %s (age=%.0fs < 60s): %s",
+                            pos.symbol, _pos_age_s, _veto_reason,
+                        )
+                    else:
+                        logger.warning(
+                            f" Sovereign HEARTBEAT VETO: {pos.symbol} — {_veto_reason}"
+                        )
+                        exits_triggered.append((pos, "HEARTBEAT_VETO", current_price))
+                        continue  # Skip further monitoring for this tick
 
                 # Dynamic Stop Adjustment from Thought DNA (Beta Gate)
                 if thought_dna.get("new_stop"):
