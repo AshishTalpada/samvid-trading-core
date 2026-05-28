@@ -1525,6 +1525,16 @@ class TradingSystem:
         else:
             logger.info("\n[8/9] Dhatu Oracle disabled or not configured.")
 
+        # Start Prometheus metrics server (non-fatal)
+        try:
+            from metrics import start_metrics_server
+            from vault import Vault as _VaultM
+            _metrics_port = int(_VaultM.get("METRICS_PORT", "9090") or "9090")
+            start_metrics_server(port=_metrics_port)
+            logger.info("Prometheus metrics server started on port %d", _metrics_port)
+        except Exception as _m_err:
+            logger.warning("Metrics server startup failed (non-fatal): %s", _m_err)
+
         # Start API Server
         if self.api_server:
             _p = self.api_server.port
