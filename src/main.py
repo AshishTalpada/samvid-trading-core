@@ -676,6 +676,14 @@ class TradingSystem:
                 self.db_conn = await asyncio.to_thread(_sync_init)
                 self.db_conn.row_factory = sqlite3.Row
 
+
+                # Apply any pending yoyo migrations first (idempotent)
+                try:
+                    from database.migrate import apply_migrations
+                    apply_migrations(db_path=self.db_path)
+                except Exception as _mig_err:
+                    logger.warning("Migration runner error (non-fatal): %s", _mig_err)
+
                 # Read and execute schema
                 if self.schema_path.exists():
                     logger.info(f"Loading schema from {self.schema_path}")
