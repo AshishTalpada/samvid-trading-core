@@ -2,7 +2,6 @@
 Tests for BlackSwanProtocol wiring into the TradingBrain scan loop.
 """
 
-import asyncio
 import os
 from contextlib import ExitStack
 from unittest.mock import AsyncMock, MagicMock, patch

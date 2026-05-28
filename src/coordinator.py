@@ -50,6 +50,62 @@ class TradingCoordinator:
         self.exoskeleton = ApexExoskeleton(brain)
         self._semaphore: asyncio.Semaphore | None = None  # Lazy-init to bind to running loop
 
+    def _check_best_day_rule(self, today_pnl: float, broker: str) -> tuple[bool, str]:
+        """
+        FTMO Best Day Rule enforcement (F-spec).
+        Today's profit must not exceed 2/3 of the average of other recent profitable days.
+        On prop/MT5 track this is a hard veto. On IBKR it is advisory.
+        Returns (passes, reason_string).
+        """
+        from config import FTMO_BEST_DAY_RATIO
+
+        if today_pnl <= 0:
+            return True, ""  # Only applies when today is profitable
+
+        cursor = None
+        try:
+            db_conn = getattr(self.brain, "db_conn", None)
+            if db_conn is None:
+                return True, ""  # No DB — can't enforce, allow
+
+            cursor = db_conn.cursor()
+            # Fetch daily P&L for the last 30 trading days (excluding today)
+            from datetime import datetime, timezone
+
+            today_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+            cursor.execute(
+                """
+                SELECT DATE(timestamp) as day, SUM(pnl_dollars) as daily_pnl
+                FROM trades
+                WHERE DATE(timestamp) < DATE(?) AND broker = ?
+                GROUP BY day
+                ORDER BY day DESC
+                LIMIT 30
+                """,
+                (today_str, broker.lower()),
+            )
+            rows = cursor.fetchall()
+            other_profitable = [float(r[1]) for r in rows if r[1] is not None and float(r[1]) > 0]
+            if not other_profitable:
+                return True, ""  # No history to compare against
+
+            avg_others = sum(other_profitable) / len(other_profitable)
+            threshold = FTMO_BEST_DAY_RATIO * avg_others  # 2/3 × avg
+
+            if today_pnl > threshold:
+                reason = (
+                    f"Best Day Rule: today=${today_pnl:.2f} > {FTMO_BEST_DAY_RATIO:.2f}×"
+                    f"avg_others=${avg_others:.2f} (threshold=${threshold:.2f})"
+                )
+                return False, reason
+            return True, ""
+        except Exception as exc:
+            logger.warning("Best Day Rule check failed (non-fatal): %s", exc)
+            return True, ""
+        finally:
+            if cursor is not None:
+                cursor.close()
+
     async def initiate_trade_lifecycle(
         self, symbol: str, proposal: dict[str, Any], is_probe: bool = False
     ) -> bool | None:
@@ -74,6 +130,20 @@ class TradingCoordinator:
             if task:
                 task.set_phase("RR_CHECK", symbol)
                 task.log(f"PHASE_RR: Analyzing Risk/Reward for {symbol}. Pattern: {pattern.name}")
+
+            # FTMO Best Day Rule enforcement (must precede sizing/RR checks)
+            active_broker = getattr(self.brain, "active_broker", "ibkr").lower()
+            today_session_pnl = float(getattr(self.brain, "session_pnl", 0.0))
+            bdr_passes, bdr_reason = self._check_best_day_rule(today_session_pnl, active_broker)
+            if not bdr_passes and not is_probe:
+                is_prop = active_broker in ("mt5", "prop")
+                if is_prop:
+                    logger.warning(f"Coordinator [{symbol}]  BEST_DAY_RULE VETO (prop): {bdr_reason}")
+                    LEDGER.record_veto(symbol=symbol, reason=f"BEST_DAY_RULE: {bdr_reason}")
+                    return False
+                else:
+                    logger.warning(f"Coordinator [{symbol}]  BEST_DAY_RULE WARNING (ibkr advisory): {bdr_reason}")
+
             balance = await self.brain.get_safe_buying_power("ibkr")
             from config import COMMISSION_PER_ROUND_TRIP, USD_CAD_RATE
 

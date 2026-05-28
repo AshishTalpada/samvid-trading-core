@@ -1124,7 +1124,6 @@ class IBKRConnection:
         if not self.is_connected():
             return
 
-        from ib_insync import LimitOrder, Stock
 
         for symbol in symbols:
             if symbol not in self._warm_slots:

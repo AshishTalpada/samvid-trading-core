@@ -14,7 +14,6 @@ Exercises every critical path WITHOUT requiring a live broker:
 - Position state corruption recovery
 """
 
-import asyncio
 import sys
 from datetime import datetime, timezone
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -25,7 +24,6 @@ sys.path.insert(0, "src")
 
 from brain import TradingBrain
 from system_types import Position
-from trading_state import TradingState
 
 
 @pytest.fixture
@@ -334,7 +332,6 @@ async def test_empty_all_votes_guard(mock_brain):
 @pytest.mark.asyncio
 async def test_timestamp_drift_ns_parsing():
     """DecisionEngine should handle nanosecond integer timestamps."""
-    from decision_engine import DecisionEngine
 
     # Simulate the _to_sec logic we added
     def _to_sec(ts):
