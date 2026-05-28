@@ -3372,8 +3372,8 @@ class TradingBrain:
             if hasattr(p, "symbol") and not isinstance(p, dict):
                 try:
                     p.__post_init__()
-                except Exception:
-                    pass
+                except Exception as _e:
+                    logger.debug("_sanitize_positions: __post_init__ failed: %s", _e)
                 valid.append(p)
             elif isinstance(p, dict) and "symbol" in p:
                 try:
@@ -3596,8 +3596,8 @@ class TradingBrain:
                         if opened_at.tzinfo is None:
                             opened_at = opened_at.replace(tzinfo=timezone.utc)
                     age_seconds = (now_ts - opened_at).total_seconds()
-                except Exception:
-                    pass
+                except Exception as _e:
+                    logger.debug("Reconciliation: timestamp parse failed: %s", _e)
 
                 if age_seconds >= 120:
                     stale_ids.append(int(tid))
