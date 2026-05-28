@@ -15,8 +15,8 @@ if sys.platform == "win32":
     try:
         sys.stdout.reconfigure(encoding="utf-8")
         sys.stderr.reconfigure(encoding="utf-8")
-    except (AttributeError, io.UnsupportedOperation):
-        pass
+    except (AttributeError, io.UnsupportedOperation) as e:
+        print(f"[boot] could not reconfigure stdout/stderr encoding: {e}", file=sys.stderr)
 
 # Disable ChromaDB telemetry BEFORE any imports to prevent PostHog errors
 os.environ["ANONYMIZED_TELEMETRY"] = "False"
@@ -448,8 +448,8 @@ class TradingSystem:
 
                 for sig in (signal.SIGINT, signal.SIGTERM):
                     loop.add_signal_handler(sig, _signal_handler)
-            except (RuntimeError, NotImplementedError):
-                pass
+            except (RuntimeError, NotImplementedError) as e:
+                logger.debug("Main: signal handler setup not supported on this platform: %s", e)
 
         # 1. Sovereign Scent Detection (Pillar 9.99)
         self.mind_system = MindSystem(self.bridge)
@@ -1041,8 +1041,8 @@ class TradingSystem:
                                 logger.debug(f"Probe failed for {host}:{port}: {e}")
                                 try:
                                     client.disconnect()
-                                except Exception:
-                                    pass
+                                except Exception as e:
+                                    logger.debug("Main: error disconnecting IBKR client during retry: %s", e)
                                 self.ibkr_client = client = IB()
                                 continue
                         if connected:
@@ -1817,8 +1817,8 @@ class TradingSystem:
             mt5_ok = False
             try:
                 mt5_ok = bool(self.mt5_client and self.mt5_client.terminal_info())
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug("Main: MT5 terminal_info() unavailable: %s", e)
             deterministic_ok = True
             qdb_ok = bool(self.questdb and self.questdb.is_active)
             dms_ok = bool(getattr(self, "dms", None))
@@ -1842,8 +1842,8 @@ class TradingSystem:
             )
             print(banner)
             logger.info("STARTUP COMPLETE — system healthy and scanning.")
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug("Main: startup banner rendering failed: %s", e)
 
         try:
             while self.is_running:
@@ -1975,10 +1975,21 @@ class TradingSystem:
                     if task.done() and task.exception() is not None
                 ]
                 if failed:
-                    raise RuntimeError(f"Critical background task failure: {', '.join(failed)}")
+                    for name in failed:
+                        exc = self.background_tasks[name].exception()
+                        logger.critical(
+                            "Background task '%s' died: %s — system continues.",
+                            name,
+                            exc,
+                            exc_info=exc,
+                        )
+                        # Remove dead task so it won't flood every heartbeat cycle
+                        del self.background_tasks[name]
 
         except asyncio.CancelledError:
             logger.info("System shutdown requested")
+        except Exception as e:
+            logger.critical("_run_forever: unexpected exception: %s", e, exc_info=True)
 
     def _start_supervised_task(
         self, name: str, coro_func: Callable[[], Coroutine[Any, Any, None]]
@@ -2237,8 +2248,8 @@ class TradingSystem:
                     await asyncio.wait_for(
                         asyncio.gather(*to_cancel, return_exceptions=True), timeout=5.0
                     )
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.debug("Main: error waiting for background tasks to cancel: %s", e)
             self.background_tasks.clear()
 
             # 6. DISCONNECT BROKERS
@@ -2398,8 +2409,8 @@ class TradingSystem:
                         actual_pid = pid_path.read_text(encoding="utf-8").strip()
                         if actual_pid:
                             break
-                    except OSError:
-                        pass
+                    except OSError as e:
+                        logger.debug("Main: error reading PID file: %s", e)
                 await asyncio.sleep(0.1)
             if actual_pid:
                 logger.info(
@@ -2576,8 +2587,8 @@ class TradingSystem:
                                 if f.endswith(".tmp"):
                                     try:
                                         os.remove(os.path.join(logs_dir, f))
-                                    except Exception:
-                                        pass
+                                    except Exception as e:
+                                        logger.debug("Main: sentinel could not remove .tmp file: %s", e)
                             logger.debug("Sentinel: Logs directory sterilized of .tmp artifacts.")
                     except Exception as e:
                         logger.debug(f"Sentinel: MiroFish cleanup failed: {e}")
@@ -2705,8 +2716,8 @@ if __name__ == "__main__":
         import winloop
 
         winloop.install()
-    except ImportError:
-        pass
+    except ImportError as e:
+        logger.debug("Main: winloop not available, using default event loop: %s", e)
 
     if sys.platform == "win32" and "winloop" not in sys.modules:
         import asyncio
@@ -2825,8 +2836,8 @@ if __name__ == "__main__":
             # Ensure all handles are closed before loop.close() to prevent UVHandle warnings
             try:
                 loop.run_until_complete(loop.shutdown_asyncgens())
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug("Main: shutdown_asyncgens failed: %s", e)
 
             s._clear_own_pid_file()
             loop.close()
