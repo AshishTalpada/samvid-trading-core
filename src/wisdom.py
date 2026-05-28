@@ -35,8 +35,8 @@ class WisdomRepository:
         if scent_path.exists():
             try:
                 full_context += f"### RECENT DENSITY SCENT:\n{scent_path.read_text()}\n"
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug("Wisdom: could not read SESSION_DENSITY_SCENT.md: %s", e)
 
         # 1. Iterative Scan (Anti-DoS)
         # Instead of list(glob), we iterate and collect mtimes for sorting
