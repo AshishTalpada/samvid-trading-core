@@ -377,12 +377,13 @@ class BrokerReconciler:
         try:
             cursor = self.db_conn.cursor()
             cursor.execute(
-                "SELECT id, timestamp, instrument FROM trades "
+                "SELECT id, timestamp, instrument, entry_price, shares FROM trades "
                 "WHERE broker = ? AND outcome = 'OPEN'",
                 (broker,),
             )
-            stale_ids: list[int] = []
-            for tid, ts_str, symbol in cursor.fetchall():
+            # stale_trades: list of (trade_id, instrument, entry_price, shares)
+            stale_trades: list[tuple[int, str, float, float]] = []
+            for tid, ts_str, symbol, entry_price_raw, shares_raw in cursor.fetchall():
                 if abs(float(reality.get(symbol, 0.0) or 0.0)) >= 0.1:
                     continue
 
@@ -406,21 +407,57 @@ class BrokerReconciler:
                     logger.debug("Reconciliation: timestamp parse failed: %s", _e)
 
                 if age_seconds >= 120:
-                    stale_ids.append(int(tid))
+                    entry_price = float(entry_price_raw) if entry_price_raw is not None else 0.0
+                    shares = float(shares_raw) if shares_raw is not None else 0.0
+                    stale_trades.append((int(tid), symbol or "", entry_price, shares))
 
-            if stale_ids:
-                placeholders = ",".join("?" for _ in stale_ids)
-                cursor.execute(
-                    "UPDATE trades SET outcome = 'LIQUIDATED', "
-                    "notes = COALESCE(notes || ' | ', '') || ? "
-                    f"WHERE id IN ({placeholders})",
-                    ("broker reality flat during reconciliation", *stale_ids),
-                )
+            if stale_trades:
+                for trade_id, instrument, entry_price, shares in stale_trades:
+                    # Resolve current market price for exit_price
+                    exit_price = 0.0
+                    try:
+                        exit_price = float(
+                            getattr(self, "last_tick_prices", {}).get(instrument, 0.0) or 0.0
+                        )
+                        if exit_price <= 0 and hasattr(self, "data_pipeline"):
+                            dp_price = self.data_pipeline.get_last_price(instrument)
+                            if dp_price:
+                                exit_price = float(dp_price)
+                    except Exception as _price_err:
+                        logger.debug(
+                            "Reconciliation: price lookup failed for %s: %s",
+                            instrument,
+                            _price_err,
+                        )
+
+                    # Rough P&L: (exit - entry) x shares
+                    pnl = (exit_price - entry_price) * shares if exit_price > 0 else 0.0
+                    if pnl > 0:
+                        db_outcome = "WIN"
+                    elif pnl < 0:
+                        db_outcome = "LOSS"
+                    else:
+                        db_outcome = "BREAKEVEN"
+
+                    cursor.execute(
+                        "UPDATE trades SET outcome = ?, exit_price = ?, pnl_dollars = ?, "
+                        "net_pnl = ?, notes = COALESCE(notes || ' | ', '') || ? "
+                        "WHERE id = ?",
+                        (
+                            db_outcome,
+                            exit_price if exit_price > 0 else None,
+                            pnl,
+                            pnl,
+                            "LIQUIDATED: broker reality flat during reconciliation",
+                            trade_id,
+                        ),
+                    )
+
                 self.db_conn.commit()
                 logger.warning(
                     "Reconciliation: marked %s stale %s OPEN trade row(s) "
                     "LIQUIDATED after fresh broker poll.",
-                    len(stale_ids),
+                    len(stale_trades),
                     broker.upper(),
                 )
         except Exception as exc:
