@@ -443,7 +443,7 @@ def test_reconcile_marks_liquidated_closed_db_rows(paper_brain):
     old_ts = "2024-01-01T10:00:00+00:00"
     mock_cursor = MagicMock()
     mock_cursor.fetchall.return_value = [
-        (99, old_ts, "NVDA"),  # (id, timestamp, instrument)
+        (99, old_ts, "NVDA", 100.0, 10),  # (id, timestamp, instrument, entry_price, shares)
     ]
     paper_brain.db_conn = MagicMock()
     paper_brain.db_conn.cursor.return_value = mock_cursor
@@ -459,7 +459,7 @@ def test_reconcile_marks_liquidated_closed_db_rows(paper_brain):
         now_ts=now_ts,
     )
 
-    # DB UPDATE should mark the trade LIQUIDATED
+    # DB UPDATE should record exit data; "LIQUIDATED" now appears in the notes param
     executed_calls = [str(c) for c in mock_cursor.execute.call_args_list]
     assert any("LIQUIDATED" in c for c in executed_calls)
 
