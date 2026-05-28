@@ -201,11 +201,8 @@ def test_rollback_0002_removes_kv_columns(tmp_path):
     assert "key" in _columns(db_path, "performance_summary")
 
     db_url = f"sqlite:///{db_path}"
-    backend = yoyo.get_backend(db_url)
     migs = yoyo.read_migrations(str(_MIGRATIONS_DIR))
     # Roll back 0003 then 0002
-    with backend.lock():
-        to_rb = list(backend.to_rollback(migs))
     backend2 = yoyo.get_backend(db_url)
     with backend2.lock():
         to_rb2 = list(backend2.to_rollback(migs))

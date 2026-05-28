@@ -217,7 +217,7 @@ async def test_ibkr_emergency_uses_market_order(paper_brain):
     paper_brain.ibkr_conn.is_connected.return_value = True
     paper_brain.ibkr_conn.place_order = AsyncMock(return_value=42)
 
-    oid = await paper_brain._place_ibkr_order(
+    await paper_brain._place_ibkr_order(
         symbol="SPY",
         direction="SELL",
         shares=200,
