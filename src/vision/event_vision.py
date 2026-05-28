@@ -33,7 +33,7 @@ class NeuromorphicVisionEngine:
         negative_spikes = 0
         total_spikes = len(spike_events)
 
-        current_time = spike_events[-1][2]  # Time of the latest spike
+        _current_time = spike_events[-1][2]  # Time of the latest spike
 
         for x, y, ts, polarity in spike_events:
             # Update the Time Surface (exponential decay for older spikes)

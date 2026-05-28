@@ -160,7 +160,7 @@ def brain_worker(q_in: "mp.Queue[IpcMessage]", q_out: "mp.Queue[IpcMessage]", co
     import asyncio
 
     bus_in = IpcBus(q_in)
-    bus_out = IpcBus(q_out)
+    _bus_out = IpcBus(q_out)
 
     async def _main() -> None:
         try:

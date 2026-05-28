@@ -29,7 +29,7 @@ class CorporateJetTracker:
             dest = log.get("destination", "")
             if dest in self.MA_AIRPORTS:
                 airport_counts[dest] += 1
-        total = sum(airport_counts.values()) or 1
+        _total = sum(airport_counts.values()) or 1
         return {k: min(1.0, v / 10.0) for k, v in airport_counts.items()}
 
     def ma_probability(self, scores: Dict[str, float]) -> float:

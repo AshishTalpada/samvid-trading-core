@@ -51,7 +51,7 @@ class AuditAgent:
         confidences = [
             float(o.get("confidence", 0.0)) for o in agent_outputs if o.get("vote") != "ABSTAIN"
         ]
-        agent_ids = [o.get("agent", "UNKNOWN") for o in agent_outputs]
+        _agent_ids = [o.get("agent", "UNKNOWN") for o in agent_outputs]
 
         vote_dist = Counter(votes)
         dominant_vote, dominant_count = vote_dist.most_common(1)[0]

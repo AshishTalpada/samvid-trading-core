@@ -168,7 +168,7 @@ class TradingCoordinator:
                 # On small accounts, the 1.3 Net RR is a 'Mathematical Wall' due to fixed commission.
                 is_small_account = (balance or 0) < 2000.0
                 dollar_risk = total_risk_dollars * est_shares
-                risk_pct = (dollar_risk / balance_usd) if (balance_usd > 0) else 0.05
+                _risk_pct = (dollar_risk / balance_usd) if (balance_usd > 0) else 0.05
 
                 # Friction veto: block trades where net RR (after spread + commission) is too low.
                 # Standard institutional threshold is 1.3. Small accounts (<$2k) get 1.0
@@ -908,7 +908,7 @@ class TradingCoordinator:
                                 )
                             )
 
-                        vram_pct = 0  # LLM purged — no VRAM contention
+                        _vram_pct = 0  # LLM purged — no VRAM contention
 
                         gated_votes = []
                         background_success = True

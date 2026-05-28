@@ -47,7 +47,7 @@ jobs:
           MT5_PATH: "/mock/path/to/terminal64.exe"
           TELEGRAM_BOT_TOKEN: "123456789:ABCdefGhIJKlmNoPQRsTUVwxyZ"
           TELEGRAM_CHAT_ID: "987654321"
-        run: uv run python -m pytest tests/ -q --tb=short --cov=src --cov-report=term-missing --cov-fail-under=25
+        run: uv run python -m pytest tests/ -q --tb=short --cov=src --cov-report=term-missing --cov-fail-under=30
 
       - name: Compile check
         run: uv run python -m compileall -q src/ tests/ scripts/
