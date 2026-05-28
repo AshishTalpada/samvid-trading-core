@@ -6,7 +6,6 @@ import os
 import sqlite3
 import tempfile
 from datetime import datetime, timezone
-from unittest.mock import MagicMock, patch
 
 import pytest
 

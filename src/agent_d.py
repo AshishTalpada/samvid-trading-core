@@ -11,7 +11,7 @@ Implements all 8 learning capabilities from EVERYTHING_FINAL.md:
 7. ResolutionWindowCalibrator — F10 empirical window calibration
 8. CalibrationPipeline    — Weekly + monthly + walk-forward validation
 Critical rules enforced:
-- M-04: ConditionalExpectancyMatrix active from n >= 1 (Bayesian Warm-Start)
+- M-04: ConditionalExpectancyMatrix active from n >= 200 (hard gate per spec)
 - M-04: can_adapt() returns False for INSUFFICIENT data (n < 20)
 - F9: Partial exits defined per pattern — BullFlag, H&S, FallingWedge, etc.
 - F10: Resolution windows start at 2× theoretical, calibrate after 30 trades
@@ -457,7 +457,7 @@ class ConditionalExpectancyMatrix:
     As live trades increase, the prior's influence decays.
     """
 
-    MIN_TRADES = 1  # Updated for Bayesian Warm-Start
+    MIN_TRADES = 200  # M-04: Matrix inactive until n>=200 trades (spec-required statistical gate)
 
     def __init__(self, db_path: str = "data/trading.db") -> None:
         self.db_path = db_path

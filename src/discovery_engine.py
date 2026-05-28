@@ -31,8 +31,9 @@ class AlphaDiscoveryEngine:
 
         # Placeholder for genetic mutation logic
         logger.info(f"[DISCOVERY] Evolving generation of {self.population_size} candidates...")
-        # Simulating finding a new alpha
-        simulated_sharpe = float(np.random.normal(1.2, 0.4))
+        # Placeholder: use a conservative fixed prior until real trade data is available
+        # (n < MIN_CALIBRATION_TRADES — real Sharpe requires at least 30 trades)
+        simulated_sharpe = 0.5  # Conservative prior: positive but not inflated
 
         if simulated_sharpe > baseline_sharpe:
             logger.info(

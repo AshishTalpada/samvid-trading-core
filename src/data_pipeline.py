@@ -294,7 +294,11 @@ class DataPipeline:
                 logger.error(f"fetch_ohlcv: Invalid symbol '{symbol}'")
                 return pl.DataFrame()
 
-            ticker = await asyncio.to_thread(yf.Ticker, symbol)
+            try:
+                ticker = await asyncio.wait_for(asyncio.to_thread(yf.Ticker, symbol), timeout=30.0)
+            except asyncio.TimeoutError:
+                logger.warning("yfinance Ticker(%s) timed out after 30s — skipping.", symbol)
+                return pl.DataFrame()
             df = None
             max_retries = 3
             for attempt in range(max_retries + 1):
@@ -303,17 +307,23 @@ class DataPipeline:
                         _ = ticker.fast_info
 
                     if start and end:
-                        df = await asyncio.to_thread(
-                            ticker.history, start=start, end=end, interval=interval, timeout=20
+                        df = await asyncio.wait_for(
+                            asyncio.to_thread(
+                                ticker.history, start=start, end=end, interval=interval, timeout=20
+                            ),
+                            timeout=30.0,
                         )
                     else:
-                        df = await asyncio.to_thread(
-                            ticker.history, period=period, interval=interval, timeout=20
+                        df = await asyncio.wait_for(
+                            asyncio.to_thread(
+                                ticker.history, period=period, interval=interval, timeout=20
+                            ),
+                            timeout=30.0,
                         )
 
                     if df is not None and not df.empty:
                         break  # Success
-                except Exception as e:
+                except (Exception, asyncio.TimeoutError) as e:
                     err_str = str(e).lower()
                     is_ratelimit = "429" in err_str or "too many requests" in err_str
                     if (
@@ -429,7 +439,11 @@ class DataPipeline:
 
         # Tier 3: yfinance fallback
         try:
-            ticker = yf.Ticker(symbol)
+            try:
+                ticker = await asyncio.wait_for(asyncio.to_thread(yf.Ticker, symbol), timeout=15.0)
+            except asyncio.TimeoutError:
+                logger.warning("yfinance Ticker(%s) timed out after 15s in get_current_price.", symbol)
+                return 0.0
             # Use fast_info if available (newer yfinance versions)
             try:
                 if hasattr(ticker, "fast_info") and ticker.fast_info is not None:
@@ -596,17 +610,26 @@ class DataPipeline:
             hist = None
 
             if vix_value is None:
-                ticker = await asyncio.to_thread(yf.Ticker, "^VIX")
+                try:
+                    ticker = await asyncio.wait_for(asyncio.to_thread(yf.Ticker, "^VIX"), timeout=30.0)
+                except asyncio.TimeoutError:
+                    logger.warning("VIX Ticker fetch timed out after 30s — retaining last value.")
+                    if self.last_vix is not None:
+                        return self.last_vix
+                    return None
                 for attempt, (period, interval) in enumerate((("1d", "1m"), ("5d", "1d")), start=1):
                     try:
-                        hist = await asyncio.to_thread(
-                            ticker.history, period=period, interval=interval
+                        hist = await asyncio.wait_for(
+                            asyncio.to_thread(
+                                ticker.history, period=period, interval=interval
+                            ),
+                            timeout=30.0,
                         )
                         if hist is not None and not hist.empty:
                             break
-                    except Exception as e:
+                    except (Exception, asyncio.TimeoutError) as e:
                         err = str(e).lower()
-                        if "subscriptable" in err or "nonetype" in err:
+                        if "subscriptable" in err or "nonetype" in err or isinstance(e, asyncio.TimeoutError):
                             logger.warning(
                                 "VIX yfinance glitch. Attempt %s failed. Jittering...",
                                 attempt,

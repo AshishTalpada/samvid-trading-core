@@ -25,16 +25,16 @@ class ExitDecision:
     metadata: dict = field(default_factory=dict)
 
 
+# F-spec BELIEF_EXIT_THRESHOLD — hard constant to prevent accidental drift
+_BELIEF_EXIT_DEFAULT = 0.35
+
+
 class ExitIntelligence:
     """Cost-Aware High-RR Exit Engine: dynamically manages exits based on P&L and slippage."""
 
     def __init__(self, config: dict | None = None) -> None:
         self.config = config or {}
-        # HARDENED: Belief threshold aligned with mind_ultrathink (0.15, not 0.35).
-        # Previous 0.35 caused premature exits for scalp patterns in CHOPPY regime.
-        # Belief decays at 2% per adverse tick; 0.5 → 0.35 in ~8 ticks, which
-        # is too aggressive for short-duration patterns.
-        self.belief_threshold = self.config.get("belief_threshold", 0.15)
+        self.belief_threshold = self.config.get("belief_threshold", _BELIEF_EXIT_DEFAULT)  # F-spec: 0.35
         self.daily_loss_limit = self.config.get("daily_loss_limit", 0.04)
         self.vix_spike_threshold = self.config.get("vix_spike_threshold", 0.15)
         self.safety_factor = 2.0  # Require expected profit to be 2x slippage+comm
