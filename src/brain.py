@@ -3558,6 +3558,7 @@ class TradingBrain:
         if not self.db_conn or not polled:
             return
 
+        cursor = None
         try:
             cursor = self.db_conn.cursor()
             cursor.execute(
@@ -3608,9 +3609,11 @@ class TradingBrain:
                     len(stale_ids),
                     broker.upper(),
                 )
-            cursor.close()
         except Exception as exc:
             logger.debug("DB open-trade reconciliation failed for %s: %s", broker, exc)
+        finally:
+            if cursor is not None:
+                cursor.close()
 
     async def _adopt_orphan(self, symbol: str, qty: float, broker: str) -> None:
         """Absorb an unmanaged broker position into the Matrix."""
@@ -3631,12 +3634,15 @@ class TradingBrain:
             db_row = None
             if self.db_conn:
                 cursor = self.db_conn.cursor()
-                cursor.execute(
-                    "SELECT entry_price, stop_price, target_price FROM trades "
-                    "WHERE instrument=? AND broker=? AND outcome='OPEN' ORDER BY id DESC LIMIT 1",
-                    (symbol, broker),
-                )
-                db_row = cursor.fetchone()
+                try:
+                    cursor.execute(
+                        "SELECT entry_price, stop_price, target_price FROM trades "
+                        "WHERE instrument=? AND broker=? AND outcome='OPEN' ORDER BY id DESC LIMIT 1",
+                        (symbol, broker),
+                    )
+                    db_row = cursor.fetchone()
+                finally:
+                    cursor.close()
 
             if db_row:
                 entry, stop, target = db_row
@@ -3670,25 +3676,28 @@ class TradingBrain:
             # 4. Persistence
             if self.db_conn and not db_row:
                 cursor = self.db_conn.cursor()
-                cursor.execute(
-                    "INSERT INTO trades (timestamp, instrument, direction, shares, entry_price, "
-                    "outcome, stop_price, target_price, broker, notes) "
-                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                    (
-                        datetime.now(timezone.utc).isoformat(),
-                        symbol,
-                        direction,
-                        abs(qty),
-                        price,
-                        "OPEN",
-                        stop,
-                        target,
-                        broker,
-                        "Sovereign Adoption Protocol v1.0-beta",
-                    ),
-                )
-                adopted.db_id = cursor.lastrowid
-                self.db_conn.commit()
+                try:
+                    cursor.execute(
+                        "INSERT INTO trades (timestamp, instrument, direction, shares, entry_price, "
+                        "outcome, stop_price, target_price, broker, notes) "
+                        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                        (
+                            datetime.now(timezone.utc).isoformat(),
+                            symbol,
+                            direction,
+                            abs(qty),
+                            price,
+                            "OPEN",
+                            stop,
+                            target,
+                            broker,
+                            "Sovereign Adoption Protocol v1.0-beta",
+                        ),
+                    )
+                    adopted.db_id = cursor.lastrowid
+                    self.db_conn.commit()
+                finally:
+                    cursor.close()
 
             logger.info(f" ADOPTED: {symbol} in {broker.upper()} absorbed @ {price:.2f}")
 
