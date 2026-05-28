@@ -443,7 +443,7 @@ def test_reconcile_marks_liquidated_closed_db_rows(paper_brain):
     old_ts = "2024-01-01T10:00:00+00:00"
     mock_cursor = MagicMock()
     mock_cursor.fetchall.return_value = [
-        (99, old_ts, "NVDA", 100.0, 10),  # (id, timestamp, instrument, entry_price, shares)
+        (99, old_ts, "NVDA", 100.0, 10, "LONG"),  # (id, timestamp, instrument, entry_price, shares, direction)
     ]
     paper_brain.db_conn = MagicMock()
     paper_brain.db_conn.cursor.return_value = mock_cursor
