@@ -67,11 +67,14 @@ class RegimeFilter:
             model = hmm.GaussianHMM(
                 n_components=self.n_regimes,
                 covariance_type="diag",
-                n_iter=100,
+                n_iter=200,
                 random_state=42,
-                tol=1e-2,
+                tol=1e-3,
             )
-            model.fit(returns)
+            import warnings as _w
+            with _w.catch_warnings():
+                _w.filterwarnings("ignore", message=".*not converging.*", module="hmmlearn")
+                model.fit(returns)
             self._model = model
             # Label regimes by mean return: highest = bull, lowest = bear
             means = [model.means_[i][0] for i in range(self.n_regimes)]
