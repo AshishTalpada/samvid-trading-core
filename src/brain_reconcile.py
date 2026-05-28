@@ -377,13 +377,13 @@ class BrokerReconciler:
         try:
             cursor = self.db_conn.cursor()
             cursor.execute(
-                "SELECT id, timestamp, instrument, entry_price, shares FROM trades "
+                "SELECT id, timestamp, instrument, entry_price, shares, direction FROM trades "
                 "WHERE broker = ? AND outcome = 'OPEN'",
                 (broker,),
             )
-            # stale_trades: list of (trade_id, instrument, entry_price, shares)
-            stale_trades: list[tuple[int, str, float, float]] = []
-            for tid, ts_str, symbol, entry_price_raw, shares_raw in cursor.fetchall():
+            # stale_trades: list of (trade_id, instrument, entry_price, shares, direction)
+            stale_trades: list[tuple[int, str, float, float, str]] = []
+            for tid, ts_str, symbol, entry_price_raw, shares_raw, direction_raw in cursor.fetchall():
                 if abs(float(reality.get(symbol, 0.0) or 0.0)) >= 0.1:
                     continue
 
@@ -409,20 +409,30 @@ class BrokerReconciler:
                 if age_seconds >= 120:
                     entry_price = float(entry_price_raw) if entry_price_raw is not None else 0.0
                     shares = float(shares_raw) if shares_raw is not None else 0.0
-                    stale_trades.append((int(tid), symbol or "", entry_price, shares))
+                    direction = str(direction_raw or "LONG").upper()
+                    stale_trades.append((int(tid), symbol or "", entry_price, shares, direction))
 
             if stale_trades:
-                for trade_id, instrument, entry_price, shares in stale_trades:
-                    # Resolve current market price for exit_price
+                for trade_id, instrument, entry_price, shares, direction in stale_trades:
+                    # Resolve current market price for exit_price.
+                    # Try bid/ask midpoint first, then last_tick_prices.
+                    # data_pipeline.get_last_price() is a stub (returns None) -- skip it.
                     exit_price = 0.0
                     try:
-                        exit_price = float(
-                            getattr(self, "last_tick_prices", {}).get(instrument, 0.0) or 0.0
-                        )
-                        if exit_price <= 0 and hasattr(self, "data_pipeline"):
-                            dp_price = self.data_pipeline.get_last_price(instrument)
-                            if dp_price:
-                                exit_price = float(dp_price)
+                        tick_prices = getattr(self, "last_tick_prices", {})
+                        tick_bids = getattr(self, "last_tick_bids", {})
+                        tick_asks = getattr(self, "last_tick_asks", {})
+                        bid = float(tick_bids.get(instrument, 0.0) or 0.0)
+                        ask = float(tick_asks.get(instrument, 0.0) or 0.0)
+                        if bid > 0 and ask > 0:
+                            exit_price = (bid + ask) / 2.0
+                        elif float(tick_prices.get(instrument, 0.0) or 0.0) > 0:
+                            exit_price = float(tick_prices[instrument])
+                        if exit_price <= 0:
+                            logger.warning(
+                                "Reconciliation: no live price for %s -- pnl recorded as 0",
+                                instrument,
+                            )
                     except Exception as _price_err:
                         logger.debug(
                             "Reconciliation: price lookup failed for %s: %s",
@@ -430,8 +440,14 @@ class BrokerReconciler:
                             _price_err,
                         )
 
-                    # Rough P&L: (exit - entry) x shares
-                    pnl = (exit_price - entry_price) * shares if exit_price > 0 else 0.0
+                    # Directional P&L: SHORT profits when price falls
+                    if exit_price > 0:
+                        if direction == "SHORT":
+                            pnl = (entry_price - exit_price) * shares
+                        else:
+                            pnl = (exit_price - entry_price) * shares
+                    else:
+                        pnl = 0.0
                     if pnl > 0:
                         db_outcome = "WIN"
                     elif pnl < 0:
