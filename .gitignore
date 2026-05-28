@@ -99,3 +99,8 @@ docs/FIX_PLAN_2026_05_11.md
 docs/SOVEREIGN_ULTIMATE_CHECKLIST.md
 src/ERROR_T06_Agen.txt
 
+
+# pytest coverage artifacts
+.coverage
+.coverage.*
+htmlcov/
