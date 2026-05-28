@@ -67,8 +67,8 @@ class TelegramRemote:
             self._poll_task.cancel()
             try:
                 await self._poll_task
-            except asyncio.CancelledError:
-                pass
+            except asyncio.CancelledError as e:
+                logger.debug("TelegramRemote: poll task cancelled during stop: %s", e)
         self._poll_task = None
         if self.session:
             await self.session.close()
@@ -95,8 +95,8 @@ class TelegramRemote:
         try:
             async with self.session.get(f"{api_base}/bot{self.token}/deleteWebhook") as dw:
                 await dw.json()
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug("TelegramRemote: deleteWebhook request failed: %s", e)
 
         while self.is_running:
             try:
