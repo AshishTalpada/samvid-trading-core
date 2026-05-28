@@ -110,12 +110,21 @@ class TelegramRemote:
                             await self._handle_update(update)
                     else:
                         consecutive_errors += 1
-                        logger.warning(
-                            "TelegramRemote: getUpdates returned HTTP %s (%s consecutive).",
-                            resp.status,
-                            consecutive_errors,
-                        )
-                        await asyncio.sleep(10)
+                        if resp.status == 409:
+                            # 409 = another instance already polling; transient on restart.
+                            logger.info(
+                                "TelegramRemote: 409 Conflict (another instance polling). "
+                                "Backing off 15s... (%s consecutive).",
+                                consecutive_errors,
+                            )
+                            await asyncio.sleep(15)
+                        else:
+                            logger.warning(
+                                "TelegramRemote: getUpdates returned HTTP %s (%s consecutive).",
+                                resp.status,
+                                consecutive_errors,
+                            )
+                            await asyncio.sleep(10)
             except asyncio.CancelledError:
                 logger.info("TelegramRemote: polling cancelled.")
                 raise
