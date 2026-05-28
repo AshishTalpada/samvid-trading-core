@@ -112,6 +112,7 @@ class DataPipeline:
         self.is_running = False
         self.last_vix: float | None = None
         self._last_reality_check: dict[str, float] = {}  # symbol -> timestamp (time.monotonic)
+        self._price_cache: dict[str, float] = {}  # symbol -> last known price (sync-accessible)
 
         self._last_pulse_time: dict[str, float] = {}  # symbol -> last successful fetch (monotonic)
         self._vix_cache_ts: float = 0.0  # monotonic time of last successful VIX fetch
@@ -415,6 +416,7 @@ class DataPipeline:
             try:
                 row = await self.qdb.fetch_latest_price(symbol)
                 if row and row > 0:
+                    self._price_cache[symbol] = float(row)
                     return float(row)
             except Exception as e:
                 logger.debug(f"QuestDB: T1 price fetch failed for {symbol}: {e}")
@@ -428,6 +430,7 @@ class DataPipeline:
                     if response.status == 200:
                         data = await response.json()
                         if "c" in data and data["c"] > 0:
+                            self._price_cache[symbol] = float(data["c"])
                             return float(data["c"])
             except Exception as e:
                 logger.debug(f"Finnhub real-time price failed for {symbol}: {e}")
@@ -1339,8 +1342,11 @@ class DataPipeline:
             return None
 
     def get_last_price(self, symbol: str) -> float | None:
-        """Fetch the absolute latest price (Simulated for Brain Recovery)."""
-        return None
+        """Return the last price seen for this symbol from the async price cache.
+        Populated by get_current_price() calls. Returns None if never fetched.
+        """
+        price = self._price_cache.get(symbol)
+        return float(price) if price and price > 0 else None
 
     async def fetch_macro_snapshot(self) -> dict[str, Any]:
         """
