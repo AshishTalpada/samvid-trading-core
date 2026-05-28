@@ -57,8 +57,8 @@ class APIServer:
                 for ws in list(self.active_connections.keys()):
                     try:
                         await ws.close()
-                    except Exception:
-                        pass
+                    except Exception as _e:
+                        logger.debug("API cache cleanup: %s", _e)
                 self.active_connections.clear()
 
         self.app = FastAPI(title="TradingSystem Elite API", lifespan=lifespan)

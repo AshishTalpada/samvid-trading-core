@@ -447,8 +447,8 @@ class DataPipeline:
                 df = ticker.history(period="1d")
                 if not df.empty:
                     return df["Close"].iloc[-1]
-            except Exception:
-                pass  # Silence yfinance scraper glitches here
+            except Exception as _e:
+                logger.debug("yfinance price fetch glitch: %s", _e)
         except Exception as e:
             logger.error(f"Failed to get price for {symbol}: {e}")
 

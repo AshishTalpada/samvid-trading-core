@@ -967,8 +967,8 @@ class TradingSystem:
                         ]
                         if folders:
                             tws_version = max(folders)
-                    except Exception:
-                        pass
+                    except Exception as _e:
+                        logger.debug("TWS version detect failed: %s", _e)
 
                     ibkr_interface = Vault.get("IBKR_INTERFACE", "gateway").lower()
                     effective_tws_path = tws_path
@@ -2007,8 +2007,8 @@ class TradingSystem:
                         await self.send_telegram_notification(
                             f"  *Background Task Crashed*\nTask: {name}\nError: {e!s}"
                         )
-                    except Exception:
-                        pass
+                    except Exception as _e:
+                        logger.debug("TWS version detect failed: %s", _e)
                     if self._shutdown_in_progress or not self.is_running:
                         return
                     await asyncio.sleep(delay)
@@ -2024,8 +2024,8 @@ class TradingSystem:
                             f" ⚠️ <b>[Sovereign Alert]</b>: Task {name} permanently OFFLINE. "
                             "System remains operational but logic may be impaired."
                         )
-                    except Exception:
-                        pass
+                    except Exception as _e:
+                        logger.debug("TWS version detect failed: %s", _e)
                     return
 
         task = asyncio.create_task(supervisor())
@@ -2060,8 +2060,8 @@ class TradingSystem:
                         await self.bus.publish(
                             "system.status", {"state": "SHUTDOWN", "timestamp": time.time_ns()}
                         )
-                    except Exception:
-                        pass
+                    except Exception as _e:
+                        logger.debug("TWS version detect failed: %s", _e)
 
                 logger.info("\n" + "═" * 30)
                 logger.info("SOVEREIGN: INITIATING SEQUENTIAL SHUTDOWN PROTOCOL")
