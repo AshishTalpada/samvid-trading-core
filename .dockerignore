@@ -1,0 +1,63 @@
+# Secrets and environment files — NEVER bake these into the image
+.env
+.env.local
+vault.json
+*.key
+*.pem
+*.crt
+
+# Development / build artefacts
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.so
+*.egg-info/
+dist/
+build/
+target/
+.mypy_cache/
+.ruff_cache/
+venv/
+.venv/
+
+# Data (provided at runtime via Docker volumes)
+data/*.db
+data/*.db-shm
+data/*.db-wal
+qdbroot/
+questdb/
+questdb_data/
+
+# Logs
+logs/
+*.log
+*.log.*
+
+# Tests (not needed at runtime)
+tests/
+*.coverage
+.pytest_cache/
+
+# Frontend (served separately if needed)
+frontend/node_modules/
+frontend/.env
+frontend/.env.local
+
+# Version control
+.git/
+.gitignore
+
+# Editor / CI
+.vscode/
+.idea/
+.github/
+.windsurf/
+.cursor/
+.devin/
+
+# Temporary files
+tmp/
+scratch/
+*.tmp
+*.bak

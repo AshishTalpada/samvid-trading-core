@@ -1,0 +1,166 @@
+###############################################################################
+# Sovereign Trading System — docker-compose.yml
+#
+# Services:
+#   trading     — main Python trading engine (brain.py + API)
+#   questdb     — time-series DB for OHLCV candles & tick data
+#   prometheus  — scrapes /metrics from the trading engine
+#   grafana     — visualises Prometheus data (optional, profile: monitoring)
+#
+# Quick start (paper mode, no live broker):
+#   docker compose up -d
+#
+# Monitoring stack (adds Prometheus + Grafana):
+#   docker compose --profile monitoring up -d
+#
+# Environment variables (copy .env.example to .env and fill in secrets):
+#   see .env.example in the project root
+###############################################################################
+version: "3.9"
+
+x-trading-env: &trading-env
+  # Core runtime config (override in .env or Docker secrets)
+  TRADING_MODE: ${TRADING_MODE:-paper}
+  FORCED_PAPER_MODE: ${FORCED_PAPER_MODE:-1}
+  STARTING_CAPITAL_CAD: ${STARTING_CAPITAL_CAD:-100000}
+  # Database
+  DB_PATH: /app/data/trading.db
+  # QuestDB (time-series)
+  QUESTDB_ENABLED: ${QUESTDB_ENABLED:-true}
+  QUESTDB_HOST: questdb
+  QUESTDB_PORT: "9009"
+  QUESTDB_PG_PORT: "8812"
+  QUESTDB_USER: ${QUESTDB_USER:-admin}
+  QUESTDB_PASSWORD: ${QUESTDB_PASSWORD:-quest}
+  # Ports
+  API_SERVER_PORT: "8000"
+  METRICS_PORT: "9090"
+  # Vault / secrets (supply via .env or Docker secrets — NEVER hardcode)
+  SESSION_SECRET: ${SESSION_SECRET:-CHANGE_ME_IN_PRODUCTION}
+  IBKR_ACCOUNT_ID: ${IBKR_ACCOUNT_ID:-}
+  TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+  TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID:-}
+
+services:
+  # ─────────────────────────────────────────────────────────────────────────
+  # Trading engine
+  # ─────────────────────────────────────────────────────────────────────────
+  trading:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runtime
+    image: sovereign-trading:latest
+    container_name: sovereign_trading
+    restart: unless-stopped
+    environment:
+      <<: *trading-env
+    ports:
+      - "${API_PORT:-8000}:8000"       # REST API
+      - "${METRICS_PORT:-9090}:9090"   # Prometheus /metrics
+    volumes:
+      - trading_data:/app/data         # SQLite + cognitive capsule
+      - trading_logs:/app/logs         # structured logs
+    depends_on:
+      questdb:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      start_period: 60s
+      retries: 3
+    networks:
+      - sovereign_net
+    # Prevents the container from swallowing all RAM on runaway loops
+    deploy:
+      resources:
+        limits:
+          memory: 4G
+        reservations:
+          memory: 512M
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # QuestDB — OHLCV candles, tick data, VIX, news
+  # ─────────────────────────────────────────────────────────────────────────
+  questdb:
+    image: questdb/questdb:9.3.3
+    container_name: sovereign_questdb
+    restart: unless-stopped
+    environment:
+      QDB_TELEMETRY_ENABLED: "false"
+    ports:
+      - "9000:9000"   # REST / web console
+      - "9009:9009"   # ILP (InfluxDB line protocol)
+      - "8812:8812"   # PostgreSQL wire protocol
+    volumes:
+      - questdb_data:/var/lib/questdb
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/"]
+      interval: 15s
+      timeout: 5s
+      start_period: 30s
+      retries: 5
+    networks:
+      - sovereign_net
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # Prometheus — metric scraping (monitoring profile)
+  # ─────────────────────────────────────────────────────────────────────────
+  prometheus:
+    image: prom/prometheus:v2.52.0
+    container_name: sovereign_prometheus
+    profiles: ["monitoring"]
+    restart: unless-stopped
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--storage.tsdb.retention.time=30d"
+      - "--web.enable-lifecycle"
+    ports:
+      - "9091:9090"   # avoid clash with trading engine's :9090
+    volumes:
+      - ./deploy/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    depends_on:
+      - trading
+    networks:
+      - sovereign_net
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # Grafana — dashboards (monitoring profile)
+  # ─────────────────────────────────────────────────────────────────────────
+  grafana:
+    image: grafana/grafana:11.2.0
+    container_name: sovereign_grafana
+    profiles: ["monitoring"]
+    restart: unless-stopped
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-sovereign}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./deploy/grafana/provisioning:/etc/grafana/provisioning:ro
+    depends_on:
+      - prometheus
+    networks:
+      - sovereign_net
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Named volumes (persist across container restarts)
+# ─────────────────────────────────────────────────────────────────────────────
+volumes:
+  trading_data:
+  trading_logs:
+  questdb_data:
+  prometheus_data:
+  grafana_data:
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Network
+# ─────────────────────────────────────────────────────────────────────────────
+networks:
+  sovereign_net:
+    driver: bridge
