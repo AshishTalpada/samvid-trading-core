@@ -389,8 +389,8 @@ class QuantConsensus:
                     )
 
                     return data.get("factor_weights")
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.debug("QuantSignals: could not load weights from %s: %s", p, e)
         return None
 
     def fit(self, prices: np.ndarray) -> None:
