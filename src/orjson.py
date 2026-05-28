@@ -1,9 +1,12 @@
 from __future__ import annotations
 
 import json
+import logging
 from datetime import date, datetime
 from pathlib import Path
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 OPT_NON_STR_KEYS = 1
 OPT_SERIALIZE_NUMPY = 2
@@ -20,8 +23,8 @@ def _default(value: Any) -> Any:
             return value.item()
         if isinstance(value, np.ndarray):
             return value.tolist()
-    except Exception:
-        pass
+    except Exception as e:
+        logger.debug("orjson: numpy serialization failed: %s", e)
 
     if isinstance(value, (datetime, date)):
         return value.isoformat()
