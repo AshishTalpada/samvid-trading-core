@@ -8,11 +8,13 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import TYPE_CHECKING
 
+from system_types import Position
+
 if TYPE_CHECKING:
-    from system_types import Position
+    pass
 
 logger = logging.getLogger(__name__)
 
