@@ -353,7 +353,7 @@ class IBKRConnection:
             if not hasattr(self, "_order_persistence"):
                 self._order_persistence = {}
 
-            # Bug 31 FIX: Persistent Order Tracking (SQLite Bridge)
+            # Issue: IMPLEMENT: Persistent Order Tracking (SQLite Bridge)
             def _persist_order_status():
                 try:
                     db_path = os.path.join("data", "trading.db")
@@ -593,7 +593,7 @@ class IBKRConnection:
     def get_account_value(self) -> float:
         """Returns NAV from the real-time cache (No API Polling).
 
-        CRITICAL FIX: Returns 0.0 (not fallback capital) when IBKR is offline.
+        CRITICAL IMPLEMENT: Returns 0.0 (not fallback capital) when IBKR is offline.
         A return of 0.0 will cause the sizer to produce 0 shares, which is safe.
         Returning STARTING_CAPITAL_CAD when offline was causing the sizer to
         calculate positions based on fake capital, resulting in 1000+ share orders.
@@ -789,7 +789,7 @@ class IBKRConnection:
                     contract = Stock(symbol, "SMART", "USD")
                     await self.ib.qualifyContractsAsync(contract)
 
-                # Bug 30 FIX: Limit Price Bias Guard
+                # Issue: IMPLEMENT: Limit Price Bias Guard
                 # If the spread is wider than 0.5%, use the actual Bid/Ask
                 # instead of Mid to ensure fill.
                 # Use the brain's real-time tick cache
@@ -810,7 +810,7 @@ class IBKRConnection:
                 tp = self.round_to_tick(take_profit)
 
                 # 1. Entry Order
-                # FIX: Force tif=DAY on bracket orders (paper mode overrides GTC -> Error 10349)
+                # Enhancement: Force tif=DAY on bracket orders (paper mode overrides GTC -> Error 10349)
                 order_tif = "DAY"
                 parent = LimitOrder(direction, shares, lmt)
                 parent.orderId = self.ib.client.getReqId()

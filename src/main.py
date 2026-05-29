@@ -1811,7 +1811,7 @@ class TradingSystem:
         """Keep the system running"""
         logger.info("System running - Press Ctrl+C to stop\n")
 
-        # Fix 10: Startup Health Banner (printed 10s after boot)
+        # Enhancement: Startup Health Banner (printed 10s after boot)
         await asyncio.sleep(10)
         try:
             ibkr_ok = bool(self.ibkr_client and self.ibkr_client.isConnected())
@@ -2195,7 +2195,7 @@ class TradingSystem:
                 except Exception as e:
                     logger.error(f"Shutdown: DMS stop failed: {e}")
 
-            # FIX: Explicitly stop MindGhost to cancel its background tasks.
+            # Enhancement: Explicitly stop MindGhost to cancel its background tasks.
             # Without this, _shutdown_listener and _ghost_audit_loop tasks are leaked,
             # causing 'Task was destroyed but it is pending!' on every restart.
             if hasattr(self, "mind_ghost") and self.mind_ghost:

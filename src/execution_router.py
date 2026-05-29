@@ -8,7 +8,7 @@ class SmartExecutionRouter:
     """
     Dynamically routes orders across multiple brokerages and dark pools
     to minimize slippage, maximize fill rates, and ensure redundancy.
-    If IBKR API fails, immediately fails over to Alpaca or direct FIX links.
+    If IBKR API fails, immediately fails over to Alpaca or direct IMPLEMENT links.
     """
 
     def __init__(self):

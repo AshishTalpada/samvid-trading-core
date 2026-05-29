@@ -44,7 +44,7 @@ def _monte_carlo_outcome_simulation(vix: float, roi: float) -> float:
     Runs deterministic simulations of price paths based on current volatility.
     Returns the 'Success Probability' of hitting target before stop-loss.
 
-    FIX: Added positive drift (mu) reflecting the pattern's statistical edge.
+    IMPLEMENT: Added positive drift (mu) reflecting the pattern's statistical edge.
     Pure zero-drift random walk was returning 24-33% for all valid setups,
     causing every trade to be vetoed. Real pattern entries have edge --
     a 2:1 R:R pattern with 60% win rate has measurable drift at entry.
@@ -438,7 +438,7 @@ class MindUltrathink:
 
         # 1. EPISTEMIC ENGINE (The 'Unknown' Awareness)
         entropy = _calculate_epistemic_entropy(ctx)
-        # Fix: ctx is technical JSON and lacks macro words, so entropy defaults to 1.0.
+        # Enhancement: ctx is technical JSON and lacks macro words, so entropy defaults to 1.0.
         # Raising threshold to > 1.0 to prevent it from blocking all technical trades.
         if entropy > 1.0:
             return {
@@ -455,7 +455,7 @@ class MindUltrathink:
 
         # 4. MULTI-AGENT QUORUM (Recursive)
         # Agent: THE AUDITOR (Financial Survival)
-        # FIX: Auditor uses R:R ratio threshold (not absolute dollar ROI).
+        # Enhancement: Auditor uses R:R ratio threshold (not absolute dollar ROI).
         # R:R >= 1.5 is the system floor (F9). R:R >= 2.0 is excellent.
         if roi >= 2.0:
             auditor_score = 1.0
@@ -509,10 +509,10 @@ class MindUltrathink:
             logger.info("MindUltrathink: FEAR BIAS DETECTED. Applying structural bravery.")
 
         # FINAL DETERMINATION
-        # FIX: Removed hard auditor_score==0 block and prob_success<0.8 hard gate.
+        # Enhancement: Removed hard auditor_score==0 block and prob_success<0.8 hard gate.
         # These were vetoing ALL trades due to R:R misinterpretation.
         # Now uses sov_score threshold only. Pass = R:R>=2 + neutral market + verified.
-        # FIX: Removed auditor_score==0.0 hard block. The auditor's R:R gate
+        # Enhancement: Removed auditor_score==0.0 hard block. The auditor's R:R gate
         # is already encoded in sov_score via its 0.20 weight. Hard-blocking
         # on auditor=0 was preventing all R:R<1.5 trades even when sov_score
         # could theoretically pass (now threshold is 0.35 per F7 belief floor).

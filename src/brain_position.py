@@ -38,7 +38,7 @@ class PositionMonitor:
 
         exits_triggered = []
 
-        # PERF FIX: fetch account equity & daily PnL once per monitoring cycle,
+        # PERF IMPLEMENT: fetch account equity & daily PnL once per monitoring cycle,
         # not once per position.  With 10 positions this was 20 DB queries per tick.
         _ibkr_equity = await self._get_account_value("ibkr")
         _ibkr_daily_pnl = await self._get_daily_pnl("ibkr")
@@ -55,7 +55,7 @@ class PositionMonitor:
 
             try:
                 # Fetch live market data for this position
-                # SAFETY FIX: wrap in 5-second timeout to prevent monitoring loop stall
+                # SAFETY IMPLEMENT: wrap in 5-second timeout to prevent monitoring loop stall
                 try:
                     market_data = await asyncio.wait_for(
                         self._fetch_market_snapshot(pos.symbol), timeout=5.0
@@ -118,7 +118,7 @@ class PositionMonitor:
                     if pos.qty > 0
                     else ((pos.entry_price - current_price) / risk_amt)
                 )
-                # BUG FIX: for LONG, higher gross_r = better (MFE = max).
+                # Implementation: for LONG, higher gross_r = better (MFE = max).
                 # For SHORT, lower gross_r = worse adverse (MAE = max of negatives).
                 # gross_r is already sign-correct per direction, so the same
                 # max/min assignment is correct for both sides.
@@ -132,7 +132,7 @@ class PositionMonitor:
                 price_adverse = (current_price < pos.entry_price and not is_short) or (
                     current_price > pos.entry_price and is_short
                 )
-                # FIX: Slower, more symmetric belief decay to prevent premature exits.
+                # Enhancement: Slower, more symmetric belief decay to prevent premature exits.
                 # Previous: favorable ×1.01, adverse ×0.98 (asymmetric, too aggressive).
                 # New: favorable ×1.005, adverse ×0.995 (slower, symmetric).
                 # This gives scalp patterns more time to develop before belief collapse.
@@ -692,7 +692,7 @@ class PositionMonitor:
                 f"{duration_min:.1f}m" if duration_min < 60 else f"{duration_min / 60:.1f}h"
             )
 
-            # FIX: Store original quantity before position removal to prevent "0 units" in alerts
+            # Enhancement: Store original quantity before position removal to prevent "0 units" in alerts
             original_qty = abs(pos.qty) if abs(pos.qty) > 0.0001 else 1.0
 
             # Format detailed message

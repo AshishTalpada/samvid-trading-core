@@ -76,7 +76,7 @@ class LiveRecursiveEvolution:
         # outcome is 1.0 or -1.0
         multiplier = 1.0 + (alpha * outcome)
 
-        # Bug 37 FIX: Recency-Weighted Evolution (Anti-Amnesia)
+        # Issue: IMPLEMENT: Recency-Weighted Evolution (Anti-Amnesia)
         # Instead of shifting all historical weights equally, we apply a decay.
         # This ensures recent losses don't erase 2-year-old alpha-drivers completely.
         count = 0
@@ -632,7 +632,7 @@ class ConditionalExpectancyMatrix:
         return self.matrix
 
     def _normalize_regime(self, regime: str) -> str:
-        """Bug 39 FIX: Regime Normalization (Chala -> VOLATILE mapping)."""
+        """ISSUE 39 IMPLEMENT: Regime Normalization (Chala -> VOLATILE mapping)."""
         if not regime:
             return "UNKNOWN"
         r = str(regime).upper()
@@ -1228,7 +1228,7 @@ class LiveLearningEngine:
     TABLE_DDL = """
         CREATE TABLE IF NOT EXISTS agent_d_trades (
             id          INTEGER PRIMARY KEY AUTOINCREMENT,
-            trade_id    TEXT,  -- Bug 40 FIX: Link to Wisdom/Execution records
+            trade_id    TEXT,  -- ISSUE 40 IMPLEMENT: Link to Wisdom/Execution records
             symbol      TEXT,
             pattern     TEXT,
             outcome     TEXT,
@@ -1293,7 +1293,7 @@ class LiveLearningEngine:
             conn = self._connect()
             conn.execute(self.TABLE_DDL)
 
-            # Migration: Ensure trade_id column exists (Fix for Bug #40)
+            # Migration: Ensure trade_id column exists (solution for Bug #40)
             cursor = conn.execute("PRAGMA table_info(agent_d_trades)")
             columns = [row[1] for row in cursor.fetchall()]
             if "trade_id" not in columns:

@@ -353,7 +353,7 @@ class BrokerReconciler:
                 report_logger("\n".join(report_lines))
                 self._last_reality_report_ts = time.monotonic()
 
-            # FIX 10: Alert on broker position mismatch so drift is never silent.
+            # Enhancement: Alert on broker position mismatch so drift is never silent.
             # Rate-limited to once per 5 minutes to avoid alert storms.
             if drift_found:
                 _last_drift_alert = getattr(self, "_last_drift_alert_ts", 0.0)

@@ -845,7 +845,7 @@ class TradingBrain(BrokerReconciler, HealthChecker, DataProvider, AccountingMixi
 
         self._mind_task = asyncio.create_task(self._run_trader_mind())
 
-        # FIX 1 wiring: give data_pipeline direct access to TV streamer tick prices.
+        # Enhancement: wiring: give data_pipeline direct access to TV streamer tick prices.
         if hasattr(self, "data_pipeline") and self.data_pipeline is not None:
             self.data_pipeline._brain_tick_prices = self.last_tick_prices
 
@@ -1025,7 +1025,7 @@ class TradingBrain(BrokerReconciler, HealthChecker, DataProvider, AccountingMixi
         while self.is_running:
             try:
                 await asyncio.sleep(300)  # Freeze state every 5 minutes
-                # FIX 11: Sweep unfilled entry orders older than 2 minutes.
+                # Enhancement: Sweep unfilled entry orders older than 2 minutes.
                 try:
                     await self._cancel_stale_entry_orders(timeout_sec=120)
                 except Exception as _so_err:
@@ -1200,7 +1200,7 @@ class TradingBrain(BrokerReconciler, HealthChecker, DataProvider, AccountingMixi
         """
         Background task: subscribes to all bus topics the Brain cares about
         and updates internal state in real-time.
-        CPU fix: uses async iteration for 0% idle overhead.
+        CPU IMPLEMENT: uses async iteration for 0% idle overhead.
         """
         if self.bus is None:
             logger.debug("BrainBusListener: no bus — skipping")
@@ -1946,7 +1946,7 @@ class TradingBrain(BrokerReconciler, HealthChecker, DataProvider, AccountingMixi
                     )
                     self._last_entropy_flush = now
 
-                # FINALIZATION FIX: Ensure tasks are not leaked during flush
+                # FINALIZATION IMPLEMENT: Ensure tasks are not leaked during flush
                 for d in self.pending_signals + discoveries:
                     task = d.get("task")
                     if task and hasattr(task, "finalize"):

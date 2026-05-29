@@ -128,7 +128,7 @@ class MT5ConnectionLegacy:
             caller_frame = caller_frame.f_back if caller_frame else None
             caller_name = caller_frame.f_code.co_name if caller_frame else "unknown"
 
-        # Bug 36 FIX: Whitelist Signature Guard
+        # Issue: IMPLEMENT: Whitelist Signature Guard
         # We now verify the module name AND the function name to prevent local spoofing.
         caller_module = caller_frame.f_globals.get("__name__", "unknown")
 
@@ -150,7 +150,7 @@ class MT5ConnectionLegacy:
         mt5 = _get_mt5_module()
         order_type = mt5.ORDER_TYPE_BUY if d == "buy" else mt5.ORDER_TYPE_SELL
 
-        # Bug 34 FIX: Dynamic Slippage (Volatility-Adjusted)
+        # Issue: IMPLEMENT: Dynamic Slippage (Volatility-Adjusted)
         # Instead of static '10', we use a 5-bar ATR buffer (if available) or 0.1% of price.
         # This prevents rejections on high-volatility assets like XAUUSD or crypto.
         deviation = 10
@@ -168,7 +168,7 @@ class MT5ConnectionLegacy:
             logger.debug("MT5: volatility-adjusted slippage fallback for %s: %s", sym, exc)
             deviation = 10
 
-        # Bug 35 FIX: Order ID Collision Guard
+        # Issue: IMPLEMENT: Order ID Collision Guard
         # Instead of a static magic number, we use a unique ID per execution cycle.
         import uuid as _uuid
 
