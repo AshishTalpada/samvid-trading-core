@@ -501,6 +501,9 @@ class TradingBrain(BrokerReconciler, HealthChecker, DataProvider, AccountingMixi
         self._scan_cycle: int = 0
         self.last_scan_time: datetime | None = None
         self._vetting_cooldowns: dict[str, datetime] = {}  # Symbol -> last vet time
+        self._scan_veto_log_cache: dict[tuple[str, str, str], float] = {}
+        self._scan_veto_log_interval = float(os.getenv("SOVEREIGN_SCAN_VETO_LOG_SEC", "60"))
+        self._scan_no_action_backoff = float(os.getenv("SOVEREIGN_SCAN_NO_ACTION_BACKOFF_SEC", "2.5"))
         self._seen_news_hashes: dict[str, float] = {}  # hash -> monotonic ts (24h dedup)
         self._last_runtime_wall = datetime.now(timezone.utc)
         self._resume_quarantine_until: datetime | None = None
@@ -1496,6 +1499,25 @@ class TradingBrain(BrokerReconciler, HealthChecker, DataProvider, AccountingMixi
 
     # STATE: SCANNING
 
+    def _log_scan_veto(self, symbol: str, pattern: str, reason: str, *, confidence: float | None = None) -> None:
+        """Rate-limit repeated scan veto logs without hiding the reason."""
+        now = time.monotonic()
+        key = (symbol.upper(), pattern, reason)
+        last_logged = self._scan_veto_log_cache.get(key, 0.0)
+        should_log = now - last_logged >= self._scan_veto_log_interval
+        if should_log:
+            self._scan_veto_log_cache[key] = now
+
+        detail = f"Scan [{symbol}]: {pattern}"
+        if confidence is not None:
+            detail += f" ({confidence:.1f}% confidence)"
+        detail += f" skipped - {reason}."
+
+        if should_log:
+            logger.info(detail)
+        else:
+            logger.debug(detail)
+
     async def _state_scanning(self) -> None:
         """Agent A scans for pattern opportunities in parallel."""
 
@@ -1657,6 +1679,7 @@ class TradingBrain(BrokerReconciler, HealthChecker, DataProvider, AccountingMixi
                 "detected": 0,
                 "approved": 0,
                 "rejected": 0,
+                "regime_blocked": 0,
                 "gated": 0,
                 "gate_active": 0,
                 "gate_cooldown": 0,
@@ -1791,9 +1814,11 @@ class TradingBrain(BrokerReconciler, HealthChecker, DataProvider, AccountingMixi
                                     stats["detected"] += 1
                                     stats["rejected"] += 1
                                 best_low = max(all_found, key=lambda x: x.confidence)
-                                logger.info(
-                                    f"Scan [{symbol}]: Pattern {best_low.name} detected but "
-                                    f"confidence {best_low.confidence}% too low."
+                                self._log_scan_veto(
+                                    symbol,
+                                    best_low.name,
+                                    "confidence below approval floor",
+                                    confidence=float(best_low.confidence),
                                 )
                             return None
 
@@ -1808,7 +1833,14 @@ class TradingBrain(BrokerReconciler, HealthChecker, DataProvider, AccountingMixi
                             async with stats_lock:
                                 stats["detected"] += 1
                                 stats["rejected"] += 1
-                            logger.info(
+                                stats["regime_blocked"] += 1
+                            self._log_scan_veto(
+                                symbol,
+                                f"{best.name} ({best.category})",
+                                "CHOPPY regime blocks HFT/SCALP patterns",
+                                confidence=float(best.confidence),
+                            )
+                            logger.debug(
                                 f"Scan [{symbol}]: {best.name} ({best.category}) skipped"
                                 f" — CHOPPY regime blocks HFT/SCALP patterns."
                             )
@@ -1884,6 +1916,7 @@ class TradingBrain(BrokerReconciler, HealthChecker, DataProvider, AccountingMixi
                 f"(active={stats['gate_active']},cooldown={stats['gate_cooldown']},"
                 f"vetting={stats['gate_vetting']}) "
                 f"| Detected={stats['detected']} Approved={stats['approved']} "
+                f"RegimeBlocked={stats['regime_blocked']} "
                 f"| Pending={len(discoveries)}"
             )
 
@@ -1899,6 +1932,8 @@ class TradingBrain(BrokerReconciler, HealthChecker, DataProvider, AccountingMixi
                     "gate_vetting": stats["gate_vetting"],
                     "patterns_detected": stats["detected"],
                     "patterns_approved": stats["approved"],
+                    "patterns_rejected": stats["rejected"],
+                    "patterns_regime_blocked": stats["regime_blocked"],
                     "pending": len(discoveries),
                     "regime": self.current_regime,
                 }
@@ -1927,6 +1962,14 @@ class TradingBrain(BrokerReconciler, HealthChecker, DataProvider, AccountingMixi
             scanned_count = stats["scanned"]
             if scanned_count == 0 and stats["gated"] >= len(watchlist) and not discoveries:
                 await asyncio.sleep(5.0)
+            elif (
+                self.current_regime == "CHOPPY"
+                and stats["approved"] == 0
+                and stats["detected"] > 0
+                and stats["regime_blocked"] >= stats["detected"]
+                and not discoveries
+            ):
+                await asyncio.sleep(max(0.5, self._scan_no_action_backoff))
 
             # Corrected: Density should reflect actual Task Registry occupancy
             # (Volume), not Hit Rate.
