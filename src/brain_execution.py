@@ -537,6 +537,23 @@ class ExecutionMixin:
                 )
                 self._oracle_dhatu = "Vriddhi"
 
+        # FIX 9: Feed trade outcome back into BayesianBeliefTracker so it learns
+        # from actual results (win -> price_toward_medium; loss -> price_against_medium).
+        try:
+            bt = getattr(self, "belief_tracker", None)
+            if bt is not None:
+                dhatu = getattr(self, "_oracle_dhatu", "Sthira")
+                evidence = "price_toward_medium" if pnl > 0 else "price_against_medium"
+                bt.update(evidence, dhatu_state=dhatu)
+                logger.debug(
+                    "BeliefTracker updated after %s exit: evidence=%s new_belief=%.3f",
+                    "WIN" if pnl > 0 else "LOSS",
+                    evidence,
+                    bt.current_belief,
+                )
+        except Exception as _bt_err:
+            logger.debug("BeliefTracker update skipped (non-fatal): %s", _bt_err)
+
         await asyncio.to_thread(_sync_log)  # type: ignore[arg-type]
 
     # ------------------------------------------------------------------
@@ -568,3 +585,50 @@ class ExecutionMixin:
                 logger.critical("SOVEREIGN SHIELD: TOTAL LIQUIDATION COMPLETE.")
         except Exception as e:
             logger.error("SHIELD: Panic Liquidation Failed: %s", e)
+
+    # ------------------------------------------------------------------
+    # FIX 11: Cancel stale unfilled entry orders after timeout
+    # ------------------------------------------------------------------
+    async def _cancel_stale_entry_orders(self, timeout_sec: int = 120) -> None:
+        """Cancel IBKR entry orders that have been pending longer than timeout_sec.
+
+        Exit orders (managed by brain_position stale-order escalator) are excluded.
+        This method is called from the brain's background housekeeping loop.
+        """
+        if not (self.ibkr_conn and self.ibkr_conn.is_connected()):
+            return
+        try:
+            import datetime as _dt
+            trades = await asyncio.to_thread(self.ibkr_conn.ib.trades)
+            now = _dt.datetime.now(_dt.timezone.utc)
+            for trade in trades:
+                status = trade.orderStatus.status
+                if status not in ("PendingSubmit", "PreSubmitted", "Submitted"):
+                    continue
+                action = trade.order.action  # "BUY" or "SELL"
+                symbol = trade.contract.symbol
+                # Use log time of last status change; fall back to now - timeout as safe guess
+                log_time = getattr(trade.log[-1], "time", None) if trade.log else None
+                if log_time is None:
+                    continue
+                # ib_insync log entries carry naive datetimes in UTC
+                if log_time.tzinfo is None:
+                    log_time = log_time.replace(tzinfo=_dt.timezone.utc)
+                age_sec = (now - log_time).total_seconds()
+                if age_sec >= timeout_sec:
+                    order_id = trade.order.orderId
+                    logger.warning(
+                        "FIX11 STALE_ORDER: Cancelling unfilled %s order #%s for %s "
+                        "(age=%.0fs >= %ss).",
+                        action, order_id, symbol, age_sec, timeout_sec,
+                    )
+                    cancelled = await asyncio.to_thread(
+                        self.ibkr_conn.cancel_order, order_id
+                    )
+                    if not cancelled:
+                        logger.warning(
+                            "FIX11: cancel_order returned False for #%s (%s).",
+                            order_id, symbol,
+                        )
+        except Exception as _so_err:
+            logger.debug("_cancel_stale_entry_orders failed (non-fatal): %s", _so_err)
