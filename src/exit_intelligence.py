@@ -310,6 +310,13 @@ class ExitIntelligence:
                     if position.get("side", "long") == "long"
                     else current_price + distance
                 )
+                current_stop = position.get("stop_loss")
+                # Guard: only tighten (raise for long, lower for short)
+                if current_stop is not None:
+                    if position.get("side", "long") == "long" and new_stop <= current_stop:
+                        return None
+                    if position.get("side", "long") == "short" and new_stop >= current_stop:
+                        return None
                 return ExitDecision(
                     action=ExitAction.TIGHTEN,
                     priority=5,
