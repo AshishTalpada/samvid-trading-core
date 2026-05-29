@@ -188,7 +188,10 @@ class PositionMonitor:
 
                 # Dynamic Stop Adjustment from Thought DNA (Beta Gate)
                 if thought_dna.get("new_stop"):
-                    pos.stop_loss = float(thought_dna["new_stop"])
+                    new_stop = float(thought_dna["new_stop"])
+                    # Guard: only apply if it tightens (raises for long, lowers for short)
+                    if (not is_short and new_stop > pos.stop_loss) or (is_short and new_stop < pos.stop_loss):
+                        pos.stop_loss = new_stop
 
                 # 7-level priority evaluation (Standard Engine)
                 decision = self.exit_engine.evaluate(
