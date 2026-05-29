@@ -32,6 +32,12 @@ dependencies = [
     "pytest-asyncio",
     "prometheus-client>=0.25.0",
     "yoyo-migrations>=9.0.0",
+    "pyyaml>=6.0.3",
+    "requests>=2.33.1",
+    "python-dateutil>=2.9.0.post0",
+    "websockets>=16.0",
+    "scipy>=1.17.1",
+    "pytest-cov>=7.1.0",
 ]
 keywords = [
     "algorithmic-trading",
