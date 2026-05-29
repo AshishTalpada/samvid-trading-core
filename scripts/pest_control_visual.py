@@ -80,7 +80,7 @@ def pest_control_encoding(dir_path):
                                 with open(path, "w", encoding="utf-8", newline="\n") as f:
                                     f.write(fixed_cp)
                                 print(f"  ✓ Binary repair success: {path}")
-                        except:
+                        except Exception:
                             pass
 
                 except Exception as e:
