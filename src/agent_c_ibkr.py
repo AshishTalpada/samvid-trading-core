@@ -750,6 +750,23 @@ class IBKRConnection:
         # EMERGENCY urgency (stop-loss / VETO exits) always bypasses this throttle.
         wait_seconds = (datetime.now() - self._last_trade_time).total_seconds()
         if wait_seconds < 1.0 and urgency != "EMERGENCY":
+            if urgency == "HIGH":
+                delay = max(0.05, 1.0 - wait_seconds)
+                logger.info(
+                    "DISCIPLINE THROTTLE: queueing HIGH urgency bracket for %s for %.2fs.",
+                    symbol,
+                    delay,
+                )
+                await asyncio.sleep(delay)
+            else:
+                logger.warning(
+                    f" DISCIPLINE THROTTLE: Trade for {symbol} suppressed. "
+                    f"Only {wait_seconds:.1f}s elapsed."
+                )
+                return []
+
+        wait_seconds = (datetime.now() - self._last_trade_time).total_seconds()
+        if wait_seconds < 1.0 and urgency not in {"EMERGENCY", "HIGH"}:
             logger.warning(
                 f" DISCIPLINE THROTTLE: Trade for {symbol} suppressed. "
                 f"Only {wait_seconds:.1f}s elapsed."
@@ -960,8 +977,17 @@ class IBKRConnection:
 
         wait_seconds = (datetime.now() - self._last_trade_time).total_seconds()
         if wait_seconds < 1.0 and urgency != "EMERGENCY":
-            logger.warning(f" DISCIPLINE THROTTLE: Order for {symbol} suppressed.")
-            return None
+            if urgency == "HIGH":
+                delay = max(0.05, 1.0 - wait_seconds)
+                logger.info(
+                    "DISCIPLINE THROTTLE: queueing HIGH urgency order for %s for %.2fs.",
+                    symbol,
+                    delay,
+                )
+                await asyncio.sleep(delay)
+            else:
+                logger.warning(f" DISCIPLINE THROTTLE: Order for {symbol} suppressed.")
+                return None
 
         if not self.is_connected():
             from config import FORCED_PAPER_MODE
