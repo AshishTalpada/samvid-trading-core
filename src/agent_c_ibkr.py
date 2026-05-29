@@ -1195,14 +1195,16 @@ class IBKRConnection:
         )
         self._last_heartbeat = datetime(1970, 1, 1)  # Poison the heartbeat
 
-    def cancel_order(self, order_id: int) -> bool:
+    async def cancel_order(self, order_id: int) -> bool:
         if not self.is_connected():
             return False
         try:
             orders = self.ib.openOrders()
             for order in orders:
                 if order.orderId == order_id:
-                    self.ib.cancelOrder(order)
+                    # Schedule cancel on event loop (ib_insync requires running loop)
+                    loop = asyncio.get_running_loop()
+                    loop.call_soon_threadsafe(self.ib.cancelOrder, order)
                     return True
             return False
         except Exception as e:
