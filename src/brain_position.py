@@ -30,9 +30,7 @@ class PositionMonitor:
 
     async def _state_positioned(self) -> None:
         """Monitor active positions using 7-Level Exit Intelligence Engine."""
-        # Ensures orphan trades like GOOGL/SMCI are caught even if missed at startup
         self._sanitize_positions()  # Ensure memory is objects, not dicts
-        await self._reconcile_broker_positions()
 
         logger.debug(f"MONITORING {len(self.positions)} active positions")
 
