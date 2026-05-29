@@ -60,7 +60,12 @@ class AccountingMixin:
             return self._last_account_value.get(account_type, STARTING_CAPITAL_CAD)
 
     async def _get_daily_pnl(self, account_type: str) -> float:
-        """Get today's P&L."""
+        """Get today's P&L: closed trades from DB + unrealized from open positions.
+
+        The DB query runs in a thread (blocking SQLite call).  Unrealized PnL is
+        computed back on the event loop so we can safely read self.positions
+        and self.last_tick_prices without any cross-thread data races.
+        """
 
         def _sync_daily_pnl() -> float:
             cursor = None
@@ -83,7 +88,27 @@ class AccountingMixin:
                 if cursor is not None:
                     cursor.close()
 
-        return await asyncio.to_thread(_sync_daily_pnl)
+        # Step 1 - closed PnL from DB (blocking call, must run in thread).
+        closed_pnl: float = await asyncio.to_thread(_sync_daily_pnl)
+
+        # Step 2 - unrealized PnL from open positions (event-loop safe reads).
+        unrealized_pnl: float = 0.0
+        for pos in list(getattr(self, "positions", [])):
+            if pos.account_type != account_type:
+                continue
+            current_price: float = self.last_tick_prices.get(pos.symbol, 0.0)
+            if current_price <= 0.0:
+                # No tick price available yet - skip to avoid phantom PnL.
+                continue
+            qty = abs(pos.qty)
+            if pos.qty > 0:
+                # LONG: profit when price rises above entry.
+                unrealized_pnl += (current_price - pos.entry_price) * qty
+            else:
+                # SHORT: profit when price falls below entry.
+                unrealized_pnl += (pos.entry_price - current_price) * qty
+
+        return closed_pnl + unrealized_pnl
 
     async def _update_drawdowns(self) -> None:
         """Update drawdown ladders from current account values."""
