@@ -38,6 +38,13 @@ class PositionMonitor:
 
         exits_triggered = []
 
+        # PERF FIX: fetch account equity & daily PnL once per monitoring cycle,
+        # not once per position.  With 10 positions this was 20 DB queries per tick.
+        _ibkr_equity = await self._get_account_value("ibkr")
+        _ibkr_daily_pnl = await self._get_daily_pnl("ibkr")
+        _mt5_equity = await self._get_account_value("mt5")
+        _mt5_daily_pnl = await self._get_daily_pnl("mt5")
+
         for pos in list(self.positions):  # type: ignore
             if pos.meta.get("exit_triggered"):
                 continue
@@ -48,7 +55,14 @@ class PositionMonitor:
 
             try:
                 # Fetch live market data for this position
-                market_data = await self._fetch_market_snapshot(pos.symbol)
+                # SAFETY FIX: wrap in 5-second timeout to prevent monitoring loop stall
+                try:
+                    market_data = await asyncio.wait_for(
+                        self._fetch_market_snapshot(pos.symbol), timeout=5.0
+                    )
+                except asyncio.TimeoutError:
+                    logger.warning("Market data timeout for %s — skipping this tick", pos.symbol)
+                    continue
                 current_price = (
                     market_data.get("price")
                     if market_data and market_data.get("price") is not None
@@ -104,8 +118,12 @@ class PositionMonitor:
                     if pos.qty > 0
                     else ((pos.entry_price - current_price) / risk_amt)
                 )
-                pos.mfe = max(pos.mfe, gross_r)
-                pos.mae = min(pos.mae, gross_r)
+                # BUG FIX: for LONG, higher gross_r = better (MFE = max).
+                # For SHORT, lower gross_r = worse adverse (MAE = max of negatives).
+                # gross_r is already sign-correct per direction, so the same
+                # max/min assignment is correct for both sides.
+                pos.mfe = max(pos.mfe, gross_r)  # best excursion (positive direction)
+                pos.mae = min(pos.mae, gross_r)  # worst adverse (negative direction)
 
                 is_short = pos.qty < 0
                 price_favourable = (current_price > pos.entry_price and not is_short) or (
@@ -141,10 +159,11 @@ class PositionMonitor:
                     "vix": vix,
                     "vix_baseline": 15.0,
                 }
-                account_dict = {
-                    "equity": await self._get_account_value(pos.account_type),
-                    "daily_pnl": await self._get_daily_pnl(pos.account_type),
-                }
+                # Use pre-fetched values (computed once per cycle above)
+                if pos.account_type == "mt5":
+                    account_dict = {"equity": _mt5_equity, "daily_pnl": _mt5_daily_pnl}
+                else:
+                    account_dict = {"equity": _ibkr_equity, "daily_pnl": _ibkr_daily_pnl}
 
                 # Perform a 500ms 'Heartbeat Re-vet' using Mind_Ultrathink
                 # This checks if the reasons we entered the trade are still valid.

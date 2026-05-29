@@ -148,21 +148,38 @@ class TradingCoordinator:
             from config import COMMISSION_PER_ROUND_TRIP, USD_CAD_RATE
 
             # Necessary for accurate sizing when trading US assets on a CAD-denominated account.
-            balance_usd = (balance or 500.0) / USD_CAD_RATE
+            # BUG FIX: negative balance is truthy, so "or 500.0" won't trigger;
+            # guard explicitly so negative-equity accounts don't produce inverted share counts
+            effective_balance = balance if (balance and balance > 0) else 500.0
+            balance_usd = effective_balance / max(USD_CAD_RATE, 0.01)  # guard divide-by-zero
 
             risk_amt = abs(pattern.entry - pattern.stop)
             reward_amt = abs(pattern.target - pattern.entry)
             # Unified Sizing Calculation
             # We use a more realistic position size estimate for RR calculation.
+            # BUG FIX: guard against zero/negative entry price to prevent ZeroDivisionError
+            if not pattern.entry or pattern.entry <= 0:
+                logger.warning("Coordinator [%s]: invalid pattern.entry=%s — aborting", symbol, pattern.entry)
+                return False
             est_shares = max(1, int(balance_usd * 4.0 * 0.1 / pattern.entry))
 
             if risk_amt > 0:
                 spread_data = await self.brain.get_current_spread(symbol)
+                # BUG FIX: get_current_spread() can return None; guard before calling .get()
+                spread_data = spread_data or {}
                 spread = spread_data.get("spread", 0.01) or 0.01
                 comm_per_share = COMMISSION_PER_ROUND_TRIP / est_shares
 
                 total_reward_dollars = reward_amt - spread - comm_per_share
                 total_risk_dollars = risk_amt + spread + comm_per_share
+                # BUG FIX: if costs consume the entire reward, reject explicitly with a clear message
+                if total_reward_dollars <= 0 and not is_probe:
+                    logger.warning(
+                        "Coordinator [%s]: trade reward (%.4f) consumed by costs (spread=%.4f "
+                        "comm=%.4f). Net reward <= 0 — rejecting.",
+                        symbol, reward_amt, spread, comm_per_share,
+                    )
+                    return False
                 real_rr = total_reward_dollars / total_risk_dollars if total_risk_dollars > 0 else 0
 
                 # On small accounts, the 1.3 Net RR is a 'Mathematical Wall' due to fixed commission.
@@ -1035,6 +1052,10 @@ class TradingCoordinator:
                 all_votes = list(vote_registry.values())
 
                 decision = await self.brain.decision_engine.evaluate(shared_context, all_votes)
+                # BUG FIX: decision_engine can return None on internal error; guard before .get() calls
+                if not decision or "decision" not in decision:
+                    logger.error("Coordinator [%s]: decision engine returned invalid output: %s", symbol, decision)
+                    return False
 
                 if not is_probe:
                     self.exoskeleton.store_cortex_cache(

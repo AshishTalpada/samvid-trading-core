@@ -48,6 +48,12 @@ def _safe_entry_time(entry_time_value: datetime | str | int | float | None) -> d
         if entry_time_value.tzinfo is None:
             return entry_time_value.replace(tzinfo=timezone.utc)
         return entry_time_value
+    logger.warning(
+        "_safe_entry_time: unexpected entry_time type %s value=%r — defaulting to epoch. "
+        "This may cause false-positive purge of position.",
+        type(entry_time_value).__name__,
+        entry_time_value,
+    )
     return datetime(1970, 1, 1, tzinfo=timezone.utc)
 
 
@@ -518,6 +524,13 @@ class BrokerReconciler:
                 target = target or (entry * 1.05 if qty > 0 else entry * 0.95)
             else:
                 entry = price if price > 0 else 0.0
+                if entry <= 0:
+                    logger.warning(
+                        "ORPHAN SKIP [%s]: %s — no price available, cannot adopt safely.",
+                        broker.upper(),
+                        symbol,
+                    )
+                    return
                 stop = entry * 0.985 if qty > 0 else entry * 1.015
                 target = entry * 1.10 if qty > 0 else entry * 0.90
 

@@ -97,13 +97,15 @@ class ExitIntelligence:
             trail_tightness = 0.7
 
         commission_est = position.get("commission", 2.0)
-        slippage_est = position.get("slippage", current_price * 0.0005 * qty)
+        # BUG FIX: use abs(qty) — slippage scales with size regardless of direction
+        slippage_est = position.get("slippage", current_price * 0.0005 * abs(qty))
         total_costs = commission_est + slippage_est
 
         # Calculate R
         initial_risk = abs(entry_price - position.get("initial_stop", stop_loss))
         if initial_risk <= 0:
-            initial_risk = current_price * 0.01
+            # Guard against zero/negative entry_price
+            initial_risk = max(abs(entry_price) * 0.01, 0.01)
 
         r_multiple = (
             ((current_price - entry_price) / initial_risk)
@@ -111,7 +113,8 @@ class ExitIntelligence:
             else ((entry_price - current_price) / initial_risk)
         )
 
-        expected_profit = r_multiple * initial_risk * qty
+        # BUG FIX: use abs(qty) — r_multiple encodes direction; profit is always positive when winning
+        expected_profit = r_multiple * initial_risk * abs(qty)
         is_profitable_enough = expected_profit > (total_costs * self.safety_factor)
 
         # Priority 1: Hard Stop Loss
@@ -156,6 +159,10 @@ class ExitIntelligence:
             trail_dist = initial_risk * trail_tightness
             new_trail = current_price - trail_dist if side == "long" else current_price + trail_dist
             current_stop = position.get("stop_loss")
+            # BUG FIX: if stop_loss missing from dict, current_stop is None;
+            # comparisons like current_price <= None crash at runtime
+            if current_stop is None:
+                current_stop = stop_loss  # fall back to the already-fetched value
 
             # If current price touches broken trailing stop
             if side == "long" and current_price <= current_stop and current_stop > entry_price:
@@ -241,8 +248,15 @@ class ExitIntelligence:
             entry_time = position.get("entry_time")
             if entry_time:
                 from datetime import datetime, timezone
-                now = datetime.now(timezone.utc) if getattr(entry_time, "tzinfo", None) else datetime.now()
-                hold_minutes = (now - entry_time).total_seconds() / 60
+                # BUG FIX: always use UTC-aware now; normalise entry_time to UTC
+                # so we never mix aware and naive datetimes (raises TypeError)
+                now = datetime.now(timezone.utc)
+                if hasattr(entry_time, "tzinfo") and entry_time.tzinfo is None:
+                    entry_time = entry_time.replace(tzinfo=timezone.utc)
+                try:
+                    hold_minutes = (now - entry_time).total_seconds() / 60
+                except TypeError:
+                    hold_minutes = self.min_hold_minutes  # unknown — don't suppress exit
                 if hold_minutes < self.min_hold_minutes:
                     return ExitDecision(
                         action=ExitAction.HOLD,
@@ -282,7 +296,8 @@ class ExitIntelligence:
     def _check_vix_spike(self, position: dict, market: dict) -> ExitDecision | None:
         vix_current = market.get("vix")
         vix_baseline = market.get("vix_baseline") or 15.0
-        if vix_current is None or vix_baseline == 0:
+        # BUG FIX: guard <= 0, not just == 0; explicit 0.0 in market dict would pass the old check
+        if vix_current is None or vix_baseline <= 0:
             return None
         vix_change = (vix_current - vix_baseline) / vix_baseline
         if vix_change >= self.vix_spike_threshold:

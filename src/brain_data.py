@@ -110,6 +110,9 @@ class DataProvider:
                         timeout=QUESTDB_CONNECT_TIMEOUT_SEC,
                     )
                     self._qdb_failure_count = 0
+                    if self._qdb_circuit_broken:
+                        logger.info("QuestDB circuit breaker RESET — connection recovered.")
+                        self._qdb_circuit_broken = False
                 except (asyncio.TimeoutError, TimeoutError):
                     self._qdb_failure_count += 1
                     self._qdb_last_failure_time = now_mono
