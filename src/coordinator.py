@@ -50,6 +50,19 @@ class TradingCoordinator:
         self.exoskeleton = ApexExoskeleton(brain)
         self._semaphore: asyncio.Semaphore | None = None  # Lazy-init to bind to running loop
 
+    def _finalize_open_task(self, task: Any, phase: str, reason: str) -> None:
+        """Close a spawned task when a pre-vetting guard returns early."""
+        if not task:
+            return
+        status = getattr(getattr(task, "status", None), "value", getattr(task, "status", ""))
+        if str(status).lower() not in {"pending", "running"}:
+            return
+        try:
+            task.set_phase(phase, reason)
+            task.finalize("VETOED")
+        except Exception as exc:
+            logger.warning("Coordinator: failed to finalize task %s: %s", getattr(task, "id", "?"), exc)
+
     def _check_best_day_rule(self, today_pnl: float, broker: str) -> tuple[bool, str]:
         """
         FTMO Best Day Rule enforcement (F-spec).
@@ -139,6 +152,7 @@ class TradingCoordinator:
                         symbol, daily_pnl_now, abs(daily_pnl_now) / account_val * 100, FTMO_DAILY_LIMIT * 100,
                     )
                     LEDGER.record_veto(symbol=symbol, reason=f"DAILY_LOSS_LIMIT: {daily_pnl_now:.2f}")
+                    self._finalize_open_task(task, "DAILY_LOSS_BLOCK", f"daily PnL {daily_pnl_now:.2f}")
                     return False
             except Exception as _dlb_err:
                 logger.debug("Daily loss hard-block check failed (non-fatal): %s", _dlb_err)
@@ -155,6 +169,7 @@ class TradingCoordinator:
                         "Coordinator [%s] RTH_CLOSE_GUARD: No new entries in last 30 min of RTH (%s ET).",
                         symbol, _now_et.strftime("%H:%M"),
                     )
+                    self._finalize_open_task(task, "RTH_CLOSE_GUARD", _now_et.strftime("%H:%M ET"))
                     return False
             except Exception as _rth_err:
                 logger.debug("RTH close guard check failed (non-fatal): %s", _rth_err)
@@ -174,6 +189,7 @@ class TradingCoordinator:
                 if is_prop:
                     logger.warning(f"Coordinator [{symbol}]  BEST_DAY_RULE VETO (prop): {bdr_reason}")
                     LEDGER.record_veto(symbol=symbol, reason=f"BEST_DAY_RULE: {bdr_reason}")
+                    self._finalize_open_task(task, "BEST_DAY_RULE", bdr_reason)
                     return False
                 else:
                     logger.warning(f"Coordinator [{symbol}]  BEST_DAY_RULE WARNING (ibkr advisory): {bdr_reason}")
@@ -194,6 +210,7 @@ class TradingCoordinator:
             # Implementation: guard against zero/negative entry price to prevent ZeroDivisionError
             if not pattern.entry or pattern.entry <= 0:
                 logger.warning("Coordinator [%s]: invalid pattern.entry=%s — aborting", symbol, pattern.entry)
+                self._finalize_open_task(task, "INVALID_PATTERN", f"entry={pattern.entry}")
                 return False
             est_shares = max(1, int(balance_usd * 4.0 * 0.1 / pattern.entry))
 
@@ -213,6 +230,7 @@ class TradingCoordinator:
                         "comm=%.4f). Net reward <= 0 — rejecting.",
                         symbol, reward_amt, spread, comm_per_share,
                     )
+                    self._finalize_open_task(task, "FRICTION_VETO", "net reward consumed by costs")
                     return False
                 real_rr = total_reward_dollars / total_risk_dollars if total_risk_dollars > 0 else 0
 
@@ -254,6 +272,7 @@ class TradingCoordinator:
                                 "timestamp": time.time() * 1000,
                             },
                         )
+                    self._finalize_open_task(task, "FRICTION_VETO", f"Net RR {real_rr:.2f} < {threshold}")
                     return False
 
         # -- IDEMPOTENCY & CORTEX CACHE -------------------
@@ -1113,6 +1132,12 @@ class TradingCoordinator:
             )
             return False
         finally:
+            if not is_probe:
+                self._finalize_open_task(
+                    task,
+                    "LIFECYCLE_EXIT",
+                    "coordinator returned without terminal task state",
+                )
             self._pending_vets.discard(symbol)
             if hasattr(self.brain, "_vetting_cooldowns"):
                 self.brain._vetting_cooldowns[symbol] = datetime.now(timezone.utc)
