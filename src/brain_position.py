@@ -356,6 +356,51 @@ class PositionMonitor:
 
     # EXIT PROCESSING
 
+    async def _confirm_ibkr_order_filled(
+        self,
+        order_id: int | str,
+        symbol: str,
+        timeout_seconds: float = 4.0,
+    ) -> bool:
+        """Confirm an IBKR order filled before mutating realized position state."""
+        try:
+            target_order_id = int(order_id)
+        except (TypeError, ValueError):
+            return False
+
+        deadline = time.monotonic() + timeout_seconds
+        last_status = "UNKNOWN"
+        while time.monotonic() < deadline:
+            try:
+                for trade in self.ibkr_client.trades():
+                    if getattr(trade.order, "orderId", None) != target_order_id:
+                        continue
+                    last_status = getattr(trade.orderStatus, "status", "UNKNOWN")
+                    filled = float(getattr(trade.orderStatus, "filled", 0.0) or 0.0)
+                    remaining = float(getattr(trade.orderStatus, "remaining", 0.0) or 0.0)
+                    if last_status == "Filled" or (filled > 0 and remaining <= 0):
+                        return True
+                    if last_status in {"Cancelled", "Inactive"}:
+                        logger.warning(
+                            "IBKR EXIT NOT FILLED [%s]: order #%s ended as %s.",
+                            symbol,
+                            target_order_id,
+                            last_status,
+                        )
+                        return False
+            except Exception as exc:
+                logger.debug("IBKR fill confirmation skipped for %s #%s: %s", symbol, target_order_id, exc)
+            await asyncio.sleep(0.25)
+
+        logger.info(
+            "IBKR EXIT PENDING [%s]: order #%s not filled yet (last status=%s). "
+            "Memory and Telegram realization deferred.",
+            symbol,
+            target_order_id,
+            last_status,
+        )
+        return False
+
     async def _process_exit(self, pos: Position, exit_type: str, exit_price: float) -> None:
         """Standardized Exit Resolver (Pillar 5 Upgrade)."""
         try:
@@ -381,6 +426,19 @@ class PositionMonitor:
             if not broker_online:
                 logger.warning(
                     f"DELAYED EXIT [{symbol}]: {pos.account_type} is OFFLINE. Postponing pulse."
+                )
+                return
+
+            if (
+                exit_type == "PARTIAL"
+                and pos.account_type == "ibkr"
+                and hasattr(self, "_is_market_open")
+                and not self._is_market_open()
+            ):
+                logger.info(
+                    "PARTIAL DEFERRED [%s]: US equity market is closed; "
+                    "keeping memory unchanged until a live fillable session.",
+                    symbol,
                 )
                 return
 
@@ -503,6 +561,8 @@ class PositionMonitor:
                             f" EXIT SUSPENDED [{symbol}]: Broker order was {order_result}. "
                             "Retaining position in memory."
                         )
+                        return
+                    if not await self._confirm_ibkr_order_filled(order_result, symbol):
                         return
 
                 elif pos.account_type == "mt5" and self.mt5_conn:
