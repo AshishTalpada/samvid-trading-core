@@ -237,13 +237,10 @@ class TaskManager:
                         task.status_summary = state.get(
                             "status_summary", state.get("phase", "Initializing")
                         )
-                        if (
-                            task.status in [TaskStatus.PENDING, TaskStatus.RUNNING]
-                            and now - float(task.start_time or now) > 900
-                        ):
+                        if task.status in [TaskStatus.PENDING, TaskStatus.RUNNING]:
                             task.status = TaskStatus.KILLED
                             task.end_time = now
-                            task.status_summary = "STALE: killed during startup registry recovery"
+                            task.status_summary = "ORPHANED: killed during startup registry recovery"
                             stale_restored += 1
                         self.tasks[tid] = task
 
