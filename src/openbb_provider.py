@@ -141,7 +141,10 @@ class OpenBBProvider:
                 )
                 return False
             except Exception as e:
-                logger.error(f"OpenBB Loader Error: {e}")
+                logger.warning(
+                    "OpenBB SDK unavailable (%s). Falling back to yfinance provider.",
+                    e,
+                )
                 _OPENBB_AVAILABLE = False
                 return False
         try:
