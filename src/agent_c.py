@@ -147,7 +147,7 @@ class EvolutionManager:
             cursor = self.conn.cursor()
 
             # Calculate metrics per Dhatu state (Refined for Expectancy)
-            # FIX: pnl_dollars is encrypted! We cannot use SQL SUM() or AVG() on it.
+            # Enhancement: pnl_dollars is encrypted! We cannot use SQL SUM() or AVG() on it.
             # We must fetch the raw data and aggregate in Python.
             cursor.execute("""
                 SELECT

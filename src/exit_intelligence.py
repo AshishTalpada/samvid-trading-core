@@ -97,7 +97,7 @@ class ExitIntelligence:
             trail_tightness = 0.7
 
         commission_est = position.get("commission", 2.0)
-        # BUG FIX: use abs(qty) — slippage scales with size regardless of direction
+        # Implementation: use abs(qty) — slippage scales with size regardless of direction
         slippage_est = position.get("slippage", current_price * 0.0005 * abs(qty))
         total_costs = commission_est + slippage_est
 
@@ -113,7 +113,7 @@ class ExitIntelligence:
             else ((entry_price - current_price) / initial_risk)
         )
 
-        # BUG FIX: use abs(qty) — r_multiple encodes direction; profit is always positive when winning
+        # Implementation: use abs(qty) — r_multiple encodes direction; profit is always positive when winning
         expected_profit = r_multiple * initial_risk * abs(qty)
         is_profitable_enough = expected_profit > (total_costs * self.safety_factor)
 
@@ -159,7 +159,7 @@ class ExitIntelligence:
             trail_dist = initial_risk * trail_tightness
             new_trail = current_price - trail_dist if side == "long" else current_price + trail_dist
             current_stop = position.get("stop_loss")
-            # BUG FIX: if stop_loss missing from dict, current_stop is None;
+            # Implementation: if stop_loss missing from dict, current_stop is None;
             # comparisons like current_price <= None crash at runtime
             if current_stop is None:
                 current_stop = stop_loss  # fall back to the already-fetched value
@@ -248,7 +248,7 @@ class ExitIntelligence:
             entry_time = position.get("entry_time")
             if entry_time:
                 from datetime import datetime, timezone
-                # BUG FIX: always use UTC-aware now; normalise entry_time to UTC
+                # Implementation: always use UTC-aware now; normalise entry_time to UTC
                 # so we never mix aware and naive datetimes (raises TypeError)
                 now = datetime.now(timezone.utc)
                 if hasattr(entry_time, "tzinfo") and entry_time.tzinfo is None:
@@ -296,7 +296,7 @@ class ExitIntelligence:
     def _check_vix_spike(self, position: dict, market: dict) -> ExitDecision | None:
         vix_current = market.get("vix")
         vix_baseline = market.get("vix_baseline") or 15.0
-        # BUG FIX: guard <= 0, not just == 0; explicit 0.0 in market dict would pass the old check
+        # Implementation: guard <= 0, not just == 0; explicit 0.0 in market dict would pass the old check
         if vix_current is None or vix_baseline <= 0:
             return None
         vix_change = (vix_current - vix_baseline) / vix_baseline

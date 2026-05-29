@@ -125,7 +125,7 @@ class TradingCoordinator:
                 },
             )
 
-        # FIX 7: Hard-block new entries if daily loss already >= 4% (FTMO daily limit).
+        # Enhancement: Hard-block new entries if daily loss already >= 4% (FTMO daily limit).
         # Checked here with unrealized PnL so open losing positions count.
         if not is_probe:
             try:
@@ -143,7 +143,7 @@ class TradingCoordinator:
             except Exception as _dlb_err:
                 logger.debug("Daily loss hard-block check failed (non-fatal): %s", _dlb_err)
 
-        # FIX 12: Block new entries in last 30 minutes of RTH (3:30–4:00 PM ET).
+        # Enhancement: Block new entries in last 30 minutes of RTH (3:30–4:00 PM ET).
         if not is_probe:
             try:
                 import datetime as _dt
@@ -182,7 +182,7 @@ class TradingCoordinator:
             from config import COMMISSION_PER_ROUND_TRIP, USD_CAD_RATE
 
             # Necessary for accurate sizing when trading US assets on a CAD-denominated account.
-            # BUG FIX: negative balance is truthy, so "or 500.0" won't trigger;
+            # Implementation: negative balance is truthy, so "or 500.0" won't trigger;
             # guard explicitly so negative-equity accounts don't produce inverted share counts
             effective_balance = balance if (balance and balance > 0) else 500.0
             balance_usd = effective_balance / max(USD_CAD_RATE, 0.01)  # guard divide-by-zero
@@ -191,7 +191,7 @@ class TradingCoordinator:
             reward_amt = abs(pattern.target - pattern.entry)
             # Unified Sizing Calculation
             # We use a more realistic position size estimate for RR calculation.
-            # BUG FIX: guard against zero/negative entry price to prevent ZeroDivisionError
+            # Implementation: guard against zero/negative entry price to prevent ZeroDivisionError
             if not pattern.entry or pattern.entry <= 0:
                 logger.warning("Coordinator [%s]: invalid pattern.entry=%s — aborting", symbol, pattern.entry)
                 return False
@@ -199,14 +199,14 @@ class TradingCoordinator:
 
             if risk_amt > 0:
                 spread_data = await self.brain.get_current_spread(symbol)
-                # BUG FIX: get_current_spread() can return None; guard before calling .get()
+                # Implementation: get_current_spread() can return None; guard before calling .get()
                 spread_data = spread_data or {}
                 spread = spread_data.get("spread", 0.01) or 0.01
                 comm_per_share = COMMISSION_PER_ROUND_TRIP / est_shares
 
                 total_reward_dollars = reward_amt - spread - comm_per_share
                 total_risk_dollars = risk_amt + spread + comm_per_share
-                # BUG FIX: if costs consume the entire reward, reject explicitly with a clear message
+                # Implementation: if costs consume the entire reward, reject explicitly with a clear message
                 if total_reward_dollars <= 0 and not is_probe:
                     logger.warning(
                         "Coordinator [%s]: trade reward (%.4f) consumed by costs (spread=%.4f "
@@ -468,7 +468,7 @@ class TradingCoordinator:
                                 f"Size reduced to {total_mod:.1%} of theoretical max (DD/Loss/Regime Guard)."
                             )
 
-                # Fix C: Zero-share veto
+                # Enhancement: C: Zero-share veto
                 if shares <= 0 and not is_probe:
                     logger.warning(
                         f"Coordinator [{proposal_id}] ZERO-SHARE VETO: Position sizer returned shares=0 for {symbol}."
@@ -1090,7 +1090,7 @@ class TradingCoordinator:
                 all_votes = list(vote_registry.values())
 
                 decision = await self.brain.decision_engine.evaluate(shared_context, all_votes)
-                # BUG FIX: decision_engine can return None on internal error; guard before .get() calls
+                # Implementation: decision_engine can return None on internal error; guard before .get() calls
                 if not decision or "decision" not in decision:
                     logger.error("Coordinator [%s]: decision engine returned invalid output: %s", symbol, decision)
                     return False

@@ -41,7 +41,7 @@ class MindGhost:
         self._registry_recovery_logged = False
         self._next_reset_suppressed_log = 0.0
 
-        # FIX: Store task references to allow clean cancellation on shutdown.
+        # Enhancement: Store task references to allow clean cancellation on shutdown.
         # Dropping these references causes 'Task was destroyed but it is pending!'
         self._audit_task: asyncio.Task | None = None
         self._shutdown_listener_task: asyncio.Task | None = None
@@ -67,7 +67,7 @@ class MindGhost:
         # Start audit loop — store reference to allow clean cancellation
         self._audit_task = asyncio.create_task(self._ghost_audit_loop())
 
-        # FIX: Store shutdown listener reference to prevent 'Task destroyed' error on restart.
+        # Enhancement: Store shutdown listener reference to prevent 'Task destroyed' error on restart.
         # Previously created with create_task() and reference dropped immediately.
         if self.bridge.bus:
             self._shutdown_listener_task = asyncio.create_task(self._shutdown_listener())

@@ -412,7 +412,7 @@ class DataPipeline:
 
     async def get_current_price(self, symbol: str) -> float:
         """Get the most recent price. Priority: TV streamer → QuestDB → Finnhub → OpenBB → yfinance."""
-        # FIX 1: Tier -1 — TradingView real-time tick prices (sub-second, free of rate limits).
+        # Enhancement: Tier -1 — TradingView real-time tick prices (sub-second, free of rate limits).
         # brain.py sets self._brain_tick_prices = brain.last_tick_prices after creating the pipeline.
         _tv_prices: dict = getattr(self, "_brain_tick_prices", {})
         if _tv_prices:

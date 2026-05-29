@@ -115,12 +115,12 @@ class SovereignLogicEngine:
         return {"status": "PURE_COGNITION", "node": node["name"], "mode": "DORMANT", "impact": 0.0}
 
     def _logic_151_kelly(self, ctx: Dict[str, Any]) -> Dict[str, Any]:
-        """Fee-Aware Kelly Criterion (Bug #20 FIX)."""
+        """Fee-Aware Kelly Criterion (ISSUE #20 IMPLEMENT)."""
         from vault import Vault
 
         win_prob = ctx.get("win_prob", 0.5)
         rr = ctx.get("r_r_ratio", 2.0)
-        # BUG #20 FIX: Dynamically read commission from Vault
+        # Issue #20: Dynamically read commission from Vault
         commission = float(Vault.get("COMMISSION_PER_ROUND_TRIP", str(COMMISSION_PER_ROUND_TRIP)))
         account_value = ctx.get("account_value", STARTING_CAPITAL_CAD)
 
@@ -136,11 +136,11 @@ class SovereignLogicEngine:
         return {"decision": "Sized", "frac": final_sizing}
 
     def _logic_104_regime_prediction(self, ctx: Dict[str, Any]) -> Dict[str, Any]:
-        """Regime Prediction — handles Abhava (crisis) states (Bug #19 FIX)."""
+        """Regime Prediction — handles Abhava (crisis) states (ISSUE #19 IMPLEMENT)."""
         dhatu = ctx.get("dhatu", "Sthiti")
         regime = ctx.get("regime", "UNKNOWN")
 
-        # BUG #19 FIX: Ensure Abhava crisis overrides any bullish bias
+        # Issue #19: Ensure Abhava crisis overrides any bullish bias
         if dhatu == "Abhava":
             logger.warning(" Logic #104: ABHAVA Crisis Override — enforcing Defensive regime.")
             return {"predicted_regime": "VOLATILE", "bias": "BEARISH", "confidence": 0.95}

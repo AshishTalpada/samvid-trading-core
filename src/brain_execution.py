@@ -537,7 +537,7 @@ class ExecutionMixin:
                 )
                 self._oracle_dhatu = "Vriddhi"
 
-        # FIX 9: Feed trade outcome back into BayesianBeliefTracker so it learns
+        # Enhancement: Feed trade outcome back into BayesianBeliefTracker so it learns
         # from actual results (win -> price_toward_medium; loss -> price_against_medium).
         try:
             bt = getattr(self, "belief_tracker", None)
@@ -587,7 +587,7 @@ class ExecutionMixin:
             logger.error("SHIELD: Panic Liquidation Failed: %s", e)
 
     # ------------------------------------------------------------------
-    # FIX 11: Cancel stale unfilled entry orders after timeout
+    # Enhancement: Cancel stale unfilled entry orders after timeout
     # ------------------------------------------------------------------
     async def _cancel_stale_entry_orders(self, timeout_sec: int = 120) -> None:
         """Cancel IBKR entry orders that have been pending longer than timeout_sec.

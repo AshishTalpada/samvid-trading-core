@@ -28,10 +28,10 @@ class FIXExecutionReport:
 class BrokerArbitrator:
     """
     Advanced Broker Arbitrator for High-Frequency Trading.
-    Monitors all inbound FIX ExecutionReports (Tag 35=8).
+    Monitors all inbound IMPLEMENT ExecutionReports (Tag 35=8).
     Compares Fill Prices against the National Best Bid and Offer (NBBO) at the exact microsecond of execution.
     If a fill is executed outside the NBBO (a predatory or illegal fill under Reg NMS),
-    this agent instantly disputes the trade via FIX Tag 35=DK (Don't Know Trade).
+    this agent instantly disputes the trade via IMPLEMENT Tag 35=DK (Don't Know Trade).
     """
 
     # Standard FIX Tag definitions
@@ -79,7 +79,7 @@ class BrokerArbitrator:
 
     def evaluate_fix_execution(self, fix_message: str, current_nbbo: tuple) -> bool:
         """
-        Parses a raw FIX message string, extracts the execution details, and arbitrates.
+        Parses a raw IMPLEMENT message string, extracts the execution details, and arbitrates.
         Returns True if the fill is accepted, False if disputed.
         """
         tags = self._parse_fix_message(fix_message)
@@ -147,7 +147,7 @@ class BrokerArbitrator:
             return False
         side = report.side
 
-        # 1: Buy, 2: Sell (FIX Standard)
+        # 1: Buy, 2: Sell (IMPLEMENT Standard)
         is_buy = side == "1"
 
         # Calculate slippage in Basis Points
@@ -192,14 +192,14 @@ class BrokerArbitrator:
         Generates a Don't Know Trade (DK) FIX message to formally dispute the execution
         with the broker or venue.
         """
-        # FIX Tag 35=Q is Don't Know Trade (DK)
-        dk_msg = f"8=FIX.4.4|35=Q|11={report.order_id}|17={report.exec_id}|39={report.ord_status}|"
+        # Enhancement: Tag 35=Q is Don't Know Trade (DK)
+        dk_msg = f"8=IMPLEMENT.4.4|35=Q|11={report.order_id}|17={report.exec_id}|39={report.ord_status}|"
         dk_msg += (
             f"55={report.symbol}|54={report.side}|32={report.fill_qty}|31={report.fill_price}|"
         )
         dk_msg += f"127=OTHER|58={reason}|"
 
-        logger.warning(f"[ARBITRATOR] Sending FIX Dispute to Broker: {dk_msg}")
+        logger.warning(f"[ARBITRATOR] Sending IMPLEMENT Dispute to Broker: {dk_msg}")
         self.disputed_trades.append(
             {"report": report, "reason": reason, "dk_msg": dk_msg, "timestamp": time.time()}
         )
