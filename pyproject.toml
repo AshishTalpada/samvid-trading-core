@@ -29,7 +29,8 @@ dependencies = [
     "ruff",
     "mypy",
     "pytest",
-    "pytest-asyncio"
+    "pytest-asyncio",
+    "prometheus-client>=0.25.0",
 ]
 keywords = [
     "algorithmic-trading",
