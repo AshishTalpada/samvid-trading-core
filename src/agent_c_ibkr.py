@@ -385,9 +385,9 @@ class IBKRConnection:
                 except Exception as e:
                     logger.error(f" ORDER PERSISTENCE FAILURE: {e}")
 
-            import asyncio as _asyncio
+            import threading as _threading
 
-            _asyncio.get_event_loop().run_in_executor(None, _persist_order_status)
+            _threading.Thread(target=_persist_order_status, daemon=True).start()
 
             self._order_persistence[trade.order.orderId] = {
                 "symbol": symbol,
@@ -446,7 +446,8 @@ class IBKRConnection:
                         logger.error(f" POST-MORTEM FAILURE: {e}")
 
                 # Push to background thread to prevent event loop jitter
-                asyncio.get_event_loop().run_in_executor(None, _write_post_mortem)
+                import threading as _threading
+                _threading.Thread(target=_write_post_mortem, daemon=True).start()
                 logger.info(f" POST-MORTEM: Signal {symbol} failure recorded: {reason}")
 
     def _on_exec_details(self, trade, fill) -> None:
