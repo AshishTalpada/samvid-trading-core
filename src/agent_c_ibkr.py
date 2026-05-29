@@ -1267,7 +1267,7 @@ class PositionSizingChain:
 
         balance = min(balance, _raw_nav) * 0.99
 
-        kelly_pct = win_prob - ((1 - win_prob) / r_r_ratio) if r_r_ratio > 0 else 0
+        kelly_pct = (win_prob - ((1 - win_prob) / r_r_ratio)) / 2.0 if r_r_ratio > 0 else 0
         step1_risk = balance * max(0, kelly_pct)
 
         from config import CASH_ACCOUNT_MAX_RATIO, RISK_PER_TRADE_PCT, SYSTEM_MAX_RISK
@@ -1291,11 +1291,10 @@ class PositionSizingChain:
 
         # We apply a high 'Safety Floor' (0.8) to bypass the ghost loss memory
         # while keeping the logic dynamic enough for the Phantom Probe monitor.
-        # Apply drawdown/loss modifiers: <1.0 REDUCES size during losses,
-        # >1.0 is allowed for verified winning streaks. Floor at 0.5 to
-        # prevent total paralysis; cap at 1.5 to prevent runaway.
-        dd_mod = min(max(kwargs.get("drawdown_modifier", 1.0), 0.5), 1.5)
-        loss_mod = min(max(kwargs.get("loss_modifier", 1.0), 0.5), 1.5)
+        # Safety cap: drawdown/loss modifiers can only REDUCE size (max 1.0), never increase it.
+        # Floor at 0.5 to prevent total paralysis on a brief losing streak.
+        dd_mod = min(max(kwargs.get("drawdown_modifier", 1.0), 0.5), 1.0)
+        loss_mod = min(max(kwargs.get("loss_modifier", 1.0), 0.5), 1.0)
 
         base_risk_limit = balance * RISK_PER_TRADE_PCT if RISK_PER_TRADE_PCT > 0 else balance * 0.01
         self_risk_limit = base_risk_limit * max(1.0, bounded_regime_mod)
