@@ -37,7 +37,7 @@ def sync():
                 memory = json.load(f)
                 if not isinstance(memory, list):
                     memory = []
-        except:
+        except Exception:
             memory = []
 
     # Insert at the beginning (most recent)

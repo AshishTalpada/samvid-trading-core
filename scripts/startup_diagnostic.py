@@ -387,7 +387,7 @@ async def check_async_components():
         from vault import Vault
         if Vault.get("GOOGLE_API_KEY") or Vault.get("ANTHROPIC_API_KEY"):
             from dhatu_oracle import DhatuOracle
-            oracle = DhatuOracle(
+            _oracle = DhatuOracle(
                 google_api_key=Vault.get("GOOGLE_API_KEY", ""),
                 anthropic_api_key=Vault.get("ANTHROPIC_API_KEY", ""),
             )
