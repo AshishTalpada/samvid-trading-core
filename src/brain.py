@@ -211,6 +211,7 @@ class TradingBrain(BrokerReconciler, HealthChecker, DataProvider, AccountingMixi
         self.native_slm = native_slm
         self.dhatu_oracle = dhatu_oracle
         self.emergency_halted = False
+        self.start_time = datetime.now(timezone.utc)
         self._state_lock = asyncio.Lock()
         self.state = TradingState.STANDBY
         self.last_tick_prices: dict[str, float] = {}
