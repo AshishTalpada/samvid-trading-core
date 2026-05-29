@@ -122,7 +122,6 @@ class AccountingMixin:
                 _freeze_task = asyncio.create_task(
                     asyncio.to_thread(self.session_restorer.freeze_state, state_to_freeze)
                 )
-                self._background_tasks.discard(None)
                 self._background_tasks.add(_freeze_task)
                 _freeze_task.add_done_callback(self._background_tasks.discard)
 
