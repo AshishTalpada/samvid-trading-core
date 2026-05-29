@@ -353,6 +353,22 @@ class BrokerReconciler:
                 report_logger("\n".join(report_lines))
                 self._last_reality_report_ts = time.monotonic()
 
+            # FIX 10: Alert on broker position mismatch so drift is never silent.
+            # Rate-limited to once per 5 minutes to avoid alert storms.
+            if drift_found:
+                _last_drift_alert = getattr(self, "_last_drift_alert_ts", 0.0)
+                if time.monotonic() - _last_drift_alert > 300:
+                    self._last_drift_alert_ts = time.monotonic()
+                    drift_lines = [l for l in report_lines if "DRIFT" in l]
+                    drift_summary = "; ".join(l.strip() for l in drift_lines[:5])
+                    try:
+                        from telegram_alerts import send_telegram_alert
+                        await send_telegram_alert(
+                            f"RECONCILE DRIFT: {len(drift_lines)} mismatch(es) — {drift_summary}"
+                        )
+                    except Exception as _ta_err:
+                        logger.warning("Reconcile drift Telegram alert failed: %s", _ta_err)
+
             self._reconcile_open_trade_rows("ibkr", ibkr_reality, ibkr_polled, now_ts)
             self._reconcile_open_trade_rows("mt5", mt5_reality, mt5_polled, now_ts)
 
