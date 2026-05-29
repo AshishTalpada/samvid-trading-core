@@ -125,6 +125,40 @@ class TradingCoordinator:
                 },
             )
 
+        # FIX 7: Hard-block new entries if daily loss already >= 4% (FTMO daily limit).
+        # Checked here with unrealized PnL so open losing positions count.
+        if not is_probe:
+            try:
+                account_type = getattr(self.brain, "active_broker", "ibkr").lower()
+                daily_pnl_now = await self.brain._get_daily_pnl(account_type)
+                account_val = await self.brain.get_safe_buying_power(account_type) or 500.0
+                from config import FTMO_DAILY_LIMIT
+                if daily_pnl_now < 0 and abs(daily_pnl_now) / max(account_val, 1.0) >= FTMO_DAILY_LIMIT:
+                    logger.warning(
+                        "Coordinator [%s] DAILY_LOSS_HARD_BLOCK: daily PnL %.2f = %.1f%% >= %.0f%% limit. No new entries.",
+                        symbol, daily_pnl_now, abs(daily_pnl_now) / account_val * 100, FTMO_DAILY_LIMIT * 100,
+                    )
+                    LEDGER.record_veto(symbol=symbol, reason=f"DAILY_LOSS_LIMIT: {daily_pnl_now:.2f}")
+                    return False
+            except Exception as _dlb_err:
+                logger.debug("Daily loss hard-block check failed (non-fatal): %s", _dlb_err)
+
+        # FIX 12: Block new entries in last 30 minutes of RTH (3:30–4:00 PM ET).
+        if not is_probe:
+            try:
+                import datetime as _dt
+                from zoneinfo import ZoneInfo
+                _now_et = _dt.datetime.now(ZoneInfo("America/New_York"))
+                _t = _now_et.time()
+                if _dt.time(15, 30) <= _t < _dt.time(16, 0):
+                    logger.info(
+                        "Coordinator [%s] RTH_CLOSE_GUARD: No new entries in last 30 min of RTH (%s ET).",
+                        symbol, _now_et.strftime("%H:%M"),
+                    )
+                    return False
+            except Exception as _rth_err:
+                logger.debug("RTH close guard check failed (non-fatal): %s", _rth_err)
+
         pattern = proposal.get("pattern")
         if pattern:
             if task:
@@ -363,10 +397,14 @@ class TradingCoordinator:
                 # Early Agent D veto gate — avoid sizing cost for statistically doomed trades
                 if not is_probe:
                     try:
-                        agent_d_early = self.brain.live_learner.evaluate_proposal(
-                            pattern_name=pattern.name,
-                            regime=self.brain.current_regime,
-                            session=proposal.get("session", "RTH"),
+                        agent_d_early = await asyncio.wait_for(
+                            asyncio.to_thread(
+                                self.brain.live_learner.evaluate_proposal,
+                                pattern.name,
+                                self.brain.current_regime,
+                                proposal.get("session", "RTH"),
+                            ),
+                            timeout=5.0,
                         )
                         if agent_d_early.get("vote") == "NO":
                             logger.info(
@@ -375,8 +413,8 @@ class TradingCoordinator:
                                 agent_d_early.get("reason", ""),
                             )
                             return
-                    except Exception as _early_d_err:
-                        logger.debug("Agent D early veto check failed: %s", _early_d_err)
+                    except (asyncio.TimeoutError, Exception) as _early_d_err:
+                        logger.debug("Agent D early veto check failed/timed out: %s", _early_d_err)
                         # Non-fatal — fall through to normal path
 
                 # Sizing Calculation for Context
