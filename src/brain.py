@@ -263,6 +263,7 @@ class TradingBrain(BrokerReconciler, HealthChecker, DataProvider, AccountingMixi
 
         logger.info("Initializing TradingBrain components...")
         self.positions: list[Position] = []
+        self._positions_lock = asyncio.Lock()  # Protects self.positions from concurrent modification
         self.closed_positions: collections.deque = collections.deque(
             maxlen=500
         )  # Memory-bounded history
@@ -541,22 +542,23 @@ class TradingBrain(BrokerReconciler, HealthChecker, DataProvider, AccountingMixi
             if state:
                 # Restore positions with FORCE HYDRATION (Pillar 2 Hardening)
                 thawed_pos = state.get("positions", [])
-                self.positions = []
-                for p_data in thawed_pos:
-                    if isinstance(p_data, Position):
-                        self.positions.append(p_data)
-                    elif isinstance(p_data, dict) and "symbol" in p_data:
-                        try:
-                            # Safely reconstruct Position from legacy dict
-                            from dataclasses import fields
+                async with self._positions_lock:
+                    self.positions = []
+                    for p_data in thawed_pos:
+                        if isinstance(p_data, Position):
+                            self.positions.append(p_data)
+                        elif isinstance(p_data, dict) and "symbol" in p_data:
+                            try:
+                                # Safely reconstruct Position from legacy dict
+                                from dataclasses import fields
 
-                            valid_keys = {f.name for f in fields(Position)}
-                            filtered_data = {k: v for k, v in p_data.items() if k in valid_keys}
-                            self.positions.append(Position(**filtered_data))
-                        except Exception as _pos_err:
-                            logger.warning(
-                                f"Brain: Skipping malformed position state entry: {_pos_err}"
-                            )
+                                valid_keys = {f.name for f in fields(Position)}
+                                filtered_data = {k: v for k, v in p_data.items() if k in valid_keys}
+                                self.positions.append(Position(**filtered_data))
+                            except Exception as _pos_err:
+                                logger.warning(
+                                    f"Brain: Skipping malformed position state entry: {_pos_err}"
+                                )
 
                 self.ibkr_drawdown.peak_equity = state.get(
                     "peak_equity", self.ibkr_drawdown.peak_equity
@@ -843,6 +845,10 @@ class TradingBrain(BrokerReconciler, HealthChecker, DataProvider, AccountingMixi
 
         self._mind_task = asyncio.create_task(self._run_trader_mind())
 
+        # FIX 1 wiring: give data_pipeline direct access to TV streamer tick prices.
+        if hasattr(self, "data_pipeline") and self.data_pipeline is not None:
+            self.data_pipeline._brain_tick_prices = self.last_tick_prices
+
         # Detects wiring disconnects by running non-destructive trial trades.
         self._phantom_probe_task = asyncio.create_task(self._run_phantom_probe())
 
@@ -1019,6 +1025,11 @@ class TradingBrain(BrokerReconciler, HealthChecker, DataProvider, AccountingMixi
         while self.is_running:
             try:
                 await asyncio.sleep(300)  # Freeze state every 5 minutes
+                # FIX 11: Sweep unfilled entry orders older than 2 minutes.
+                try:
+                    await self._cancel_stale_entry_orders(timeout_sec=120)
+                except Exception as _so_err:
+                    logger.debug("Stale order sweep failed (non-fatal): %s", _so_err)
                 state = {
                     "positions": self.positions,
                     "peak_equity": self.ibkr_drawdown.peak_equity,
