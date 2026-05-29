@@ -1836,8 +1836,10 @@ class DhatuOracle:
             reasoning += f"Primary themes: {graph.dominant_theme} and {graph.macro_bias}. Certainty: {graph.certainty:.1%}."
 
         except Exception as e:
-            logger.error(
-                f"DhatuOracle: Semantic reasoning failed: {e}. Falling back to Rule-Engine."
+            logger.warning(
+                "DhatuOracle: semantic reasoning unavailable (%s). "
+                "Falling back to rule engine.",
+                e,
             )
             # Deterministic Fallback if Embedding Engine fails
             state_name = "Sthira"
