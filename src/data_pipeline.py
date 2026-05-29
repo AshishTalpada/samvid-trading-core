@@ -113,6 +113,7 @@ class DataPipeline:
         self.last_vix: float | None = None
         self._last_reality_check: dict[str, float] = {}  # symbol -> timestamp (time.monotonic)
         self._price_cache: dict[str, float] = {}  # symbol -> last known price (sync-accessible)
+        self._price_cache_ts: dict[str, float] = {}  # symbol -> monotonic time of last TV push
 
         self._last_pulse_time: dict[str, float] = {}  # symbol -> last successful fetch (monotonic)
         self._vix_cache_ts: float = 0.0  # monotonic time of last successful VIX fetch
@@ -410,7 +411,16 @@ class DataPipeline:
             return pl.DataFrame()
 
     async def get_current_price(self, symbol: str) -> float:
-        """Get the most recent price. Priority: QuestDB → Finnhub → OpenBB → yfinance."""
+        """Get the most recent price. Priority: TV streamer → QuestDB → Finnhub → OpenBB → yfinance."""
+        # FIX 1: Tier -1 — TradingView real-time tick prices (sub-second, free of rate limits).
+        # brain.py sets self._brain_tick_prices = brain.last_tick_prices after creating the pipeline.
+        _tv_prices: dict = getattr(self, "_brain_tick_prices", {})
+        if _tv_prices:
+            tv_price = _tv_prices.get(symbol, 0.0)
+            if tv_price and float(tv_price) > 0:
+                self._price_cache[symbol] = float(tv_price)
+                return float(tv_price)
+
         # Tier 0: QuestDB (High-Speed Tick Cache)
         if self.qdb and self.qdb.enabled:
             try:
