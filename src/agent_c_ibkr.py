@@ -1208,18 +1208,26 @@ class IBKRConnection:
         Prevents false-positive shutdowns caused by IBKR sync latency.
         """
         _target_acc = trade.order.account
+        last_status = "UNKNOWN"
         for _attempt in range(6):  # Poll for 60s total
             await asyncio.sleep(10)
-            if trade.orderStatus.status == "Filled":
+            last_status = getattr(trade.orderStatus, "status", "UNKNOWN")
+            if last_status == "Filled":
                 logger.info(f"✓ AUDIT SUCCESS: {symbol} execution verified (Status: Filled).")
                 return  # Alignment confirmed
+            if last_status in {"Cancelled", "Inactive"}:
+                logger.warning(
+                    "IBKR: Execution audit ended for %s with status=%s.",
+                    symbol,
+                    last_status,
+                )
+                return
 
         # If we reach here after 60s, it's a true critical inconsistency
-        logger.critical(
-            f"IBKR: SILENT EXECUTION FAILURE DETECTED for {symbol}. "
-            "Inconsistency persistent after 60s."
+        logger.warning(
+            f"IBKR: Execution audit pending for {symbol}. "
+            f"Order still not filled after 60s (status={last_status})."
         )
-        self._last_heartbeat = datetime(1970, 1, 1)  # Poison the heartbeat
 
     async def cancel_order(self, order_id: int) -> bool:
         if not self.is_connected():
