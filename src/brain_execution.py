@@ -599,7 +599,7 @@ class ExecutionMixin:
             return
         try:
             import datetime as _dt
-            trades = await asyncio.to_thread(self.ibkr_conn.ib.trades)
+            trades = self.ibkr_conn.ib.trades()
             now = _dt.datetime.now(_dt.timezone.utc)
             for trade in trades:
                 status = trade.orderStatus.status
@@ -622,9 +622,7 @@ class ExecutionMixin:
                         "(age=%.0fs >= %ss).",
                         action, order_id, symbol, age_sec, timeout_sec,
                     )
-                    cancelled = await asyncio.to_thread(
-                        self.ibkr_conn.cancel_order, order_id
-                    )
+                    cancelled = self.ibkr_conn.cancel_order(order_id)
                     if not cancelled:
                         logger.warning(
                             "FIX11: cancel_order returned False for #%s (%s).",
