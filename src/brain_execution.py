@@ -622,7 +622,7 @@ class ExecutionMixin:
                         "(age=%.0fs >= %ss).",
                         action, order_id, symbol, age_sec, timeout_sec,
                     )
-                    cancelled = self.ibkr_conn.cancel_order(order_id)
+                    cancelled = await self.ibkr_conn.cancel_order(order_id)
                     if not cancelled:
                         logger.warning(
                             "FIX11: cancel_order returned False for #%s (%s).",
