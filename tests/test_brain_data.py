@@ -77,3 +77,18 @@ async def test_fetch_ohlcv_rejects_unprovable_live_timestamp(
     result = await provider._fetch_ohlcv("SPY")
 
     assert result == "STALE"
+
+
+@pytest.mark.asyncio
+async def test_fetch_ohlcv_records_recent_freshness_proof(
+    tmp_path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    db_path = str(tmp_path / "fresh.db")
+    _seed_bar(db_path, datetime.now(timezone.utc).isoformat())
+    provider = _Provider(db_path)
+    monkeypatch.setattr(provider, "_is_market_open", lambda: True)
+
+    result = await provider._fetch_ohlcv("SPY")
+
+    assert not isinstance(result, str)
+    assert provider._last_fresh_bar_at["SPY"] > 0
