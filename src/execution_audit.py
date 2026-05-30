@@ -37,14 +37,52 @@ class ExecutionAuditLog:
             line = bytes(reversed(buf)).decode("utf-8", errors="replace").strip()
             if not line:
                 return "GENESIS"
-            return str(json.loads(line).get("hash", "GENESIS"))
-        except Exception:
-            return "CORRUPT_PREVIOUS"
+            record = json.loads(line)
+            record_hash = record.get("hash")
+            if not record_hash:
+                raise ValueError("execution audit tail is missing hash")
+            return str(record_hash)
+        except Exception as exc:
+            raise ValueError(f"execution audit tail is corrupt: {exc}") from exc
 
     @staticmethod
     def _hash_record(record: dict[str, Any]) -> str:
         encoded = json.dumps(record, sort_keys=True, separators=(",", ":")).encode("utf-8")
         return hashlib.sha256(encoded).hexdigest()
+
+    def verify(self) -> dict[str, Any]:
+        """Verify every hash and link in the JSONL chain."""
+        if not self.path.exists():
+            return {"valid": True, "records_checked": 0, "last_hash": "GENESIS"}
+
+        expected_previous = "GENESIS"
+        records_checked = 0
+        try:
+            with self.path.open("r", encoding="utf-8") as handle:
+                for line_number, raw_line in enumerate(handle, start=1):
+                    if not raw_line.strip():
+                        continue
+                    record = json.loads(raw_line)
+                    stored_hash = str(record.pop("hash"))
+                    if record.get("previous_hash") != expected_previous:
+                        raise ValueError(f"line {line_number}: previous hash mismatch")
+                    computed_hash = self._hash_record(record)
+                    if stored_hash != computed_hash:
+                        raise ValueError(f"line {line_number}: record hash mismatch")
+                    expected_previous = stored_hash
+                    records_checked += 1
+        except Exception as exc:
+            return {
+                "valid": False,
+                "records_checked": records_checked,
+                "last_hash": expected_previous,
+                "error": str(exc),
+            }
+        return {
+            "valid": True,
+            "records_checked": records_checked,
+            "last_hash": expected_previous,
+        }
 
     def append(
         self,
