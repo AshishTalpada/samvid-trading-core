@@ -479,6 +479,9 @@ class TestLogTradeExitNetPnl:
         net_pnl, outcome = row
         assert net_pnl == pytest.approx(-25.0, abs=1e-9)
         assert outcome == "LOSS"
+        paper_brain.loss_tracker.record_outcome.assert_called_once_with(False)
+        wisdom_args = paper_brain.wisdom.write_post_mortem.call_args.args
+        assert wisdom_args[2] == pytest.approx(-25.0, abs=1e-9)
 
     @pytest.mark.asyncio
     async def test_win_streak_tracked_after_profit(self, paper_brain):
@@ -595,6 +598,36 @@ class TestBrokerExitRealization:
         paper_brain._place_ibkr_order.assert_not_awaited()
         assert pos.qty == 12
         assert not getattr(pos, "runner_active", False)
+
+    @pytest.mark.asyncio
+    async def test_paper_exit_passes_gross_pnl_for_single_cost_deduction(self, paper_brain):
+        """The exit logger receives gross PnL; session accounting retains net PnL."""
+        paper_brain.ibkr_client = None
+        paper_brain.bus = None
+        paper_brain._log_trade_exit = AsyncMock()
+        starting_session_pnl = paper_brain.session_pnl
+        pos = _make_position(
+            symbol="AAPL",
+            qty=10,
+            entry=100.0,
+            commission=0.0,
+            slippage=1.0,
+            entry_time=datetime.now(timezone.utc) - timedelta(minutes=20),
+        )
+        pos.account_type = "paper"
+        paper_brain.positions = [pos]
+
+        with (
+            patch("brain_position.PORTFOLIO_ANALYZER.record_close"),
+            patch("brain_position.LEDGER.record_exit"),
+            patch("telegram_alerts.send_telegram_alert", new_callable=AsyncMock),
+        ):
+            await paper_brain._process_exit(pos, "TARGET_HIT", 103.0)
+
+        gross_pnl = paper_brain._log_trade_exit.await_args.args[3]
+        net_pnl = paper_brain.session_pnl - starting_session_pnl
+        assert gross_pnl > net_pnl
+        assert gross_pnl - net_pnl == pytest.approx(3.0, abs=1e-9)
 
 
 # ---------------------------------------------------------------------------
