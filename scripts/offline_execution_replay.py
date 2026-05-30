@@ -72,6 +72,9 @@ async def _build_brain(conn: sqlite3.Connection) -> SimpleNamespace:
     brain.positions = []
     brain._state_lock = asyncio.Lock()
     brain._oracle_dhatu = "Samyoga"
+    brain._last_fresh_bar_at = {
+        symbol: time.monotonic() for symbol in ("SPY", "QQQ", "IWM")
+    }
 
     async def fake_order(symbol, direction, shares, **kwargs):
         return f"SIM-{symbol}-{direction}-{int(shares)}"
