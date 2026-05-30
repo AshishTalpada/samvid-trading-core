@@ -1,4 +1,5 @@
 import asyncio
+import json
 from datetime import datetime
 from unittest.mock import MagicMock
 
@@ -59,3 +60,20 @@ def test_persist_execution_reports_audit_failure() -> None:
     conn._execution_audit.append.side_effect = ValueError("corrupt audit")
 
     assert conn._persist_execution("SPY", "SINGLE", {"dir": "BUY", "shares": 1}) is False
+
+
+def test_persist_execution_mirrors_intent_id_into_recovery_log(tmp_path, monkeypatch) -> None:
+    monkeypatch.chdir(tmp_path)
+    conn = IBKRConnection.__new__(IBKRConnection)
+    conn._execution_audit = MagicMock()
+    conn._execution_audit.append.return_value = {
+        "hash": "audit-hash",
+        "intent_id": "intent-123",
+    }
+
+    result = conn._persist_execution("SPY", "SINGLE", {"dir": "BUY", "shares": 1})
+
+    recovery = json.loads((tmp_path / "data" / "execution_persistence.jsonl").read_text())
+    assert result is True
+    assert recovery["intent_id"] == "intent-123"
+    assert recovery["audit_hash"] == "audit-hash"
