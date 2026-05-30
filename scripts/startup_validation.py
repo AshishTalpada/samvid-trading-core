@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import os
 import sys
+import logging
 from pathlib import Path
 
 
@@ -141,16 +142,26 @@ def validate_brain_state() -> list[str]:
     """Check that brain state primitives work correctly."""
     _ensure_paths()
     failed: list[str] = []
+    prior_disable_level = logging.root.manager.disable
     try:
         from brain_state import ConsecutiveLossTracker, DrawdownLadder, DrawdownLevel
+        from trading_state import TradingStateManager
 
-        dd = DrawdownLadder(account_type="ibkr", peak_equity=1000.0)
-        level = dd.update(equity=870.0)
-        assert level.name == "RED", f"Expected RED at 13% DD on $1K, got {level.name}"
+        prior_state = TradingStateManager._state
+        prior_reason = TradingStateManager._reason
+        logging.disable(logging.CRITICAL)
+        try:
+            dd = DrawdownLadder(account_type="ibkr", peak_equity=1000.0)
+            level = dd.update(equity=870.0)
+            assert level.name == "RED", f"Expected RED at 13% DD on $1K, got {level.name}"
 
-        dd2 = DrawdownLadder(account_type="ibkr", peak_equity=5000.0)
-        level2 = dd2.update(equity=4350.0)
-        assert level2.name == "YELLOW", f"Expected YELLOW at 13% DD on $5K, got {level2.name}"
+            dd2 = DrawdownLadder(account_type="ibkr", peak_equity=5000.0)
+            level2 = dd2.update(equity=4350.0)
+            assert level2.name == "YELLOW", f"Expected YELLOW at 13% DD on $5K, got {level2.name}"
+        finally:
+            TradingStateManager._state = prior_state
+            TradingStateManager._reason = prior_reason
+            logging.disable(prior_disable_level)
 
         tracker = ConsecutiveLossTracker()
         for _ in range(10):
