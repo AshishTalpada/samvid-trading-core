@@ -206,8 +206,6 @@ class PositionMonitor:
                 elif decision.action == ExitAction.PARTIAL:
                     if not getattr(pos, "runner_active", False):
                         logger.info(f"PARTIAL (Runner Setup): {pos.symbol} at {current_price}")
-                        pos.runner_active = True
-                        pos.shares_remaining = 0.5  # keep 50%
                         exits_triggered.append((pos, "PARTIAL", current_price))
 
                 elif decision.action == ExitAction.TIGHTEN:
@@ -639,6 +637,7 @@ class PositionMonitor:
                     pos.qty -= exit_shares
                 else:
                     pos.qty += exit_shares
+                pos.runner_active = True
                 pos.shares_remaining = abs(pos.qty) / old_qty if old_qty > 0 else 0.0
             else:
                 if self.mode == "paper":
