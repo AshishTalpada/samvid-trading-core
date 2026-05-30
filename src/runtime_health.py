@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
+import time
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from typing import Any
+from typing import Any, Mapping
 
 
 @dataclass(frozen=True)
@@ -32,6 +33,42 @@ class ComponentHealth:
     @property
     def normalized_status(self) -> str:
         return self.status.upper()
+
+
+def market_data_health(
+    freshness_proofs: Mapping[str, float] | None,
+    *,
+    market_open: bool,
+    max_age_sec: float = 60.0,
+    now_monotonic: float | None = None,
+) -> ComponentHealth:
+    """Score the scanner data plane from recent verified bar evidence."""
+    if not market_open:
+        return ComponentHealth("market_data", "PAUSED", "US equity market closed", critical=True)
+    if not freshness_proofs:
+        return ComponentHealth(
+            "market_data",
+            "DELAYED",
+            "awaiting first verified live bar",
+            critical=True,
+        )
+
+    now = time.monotonic() if now_monotonic is None else float(now_monotonic)
+    newest_age = max(0.0, now - max(float(ts) for ts in freshness_proofs.values()))
+    bounded_max_age = max(5.0, min(float(max_age_sec), 900.0))
+    if newest_age > bounded_max_age:
+        return ComponentHealth(
+            "market_data",
+            "DELAYED",
+            f"latest verified live bar proof is {newest_age:.1f}s old",
+            critical=True,
+        )
+    return ComponentHealth(
+        "market_data",
+        "ONLINE",
+        f"verified_symbols={len(freshness_proofs)}, newest_proof_age={newest_age:.1f}s",
+        critical=True,
+    )
 
 
 def _score_health(
