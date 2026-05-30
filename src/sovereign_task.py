@@ -138,8 +138,13 @@ class SovereignTask:
 class TaskManager:
     """Orchestrates the lifecycle of Sovereign Tasks."""
 
-    def __init__(self, registry_path: str = "data/active_tasks.json"):
+    def __init__(
+        self,
+        registry_path: str = "data/active_tasks.json",
+        retire_active_on_restore: bool = False,
+    ):
         self.registry_path = registry_path
+        self.retire_active_on_restore = retire_active_on_restore
         self.tasks: Dict[str, SovereignTask] = {}
         self._symbol_index: Dict[str, List[str]] = {}  # Symbol -> List of Task IDs
         self._save_lock = asyncio.Lock()
@@ -237,7 +242,10 @@ class TaskManager:
                         task.status_summary = state.get(
                             "status_summary", state.get("phase", "Initializing")
                         )
-                        if task.status in [TaskStatus.PENDING, TaskStatus.RUNNING]:
+                        if (
+                            self.retire_active_on_restore
+                            and task.status in [TaskStatus.PENDING, TaskStatus.RUNNING]
+                        ):
                             task.status = TaskStatus.KILLED
                             task.end_time = now
                             task.status_summary = "ORPHANED: killed during startup registry recovery"
