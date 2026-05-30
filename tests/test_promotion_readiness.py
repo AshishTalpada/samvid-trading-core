@@ -18,6 +18,15 @@ def _ready_evidence() -> dict:
         "reliability_probe": {"passed": True},
         "regime_replay": {"passed": True, "promotion_eligible": False},
         "soak_summary": {"passed": True, "cycles": [{}, {}, {}]},
+        "paper_performance": {
+            "source": "sqlite_closed_paper_trades",
+            "metrics": {
+                "trades": 30,
+                "expectancy_net": 2.0,
+                "profit_factor": 1.5,
+                "max_drawdown_pct": 0.05,
+            },
+        },
     }
 
 
@@ -66,3 +75,23 @@ def test_promotion_readiness_rejects_weak_soak_or_replay() -> None:
     assert report["approved"] is False
     assert "deterministic regime replay has not passed" in report["blockers"]
     assert "restart soak requires 3 passing cycles" in report["blockers"]
+
+
+def test_promotion_readiness_rejects_weak_closed_paper_performance() -> None:
+    evidence = _ready_evidence()
+    evidence["paper_performance"]["metrics"].update(
+        {
+            "trades": 12,
+            "expectancy_net": -0.25,
+            "profit_factor": 0.8,
+            "max_drawdown_pct": 0.15,
+        }
+    )
+
+    report = evaluate_promotion_readiness(**evidence)
+
+    assert report["approved"] is False
+    assert "closed paper performance requires 30 trades; found 12" in report["blockers"]
+    assert "closed paper expectancy is not positive after costs" in report["blockers"]
+    assert "closed paper profit factor is below 1.20" in report["blockers"]
+    assert "closed paper max drawdown exceeds 10.0%" in report["blockers"]
