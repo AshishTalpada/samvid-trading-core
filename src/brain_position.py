@@ -617,8 +617,9 @@ class PositionMonitor:
             d_slip = Decimal(str(pos.slippage_cost))
             d_total_qty = Decimal(str(abs(pos.qty) or 1))
 
+            realized_gross_pnl = float((d_exit - d_entry) * d_qty)
             realized_net_pnl = float(
-                (d_exit - d_entry) * d_qty
+                Decimal(str(realized_gross_pnl))
                 - d_comm
                 - (d_slip * (Decimal(str(exit_shares)) / d_total_qty))
             )
@@ -627,7 +628,7 @@ class PositionMonitor:
             self.session_pnl += realized_net_pnl
             if exit_type != "PARTIAL":
                 await self._log_trade_exit(
-                    pos, exit_type, adjusted_exit_price, realized_net_pnl, r_multiple
+                    pos, exit_type, adjusted_exit_price, realized_gross_pnl, r_multiple
                 )
 
             # 4. Neural Cleanup & Learning
