@@ -6,6 +6,7 @@ import hashlib
 import json
 import os
 import time
+import uuid
 from pathlib import Path
 from typing import Any
 
@@ -92,11 +93,13 @@ class ExecutionAuditLog:
         side: str,
         quantity: float,
         order_type: str,
+        intent_id: str | None = None,
         details: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         previous_hash = self._last_hash()
         record = {
             "timestamp_ns": time.time_ns(),
+            "intent_id": intent_id or uuid.uuid4().hex,
             "event": event,
             "symbol": str(symbol).upper(),
             "side": str(side).upper(),
