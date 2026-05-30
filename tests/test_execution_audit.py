@@ -32,11 +32,28 @@ def test_execution_audit_is_hash_chained(tmp_path) -> None:
     assert records[1]["hash"] == second["hash"]
     assert records[0]["symbol"] == "SPY"
     assert records[1]["side"] == "SELL"
+    assert len(records[0]["intent_id"]) == 32
+    assert records[0]["intent_id"] != records[1]["intent_id"]
     assert audit.verify() == {
         "valid": True,
         "records_checked": 2,
         "last_hash": second["hash"],
     }
+
+
+def test_execution_audit_preserves_explicit_intent_id(tmp_path) -> None:
+    audit = ExecutionAuditLog(tmp_path / "audit.jsonl")
+
+    record = audit.append(
+        event="ORDER_INTENT",
+        symbol="SPY",
+        side="BUY",
+        quantity=1,
+        order_type="LMT",
+        intent_id="intent-123",
+    )
+
+    assert record["intent_id"] == "intent-123"
 
 
 def test_execution_audit_detects_modified_record(tmp_path) -> None:
