@@ -16,8 +16,10 @@ import time
 from contextlib import contextmanager
 from dataclasses import asdict, dataclass
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 
+from coordinator import TradingCoordinator
 from intelligence_bus import SharedIntelligenceBus
 from resilience_layer import DeadLetterQueue
 from risk_invariants import OrderThrottler, RiskInvariants
@@ -43,6 +45,7 @@ class ProbeReport:
     expected_faults: tuple[str, ...] = (
         "ORDER_THROTTLED",
         "NOTIONAL_VETO",
+        "ENTRY_DATA_VETO",
         "DLQ_ESCALATION",
         "TradingState.HALTED",
     )
@@ -53,8 +56,9 @@ class ProbeReport:
             "mode": self.mode,
             "expected_synthetic_faults": list(self.expected_faults),
             "operator_note": (
-                "This probe intentionally triggers throttle, notional-veto, DLQ, and HALTED "
-                "paths with mocked data. These are expected drill events, not live broker orders."
+                "This probe intentionally triggers throttle, notional-veto, data-freshness, "
+                "DLQ, and HALTED paths with mocked data. These are expected drill events, "
+                "not live broker orders."
             ),
             "duration_sec": round(self.duration_sec, 3),
             "checks": [asdict(check) for check in self.checks],
@@ -181,9 +185,36 @@ async def _probe_broker_outage_dlq() -> ProbeCheck:
         TradingStateManager.activate("backend reliability probe complete")
 
 
+async def _probe_entry_data_freshness() -> ProbeCheck:
+    brain = SimpleNamespace(mode="ibkr_paper", _last_fresh_bar_at={})
+    coordinator = TradingCoordinator(SimpleNamespace(), brain)
+    missing_reason = coordinator._entry_data_block_reason("SPY")
+
+    brain._last_fresh_bar_at["SPY"] = time.monotonic() - 120.0
+    expired_reason = coordinator._entry_data_block_reason("SPY")
+
+    brain._last_fresh_bar_at["SPY"] = time.monotonic()
+    fresh_reason = coordinator._entry_data_block_reason("SPY")
+
+    passed = (
+        missing_reason == "no verified fresh bar available"
+        and bool(expired_reason and "expired" in expired_reason)
+        and fresh_reason is None
+    )
+    return ProbeCheck(
+        "entry_data_freshness_veto",
+        passed,
+        {
+            "missing_proof_blocked": missing_reason is not None,
+            "expired_proof_blocked": expired_reason is not None,
+            "fresh_proof_allowed": fresh_reason is None,
+        },
+    )
+
+
 async def run_backend_reliability_probe(*, verbose_expected_faults: bool = False) -> ProbeReport:
     started = time.monotonic()
-    checks = [await _probe_tick_batcher()]
+    checks = [await _probe_tick_batcher(), await _probe_entry_data_freshness()]
     with _expected_fault_logging(verbose_expected_faults):
         checks.append(await _probe_order_safety())
         checks.append(await _probe_broker_outage_dlq())
