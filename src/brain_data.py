@@ -262,6 +262,11 @@ class DataProvider:
             final_df = safe_polars_from_pandas(df_frame)
             self._hot_cache[symbol] = final_df
             self._hot_cache_time[symbol] = time.monotonic()
+            freshness_proofs = getattr(self, "_last_fresh_bar_at", None)
+            if freshness_proofs is None:
+                freshness_proofs = {}
+                self._last_fresh_bar_at = freshness_proofs
+            freshness_proofs[symbol] = time.monotonic()
             return final_df
         except Exception as e:
             import traceback
