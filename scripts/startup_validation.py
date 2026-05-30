@@ -175,6 +175,17 @@ def validate_brain_state() -> list[str]:
     return failed
 
 
+def validate_execution_audit(path: str = "data/execution_audit.jsonl") -> list[str]:
+    """Refuse startup validation when the persisted execution audit chain is corrupt."""
+    _ensure_paths()
+    from execution_audit import ExecutionAuditLog
+
+    verification = ExecutionAuditLog(path).verify()
+    if verification["valid"]:
+        return []
+    return [f"Execution audit chain failed verification: {verification.get('error', 'unknown')}"]
+
+
 def main() -> int:
     os.environ.setdefault("SOVEREIGN_SKIP_PID_CHECK", "1")
     os.environ.setdefault("ALLOW_FORCE_LIVE", "0")
@@ -190,6 +201,7 @@ def main() -> int:
         ("Telegram Alerting", validate_telegram_alerting, False),
         ("Agent Wiring", validate_agent_wiring, True),
         ("Brain State Primitives", validate_brain_state, True),
+        ("Execution Audit Chain", validate_execution_audit, True),
     ]
 
     total_failures = 0
