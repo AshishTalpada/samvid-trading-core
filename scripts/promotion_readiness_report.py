@@ -24,6 +24,7 @@ def main() -> int:
     parser.add_argument("--execution-evidence", default="data/execution_audit_report.json")
     parser.add_argument("--reliability-probe", default="data/backend_reliability_probe.json")
     parser.add_argument("--regime-replay", default="data/regime_replay_report.json")
+    parser.add_argument("--paper-performance", default="data/paper_performance_report.json")
     parser.add_argument("--soak-summary", required=True)
     parser.add_argument("--json-out", default="data/promotion_readiness_report.json")
     args = parser.parse_args()
@@ -33,6 +34,7 @@ def main() -> int:
         reliability_probe=_load(args.reliability_probe),
         regime_replay=_load(args.regime_replay),
         soak_summary=_load(args.soak_summary),
+        paper_performance=_load(args.paper_performance),
     )
     out_path = Path(args.json_out)
     out_path.parent.mkdir(parents=True, exist_ok=True)
