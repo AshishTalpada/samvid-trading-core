@@ -75,7 +75,7 @@ from config import (
 from ibkr_streamer import IBKRStreamer
 from intelligence_bus import get_bus
 from questdb_adapter import QuestDBAdapter
-from runtime_health import ComponentHealth, build_health_snapshot
+from runtime_health import ComponentHealth, build_health_snapshot, market_data_health
 from telegram_remote import get_remote
 from tv_quote_streamer import TVQuoteStreamer
 
@@ -824,6 +824,16 @@ class TradingSystem:
         if ibkr_hft:
             dropped_ticks += int(getattr(ibkr_hft, "dropped_ticks", 0) or 0)
 
+        try:
+            proof_max_age = float(os.environ.get("SOVEREIGN_MARKET_DATA_HEALTH_MAX_AGE_SEC", "60"))
+        except ValueError:
+            proof_max_age = 60.0
+        data_plane = market_data_health(
+            getattr(brain, "_last_fresh_bar_at", {}) if brain else {},
+            market_open=is_us_equity_market_open(),
+            max_age_sec=proof_max_age,
+        )
+
         components = [
             ComponentHealth("ibkr_execution", ibkr_status, critical=self.requires_ibkr_connection),
             ComponentHealth("mt5", mt5_status, critical=False),
@@ -833,6 +843,7 @@ class TradingSystem:
                 critical=False,
             ),
             ComponentHealth("dhatu", "ONLINE" if dhatu else "OFFLINE", critical=True),
+            data_plane,
             ComponentHealth("native_slm", slm_status, slm_detail, critical=False),
             ComponentHealth("tv_quotes", tv_status, tv_detail, critical=False),
         ]
