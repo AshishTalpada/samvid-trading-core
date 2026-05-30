@@ -796,12 +796,15 @@ class TradingSystem:
         tv_status = "OFFLINE"
         tv_detail = "not initialized"
         if tvq:
-            if getattr(tvq, "connected", False):
+            health_status = getattr(tvq, "health_status", None)
+            if callable(health_status):
+                tv_status, tv_detail = health_status()
+            elif getattr(tvq, "connected", False):
                 tv_status = "ONLINE"
                 tv_detail = f"quotes={getattr(tvq, 'quotes_seen', 0)}"
             elif getattr(tvq, "is_running", False):
-                tv_status = "PAUSED"
-                tv_detail = "waiting for market hours"
+                tv_status = "DELAYED"
+                tv_detail = "waiting for websocket connection"
 
         slm_status = "OFFLINE"
         slm_detail = ""
