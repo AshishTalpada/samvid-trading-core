@@ -540,6 +540,62 @@ class TestLogTradeExitNetPnl:
 # SECTION 2 — brain_position.py: HEARTBEAT_VETO age gate in _state_positioned
 # ===========================================================================
 
+# ===========================================================================
+# SECTION 1b - brain_position.py: broker exits must be fill-confirmed
+# ===========================================================================
+
+class TestBrokerExitRealization:
+    """Regression tests for IBKR exit accounting safety."""
+
+    @pytest.mark.asyncio
+    async def test_ibkr_exit_not_realized_until_order_fill_confirmed(self, paper_brain):
+        """Accepted broker order ids are not enough; memory changes only after fill proof."""
+        paper_brain.mode = "ibkr_paper"
+        paper_brain.ibkr_conn.is_connected.return_value = True
+        paper_brain._broker_is_connected = MagicMock(return_value=True)
+        paper_brain._is_market_open = MagicMock(return_value=True)
+        paper_brain._place_ibkr_order = AsyncMock(return_value=12345)
+        paper_brain._confirm_ibkr_order_filled = AsyncMock(return_value=False)
+        paper_brain.positions = []
+
+        pos = _make_position(
+            symbol="AAPL",
+            qty=10,
+            entry_time=datetime.now(timezone.utc) - timedelta(minutes=20),
+        )
+        paper_brain.positions.append(pos)
+
+        with patch("telegram_alerts.send_telegram_alert", new_callable=AsyncMock) as tg:
+            await paper_brain._process_exit(pos, "PARTIAL", 103.0)
+
+        paper_brain._place_ibkr_order.assert_awaited_once()
+        paper_brain._confirm_ibkr_order_filled.assert_awaited_once_with(12345, "AAPL")
+        assert pos.qty == 10
+        assert pos in paper_brain.positions
+        tg.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_ibkr_partial_exit_deferred_when_market_closed(self, paper_brain):
+        """Non-emergency partials must not route after the equity market is closed."""
+        paper_brain.mode = "ibkr_paper"
+        paper_brain.ibkr_conn.is_connected.return_value = True
+        paper_brain._broker_is_connected = MagicMock(return_value=True)
+        paper_brain._is_market_open = MagicMock(return_value=False)
+        paper_brain._place_ibkr_order = AsyncMock(return_value=12345)
+
+        pos = _make_position(
+            symbol="NVDA",
+            qty=12,
+            entry_time=datetime.now(timezone.utc) - timedelta(minutes=20),
+        )
+        paper_brain.positions = [pos]
+
+        await paper_brain._process_exit(pos, "PARTIAL", 212.50)
+
+        paper_brain._place_ibkr_order.assert_not_awaited()
+        assert pos.qty == 12
+
+
 # ---------------------------------------------------------------------------
 # Positioned brain fixture factory
 # ---------------------------------------------------------------------------
