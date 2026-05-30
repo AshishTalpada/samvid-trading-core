@@ -320,6 +320,22 @@ class IBKRConnection:
             return False
 
     def _on_error(self, reqId: int, errorCode: int, errorString: str, contract: Any) -> None:
+        if BrokerErrorProtocol.is_critical(errorCode) or errorCode in BrokerErrorProtocol.RETRYABLE:
+            self._audit_broker_event(
+                event="BROKER_ERROR",
+                symbol=getattr(contract, "symbol", "UNKNOWN"),
+                side="UNKNOWN",
+                quantity=0,
+                order_type="ERROR",
+                order_id=reqId,
+                details={
+                    "error_code": errorCode,
+                    "error_message": errorString,
+                    "severity": (
+                        "CRITICAL" if BrokerErrorProtocol.is_critical(errorCode) else "RETRYABLE"
+                    ),
+                },
+            )
         if BrokerErrorProtocol.is_critical(errorCode):
             logger.error(f"IBKR [CRITICAL ERROR]: {errorCode} - {errorString}")
         elif errorCode not in BrokerErrorProtocol.NON_CRITICAL:
@@ -350,6 +366,22 @@ class IBKRConnection:
         status = trade.orderStatus.status
         symbol = trade.contract.symbol
         logger.debug(f"IBKR: Order {trade.order.orderId} status: {status}")
+
+        if status in {"Cancelled", "Inactive", "ApiCancelled"}:
+            self._audit_broker_event(
+                event="ORDER_STATUS",
+                symbol=symbol,
+                side=trade.order.action,
+                quantity=float(getattr(trade.order, "totalQuantity", 0) or 0),
+                order_type=getattr(trade.order, "orderType", "UNKNOWN"),
+                order_id=trade.order.orderId,
+                parent_id=getattr(trade.order, "parentId", 0),
+                details={
+                    "status": status,
+                    "filled": float(getattr(trade.orderStatus, "filled", 0) or 0),
+                    "remaining": float(getattr(trade.orderStatus, "remaining", 0) or 0),
+                },
+            )
 
         if status in ("Submitted", "PreSubmitted", "PartiallyFilled"):
             if not hasattr(self, "_order_persistence"):
@@ -527,6 +559,19 @@ class IBKRConnection:
         logger.info(
             f" IBKR COMMISSION: {symbol} | ${comm:.2f} {report.currency} "
             f"(Order: {order_id}, Parent: {parent_id})"
+        )
+        self._audit_broker_event(
+            event="ORDER_COMMISSION",
+            symbol=symbol,
+            side=getattr(fill.execution, "side", "UNKNOWN"),
+            quantity=float(getattr(fill.execution, "shares", 0) or 0),
+            order_type="COMMISSION",
+            order_id=order_id,
+            parent_id=parent_id,
+            details={
+                "commission": float(comm),
+                "currency": str(report.currency),
+            },
         )
 
         if hasattr(self, "brain") and self.brain:
@@ -988,6 +1033,44 @@ class IBKRConnection:
             logger.error(f"IBKR: Failed to persist execution log: {e}")
             return False
 
+    def _audit_broker_event(
+        self,
+        *,
+        event: str,
+        symbol: str,
+        side: str,
+        quantity: float,
+        order_type: str,
+        order_id: int | str,
+        parent_id: int | str = 0,
+        details: dict[str, Any] | None = None,
+    ) -> bool:
+        """Append a broker callback or operator action to the execution lineage."""
+        order_key = str(order_id)
+        parent_key = str(parent_id)
+        intent_ids = getattr(self, "_intent_id_by_order_id", {})
+        intent_id = intent_ids.get(order_key) or intent_ids.get(parent_key)
+        payload = {
+            "order_id": order_key,
+            "parent_id": parent_key,
+            "lineage_status": "MATCHED" if intent_id else "UNMATCHED",
+            **(details or {}),
+        }
+        try:
+            self._execution_audit.append(
+                event=event,
+                symbol=symbol,
+                side=side,
+                quantity=float(quantity),
+                order_type=order_type,
+                intent_id=intent_id,
+                details=payload,
+            )
+            return True
+        except Exception as exc:
+            logger.error("IBKR: Failed to persist %s audit: %s", event, exc)
+            return False
+
     async def place_order(
         self,
         symbol: str,
@@ -1285,6 +1368,15 @@ class IBKRConnection:
             orders = self.ib.openOrders()
             for order in orders:
                 if order.orderId == order_id:
+                    self._audit_broker_event(
+                        event="ORDER_CANCEL_REQUEST",
+                        symbol=getattr(getattr(order, "contract", None), "symbol", "UNKNOWN"),
+                        side=getattr(order, "action", "UNKNOWN"),
+                        quantity=float(getattr(order, "totalQuantity", 0) or 0),
+                        order_type=getattr(order, "orderType", "UNKNOWN"),
+                        order_id=order_id,
+                        parent_id=getattr(order, "parentId", 0),
+                    )
                     # Schedule cancel on event loop (ib_insync requires running loop)
                     loop = asyncio.get_running_loop()
                     loop.call_soon_threadsafe(self.ib.cancelOrder, order)
