@@ -938,6 +938,7 @@ class IBKRConnection:
                 side=str(details.get("dir", details.get("direction", "UNKNOWN"))),
                 quantity=float(details.get("shares", details.get("quantity", 0)) or 0),
                 order_type=order_type,
+                intent_id=details.get("intent_id"),
                 details=details,
             )
             log_file = "data/execution_persistence.jsonl"
@@ -948,6 +949,7 @@ class IBKRConnection:
             entry = {
                 "timestamp": time.time_ns(),
                 "symbol": symbol,
+                "intent_id": audit_record.get("intent_id"),
                 "type": order_type,
                 "details": details,
                 "audit_hash": audit_record.get("hash"),
