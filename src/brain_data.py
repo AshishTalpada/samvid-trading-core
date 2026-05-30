@@ -24,6 +24,15 @@ logger = logging.getLogger(__name__)
 class DataProvider:
     """Mixin: VIX, OHLCV, watchlist, regime detection, and market snapshots."""
 
+    @staticmethod
+    def _live_bar_staleness_limit_sec() -> float:
+        """Maximum age of a one-minute bar while the market is open."""
+        try:
+            configured = float(os.getenv("SOVEREIGN_MAX_LIVE_BAR_AGE_SEC", "180"))
+        except ValueError:
+            configured = 180.0
+        return max(60.0, min(configured, 900.0))
+
     # ------------------------------------------------------------------
     # VIX
     # ------------------------------------------------------------------
@@ -139,7 +148,9 @@ class DataProvider:
                 now_utc = pd.Timestamp.utcnow()
                 qdb_staleness = (now_utc - qdb_max_ts).total_seconds()
                 market_open = self._is_market_open()
-                staleness_limit = 1200 if market_open else 259200
+                staleness_limit = (
+                    self._live_bar_staleness_limit_sec() if market_open else 259200
+                )
                 if qdb_staleness <= staleness_limit:
                     use_fallback = False
                 else:
@@ -206,7 +217,9 @@ class DataProvider:
                 staleness = (now_utc - latest_bar_ts).total_seconds()
 
                 market_open = self._is_market_open()
-                staleness_limit = 3600 if market_open else 259200
+                staleness_limit = (
+                    self._live_bar_staleness_limit_sec() if market_open else 259200
+                )
                 if os.environ.get("FORCED_MARKET_OPEN") == "1":
                     staleness_limit = 1_000_000
 
@@ -237,7 +250,14 @@ class DataProvider:
                         staleness / 60,
                     )
             except Exception as e:
-                logger.debug("Staleness check skipped for %s: %s", symbol, e)
+                if self._is_market_open():
+                    logger.warning(
+                        "INVALID DATA TIMESTAMP: %s cannot prove bar freshness (%s) - skipping",
+                        symbol,
+                        e,
+                    )
+                    return cast(pd.DataFrame, "STALE")
+                logger.debug("Staleness check skipped for %s after hours: %s", symbol, e)
 
             final_df = safe_polars_from_pandas(df_frame)
             self._hot_cache[symbol] = final_df
