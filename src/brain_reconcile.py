@@ -226,11 +226,15 @@ class BrokerReconciler:
             if self._broker_is_connected(self.ibkr_conn):
                 ibkr_reality = self.ibkr_conn._positions_cache
                 memory_ibkr_count = len([p for p in self.positions if p.account_type == "ibkr"])
-                if not ibkr_reality or len(ibkr_reality) < memory_ibkr_count:
+                poll_interval = float(getattr(self, "_ibkr_reconcile_poll_interval_sec", 30.0))
+                last_poll = float(getattr(self, "_last_ibkr_reconcile_poll_ts", 0.0) or 0.0)
+                poll_due = time.monotonic() - last_poll >= poll_interval
+                if poll_due or not ibkr_reality or len(ibkr_reality) < memory_ibkr_count:
                     logger.debug(
-                        "IBKR SYNC: Cache incomplete (%s vs %s). Forcing reality poll...",
+                        "IBKR SYNC: Forcing reality poll (cache=%s, memory=%s, due=%s).",
                         len(ibkr_reality),
                         memory_ibkr_count,
+                        poll_due,
                     )
                     try:
                         positions_callable = getattr(self.ibkr_conn.ib, "positions", None)
@@ -241,6 +245,7 @@ class BrokerReconciler:
                                 self.ibkr_conn._positions_cache[p.contract.symbol] = p.position
                             ibkr_reality = self.ibkr_conn._positions_cache
                             ibkr_polled = True
+                            self._last_ibkr_reconcile_poll_ts = time.monotonic()
                     except Exception as sync_e:
                         logger.warning("IBKR SYNC: Reality poll failed: %s", sync_e)
 
