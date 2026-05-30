@@ -121,6 +121,34 @@ class TVQuoteStreamer:
     def connected(self) -> bool:
         return self._connected
 
+    @property
+    def quote_age_seconds(self) -> float | None:
+        """Return seconds since the latest quote, or None before the first quote."""
+        if self._last_quote_at <= 0:
+            return None
+        return max(0.0, time.monotonic() - self._last_quote_at)
+
+    def health_status(self) -> tuple[str, str]:
+        """Describe feed health from delivered quotes, not only socket state."""
+        if not self.is_running:
+            return "OFFLINE", "not running"
+        if not self._allow_after_hours and not self._is_us_equity_market_open():
+            return "PAUSED", "waiting for market hours"
+        if not self.connected:
+            return "DELAYED", "waiting for websocket connection"
+
+        age = self.quote_age_seconds
+        try:
+            max_age = float(os.getenv("SOVEREIGN_TV_QUOTES_MAX_AGE_SEC", "30"))
+        except ValueError:
+            max_age = 30.0
+        max_age = max(5.0, min(max_age, 300.0))
+        if age is None:
+            return "DELAYED", "connected but awaiting first quote"
+        if age > max_age:
+            return "DELAYED", f"latest quote is {age:.1f}s old"
+        return "ONLINE", f"quotes={self.quotes_seen}, age={age:.1f}s"
+
     @staticmethod
     def _is_us_equity_market_open() -> bool:
         return is_us_equity_market_open()
