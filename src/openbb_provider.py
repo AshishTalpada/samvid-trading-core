@@ -39,12 +39,15 @@ def _try_load_openbb():
         with warnings.catch_warnings():
             warnings.filterwarnings("ignore", category=UserWarning, module="pydantic.*")
             openbb = importlib.import_module("openbb")
-            obb = openbb.obb
+            obb = getattr(openbb, "obb", None)
+            if obb is None:
+                raise ImportError("OpenBB Platform SDK is incomplete: openbb.obb is unavailable")
         _OPENBB_AVAILABLE = True
         logger.info("✓ OpenBB SDK loaded (deferred)")
-    except ImportError:
+    except ImportError as exc:
         obb = None
         _OPENBB_AVAILABLE = False
+        logger.info("OpenBB SDK unavailable - using fallback provider: %s", exc)
     return _OPENBB_AVAILABLE
 
 
