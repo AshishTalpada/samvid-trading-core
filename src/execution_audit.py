@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import threading
 import time
 import uuid
 from pathlib import Path
@@ -16,6 +17,7 @@ class ExecutionAuditLog:
 
     def __init__(self, path: str | os.PathLike[str] = "data/execution_audit.jsonl") -> None:
         self.path = Path(path)
+        self._lock = threading.Lock()
 
     def _last_hash(self) -> str:
         if not self.path.exists():
@@ -96,20 +98,21 @@ class ExecutionAuditLog:
         intent_id: str | None = None,
         details: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
-        previous_hash = self._last_hash()
-        record = {
-            "timestamp_ns": time.time_ns(),
-            "intent_id": intent_id or uuid.uuid4().hex,
-            "event": event,
-            "symbol": str(symbol).upper(),
-            "side": str(side).upper(),
-            "quantity": float(quantity),
-            "order_type": str(order_type).upper(),
-            "details": details or {},
-            "previous_hash": previous_hash,
-        }
-        record["hash"] = self._hash_record(record)
-        self.path.parent.mkdir(parents=True, exist_ok=True)
-        with self.path.open("a", encoding="utf-8") as handle:
-            handle.write(json.dumps(record, sort_keys=True, separators=(",", ":")) + "\n")
-        return record
+        with self._lock:
+            previous_hash = self._last_hash()
+            record = {
+                "timestamp_ns": time.time_ns(),
+                "intent_id": intent_id or uuid.uuid4().hex,
+                "event": event,
+                "symbol": str(symbol).upper(),
+                "side": str(side).upper(),
+                "quantity": float(quantity),
+                "order_type": str(order_type).upper(),
+                "details": details or {},
+                "previous_hash": previous_hash,
+            }
+            record["hash"] = self._hash_record(record)
+            self.path.parent.mkdir(parents=True, exist_ok=True)
+            with self.path.open("a", encoding="utf-8") as handle:
+                handle.write(json.dumps(record, sort_keys=True, separators=(",", ":")) + "\n")
+            return record
