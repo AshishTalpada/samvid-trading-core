@@ -1768,6 +1768,10 @@ class TradingBrain(BrokerReconciler, HealthChecker, DataProvider, AccountingMixi
                 with LatencyWatchdog(f"Scan:{symbol}", threshold_ms=10000.0):
                     try:
                         fetch_result = await self._fetch_ohlcv(symbol)
+                        if isinstance(fetch_result, str) and fetch_result == "STALE":
+                            async with stats_lock:
+                                stats["stale"] += 1
+                            return None
                         if fetch_result is None or isinstance(fetch_result, str):
                             async with stats_lock:
                                 stats["no_data"] += 1
@@ -1934,6 +1938,9 @@ class TradingBrain(BrokerReconciler, HealthChecker, DataProvider, AccountingMixi
                     "patterns_approved": stats["approved"],
                     "patterns_rejected": stats["rejected"],
                     "patterns_regime_blocked": stats["regime_blocked"],
+                    "no_data": stats["no_data"],
+                    "stale": stats["stale"],
+                    "too_short": stats["too_short"],
                     "pending": len(discoveries),
                     "regime": self.current_regime,
                 }
