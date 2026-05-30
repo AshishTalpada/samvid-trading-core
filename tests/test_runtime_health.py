@@ -75,7 +75,7 @@ def test_market_data_health_pauses_cleanly_after_hours() -> None:
     health = market_data_health({}, market_open=False)
 
     assert health.status == "PAUSED"
-    assert health.critical is True
+    assert health.critical is False
 
 
 def test_market_data_health_requires_recent_verified_bar() -> None:
