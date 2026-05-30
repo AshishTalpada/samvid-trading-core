@@ -242,21 +242,58 @@ from typing import Set
 restart_history: Set[float] = set()
 
 
-def _write_watchdog_pid() -> None:
-    """Record Watchdog PID for the main engine to verify connectivity."""
+def _is_live_watchdog_process(pid: int) -> bool:
+    """Return True only when pid belongs to another live watchdog helper."""
+    if pid == os.getpid():
+        return False
     try:
-        pid = os.getpid()
+        import psutil
+
+        process = psutil.Process(pid)
+        cmdline = " ".join(process.cmdline()).lower()
+        return process.is_running() and "watchdog.py" in cmdline
+    except Exception:
+        return False
+
+
+def _write_watchdog_pid() -> bool:
+    """Atomically claim the Watchdog PID file so duplicate helpers cannot survive."""
+    pid_path = "data/watchdog.pid"
+    pid = os.getpid()
+    try:
         os.makedirs("data", exist_ok=True)
-        with open("data/watchdog.pid", "w") as f:
+        if os.path.exists(pid_path):
+            with open(pid_path, "r") as f:
+                existing_raw = f.read().strip()
+            try:
+                existing_pid = int(existing_raw)
+            except ValueError:
+                existing_pid = 0
+            if existing_pid and _is_live_watchdog_process(existing_pid):
+                logger.warning(
+                    "Watchdog singleton already owned by live PID %s. Exiting duplicate.",
+                    existing_pid,
+                )
+                return False
+            _remove_pid_file(pid_path, existing_raw)
+
+        fd = os.open(pid_path, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+        with os.fdopen(fd, "w") as f:
             f.write(str(pid))
-        atexit.register(_remove_pid_file, "data/watchdog.pid", str(pid))
-        logger.info(f"Watchdog PID {pid} recorded to data/watchdog.pid")
+        atexit.register(_remove_pid_file, pid_path, str(pid))
+        logger.info("Watchdog PID %s recorded to %s", pid, pid_path)
+        return True
+    except FileExistsError:
+        logger.warning("Watchdog singleton claim lost to another helper. Exiting duplicate.")
+        return False
     except Exception as e:
         logger.error(f"Failed to write Watchdog PID: {e}")
+        return False
 
 
 def run_watchdog():
-    _write_watchdog_pid()
+    if not _write_watchdog_pid():
+        return
     logger.info("Sovereign Dead-Man Watchdog ACTIVE.")
     logger.info(
         f"Monitoring {DB_PATH} every {CHECK_INTERVAL}s | "
