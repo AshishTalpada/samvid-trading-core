@@ -1,5 +1,7 @@
 import json
 
+import pytest
+
 from execution_audit import ExecutionAuditLog
 
 
@@ -30,3 +32,44 @@ def test_execution_audit_is_hash_chained(tmp_path) -> None:
     assert records[1]["hash"] == second["hash"]
     assert records[0]["symbol"] == "SPY"
     assert records[1]["side"] == "SELL"
+    assert audit.verify() == {
+        "valid": True,
+        "records_checked": 2,
+        "last_hash": second["hash"],
+    }
+
+
+def test_execution_audit_detects_modified_record(tmp_path) -> None:
+    path = tmp_path / "audit.jsonl"
+    audit = ExecutionAuditLog(path)
+    audit.append(
+        event="ORDER_INTENT",
+        symbol="SPY",
+        side="BUY",
+        quantity=1,
+        order_type="LMT",
+        details={"price": 500.0},
+    )
+    records = [json.loads(line) for line in path.read_text().splitlines()]
+    records[0]["quantity"] = 999.0
+    path.write_text(json.dumps(records[0]) + "\n")
+
+    verification = audit.verify()
+
+    assert verification["valid"] is False
+    assert "record hash mismatch" in verification["error"]
+
+
+def test_execution_audit_refuses_append_after_corrupt_tail(tmp_path) -> None:
+    path = tmp_path / "audit.jsonl"
+    audit = ExecutionAuditLog(path)
+    path.write_text("{not-json}\n")
+
+    with pytest.raises(ValueError, match="tail is corrupt"):
+        audit.append(
+            event="ORDER_INTENT",
+            symbol="SPY",
+            side="BUY",
+            quantity=1,
+            order_type="LMT",
+        )
