@@ -28,6 +28,21 @@ def test_openbb_provider_initializes_with_pat() -> None:
     assert provider is not None
 
 
+def test_openbb_loader_treats_partial_namespace_as_unavailable(monkeypatch) -> None:
+    import src.openbb_provider as openbb_mod
+
+    partial_namespace = type("PartialOpenBB", (), {})()
+    monkeypatch.setattr(openbb_mod, "_OPENBB_AVAILABLE", None)
+    monkeypatch.setattr(openbb_mod, "obb", None)
+    monkeypatch.setattr(
+        "importlib.import_module",
+        lambda _name: partial_namespace,
+    )
+
+    assert openbb_mod._try_load_openbb() is False
+    assert openbb_mod.obb is None
+
+
 @pytest.mark.asyncio
 async def test_openbb_provider_is_available_property() -> None:
     """is_available should be False when openbb is not installed, True otherwise."""
