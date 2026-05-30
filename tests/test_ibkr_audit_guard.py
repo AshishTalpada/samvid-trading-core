@@ -100,3 +100,71 @@ def test_fill_callback_records_matched_intent_lineage() -> None:
     assert kwargs["event"] == "ORDER_FILL"
     assert kwargs["intent_id"] == "intent-123"
     assert kwargs["details"]["lineage_status"] == "MATCHED"
+
+
+def test_commission_callback_records_matched_intent_lineage() -> None:
+    conn = IBKRConnection.__new__(IBKRConnection)
+    conn._execution_audit = MagicMock()
+    conn._intent_id_by_order_id = {"123": "intent-123"}
+    conn.brain = SimpleNamespace(positions=[])
+    trade = SimpleNamespace(
+        contract=SimpleNamespace(symbol="SPY"),
+        order=SimpleNamespace(orderId=123, parentId=0),
+    )
+    fill = SimpleNamespace(execution=SimpleNamespace(side="BOT", shares=2))
+    report = SimpleNamespace(commission=1.25, currency="USD")
+
+    conn._on_commission_report(trade, fill, report)
+
+    kwargs = conn._execution_audit.append.call_args.kwargs
+    assert kwargs["event"] == "ORDER_COMMISSION"
+    assert kwargs["intent_id"] == "intent-123"
+    assert kwargs["details"]["commission"] == 1.25
+
+
+def test_cancelled_status_records_terminal_lineage() -> None:
+    conn = IBKRConnection.__new__(IBKRConnection)
+    conn._execution_audit = MagicMock()
+    conn._intent_id_by_order_id = {"123": "intent-123"}
+    trade = SimpleNamespace(
+        contract=SimpleNamespace(symbol="SPY"),
+        order=SimpleNamespace(
+            orderId=123,
+            parentId=0,
+            action="BUY",
+            orderType="LMT",
+            totalQuantity=2,
+        ),
+        orderStatus=SimpleNamespace(status="Cancelled", filled=0, remaining=2),
+    )
+
+    conn._on_order_status(trade)
+
+    kwargs = conn._execution_audit.append.call_args.kwargs
+    assert kwargs["event"] == "ORDER_STATUS"
+    assert kwargs["intent_id"] == "intent-123"
+    assert kwargs["details"]["status"] == "Cancelled"
+
+
+@pytest.mark.asyncio
+async def test_cancel_request_records_operator_action_lineage() -> None:
+    conn = IBKRConnection.__new__(IBKRConnection)
+    conn._execution_audit = MagicMock()
+    conn._intent_id_by_order_id = {"123": "intent-123"}
+    conn.is_connected = MagicMock(return_value=True)
+    order = SimpleNamespace(
+        orderId=123,
+        parentId=0,
+        action="BUY",
+        orderType="LMT",
+        totalQuantity=2,
+    )
+    conn.ib = MagicMock()
+    conn.ib.openOrders.return_value = [order]
+
+    result = await conn.cancel_order(123)
+
+    assert result is True
+    kwargs = conn._execution_audit.append.call_args.kwargs
+    assert kwargs["event"] == "ORDER_CANCEL_REQUEST"
+    assert kwargs["intent_id"] == "intent-123"
