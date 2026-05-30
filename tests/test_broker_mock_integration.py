@@ -36,6 +36,7 @@ Hotswap / routing:
 
 import asyncio
 import sys
+import time
 from datetime import datetime, timezone
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -408,6 +409,7 @@ async def test_reconcile_adopts_orphan_broker_position(paper_brain):
     # Make IBKR appear connected
     paper_brain.ibkr_conn.is_connected.return_value = True
     paper_brain.ibkr_conn._positions_cache = {"MSFT": 100.0}
+    paper_brain._last_ibkr_reconcile_poll_ts = time.monotonic()
 
     # _adopt_orphan queries DB: SELECT entry_price, stop_price, target_price
     # Returns a 3-tuple.  If None is returned it uses market price instead.
@@ -425,6 +427,40 @@ async def test_reconcile_adopts_orphan_broker_position(paper_brain):
 
     symbols = [p.symbol for p in paper_brain.positions]
     assert "MSFT" in symbols
+
+
+@pytest.mark.asyncio
+async def test_reconcile_refreshes_stale_ibkr_position_cache(paper_brain):
+    """Periodic broker polls replace stale IBKR cache even when cache is non-empty."""
+    paper_brain.positions = [
+        Position(
+            symbol="AAPL",
+            qty=100,
+            entry_price=150.0,
+            stop_loss=140.0,
+            take_profit=165.0,
+            account_type="ibkr",
+            entry_time=datetime(2024, 1, 1, tzinfo=timezone.utc),
+        )
+    ]
+    paper_brain.start_time = datetime(2024, 1, 1, tzinfo=timezone.utc)
+    paper_brain._broker_is_connected = lambda conn: conn.is_connected()
+    paper_brain.ibkr_conn.is_connected.return_value = True
+    paper_brain.ibkr_conn._positions_cache = {"AAPL": 100.0}
+    paper_brain._last_ibkr_reconcile_poll_ts = 0.0
+    paper_brain._ibkr_reconcile_poll_interval_sec = 30.0
+    paper_brain._update_trade_volume = MagicMock()
+
+    broker_pos = MagicMock()
+    broker_pos.contract.symbol = "AAPL"
+    broker_pos.position = 40.0
+    paper_brain.ibkr_conn.ib.positions.return_value = [broker_pos]
+
+    await paper_brain._reconcile_broker_positions()
+
+    assert paper_brain.ibkr_conn._positions_cache == {"AAPL": 40.0}
+    assert paper_brain.positions[0].qty == 40.0
+    paper_brain._update_trade_volume.assert_called_once_with("AAPL", "ibkr", 40.0)
 
 
 # ===========================================================================
