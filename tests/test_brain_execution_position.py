@@ -594,6 +594,7 @@ class TestBrokerExitRealization:
 
         paper_brain._place_ibkr_order.assert_not_awaited()
         assert pos.qty == 12
+        assert not getattr(pos, "runner_active", False)
 
 
 # ---------------------------------------------------------------------------
