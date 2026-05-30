@@ -395,7 +395,7 @@ class TradingBrain(BrokerReconciler, HealthChecker, DataProvider, AccountingMixi
         from coordinator import TradingCoordinator
 
         self.coordinator = TradingCoordinator(self.bridge, self)
-        self.task_manager = TaskManager()
+        self.task_manager = TaskManager(retire_active_on_restore=True)
 
         self.current_regime = "UNKNOWN"
         self.is_running = False
