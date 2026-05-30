@@ -2,6 +2,7 @@
 Tests for TradingCoordinator logic and wiring.
 """
 
+import time
 from unittest.mock import MagicMock
 
 import pytest
@@ -93,6 +94,36 @@ class TestVoteMetrics:
         result = mock_coordinator._vote_metrics(votes)
         assert result["active_voters"] == 1
         assert result["avg_confidence"] == pytest.approx(0.8, 0.01)
+
+
+class TestEntryDataFreshness:
+    """Last-mile orders require recent verified market-data evidence."""
+
+    def test_paper_simulation_does_not_require_live_data_proof(self, mock_coordinator) -> None:
+        mock_coordinator.brain.mode = "paper"
+
+        assert mock_coordinator._entry_data_block_reason("SPY") is None
+
+    def test_ibkr_entry_without_freshness_proof_is_blocked(self, mock_coordinator) -> None:
+        mock_coordinator.brain.mode = "ibkr_paper"
+        mock_coordinator.brain._last_fresh_bar_at = {}
+
+        assert mock_coordinator._entry_data_block_reason("SPY") == "no verified fresh bar available"
+
+    def test_ibkr_entry_with_recent_freshness_proof_is_allowed(self, mock_coordinator) -> None:
+        mock_coordinator.brain.mode = "ibkr_paper"
+        mock_coordinator.brain._last_fresh_bar_at = {"SPY": time.monotonic()}
+
+        assert mock_coordinator._entry_data_block_reason("SPY") is None
+
+    def test_ibkr_entry_with_expired_freshness_proof_is_blocked(
+        self, mock_coordinator, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        mock_coordinator.brain.mode = "ibkr_paper"
+        mock_coordinator.brain._last_fresh_bar_at = {"SPY": time.monotonic() - 60.0}
+        monkeypatch.setenv("SOVEREIGN_ENTRY_DATA_PROOF_MAX_AGE_SEC", "30")
+
+        assert "expired" in mock_coordinator._entry_data_block_reason("SPY")
 
 
 class TestLifecycleBasics:
