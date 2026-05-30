@@ -12,6 +12,7 @@ import argparse
 import asyncio
 import json
 import logging
+import tempfile
 import time
 from contextlib import contextmanager
 from dataclasses import asdict, dataclass
@@ -20,6 +21,7 @@ from types import SimpleNamespace
 from typing import Any
 
 from coordinator import TradingCoordinator
+from execution_audit import ExecutionAuditLog
 from intelligence_bus import SharedIntelligenceBus
 from resilience_layer import DeadLetterQueue
 from risk_invariants import OrderThrottler, RiskInvariants
@@ -46,6 +48,7 @@ class ProbeReport:
         "ORDER_THROTTLED",
         "NOTIONAL_VETO",
         "ENTRY_DATA_VETO",
+        "AUDIT_TAMPER_DETECTED",
         "DLQ_ESCALATION",
         "TradingState.HALTED",
     )
@@ -57,8 +60,8 @@ class ProbeReport:
             "expected_synthetic_faults": list(self.expected_faults),
             "operator_note": (
                 "This probe intentionally triggers throttle, notional-veto, data-freshness, "
-                "DLQ, and HALTED paths with mocked data. These are expected drill events, "
-                "not live broker orders."
+                "audit-tamper, DLQ, and HALTED paths with mocked data. These are expected "
+                "drill events, not live broker orders."
             ),
             "duration_sec": round(self.duration_sec, 3),
             "checks": [asdict(check) for check in self.checks],
@@ -212,9 +215,53 @@ async def _probe_entry_data_freshness() -> ProbeCheck:
     )
 
 
+async def _probe_execution_audit_chain() -> ProbeCheck:
+    with tempfile.TemporaryDirectory() as tmpdir:
+        path = Path(tmpdir) / "execution_audit.jsonl"
+        audit = ExecutionAuditLog(path)
+        audit.append(
+            event="ORDER_INTENT",
+            symbol="SPY",
+            side="BUY",
+            quantity=1,
+            order_type="LMT",
+            details={"price": 500.0},
+        )
+        audit.append(
+            event="ORDER_INTENT",
+            symbol="QQQ",
+            side="SELL",
+            quantity=2,
+            order_type="LMT",
+            details={"price": 400.0},
+        )
+        clean_verification = audit.verify()
+
+        records = [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines()]
+        records[0]["quantity"] = 999.0
+        path.write_text(
+            "\n".join(json.dumps(record) for record in records) + "\n",
+            encoding="utf-8",
+        )
+        tampered_verification = audit.verify()
+        passed = clean_verification["valid"] and not tampered_verification["valid"]
+        return ProbeCheck(
+            "execution_audit_tamper_detection",
+            passed,
+            {
+                "clean_chain_valid": clean_verification["valid"],
+                "tampered_chain_blocked": not tampered_verification["valid"],
+            },
+        )
+
+
 async def run_backend_reliability_probe(*, verbose_expected_faults: bool = False) -> ProbeReport:
     started = time.monotonic()
-    checks = [await _probe_tick_batcher(), await _probe_entry_data_freshness()]
+    checks = [
+        await _probe_tick_batcher(),
+        await _probe_entry_data_freshness(),
+        await _probe_execution_audit_chain(),
+    ]
     with _expected_fault_logging(verbose_expected_faults):
         checks.append(await _probe_order_safety())
         checks.append(await _probe_broker_outage_dlq())
