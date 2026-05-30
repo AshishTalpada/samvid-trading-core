@@ -797,6 +797,19 @@ class IBKRConnection:
             self._ensure_ib_client()
         _lock = self._lock or asyncio.Lock()
         async with _lock:  # Ensure serial access to IB client socket
+            if not self._persist_execution(
+                symbol,
+                "BRACKET",
+                {
+                    "dir": direction,
+                    "shares": shares,
+                    "px": limit_price,
+                    "stop": stop_loss,
+                    "target": take_profit,
+                },
+            ):
+                logger.critical("IBKR: Bracket order blocked because audit persistence failed.")
+                return []
             try:
                 # Use cached contract if available (Neural Warmup)
                 from ib_insync import LimitOrder, Stock, StopLimitOrder
@@ -916,7 +929,7 @@ class IBKRConnection:
                 logger.error(f"IBKR Bracket Failure for {symbol}: {e}")
                 return []
 
-    def _persist_execution(self, symbol: str, order_type: str, details: dict):
+    def _persist_execution(self, symbol: str, order_type: str, details: dict) -> bool:
         """Write a persistent execution log entry for audit trail and manual recovery."""
         try:
             audit_record = self._execution_audit.append(
@@ -941,8 +954,10 @@ class IBKRConnection:
             }
             with open(log_file, "a") as f:
                 f.write(json.dumps(entry) + "\n")
+            return True
         except Exception as e:
             logger.error(f"IBKR: Failed to persist execution log: {e}")
+            return False
 
     async def place_order(
         self,
@@ -1003,11 +1018,13 @@ class IBKRConnection:
             self._ensure_ib_client()
         _lock = self._lock or asyncio.Lock()
         async with _lock:  # Ensure serial access to IB client socket
-            self._persist_execution(
+            if not self._persist_execution(
                 symbol,
                 "SINGLE",
                 {"dir": direction, "shares": shares, "px": limit_price, "type": order_type},
-            )
+            ):
+                logger.critical("IBKR: Single order blocked because audit persistence failed.")
+                return None
 
             try:
                 from ib_insync import Future, LimitOrder, MarketOrder, Stock
