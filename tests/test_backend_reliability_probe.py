@@ -11,6 +11,7 @@ async def test_backend_reliability_probe_passes() -> None:
     assert {check.name for check in report.checks} == {
         "synthetic_tick_batcher",
         "entry_data_freshness_veto",
+        "execution_audit_tamper_detection",
         "order_throttle_and_notional_veto",
         "dead_letter_queue_escalates_to_halt",
     }
