@@ -1,6 +1,7 @@
 import asyncio
 import json
 from datetime import datetime
+from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 import pytest
@@ -77,3 +78,25 @@ def test_persist_execution_mirrors_intent_id_into_recovery_log(tmp_path, monkeyp
     assert result is True
     assert recovery["intent_id"] == "intent-123"
     assert recovery["audit_hash"] == "audit-hash"
+
+
+def test_fill_callback_records_matched_intent_lineage() -> None:
+    conn = IBKRConnection.__new__(IBKRConnection)
+    conn._execution_audit = MagicMock()
+    conn._intent_id_by_order_id = {"123": "intent-123"}
+    conn.brain = SimpleNamespace(positions=[])
+    trade = SimpleNamespace(
+        contract=SimpleNamespace(symbol="SPY"),
+        order=SimpleNamespace(orderId=123, parentId=0),
+    )
+    fill = SimpleNamespace(
+        execution=SimpleNamespace(side="BOT", shares=1, avgPrice=500.25),
+    )
+
+    conn._on_exec_details(trade, fill)
+
+    conn._execution_audit.append.assert_called_once()
+    kwargs = conn._execution_audit.append.call_args.kwargs
+    assert kwargs["event"] == "ORDER_FILL"
+    assert kwargs["intent_id"] == "intent-123"
+    assert kwargs["details"]["lineage_status"] == "MATCHED"
