@@ -7,6 +7,7 @@ from typing import Any
 import numpy as np
 
 from mind_bridge import MindBridge
+from strategy_promotion import evaluate_strategy_promotion
 
 logger = logging.getLogger(__name__)
 
@@ -111,23 +112,15 @@ class MindExperiment:
                 # Mock performance check - in production this queries QuestDB/SQLite
                 # We enforce that the AI cannot self-enable without performance metadata
                 performance = exp.get("performance_history", [])
-                if len(performance) < 5:
-                    logger.warning(
-                        f"MindExperiment: GATE REJECTED. Insufficient evidence ({len(performance)}/5 trades)."
-                    )
+                promotion = evaluate_strategy_promotion(performance)
+                exp["promotion_report"] = promotion
+                if not promotion["approved"]:
+                    reason = "; ".join(promotion["reasons"])
+                    logger.warning("MindExperiment: GATE REJECTED. %s.", reason)
                     return {
                         "success": False,
-                        "error": f"Evidence Guard: Only {len(performance)}/5 trades recorded.",
-                    }
-
-                avg_win = sum(1 for p in performance if p > 0) / len(performance)
-                if avg_win < 0.55:
-                    logger.warning(
-                        f"MindExperiment: GATE REJECTED. Shadow WinRate {avg_win:.1%} below 55% threshold."
-                    )
-                    return {
-                        "success": False,
-                        "error": "Evidence Guard: Strategy variant failed winrate threshold.",
+                        "error": f"Evidence Guard: {reason}.",
+                        "promotion_report": promotion,
                     }
 
             except Exception as e:
