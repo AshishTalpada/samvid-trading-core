@@ -16,7 +16,11 @@ def evaluate_promotion_readiness(
     reliability_probe: dict[str, Any],
     regime_replay: dict[str, Any],
     soak_summary: dict[str, Any],
+    paper_performance: dict[str, Any],
     min_modern_intents: int = 30,
+    min_closed_paper_trades: int = 30,
+    min_profit_factor: float = 1.20,
+    max_drawdown_pct: float = 0.10,
     min_soak_cycles: int = 3,
 ) -> dict[str, Any]:
     """Return an auditable paper-to-production gate without optimistic defaults."""
@@ -28,6 +32,8 @@ def evaluate_promotion_readiness(
     intents = int(lineage.get("intents", 0) or 0)
     filled_intents = int(lineage.get("filled_intents", 0) or 0)
     commission_reports = int(costs.get("commission_reports", 0) or 0)
+    performance = paper_performance.get("metrics", {})
+    closed_paper_trades = int(performance.get("trades", 0) or 0)
 
     _block(blockers, audit.get("valid") is True, "execution audit chain is not valid")
     _block(
@@ -75,6 +81,31 @@ def evaluate_promotion_readiness(
         int(costs.get("observed_slippage_events", 0) or 0) >= filled_intents,
         "slippage coverage is incomplete for modern fills",
     )
+    _block(
+        blockers,
+        paper_performance.get("source") == "sqlite_closed_paper_trades",
+        "paper performance artifact source is not trusted",
+    )
+    _block(
+        blockers,
+        closed_paper_trades >= min_closed_paper_trades,
+        f"closed paper performance requires {min_closed_paper_trades} trades; found {closed_paper_trades}",
+    )
+    _block(
+        blockers,
+        float(performance.get("expectancy_net", 0.0) or 0.0) > 0,
+        "closed paper expectancy is not positive after costs",
+    )
+    _block(
+        blockers,
+        float(performance.get("profit_factor", 0.0) or 0.0) >= min_profit_factor,
+        f"closed paper profit factor is below {min_profit_factor:.2f}",
+    )
+    _block(
+        blockers,
+        float(performance.get("max_drawdown_pct", 1.0) or 0.0) <= max_drawdown_pct,
+        f"closed paper max drawdown exceeds {max_drawdown_pct:.1%}",
+    )
 
     return {
         "approved": not blockers,
@@ -90,5 +121,9 @@ def evaluate_promotion_readiness(
             "commission_reports": commission_reports,
             "observed_slippage_events": int(costs.get("observed_slippage_events", 0) or 0),
             "unmatched_lineage_events": int(lineage.get("unmatched_lineage_events", 0) or 0),
+            "closed_paper_trades": closed_paper_trades,
+            "paper_expectancy_net": float(performance.get("expectancy_net", 0.0) or 0.0),
+            "paper_profit_factor": float(performance.get("profit_factor", 0.0) or 0.0),
+            "paper_max_drawdown_pct": float(performance.get("max_drawdown_pct", 0.0) or 0.0),
         },
     }
