@@ -50,6 +50,30 @@ class TradingCoordinator:
         self.exoskeleton = ApexExoskeleton(brain)
         self._semaphore: asyncio.Semaphore | None = None  # Lazy-init to bind to running loop
 
+    def _entry_data_block_reason(self, symbol: str) -> str | None:
+        """Return a fail-closed reason when live entry data proof is missing or expired."""
+        if str(getattr(self.brain, "mode", "paper")).lower() == "paper":
+            return None
+        if os.environ.get("SOVEREIGN_ALLOW_UNVERIFIED_ENTRY_DATA") == "1":
+            return None
+
+        freshness_proofs = getattr(self.brain, "_last_fresh_bar_at", {})
+        if not isinstance(freshness_proofs, dict):
+            return "verified bar freshness store unavailable"
+        verified_at = freshness_proofs.get(symbol.upper())
+        if verified_at is None:
+            return "no verified fresh bar available"
+
+        try:
+            max_age = float(os.environ.get("SOVEREIGN_ENTRY_DATA_PROOF_MAX_AGE_SEC", "30"))
+        except ValueError:
+            max_age = 30.0
+        max_age = max(5.0, min(max_age, 300.0))
+        proof_age = time.monotonic() - float(verified_at)
+        if proof_age > max_age:
+            return f"verified bar freshness proof expired ({proof_age:.1f}s > {max_age:.1f}s)"
+        return None
+
     def _finalize_open_task(self, task: Any, phase: str, reason: str) -> None:
         """Close a spawned task when a pre-vetting guard returns early."""
         if not task:
@@ -1172,6 +1196,20 @@ class TradingCoordinator:
                         f"Coordinator [{proposal_id}]  PHANTOM PROBE SUCCESS: System wiring is 100% OPERATIONAL."
                     )
                     return True
+
+                data_block_reason = self._entry_data_block_reason(symbol)
+                if data_block_reason:
+                    if task:
+                        task.set_phase("ENTRY_DATA_VETO", data_block_reason)
+                        task.finalize("VETOED")
+                    logger.warning(
+                        "Coordinator [%s] ENTRY_DATA_VETO: %s blocked - %s.",
+                        proposal_id,
+                        symbol,
+                        data_block_reason,
+                    )
+                    LEDGER.record_veto(symbol=symbol, reason=f"ENTRY_DATA_VETO: {data_block_reason}")
+                    return False
 
                 if task:
                     task.log(
