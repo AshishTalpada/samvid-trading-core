@@ -8,9 +8,9 @@ without requiring live broker connections.
 
 from __future__ import annotations
 
+import logging
 import os
 import sys
-import logging
 from pathlib import Path
 
 
