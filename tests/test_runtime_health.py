@@ -1,4 +1,4 @@
-from runtime_health import ComponentHealth, build_health_snapshot
+from runtime_health import ComponentHealth, build_health_snapshot, market_data_health
 
 
 def test_health_snapshot_marks_degraded_for_paused_free_feed() -> None:
@@ -69,3 +69,31 @@ def test_health_snapshot_with_paused_optional_component_stays_degraded_ready() -
     assert snapshot["overall"] == "DEGRADED"
     assert snapshot["readiness"] == "DEGRADED_READY"
     assert snapshot["readiness_score"] >= 90
+
+
+def test_market_data_health_pauses_cleanly_after_hours() -> None:
+    health = market_data_health({}, market_open=False)
+
+    assert health.status == "PAUSED"
+    assert health.critical is True
+
+
+def test_market_data_health_requires_recent_verified_bar() -> None:
+    missing = market_data_health({}, market_open=True, now_monotonic=100.0)
+    stale = market_data_health(
+        {"SPY": 10.0},
+        market_open=True,
+        max_age_sec=30.0,
+        now_monotonic=100.0,
+    )
+    fresh = market_data_health(
+        {"SPY": 95.0, "QQQ": 90.0},
+        market_open=True,
+        max_age_sec=30.0,
+        now_monotonic=100.0,
+    )
+
+    assert missing.status == "DELAYED"
+    assert stale.status == "DELAYED"
+    assert fresh.status == "ONLINE"
+    assert "verified_symbols=2" in fresh.detail
