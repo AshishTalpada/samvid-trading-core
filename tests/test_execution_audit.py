@@ -1,4 +1,5 @@
 import json
+from concurrent.futures import ThreadPoolExecutor
 
 import pytest
 
@@ -90,3 +91,23 @@ def test_execution_audit_refuses_append_after_corrupt_tail(tmp_path) -> None:
             quantity=1,
             order_type="LMT",
         )
+
+
+def test_execution_audit_serializes_concurrent_appends(tmp_path) -> None:
+    audit = ExecutionAuditLog(tmp_path / "audit.jsonl")
+
+    def append_record(index: int) -> None:
+        audit.append(
+            event="ORDER_INTENT",
+            symbol="SPY",
+            side="BUY",
+            quantity=index + 1,
+            order_type="LMT",
+        )
+
+    with ThreadPoolExecutor(max_workers=8) as executor:
+        list(executor.map(append_record, range(40)))
+
+    verification = audit.verify()
+    assert verification["valid"] is True
+    assert verification["records_checked"] == 40
