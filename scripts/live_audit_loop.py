@@ -6,13 +6,14 @@ Usage:
     python scripts/live_audit_loop.py --cycles 5 # run 5 cycles
 """
 import argparse
+import json
 import os
 import re
 import subprocess
 import sys
 import time
 from collections import defaultdict
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -21,15 +22,16 @@ LOG_DIR.mkdir(exist_ok=True)
 
 
 def _kill_existing_engine() -> None:
-    """Kill any running main.py instances to prevent duplicate-instance errors."""
+    """Kill project engine helpers to prevent duplicate-instance errors."""
     killed: list[int] = []
     own_pid = os.getpid()
+    root_marker = str(ROOT).lower()
 
     # 1. Single PowerShell WMI call — gets all python PIDs + CommandLines atomically.
     #    Much faster and more reliable than per-PID wmic queries.
     try:
         ps_script = (
-            "Get-WmiObject Win32_Process -Filter \"Name='python.exe'\" "
+            "Get-CimInstance Win32_Process -Filter \"Name='python.exe'\" "
             "| Select-Object ProcessId,CommandLine "
             "| ForEach-Object { $_.ProcessId.ToString() + '|' + $_.CommandLine }"
         )
@@ -48,11 +50,15 @@ def _kill_existing_engine() -> None:
                 continue
             if pid == own_pid:
                 continue
-            if "main.py" in cmdline and "live_audit_loop" not in cmdline:
+            cmdline_lower = cmdline.lower()
+            is_project_helper = root_marker in cmdline_lower and (
+                "main.py" in cmdline_lower or "watchdog.py" in cmdline_lower
+            )
+            if is_project_helper and "live_audit_loop" not in cmdline_lower:
                 subprocess.run(["taskkill", "/F", "/PID", str(pid)],
                                capture_output=True)
                 killed.append(pid)
-                print(f"  [KILL] Terminated stale engine PID {pid}")
+                print(f"  [KILL] Terminated stale project helper PID {pid}")
     except Exception:
         pass
 
@@ -74,7 +80,40 @@ def _kill_existing_engine() -> None:
         pass
 
 
-def run_cycle(cycle: int, duration: int = 90) -> Path:
+def _clear_stale_pid_files() -> None:
+    """Remove sentinels only when their recorded process is demonstrably dead."""
+    for name in ("main.pid", "watchdog.pid"):
+        path = ROOT / "data" / name
+        try:
+            pid = int(path.read_text(encoding="utf-8").strip())
+            os.kill(pid, 0)
+        except FileNotFoundError:
+            continue
+        except (OSError, ValueError):
+            path.unlink(missing_ok=True)
+
+
+def _run_check(command: list[str], timeout: int = 60) -> dict:
+    started = time.monotonic()
+    result = subprocess.run(
+        command,
+        cwd=str(ROOT),
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        timeout=timeout,
+    )
+    return {
+        "command": command,
+        "passed": result.returncode == 0,
+        "returncode": result.returncode,
+        "duration_sec": round(time.monotonic() - started, 3),
+        "output_tail": (result.stdout + result.stderr).splitlines()[-20:],
+    }
+
+
+def run_cycle(cycle: int, duration: int = 90) -> tuple[Path, dict]:
     ts = datetime.now().strftime("%Y%m%d_%H%M%S")
     log_path = LOG_DIR / f"audit_cycle_{cycle:03d}_{ts}.log"
 
@@ -83,7 +122,22 @@ def run_cycle(cycle: int, duration: int = 90) -> Path:
     print(f"{'='*70}")
 
     _kill_existing_engine()
+    _clear_stale_pid_files()
     time.sleep(2)  # Let ports/sockets release
+
+    cycle_evidence = {
+        "cycle": cycle,
+        "started_at": datetime.now(timezone.utc).isoformat(),
+        "preflight": _run_check([sys.executable, str(ROOT / "scripts" / "startup_validation.py")]),
+        "fault_probe": _run_check(
+            [
+                sys.executable,
+                str(ROOT / "src" / "backend_reliability_probe.py"),
+                "--json-out",
+                str(ROOT / "tmp" / f"audit_cycle_{cycle:03d}_probe.json"),
+            ]
+        ),
+    }
 
     with open(log_path, "w", encoding="utf-8", errors="replace") as fh:
         proc = subprocess.Popen(
@@ -96,13 +150,23 @@ def run_cycle(cycle: int, duration: int = 90) -> Path:
         )
         try:
             proc.wait(timeout=duration)
+            cycle_evidence["timed_out"] = False
         except subprocess.TimeoutExpired:
             print(f"  [{duration}s elapsed] Killing process {proc.pid}...")
-            proc.kill()
-            proc.wait()
+            proc.terminate()
+            try:
+                proc.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                proc.kill()
+                proc.wait()
+            cycle_evidence["timed_out"] = True
 
     print(f"  Process ended. Analysing {log_path.name} ...")
-    return log_path
+    _kill_existing_engine()
+    _clear_stale_pid_files()
+    cycle_evidence["process_returncode"] = proc.returncode
+    cycle_evidence["finished_at"] = datetime.now(timezone.utc).isoformat()
+    return log_path, cycle_evidence
 
 
 IGNORE_PATTERNS = [
@@ -236,22 +300,32 @@ def print_report(cycle: int, result: dict) -> None:
     print()
 
 
-def save_summary(results: list[dict], log_paths: list[Path]) -> None:
-    summary_path = LOG_DIR / f"audit_summary_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt"
-    with open(summary_path, "w", encoding="utf-8") as f:
-        f.write(f"LIVE AUDIT SUMMARY — {datetime.now()}\n")
-        f.write(f"Cycles run: {len(results)}\n\n")
-        for i, (r, p) in enumerate(zip(results, log_paths, strict=False), 1):
-            f.write(f"Cycle {i:03d}: {p.name}\n")
-            f.write(f"  errors={len(r['errors'])} warnings={len(r['warnings'])} "
-                    f"tracebacks={len(r['tracebacks'])} offline={len(r['offline'])}\n")
-            for tb in r["tracebacks"]:
-                f.write("  TRACEBACK:\n")
-                for line in tb.splitlines():
-                    f.write(f"    {line}\n")
-            for e in r["errors"][:20]:
-                f.write(f"  ERROR: {e[:120]}\n")
-    print(f"\n[SUMMARY saved → {summary_path}]")
+def save_summary(results: list[dict], log_paths: list[Path], evidence: list[dict]) -> Path:
+    summary_path = LOG_DIR / f"audit_summary_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+    cycles = []
+    for result, path, cycle_evidence in zip(results, log_paths, evidence, strict=True):
+        cycles.append(
+            {
+                **cycle_evidence,
+                "log_path": path.relative_to(ROOT).as_posix(),
+                "analysis": result,
+                "passed": (
+                    cycle_evidence["preflight"]["passed"]
+                    and cycle_evidence["fault_probe"]["passed"]
+                    and not result["errors"]
+                    and not result["tracebacks"]
+                ),
+            }
+        )
+    payload = {
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "cycles_run": len(cycles),
+        "passed": all(cycle["passed"] for cycle in cycles),
+        "cycles": cycles,
+    }
+    summary_path.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
+    print(f"\n[SUMMARY saved -> {summary_path}]")
+    return summary_path
 
 
 def main() -> None:
@@ -265,22 +339,27 @@ def main() -> None:
 
     all_results = []
     all_paths = []
+    all_evidence = []
 
     for cycle in range(1, args.cycles + 1):
-        log_path = run_cycle(cycle, duration=args.duration)
+        log_path, cycle_evidence = run_cycle(cycle, duration=args.duration)
         result = analyse(log_path)
         print_report(cycle, result)
         all_results.append(result)
         all_paths.append(log_path)
+        all_evidence.append(cycle_evidence)
 
         if cycle < args.cycles:
             print(f"  Pausing {args.pause}s before next cycle...")
             time.sleep(args.pause)
 
-    save_summary(all_results, all_paths)
+    save_summary(all_results, all_paths, all_evidence)
 
-    # Exit non-zero if any cycle had errors
-    if any(r["errors"] or r["tracebacks"] for r in all_results):
+    # Exit non-zero if any cycle had errors or failed its preflight drills.
+    if any(r["errors"] or r["tracebacks"] for r in all_results) or any(
+        not evidence["preflight"]["passed"] or not evidence["fault_probe"]["passed"]
+        for evidence in all_evidence
+    ):
         sys.exit(1)
 
 
