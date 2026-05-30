@@ -349,6 +349,7 @@ class TradingBrain(BrokerReconciler, HealthChecker, DataProvider, AccountingMixi
         self._qdb_failure_count = 0
         self._hot_cache: dict[str, pd.DataFrame] = {}  # symbol -> OHLCV df
         self._hot_cache_time: dict[str, float] = {}  # symbol -> monotonic ts
+        self._last_fresh_bar_at: dict[str, float] = {}  # symbol -> freshness proof monotonic ts
 
         self.exit_engine = ExitIntelligence({"belief_threshold": 0.35})
         self._exit_failure_counts: dict[str, int] = {}
