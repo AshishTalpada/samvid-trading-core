@@ -109,6 +109,8 @@ class IBKRConnection:
 
         self._recovered_orders: set[int] = set()
         self._background_tasks: set[asyncio.Task] = set()  # Prevent GC of pending tasks
+        self._intent_id_by_order_id: dict[str, str] = {}
+        self._last_persisted_intent_id: str | None = None
 
     def generate_exec_token(self, symbol: str) -> str:
         """Generate a time-limited HMAC token for order authorization."""
@@ -463,6 +465,27 @@ class IBKRConnection:
             f" IBKR EXECUTION: {symbol} {side} {qty} @ ${price:.2f} "
             f"(Order: {order_id}, Parent: {parent_id})"
         )
+
+        try:
+            intent_id = self._intent_id_by_order_id.get(order_id) or self._intent_id_by_order_id.get(
+                parent_id
+            )
+            self._execution_audit.append(
+                event="ORDER_FILL",
+                symbol=symbol,
+                side=side,
+                quantity=float(qty),
+                order_type="FILL",
+                intent_id=intent_id,
+                details={
+                    "order_id": order_id,
+                    "parent_id": parent_id,
+                    "fill_price": float(price),
+                    "lineage_status": "MATCHED" if intent_id else "UNMATCHED",
+                },
+            )
+        except Exception as exc:
+            logger.error("IBKR: Failed to persist execution fill audit: %s", exc)
 
         if hasattr(self, "brain") and self.brain:
             for p in self.brain.positions:
@@ -916,6 +939,9 @@ class IBKRConnection:
                         if acc:
                             o.account = acc
                         trade = self.ib.placeOrder(contract, o)
+                        intent_id = getattr(self, "_last_persisted_intent_id", None)
+                        if intent_id:
+                            self._intent_id_by_order_id[str(trade.order.orderId)] = intent_id
                         if i == 0:
                             ids.append(trade.order.orderId)
 
@@ -941,6 +967,7 @@ class IBKRConnection:
                 intent_id=details.get("intent_id"),
                 details=details,
             )
+            self._last_persisted_intent_id = str(audit_record["intent_id"])
             log_file = "data/execution_persistence.jsonl"
             import json
             import os
@@ -1145,6 +1172,9 @@ class IBKRConnection:
                         o.account = acc
 
                     trade = self.ib.placeOrder(contract, o)
+                    intent_id = getattr(self, "_last_persisted_intent_id", None)
+                    if intent_id:
+                        self._intent_id_by_order_id[str(trade.order.orderId)] = intent_id
                     if i == 0:
                         primary_id = trade.order.orderId
                         _audit_t = asyncio.create_task(self._audit_execution(trade, symbol, shares))
