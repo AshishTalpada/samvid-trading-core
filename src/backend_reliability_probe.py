@@ -22,6 +22,7 @@ from typing import Any
 
 from coordinator import TradingCoordinator
 from execution_audit import ExecutionAuditLog
+from execution_evidence import build_execution_evidence
 from intelligence_bus import SharedIntelligenceBus
 from resilience_layer import DeadLetterQueue
 from risk_invariants import OrderThrottler, RiskInvariants
@@ -49,6 +50,7 @@ class ProbeReport:
         "NOTIONAL_VETO",
         "ENTRY_DATA_VETO",
         "AUDIT_TAMPER_DETECTED",
+        "BROKER_REJECT_DRILL",
         "DLQ_ESCALATION",
         "TradingState.HALTED",
     )
@@ -60,7 +62,8 @@ class ProbeReport:
             "expected_synthetic_faults": list(self.expected_faults),
             "operator_note": (
                 "This probe intentionally triggers throttle, notional-veto, data-freshness, "
-                "audit-tamper, DLQ, and HALTED paths with mocked data. These are expected "
+                "audit-tamper, broker-reject, DLQ, and HALTED paths with mocked data. "
+                "These are expected "
                 "drill events, not live broker orders."
             ),
             "duration_sec": round(self.duration_sec, 3),
@@ -255,12 +258,88 @@ async def _probe_execution_audit_chain() -> ProbeCheck:
         )
 
 
+async def _probe_execution_lifecycle_evidence() -> ProbeCheck:
+    with tempfile.TemporaryDirectory() as tmpdir:
+        path = Path(tmpdir) / "execution_audit.jsonl"
+        audit = ExecutionAuditLog(path)
+        intent_id = "synthetic-lifecycle-intent"
+        audit.append(
+            event="ORDER_INTENT",
+            symbol="SPY",
+            side="BUY",
+            quantity=2,
+            order_type="SINGLE",
+            intent_id=intent_id,
+            details={"px": 500.0},
+        )
+        audit.append(
+            event="ORDER_FILL",
+            symbol="SPY",
+            side="BOT",
+            quantity=2,
+            order_type="FILL",
+            intent_id=intent_id,
+            details={"fill_price": 500.25, "lineage_status": "MATCHED"},
+        )
+        audit.append(
+            event="ORDER_COMMISSION",
+            symbol="SPY",
+            side="BOT",
+            quantity=2,
+            order_type="COMMISSION",
+            intent_id=intent_id,
+            details={"commission": 1.25, "lineage_status": "MATCHED"},
+        )
+        audit.append(
+            event="ORDER_CANCEL_REQUEST",
+            symbol="SPY",
+            side="SELL",
+            quantity=2,
+            order_type="LMT",
+            intent_id=intent_id,
+            details={"lineage_status": "MATCHED"},
+        )
+        audit.append(
+            event="ORDER_STATUS",
+            symbol="SPY",
+            side="SELL",
+            quantity=2,
+            order_type="LMT",
+            intent_id=intent_id,
+            details={"status": "Inactive", "lineage_status": "MATCHED"},
+        )
+        audit.append(
+            event="BROKER_ERROR",
+            symbol="SPY",
+            side="SELL",
+            quantity=2,
+            order_type="ERROR",
+            intent_id=intent_id,
+            details={"error_code": 201, "severity": "CRITICAL", "lineage_status": "MATCHED"},
+        )
+        evidence = build_execution_evidence(path)
+        passed = (
+            evidence["lineage"]["intent_fill_rate"] == 1.0
+            and evidence["lineage"]["unmatched_lineage_events"] == 0
+            and evidence["costs"]["total_commission"] == 1.25
+            and evidence["costs"]["total_observed_slippage"] == 0.5
+            and evidence["routing"]["terminal_statuses"] == {"Inactive": 1}
+            and evidence["routing"]["broker_errors"] == 1
+        )
+        return ProbeCheck(
+            "execution_lifecycle_evidence",
+            passed,
+            evidence,
+        )
+
+
 async def run_backend_reliability_probe(*, verbose_expected_faults: bool = False) -> ProbeReport:
     started = time.monotonic()
     checks = [
         await _probe_tick_batcher(),
         await _probe_entry_data_freshness(),
         await _probe_execution_audit_chain(),
+        await _probe_execution_lifecycle_evidence(),
     ]
     with _expected_fault_logging(verbose_expected_faults):
         checks.append(await _probe_order_safety())
