@@ -44,7 +44,7 @@ def market_data_health(
 ) -> ComponentHealth:
     """Score the scanner data plane from recent verified bar evidence."""
     if not market_open:
-        return ComponentHealth("market_data", "PAUSED", "US equity market closed", critical=True)
+        return ComponentHealth("market_data", "PAUSED", "US equity market closed", critical=False)
     if not freshness_proofs:
         return ComponentHealth(
             "market_data",
