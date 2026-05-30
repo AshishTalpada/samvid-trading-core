@@ -402,11 +402,13 @@ class ExecutionMixin:
     async def _log_trade_exit(
         self, pos: "Position", exit_type: str, exit_price: float, pnl: float, r_multiple: float
     ) -> None:
-        """Log trade exit to database and generate a post-mortem analysis."""
+        """Log a gross trade exit and teach downstream systems from net PnL."""
         from brain_reconcile import _safe_entry_time
 
+        net_pnl_for_learning = pnl
+
         def _sync_log() -> None:
-            nonlocal exit_price, pnl
+            nonlocal exit_price, net_pnl_for_learning, pnl
             try:
                 # Ghost recovery: if exit_price is 0, pull from data pipeline
                 if not exit_price or exit_price <= 0:
@@ -436,6 +438,7 @@ class ExecutionMixin:
                         commission = getattr(pos, "commission_cost", 0.0) or 0.0
                         slippage   = getattr(pos, "slippage_cost", 0.0) or 0.0
                         net_pnl = pnl - commission - slippage
+                        net_pnl_for_learning = net_pnl
 
                         # Outcome is based on net (after-cost) PnL
                         if net_pnl > 0:
@@ -510,15 +513,18 @@ class ExecutionMixin:
             except Exception as e:
                 logger.debug("Could not log trade exit: %s", e)
 
+        await asyncio.to_thread(_sync_log)  # type: ignore[arg-type]
+
         # Trigger Pillar 4/6 (Wisdom & Skill Evolution)
         reasoning = (
-            f"Exit Type: {exit_type} | PnL: ${pnl:.2f} | R-Multiple: {r_multiple:.2f}x | "
+            f"Exit Type: {exit_type} | Net PnL: ${net_pnl_for_learning:.2f} | "
+            f"R-Multiple: {r_multiple:.2f}x | "
             f"Catalyst: {pos.catalyst_score:.1f}"
         )
-        self.wisdom.write_post_mortem(pos, exit_type, pnl, reasoning)
+        self.wisdom.write_post_mortem(pos, exit_type, net_pnl_for_learning, reasoning)
 
-        if pnl > 0:
-            self.skill_tree.skills["pnl_to_next"] -= pnl
+        if net_pnl_for_learning > 0:
+            self.skill_tree.skills["pnl_to_next"] -= net_pnl_for_learning
             if self.skill_tree.skills["pnl_to_next"] <= 0:
                 self.skill_tree.unlock("stop-loss-adjustment")
                 self.skill_tree.skills["pnl_to_next"] = 5000.0
@@ -526,7 +532,7 @@ class ExecutionMixin:
 
         self.skill_tree._save()
 
-        self.loss_tracker.record_outcome(pnl > 0)
+        self.loss_tracker.record_outcome(net_pnl_for_learning > 0)
         if self.loss_tracker.consecutive_losses >= 5:
             logger.critical("5+ Consecutive Losses. Entering ABHAVA (Risk-Off) state.")
             self._oracle_dhatu = "Abhava"
@@ -543,18 +549,20 @@ class ExecutionMixin:
             bt = getattr(self, "belief_tracker", None)
             if bt is not None:
                 dhatu = getattr(self, "_oracle_dhatu", "Sthira")
-                evidence = "price_toward_medium" if pnl > 0 else "price_against_medium"
+                evidence = (
+                    "price_toward_medium"
+                    if net_pnl_for_learning > 0
+                    else "price_against_medium"
+                )
                 bt.update(evidence, dhatu_state=dhatu)
                 logger.debug(
                     "BeliefTracker updated after %s exit: evidence=%s new_belief=%.3f",
-                    "WIN" if pnl > 0 else "LOSS",
+                    "WIN" if net_pnl_for_learning > 0 else "LOSS",
                     evidence,
                     bt.current_belief,
                 )
         except Exception as _bt_err:
             logger.debug("BeliefTracker update skipped (non-fatal): %s", _bt_err)
-
-        await asyncio.to_thread(_sync_log)  # type: ignore[arg-type]
 
     # ------------------------------------------------------------------
     # Emergency liquidation
