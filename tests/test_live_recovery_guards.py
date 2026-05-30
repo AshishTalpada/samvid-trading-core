@@ -35,6 +35,19 @@ def test_task_registry_preserves_phase_on_restore(tmp_path) -> None:
     assert restored.to_dict()["phase"] == restored.status_summary
 
 
+def test_task_registry_can_retire_active_tasks_on_live_restore(tmp_path) -> None:
+    registry = tmp_path / "active_tasks.json"
+    task = SovereignTask("t_QQQ_1", "trade", "Executing QQQ Trade", {})
+    task.set_phase("VETTING", "checking cache and agent quorum")
+    registry.write_text(json.dumps({"t_QQQ_1": task.to_dict()}), encoding="utf-8")
+
+    manager = TaskManager(registry_path=str(registry), retire_active_on_restore=True)
+
+    restored = manager.tasks["t_QQQ_1"]
+    assert restored.status == TaskStatus.KILLED
+    assert restored.status_summary.startswith("ORPHANED:")
+
+
 def test_task_manager_symbol_gate_blocks_active_task(tmp_path) -> None:
     manager = TaskManager(registry_path=str(tmp_path / "active_tasks.json"))
 
