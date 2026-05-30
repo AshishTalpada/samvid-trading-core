@@ -1,4 +1,5 @@
 import json
+import time
 
 import pytest
 
@@ -77,3 +78,32 @@ async def test_publish_quote_emits_tick_and_candle_pulse() -> None:
     tick_payload = next(payload for topic, payload in bus.events if topic == "tick.hft")
     assert tick_payload["symbol"] == "NVDA"
     assert tick_payload["source"] == "TradingView_WS"
+
+
+def test_health_status_pauses_cleanly_after_hours(monkeypatch: pytest.MonkeyPatch) -> None:
+    streamer = TVQuoteStreamer()
+    streamer.is_running = True
+    monkeypatch.setattr(streamer, "_is_us_equity_market_open", lambda: False)
+
+    assert streamer.health_status() == ("PAUSED", "waiting for market hours")
+
+
+def test_health_status_requires_delivered_quotes(monkeypatch: pytest.MonkeyPatch) -> None:
+    streamer = TVQuoteStreamer()
+    streamer.is_running = True
+    streamer._connected = True
+    streamer._allow_after_hours = True
+    monkeypatch.setenv("SOVEREIGN_TV_QUOTES_MAX_AGE_SEC", "30")
+
+    assert streamer.health_status() == ("DELAYED", "connected but awaiting first quote")
+
+    streamer._last_quote_at = time.monotonic() - 60.0
+    status, detail = streamer.health_status()
+    assert status == "DELAYED"
+    assert "latest quote is" in detail
+
+    streamer._last_quote_at = time.monotonic()
+    streamer.quotes_seen = 1
+    status, detail = streamer.health_status()
+    assert status == "ONLINE"
+    assert "quotes=1" in detail
