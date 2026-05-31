@@ -79,6 +79,28 @@ def test_health_snapshot_with_paused_optional_component_stays_degraded_ready() -
     assert snapshot["readiness_score"] >= 90
 
 
+def test_expected_noncritical_pauses_are_visible_without_score_penalty() -> None:
+    snapshot = build_health_snapshot(
+        [
+            ComponentHealth("ibkr_execution", "CONNECTED", critical=True),
+            ComponentHealth("dhatu", "ONLINE", critical=True),
+            ComponentHealth("market_data", "PAUSED", "US equity market closed", critical=False),
+            ComponentHealth("tv_quotes", "PAUSED", "waiting for market hours", critical=False),
+        ],
+        mode="ibkr_paper",
+        state="SCANNING",
+    )
+
+    assert snapshot["overall"] == "DEGRADED"
+    assert snapshot["readiness"] == "DEGRADED_READY"
+    assert snapshot["readiness_score"] == 100
+    assert snapshot["degraded"] == ["market_data", "tv_quotes"]
+    assert snapshot["action_items"] == [
+        "Confirm pause is expected: market_data",
+        "Confirm pause is expected: tv_quotes",
+    ]
+
+
 def test_market_data_health_pauses_cleanly_after_hours() -> None:
     health = market_data_health({}, market_open=False)
 
