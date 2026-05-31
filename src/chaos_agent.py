@@ -2,6 +2,7 @@ import asyncio
 import ctypes
 import logging
 import os
+from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 import numpy as np
@@ -29,10 +30,17 @@ class ChaosAgent:
         try:
             # Determine extension based on OS
             ext = ".dll" if os.name == "nt" else ".so"
-            lib_path = os.path.join(PROJECT_PATH, f"libsovereign{ext}")
+            root = Path(PROJECT_PATH)
+            candidates = (
+                root / "build" / f"libsovereign{ext}",
+                root / f"libsovereign{ext}",
+                root / "src" / f"libsovereign{ext}",
+            )
 
-            if os.path.exists(lib_path):
-                self._lib = ctypes.CDLL(lib_path)
+            for lib_path in candidates:
+                if not lib_path.exists():
+                    continue
+                self._lib = ctypes.CDLL(str(lib_path))
                 self._lib.compute_lyapunov_exponent.argtypes = [
                     ctypes.POINTER(ctypes.c_double),
                     ctypes.c_int,
@@ -40,11 +48,12 @@ class ChaosAgent:
                     ctypes.c_int,
                 ]
                 self._lib.compute_lyapunov_exponent.restype = ctypes.c_double
-                logger.info(f" Chaos Metrics library ({ext}) loaded successfully.")
-            else:
-                logger.warning(
-                    f"Chaos Metrics library (libsovereign{ext}) not found. Falling back to Python metrics (slow)."
-                )
+                logger.info(" Chaos Metrics library loaded from %s.", lib_path)
+                return
+
+            logger.warning(
+                f"Chaos Metrics library (libsovereign{ext}) not found. Falling back to Python metrics (slow)."
+            )
         except Exception as e:
             logger.error(f"Failed to load Chaos Metrics library: {e}")
 
