@@ -35,6 +35,25 @@ class TradingStateManager:
     _state: TradingState = TradingState.ACTIVE
     _reason: str = "System startup"
 
+    @staticmethod
+    def _native_halt_active() -> bool:
+        try:
+            from native_loader import NATIVE
+
+            return NATIVE.is_halted()
+        except Exception as exc:
+            logger.debug("Native halt probe unavailable: %s", exc)
+            return False
+
+    @staticmethod
+    def _set_native_halt(state: bool) -> None:
+        try:
+            from native_loader import NATIVE
+
+            NATIVE.set_halt(state)
+        except Exception as exc:
+            logger.debug("Native halt update unavailable: %s", exc)
+
     @classmethod
     def state(cls) -> TradingState:
         return cls._state
@@ -65,6 +84,9 @@ class TradingStateManager:
         -------
         (allowed: bool, reason: str)
         """
+        if cls._native_halt_active() and cls._state != TradingState.HALTED:
+            cls.halt("Native safety halt signal active")
+
         if cls._state == TradingState.HALTED:
             return False, f"TRADING HALTED: {cls._reason}"
 
@@ -76,6 +98,7 @@ class TradingStateManager:
     @classmethod
     def activate(cls, reason: str = "Manual activation") -> None:
         """Restore full trading. Use after a halt/reduce-only period has passed."""
+        cls._set_native_halt(False)
         if cls._state != TradingState.ACTIVE:
             logger.info(f"TradingState: ACTIVE ← {cls._state.value} | Reason: {reason}")
             cls._state = TradingState.ACTIVE
@@ -102,6 +125,7 @@ class TradingStateManager:
             logger.critical(f" TradingState: HALTED ← {cls._state.value} | Reason: {reason}")
             cls._state = TradingState.HALTED
             cls._reason = reason
+        cls._set_native_halt(True)
 
     @classmethod
     def check_daily_pnl(cls, daily_loss_pct: float, limit_pct: float) -> None:
