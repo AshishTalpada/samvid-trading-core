@@ -26,6 +26,7 @@ from portfolio_analyzer import PORTFOLIO_ANALYZER
 from vault import Vault
 
 logger = logging.getLogger(__name__)
+TERMINAL_ORDER_STATUSES = ("Filled", "Cancelled", "Inactive", "ApiCancelled")
 
 
 class APIServer:
@@ -781,21 +782,7 @@ class APIServer:
                                 for row in cursor.fetchall()
                             ]
 
-                        cursor.execute(
-                            "SELECT name FROM sqlite_master WHERE type='table' AND name='persistent_orders'"
-                        )
-                        if cursor.fetchone():
-                            cursor.execute("SELECT COUNT(*) FROM persistent_orders")
-                            trading_truth["order_health"]["persistent_orders"] = int(
-                                cursor.fetchone()[0] or 0
-                            )
-                            cursor.execute(
-                                "SELECT COUNT(*) FROM persistent_orders "
-                                "WHERE status NOT IN ('Filled', 'Cancelled', 'Inactive')"
-                            )
-                            trading_truth["order_health"]["stale_orders"] = int(
-                                cursor.fetchone()[0] or 0
-                            )
+                        self._populate_order_health(cursor, trading_truth)
 
                         cursor.execute(
                             "SELECT name FROM sqlite_master WHERE type='table' AND name='failure_post_mortem'"
@@ -1086,6 +1073,24 @@ class APIServer:
         latency_ms = max(0.0, (time.perf_counter() - started_at) * 1000.0)
         health_data["latency_ms"] = round(latency_ms, 3)
         health_data["latency_source"] = "api_state_collection"
+
+    @staticmethod
+    def _populate_order_health(cursor: sqlite3.Cursor, trading_truth: dict[str, Any]) -> None:
+        """Populate operator order counts using the broker recovery terminal-state policy."""
+        cursor.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name='persistent_orders'"
+        )
+        if not cursor.fetchone():
+            return
+
+        cursor.execute("SELECT COUNT(*) FROM persistent_orders")
+        trading_truth["order_health"]["persistent_orders"] = int(cursor.fetchone()[0] or 0)
+        placeholders = ", ".join("?" for _ in TERMINAL_ORDER_STATUSES)
+        cursor.execute(
+            f"SELECT COUNT(*) FROM persistent_orders WHERE status NOT IN ({placeholders})",
+            TERMINAL_ORDER_STATUSES,
+        )
+        trading_truth["order_health"]["stale_orders"] = int(cursor.fetchone()[0] or 0)
 
     @staticmethod
     def _probe_component(name: str, probe: Callable[[], Any]) -> str:
