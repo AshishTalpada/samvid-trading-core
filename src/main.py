@@ -263,6 +263,13 @@ class TradingSystem:
         """Return True when the system is running pure local simulation only."""
         return self.mode == "paper"
 
+    @staticmethod
+    def execution_watchlist() -> list[str]:
+        """Return the scanner's tradable symbols for warmup and realtime subscriptions."""
+        from brain_data import DataProvider
+
+        return list(DataProvider.EXECUTION_WATCHLIST)
+
     def __init__(self) -> None:
         self.profiler = StartupProfiler()
         self.profiler.mark("CONSTRUCTOR_START")
@@ -1762,7 +1769,7 @@ class TradingSystem:
                     logger.info("Native SLM offline - trading continues with pure math execution.")
 
             logger.info("\n[8.5/10] Initiating Neural Warmup (Contract Cache)...")
-            watchlist = ["SPY", "QQQ", "IWM", "DIA", "XLK", "XLF", "NVDA", "TSLA"]
+            watchlist = self.execution_watchlist()
             if hasattr(self, "ibc") and self.ibc is not None:
                 if hasattr(self.ibc, "warm_up_contracts"):
                     await self.ibc.warm_up_contracts(watchlist)
