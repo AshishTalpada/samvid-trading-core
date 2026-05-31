@@ -1,5 +1,6 @@
 #include <stdint.h>
 #include <stdio.h>
+#include "native_exports.h"
 
 #if defined(_MSC_VER)
 #include <intrin.h>
@@ -22,7 +23,7 @@ static int __get_cpuid(unsigned int leaf, unsigned int* eax, unsigned int* ebx, 
  * Checks for specific CPU features and isotopic signatures.
  */
 
-int verify_hardware_integrity() {
+SOVEREIGN_EXPORT int verify_hardware_integrity() {
     #if defined(__x86_64__) || defined(_M_X64)
     unsigned int eax, ebx, ecx, edx;
 
@@ -58,7 +59,7 @@ int verify_hardware_integrity() {
     return 1; // Verified
 }
 
-int verify_isotopic_signature(uint64_t chip_id, uint64_t known_signature) {
+SOVEREIGN_EXPORT int verify_isotopic_signature(uint64_t chip_id, uint64_t known_signature) {
     // Hardware verification of supply chain trust via silicon-level tagging
     if (chip_id != known_signature) {
         fprintf(stderr, "[AUDIT] FATAL: Chip ID mismatch! Potential hardware substitution detected.\n");
