@@ -82,33 +82,67 @@ class APIServer:
 
         @self.app.get("/health")
         async def health_check(key: str = Depends(self._verify_api_key)):
-            # Check basic components
-            status = "UP"
-            components = {
-                "system": "CONNECTED" if self.system else "DISCONNECTED",
-                "bus": "UP" if hasattr(self.system, "bus") and self.system.bus else "DOWN",
-                "db": "CONNECTED"
-                if hasattr(self.system, "db_conn") and self.system.db_conn
-                else "OFFLINE",
-            }
-            if any(v in ["DISCONNECTED", "DOWN", "OFFLINE"] for v in components.values()):
+            return self._build_health_payload()
+
+    def _load_persisted_health_snapshot(self) -> dict[str, Any] | None:
+        """Load the latest authoritative runtime snapshot when SQLite is available."""
+        db = getattr(self.system, "db_conn", None)
+        if not db:
+            return None
+        cursor = None
+        try:
+            cursor = db.cursor()
+            cursor.execute("SELECT value, updated_at FROM system_state WHERE key='service_health'")
+            row = cursor.fetchone()
+            if not row:
+                return None
+            payload = json.loads(row[0])
+            payload["updated_at"] = row[1]
+            return payload
+        finally:
+            if cursor is not None:
+                cursor.close()
+
+    def _build_health_payload(self) -> dict[str, Any]:
+        """Return one monitoring payload backed by the authoritative production snapshot."""
+        status = "UP"
+        components = {
+            "system": "CONNECTED" if self.system else "DISCONNECTED",
+            "bus": "UP" if getattr(self.system, "bus", None) else "DOWN",
+            "db": "CONNECTED" if getattr(self.system, "db_conn", None) else "OFFLINE",
+        }
+        if any(value in {"DISCONNECTED", "DOWN", "OFFLINE"} for value in components.values()):
+            status = "DEGRADED"
+
+        brain = (
+            getattr(self.system, "trading_brain", None)
+            or getattr(self.system, "brain", None)
+            or self.system
+        )
+        advisory = {}
+        for agent_name in ("contrarian_agent", "chaos_agent", "contagion_sentinel", "audit_agent"):
+            advisory[agent_name] = "UP" if getattr(brain, agent_name, None) is not None else "DOWN"
+        components["advisory_agents"] = advisory
+
+        production = None
+        try:
+            production = self._load_persisted_health_snapshot()
+        except Exception as exc:
+            logger.debug("API Server: persisted health fetch skipped: %s", exc)
+        if production:
+            overall = str(production.get("overall", "")).upper()
+            if overall == "OFFLINE":
+                status = "DOWN"
+            elif overall != "ONLINE":
                 status = "DEGRADED"
 
-            # Advisory agents (non-blocking, intelligence-only)
-            brain = getattr(self.system, "brain", None) or self.system
-            advisory = {}
-            for agent_name in ("contrarian_agent", "chaos_agent", "contagion_sentinel", "audit_agent"):
-                agent = getattr(brain, agent_name, None)
-                advisory[agent_name] = "UP" if agent is not None else "DOWN"
-
-            components["advisory_agents"] = advisory
-
-            return {
-                "status": status,
-                "timestamp": time.time_ns(),
-                "components": components,
-                "version": "Sovereign-1.0",
-            }
+        return {
+            "status": status,
+            "timestamp": time.time_ns(),
+            "components": components,
+            "production": production,
+            "version": "Sovereign-1.0",
+        }
 
     def _subscribe_to_bus(self) -> None:
         """Bind to the SharedIntelligenceBus for instant 100Hz pushing."""
@@ -383,16 +417,9 @@ class APIServer:
             if not getattr(self.system, "db_conn", None):
                 raise HTTPException(status_code=503, detail="database unavailable")
             try:
-                cursor = self.system.db_conn.cursor()
-                cursor.execute(
-                    "SELECT value, updated_at FROM system_state WHERE key='service_health'"
-                )
-                row = cursor.fetchone()
-                cursor.close()
-                if not row:
+                payload = self._load_persisted_health_snapshot()
+                if not payload:
                     raise HTTPException(status_code=404, detail="health snapshot unavailable")
-                payload = json.loads(row[0])
-                payload["updated_at"] = row[1]
                 return payload
             except HTTPException:
                 raise
@@ -1020,19 +1047,10 @@ class APIServer:
 
             # 4. System Health (Granular Component Feedback)
             persisted_health = None
-            if self.system.db_conn:
-                try:
-                    cursor = self.system.db_conn.cursor()
-                    cursor.execute(
-                        "SELECT value, updated_at FROM system_state WHERE key='service_health'"
-                    )
-                    row = cursor.fetchone()
-                    cursor.close()
-                    if row:
-                        persisted_health = json.loads(row[0])
-                        persisted_health["updated_at"] = row[1]
-                except Exception as exc:
-                    logger.debug("API Server: persisted health fetch skipped: %s", exc)
+            try:
+                persisted_health = self._load_persisted_health_snapshot()
+            except Exception as exc:
+                logger.debug("API Server: persisted health fetch skipped: %s", exc)
             health_data = {
                 "mode": self.system.mode,
                 "dms": "ACTIVE" if hasattr(self.system, "dms") and self.system.dms else "OFFLINE",
