@@ -38,6 +38,7 @@ dependencies = [
     "websockets>=16.0",
     "scipy>=1.17.1",
     "pytest-cov>=7.1.0",
+    "numba>=0.65.1",
 ]
 keywords = [
     "algorithmic-trading",
