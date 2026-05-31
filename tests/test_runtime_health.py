@@ -1,3 +1,5 @@
+from types import SimpleNamespace
+
 from runtime_health import ComponentHealth, build_health_snapshot, market_data_health
 
 
@@ -97,3 +99,37 @@ def test_market_data_health_requires_recent_verified_bar() -> None:
     assert stale.status == "DELAYED"
     assert fresh.status == "ONLINE"
     assert "verified_symbols=2" in fresh.detail
+
+
+def test_trading_system_snapshot_preserves_openbb_fallback_detail(monkeypatch) -> None:
+    import main as main_mod
+
+    system = main_mod.TradingSystem.__new__(main_mod.TradingSystem)
+    system.mode = "ibkr_paper"
+    system.trading_brain = SimpleNamespace(
+        state=SimpleNamespace(name="STANDBY"),
+        positions=[],
+        _last_fresh_bar_at={},
+    )
+    system._openbb_provider = SimpleNamespace(
+        health_status=lambda: (
+            "FALLBACK",
+            "OpenBB SDK unavailable; pipeline fallback provider=yfinance",
+        )
+    )
+    system.dhatu_oracle = object()
+    system.native_slm = None
+    system.tv_quote_streamer = None
+    system.hft_streamer = None
+    monkeypatch.setattr(main_mod, "is_us_equity_market_open", lambda: False)
+    monkeypatch.setattr(main_mod, "us_equity_session_status", lambda: "CLOSED")
+
+    snapshot = system._build_runtime_health_snapshot(
+        ibkr_value="connected",
+        mt5_value="disconnected",
+    )
+
+    openbb = snapshot["components"]["openbb"]
+    assert openbb["status"] == "FALLBACK"
+    assert "pipeline fallback provider=yfinance" in openbb["detail"]
+    assert "openbb" in snapshot["degraded"]
