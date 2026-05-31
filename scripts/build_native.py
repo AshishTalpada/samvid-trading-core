@@ -5,7 +5,7 @@ from __future__ import annotations
 import os
 import subprocess
 import sys
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 
 ROOT = Path(__file__).resolve().parent.parent
 TARGET = ROOT / "build" / ("libsovereign.dll" if sys.platform == "win32" else "libsovereign.so")
@@ -36,12 +36,12 @@ def _find_vcvarsall() -> Path:
 
 
 def _windows_command(vcvarsall: Path) -> str:
-    sources = " ".join(f'"{source}"' for source in SOURCES)
+    sources = " ".join(f'"{PureWindowsPath(source.relative_to(ROOT))}"' for source in SOURCES)
     return (
         f'call "{vcvarsall}" x64\n'
         "if errorlevel 1 exit /b %errorlevel%\n"
         "cl /O2 /std:c11 /experimental:c11atomics /LD "
-        f'/Fe:"{TARGET}" {sources} /I"{ROOT / "src"}"\n'
+        f'/Fe:"{TARGET}" {sources} /I"src"\n'
     )
 
 
