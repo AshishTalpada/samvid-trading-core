@@ -628,7 +628,12 @@ class PositionMonitor:
             self.session_pnl += realized_net_pnl
             if exit_type != "PARTIAL":
                 await self._log_trade_exit(
-                    pos, exit_type, adjusted_exit_price, realized_gross_pnl, r_multiple
+                    pos,
+                    exit_type,
+                    adjusted_exit_price,
+                    realized_gross_pnl,
+                    r_multiple,
+                    realized_net_pnl=realized_net_pnl,
                 )
 
             # 4. Neural Cleanup & Learning
