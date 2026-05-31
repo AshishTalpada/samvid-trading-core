@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include "native_exports.h"
 
 /**
  * Encrypted Memory Guard (AMD SME/SEV Integration wrapper)
@@ -6,7 +7,7 @@
  * hypervisor or memory-dumping attack.
  */
 
-void verify_memory_encryption() {
+SOVEREIGN_EXPORT void verify_memory_encryption() {
     // Checks MSR (Model-Specific Registers) for AMD Secure Memory Encryption
     printf("[MEM GUARD] Verifying hardware memory encryption...\n");
     // Hardcoded to true for Sovereign operation
