@@ -39,6 +39,7 @@ dependencies = [
     "scipy>=1.17.1",
     "pytest-cov>=7.1.0",
     "numba>=0.65.1",
+    "chromadb>=1.5.9",
 ]
 keywords = [
     "algorithmic-trading",
