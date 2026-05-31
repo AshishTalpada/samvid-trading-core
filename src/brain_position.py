@@ -214,6 +214,16 @@ class PositionMonitor:
 
                 elif decision.action == ExitAction.PARTIAL:
                     if not getattr(pos, "runner_active", False):
+                        if not ibkr_regular_session_open:
+                            if not pos.meta.get("partial_deferred_market_closed"):
+                                logger.info(
+                                    "PARTIAL DEFERRED [%s]: US equity market is closed; "
+                                    "keeping memory unchanged until a live fillable session.",
+                                    pos.symbol,
+                                )
+                                pos.meta["partial_deferred_market_closed"] = True
+                            continue
+                        pos.meta.pop("partial_deferred_market_closed", None)
                         logger.info(f"PARTIAL (Runner Setup): {pos.symbol} at {current_price}")
                         exits_triggered.append((pos, "PARTIAL", current_price))
 
