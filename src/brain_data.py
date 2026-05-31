@@ -24,6 +24,15 @@ logger = logging.getLogger(__name__)
 class DataProvider:
     """Mixin: VIX, OHLCV, watchlist, regime detection, and market snapshots."""
 
+    EXECUTION_WATCHLIST = (
+        "SPY", "QQQ", "IWM", "DIA",
+        "AAPL", "MSFT", "GOOGL", "AMZN", "NVDA", "META", "TSLA",
+        "AMD", "AVGO", "SMCI", "ARM", "MU", "PLTR",
+        "COIN", "MSTR",
+        "JPM", "GS", "V", "MA",
+        "WMT", "COST", "NFLX",
+    )
+
     @staticmethod
     def _live_bar_staleness_limit_sec() -> float:
         """Maximum age of a one-minute bar while the market is open."""
@@ -64,20 +73,7 @@ class DataProvider:
     # ------------------------------------------------------------------
     async def _get_watchlist(self) -> list[str]:
         """Get current watchlist from database or config."""
-        return [
-            # Core Indices
-            "SPY", "QQQ", "IWM", "DIA",
-            # Mag 7 & Trillion Dollar Tech
-            "AAPL", "MSFT", "GOOGL", "AMZN", "NVDA", "META", "TSLA",
-            # High Beta Semi / AI
-            "AMD", "AVGO", "SMCI", "ARM", "MU", "PLTR",
-            # Crypto Proxies
-            "COIN", "MSTR",
-            # Banks / Value
-            "JPM", "GS", "V", "MA",
-            # Retail / Consumers
-            "WMT", "COST", "NFLX",
-        ]
+        return list(self.EXECUTION_WATCHLIST)
 
     def _is_market_open(self) -> bool:
         """Return True if NYSE is currently in the regular 9:30-16:00 ET session."""
