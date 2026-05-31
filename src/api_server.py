@@ -7,7 +7,7 @@ import sqlite3
 import time
 from contextlib import asynccontextmanager
 from datetime import datetime
-from typing import Any
+from typing import Any, Callable
 
 import uvicorn
 from fastapi import (
@@ -1061,22 +1061,7 @@ class APIServer:
                         - getattr(self.system, "start_time", datetime.now()).astimezone()
                     ).total_seconds()
                 ),
-                "components": {
-                    "ibkr": "ONLINE"
-                    if self.system.ibkr_client and self.system.ibkr_client.isConnected()
-                    else "OFFLINE",
-                    "mt5": "ONLINE"
-                    if self.system.mt5_client and self.system.mt5_client.terminal_info()
-                    else "OFFLINE",
-                    "qdb": "ONLINE"
-                    if self.system.questdb and self.system.questdb.is_active
-                    else "OFFLINE",
-                    "dhatu": "ONLINE" if self.system.dhatu_oracle else "OFFLINE",
-                    "brain": "ONLINE"
-                    if self.system.trading_brain and self.system.trading_brain.is_running
-                    else "OFFLINE",
-                    "sovereign": "ONLINE",
-                },
+                "components": self._operator_component_statuses(),
             }
             if persisted_health:
                 health_data["production"] = persisted_health
@@ -1101,6 +1086,48 @@ class APIServer:
         latency_ms = max(0.0, (time.perf_counter() - started_at) * 1000.0)
         health_data["latency_ms"] = round(latency_ms, 3)
         health_data["latency_source"] = "api_state_collection"
+
+    @staticmethod
+    def _probe_component(name: str, probe: Callable[[], Any]) -> str:
+        """Contain one optional component probe so the operator state remains readable."""
+        try:
+            return "ONLINE" if probe() else "OFFLINE"
+        except Exception as exc:
+            logger.debug("API Server: %s health probe failed: %s", name, exc)
+            return "ERROR"
+
+    def _operator_component_statuses(self) -> dict[str, str]:
+        """Return isolated component states for the operator dashboard."""
+        system = self.system
+        return {
+            "ibkr": self._probe_component(
+                "ibkr",
+                lambda: bool(
+                    getattr(system, "ibkr_client", None)
+                    and system.ibkr_client.isConnected()
+                ),
+            ),
+            "mt5": self._probe_component(
+                "mt5",
+                lambda: bool(
+                    getattr(system, "mt5_client", None)
+                    and system.mt5_client.terminal_info()
+                ),
+            ),
+            "qdb": self._probe_component(
+                "qdb",
+                lambda: bool(
+                    getattr(system, "questdb", None)
+                    and system.questdb.is_active
+                ),
+            ),
+            "dhatu": self._probe_component("dhatu", lambda: bool(system.dhatu_oracle)),
+            "brain": self._probe_component(
+                "brain",
+                lambda: bool(system.trading_brain and system.trading_brain.is_running),
+            ),
+            "sovereign": "ONLINE",
+        }
 
     async def start(self) -> bool:
         """Run the FastAPI server with uvicorn in the existing event loop."""
