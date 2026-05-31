@@ -1,5 +1,6 @@
 #include <stdatomic.h>
 #include <stdbool.h>
+#include "native_exports.h"
 
 /**
  * Sovereign Global Safety Core
@@ -22,15 +23,15 @@ typedef struct {
 
 static NativeTelemetry latest_telemetry = {0};
 
-void set_global_halt(bool state) {
+SOVEREIGN_EXPORT void set_global_halt(bool state) {
     atomic_store(&global_halt_active, state);
 }
 
-bool is_global_halt_active() {
+SOVEREIGN_EXPORT bool is_global_halt_active() {
     return atomic_load(&global_halt_active);
 }
 
-void report_native_telemetry(double latency, double slippage, int fills, bool fault) {
+SOVEREIGN_EXPORT void report_native_telemetry(double latency, double slippage, int fills, bool fault) {
     // Validate inputs
     if (latency < 0.0 || slippage < 0.0 || fills < 0) return;
     
@@ -40,7 +41,7 @@ void report_native_telemetry(double latency, double slippage, int fills, bool fa
     latest_telemetry.hardware_fault = fault;
 }
 
-NativeTelemetry get_latest_telemetry() {
+SOVEREIGN_EXPORT NativeTelemetry get_latest_telemetry() {
     return latest_telemetry;
 }
 
