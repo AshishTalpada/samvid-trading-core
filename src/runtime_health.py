@@ -88,6 +88,9 @@ def _score_health(
             actions.append(f"Restore critical component: {component.name}")
             continue
         if component.name in degraded:
+            if status == "PAUSED" and not component.critical:
+                actions.append(f"Confirm pause is expected: {component.name}")
+                continue
             penalty = 18 if component.critical else 7
             if status == "FALLBACK":
                 penalty += 5 if component.critical else 3
