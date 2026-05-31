@@ -2,6 +2,8 @@ import json
 import sqlite3
 from types import SimpleNamespace
 
+import pytest
+
 from api_server import APIServer
 
 
@@ -58,3 +60,13 @@ def test_api_health_payload_marks_production_offline_as_down() -> None:
 
     assert payload["status"] == "DOWN"
     assert payload["production"]["overall"] == "OFFLINE"
+
+
+def test_api_state_collection_latency_is_measured(monkeypatch) -> None:
+    monkeypatch.setattr("api_server.time.perf_counter", lambda: 10.012345)
+    health: dict = {}
+
+    APIServer._annotate_collection_latency(health, 10.0)
+
+    assert health["latency_ms"] == pytest.approx(12.345)
+    assert health["latency_source"] == "api_state_collection"
