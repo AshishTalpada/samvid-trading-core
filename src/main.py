@@ -1846,17 +1846,23 @@ class TradingSystem:
 
             banner = (
                 "\n"
-                "╔══════════════════════════════════════════╗\n"
-                "║    SOVEREIGN ENGINE — STARTUP STATUS      ║\n"
-                "╠══════════════════════════════════════════╣\n"
-                f"║  IBKR ({account}): {_s(ibkr_ok)}   Mode: {mode:<10}  ║\n"
-                f"║  Sovereign Core: {_s(deterministic_ok)}   Brain:  {_s(brain_ok)}            ║\n"
-                f"║  QuestDB:     {_s(qdb_ok)}   DMS:    {_s(dms_ok)}            ║\n"
-                f"║  MT5:         {_s(mt5_ok)}   (optional)             ║\n"
-                "╚══════════════════════════════════════════╝"
+                "+------------------------------------------+\n"
+                "|    SOVEREIGN ENGINE - STARTUP STATUS     |\n"
+                "+------------------------------------------+\n"
+                f"|  IBKR ({account}): {_s(ibkr_ok)}   Mode: {mode:<10}  |\n"
+                f"|  Sovereign Core: {_s(deterministic_ok)}   Brain:  {_s(brain_ok)}            |\n"
+                f"|  QuestDB:     {_s(qdb_ok)}   DMS:    {_s(dms_ok)}            |\n"
+                f"|  MT5:         {_s(mt5_ok)}   (optional)             |\n"
+                "+------------------------------------------+"
             )
             print(banner)
-            logger.info("STARTUP COMPLETE — system healthy and scanning.")
+            market_open = self.trading_brain._is_market_open() if self.trading_brain else None
+            if market_open is False:
+                logger.info(
+                    "STARTUP COMPLETE - system healthy; market closed, new-trade scans deferred."
+                )
+            else:
+                logger.info("STARTUP COMPLETE - system healthy; active loop online.")
         except Exception as e:
             logger.debug("Main: startup banner rendering failed: %s", e)
 
