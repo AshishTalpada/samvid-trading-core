@@ -2,9 +2,13 @@
 
 from __future__ import annotations
 
+import json
 import sqlite3
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterable
+
+BASELINE_STATE_KEY = "paper_performance_baseline"
 
 
 def _max_drawdown(pnls: Iterable[float], starting_equity: float) -> float:
@@ -25,14 +29,74 @@ def _as_float(value: Any) -> float | None:
         return None
 
 
+def load_performance_baseline(db_path: str | Path = "data/trading.db") -> dict[str, Any] | None:
+    """Load the persisted post-repair measurement boundary, if one exists."""
+    with sqlite3.connect(str(db_path), timeout=60.0) as conn:
+        try:
+            row = conn.execute(
+                "SELECT value FROM system_state WHERE key=?",
+                (BASELINE_STATE_KEY,),
+            ).fetchone()
+        except sqlite3.OperationalError:
+            return None
+    if not row:
+        return None
+    payload = json.loads(row[0])
+    min_trade_id = int(payload["min_trade_id"])
+    if min_trade_id < 1:
+        raise ValueError("paper performance baseline min_trade_id must be positive")
+    return {**payload, "min_trade_id": min_trade_id}
+
+
+def establish_performance_baseline(
+    db_path: str | Path = "data/trading.db",
+    *,
+    reason: str,
+    force: bool = False,
+) -> dict[str, Any]:
+    """Persist the next trade ID as a clean evidence boundary."""
+    if not reason.strip():
+        raise ValueError("paper performance baseline requires a reason")
+    with sqlite3.connect(str(db_path), timeout=60.0) as conn:
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS system_state (
+                key TEXT PRIMARY KEY,
+                value TEXT,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+            """
+        )
+        existing = conn.execute(
+            "SELECT value FROM system_state WHERE key=?",
+            (BASELINE_STATE_KEY,),
+        ).fetchone()
+        if existing and not force:
+            raise ValueError("paper performance baseline already exists; use force=True to replace it")
+        max_trade_id = int(conn.execute("SELECT COALESCE(MAX(id), 0) FROM trades").fetchone()[0])
+        payload = {
+            "min_trade_id": max_trade_id + 1,
+            "created_at": datetime.now(timezone.utc).isoformat(),
+            "reason": reason.strip(),
+        }
+        conn.execute(
+            "INSERT OR REPLACE INTO system_state (key, value, updated_at) VALUES (?, ?, ?)",
+            (BASELINE_STATE_KEY, json.dumps(payload, sort_keys=True), payload["created_at"]),
+        )
+        conn.commit()
+    return payload
+
+
 def build_paper_performance(
     db_path: str | Path = "data/trading.db",
     *,
     starting_equity: float = 100_000.0,
     trading_modes: tuple[str, ...] = ("paper", "ibkr_paper"),
-    min_trade_id: int = 0,
+    min_trade_id: int | None = None,
 ) -> dict[str, Any]:
     """Return net performance evidence from genuine closed paper trades."""
+    baseline = load_performance_baseline(db_path) if min_trade_id is None else None
+    resolved_min_trade_id = int(baseline["min_trade_id"]) if baseline else int(min_trade_id or 0)
     placeholders = ",".join("?" for _ in trading_modes)
     query = f"""
         SELECT
@@ -46,7 +110,7 @@ def build_paper_performance(
         ORDER BY id ASC
     """
     with sqlite3.connect(str(db_path), timeout=60.0) as conn:
-        rows = conn.execute(query, (*trading_modes, int(min_trade_id))).fetchall()
+        rows = conn.execute(query, (*trading_modes, resolved_min_trade_id)).fetchall()
 
     pnls = [value for row in rows if (value := _as_float(row[4])) is not None]
     gross_pnls = [value for row in rows if (value := _as_float(row[3])) is not None]
@@ -63,9 +127,11 @@ def build_paper_performance(
         "source": "sqlite_closed_paper_trades",
         "trading_modes": list(trading_modes),
         "window": {
-            "min_trade_id": int(min_trade_id),
+            "min_trade_id": resolved_min_trade_id,
             "first_trade_id": int(rows[0][0]) if rows else None,
             "last_trade_id": int(rows[-1][0]) if rows else None,
+            "baseline_source": "stored_system_state" if baseline else "explicit_or_full_history",
+            "baseline": baseline,
         },
         "metrics": {
             "trades": trade_count,
