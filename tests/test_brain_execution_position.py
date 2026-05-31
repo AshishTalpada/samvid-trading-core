@@ -625,6 +625,52 @@ class TestBrokerExitRealization:
         assert not getattr(pos, "runner_active", False)
 
     @pytest.mark.asyncio
+    async def test_ibkr_non_emergency_exit_deferred_when_market_closed(self, paper_brain):
+        """Regular full exits must wait for a live fillable equity session."""
+        paper_brain.mode = "ibkr_paper"
+        paper_brain.ibkr_conn.is_connected.return_value = True
+        paper_brain._broker_is_connected = MagicMock(return_value=True)
+        paper_brain._is_market_open = MagicMock(return_value=False)
+        paper_brain._place_ibkr_order = AsyncMock(return_value=12345)
+
+        pos = _make_position(
+            symbol="NVDA",
+            qty=12,
+            entry_time=datetime.now(timezone.utc) - timedelta(minutes=20),
+        )
+        paper_brain.positions = [pos]
+
+        await paper_brain._process_exit(pos, "EXIT_P3", 212.50)
+
+        paper_brain._place_ibkr_order.assert_not_awaited()
+        assert pos.qty == 12
+        assert pos in paper_brain.positions
+
+    @pytest.mark.asyncio
+    async def test_ibkr_emergency_exit_allowed_when_market_closed(self, paper_brain):
+        """Safety exits remain routable outside the regular equity session."""
+        paper_brain.mode = "ibkr_paper"
+        paper_brain.ibkr_conn.is_connected.return_value = True
+        paper_brain._broker_is_connected = MagicMock(return_value=True)
+        paper_brain._is_market_open = MagicMock(return_value=False)
+        paper_brain._place_ibkr_order = AsyncMock(return_value=12345)
+        paper_brain._confirm_ibkr_order_filled = AsyncMock(return_value=False)
+
+        pos = _make_position(
+            symbol="NVDA",
+            qty=12,
+            entry_time=datetime.now(timezone.utc) - timedelta(minutes=20),
+        )
+        paper_brain.positions = [pos]
+
+        await paper_brain._process_exit(pos, "STOP_LOSS", 212.50)
+
+        paper_brain._place_ibkr_order.assert_awaited_once()
+        paper_brain._confirm_ibkr_order_filled.assert_awaited_once_with(12345, "NVDA")
+        assert pos.qty == 12
+        assert pos in paper_brain.positions
+
+    @pytest.mark.asyncio
     async def test_paper_exit_passes_gross_pnl_for_single_cost_deduction(self, paper_brain):
         """The exit logger receives gross and authoritative net PnL."""
         paper_brain.ibkr_client = None
@@ -714,6 +760,7 @@ def _make_positioned_brain(
     )
     brain._get_account_value = AsyncMock(return_value=10000.0)
     brain._get_daily_pnl = AsyncMock(return_value=0.0)
+    brain._is_market_open = MagicMock(return_value=True)
 
     # mind_ultrathink returns the given heartbeat response
     brain.mind_ultrathink = MagicMock()
@@ -891,6 +938,21 @@ class TestHeartbeatVetoAgeGate:
         assert pos.stop_loss == pytest.approx(99.5), (
             f"Expected stop_loss=99.5, got {pos.stop_loss}"
         )
+
+    @pytest.mark.asyncio
+    async def test_new_stop_from_heartbeat_deferred_when_ibkr_market_closed(self):
+        """Stale after-hours snapshots must not ratchet IBKR stop memory."""
+        entry_time = datetime.now(timezone.utc) - timedelta(seconds=120)
+        heartbeat = {"veto": False, "new_stop": 99.5}
+
+        brain, pos = _make_positioned_brain(entry_time, heartbeat)
+        brain.mode = "ibkr_paper"
+        pos.account_type = "ibkr"
+        brain._is_market_open = MagicMock(return_value=False)
+        brain._state_lock = asyncio.Lock()
+        await brain._state_positioned()
+
+        assert pos.stop_loss == pytest.approx(98.0)
 
     @pytest.mark.asyncio
     async def test_old_position_stop_breach_with_stop_breach_prefix(self):
