@@ -54,3 +54,10 @@ def test_startup_status_preserves_openbb_fallback_detail() -> None:
     assert status == (
         "YELLOW FALLBACK - OpenBB SDK unavailable; pipeline fallback provider=yfinance"
     )
+
+
+def test_realtime_watchlist_matches_scanner_execution_watchlist() -> None:
+    from brain_data import DataProvider
+
+    assert TradingSystem.execution_watchlist() == list(DataProvider.EXECUTION_WATCHLIST)
+    assert len(TradingSystem.execution_watchlist()) == 26
