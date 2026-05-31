@@ -57,6 +57,46 @@ async def test_openbb_provider_is_available_property() -> None:
         assert provider.is_available is False
 
 
+def test_openbb_health_status_reports_pipeline_fallback(monkeypatch) -> None:
+    """Missing SDK must be distinguishable from a disabled data lane."""
+    import src.openbb_provider as openbb_mod
+    from src.openbb_provider import OpenBBProvider  # type: ignore
+
+    monkeypatch.setattr(openbb_mod, "_OPENBB_AVAILABLE", False)
+    provider = OpenBBProvider(pat="", preferred_provider="yfinance")
+    provider._initialized = True
+
+    status, detail = provider.health_status()
+
+    assert status == "FALLBACK"
+    assert "pipeline fallback provider=yfinance" in detail
+
+
+def test_openbb_health_status_reports_explicit_disable(monkeypatch) -> None:
+    """An intentionally disabled lane stays offline with an actionable reason."""
+    import src.openbb_provider as openbb_mod
+    from src.openbb_provider import OpenBBProvider  # type: ignore
+
+    monkeypatch.setattr(openbb_mod, "_OPENBB_AVAILABLE", False)
+    provider = OpenBBProvider(pat="", preferred_provider="yfinance")
+    provider._initialized = True
+    provider._disabled_by_env = True
+
+    assert provider.health_status() == ("OFFLINE", "disabled by SOVEREIGN_DISABLE_OPENBB")
+
+
+def test_openbb_health_status_reports_sdk_online(monkeypatch) -> None:
+    """A loaded SDK reports its configured upstream provider."""
+    import src.openbb_provider as openbb_mod
+    from src.openbb_provider import OpenBBProvider  # type: ignore
+
+    monkeypatch.setattr(openbb_mod, "_OPENBB_AVAILABLE", True)
+    provider = OpenBBProvider(pat="", preferred_provider="yfinance")
+    provider._initialized = True
+
+    assert provider.health_status() == ("ONLINE", "OpenBB SDK active; provider=yfinance")
+
+
 # ── Test: Graceful Degradation ────────────────────────────────────────
 
 
