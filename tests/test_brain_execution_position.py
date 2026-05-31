@@ -301,6 +301,31 @@ class TestLogTradeExitNetPnl:
         assert outcome == "BREAKEVEN", f"Expected outcome=BREAKEVEN, got {outcome}"
 
     @pytest.mark.asyncio
+    async def test_authoritative_net_pnl_controls_storage_and_learning(self, paper_brain):
+        """The orchestrator's cost-aware net PnL overrides stale position cost fields."""
+        conn = paper_brain.db_conn
+        db_id = _insert_open_trade(conn, "META")
+        pos = _make_position(symbol="META", commission=0.0, slippage=0.0, db_id=db_id)
+
+        await paper_brain._log_trade_exit(
+            pos,
+            "TARGET_HIT",
+            101.0,
+            10.0,
+            0.5,
+            realized_net_pnl=6.75,
+        )
+
+        row = conn.execute(
+            "SELECT net_pnl, pnl_dollars, outcome FROM trades WHERE rowid=?", (db_id,)
+        ).fetchone()
+        assert row is not None
+        assert row[0] == pytest.approx(6.75)
+        assert row[1] == pytest.approx(10.0)
+        assert row[2] == "WIN"
+        assert paper_brain.wisdom.write_post_mortem.call_args.args[2] == pytest.approx(6.75)
+
+    @pytest.mark.asyncio
     async def test_r_multiple_sign_long_loss(self, paper_brain):
         """
         LONG position (qty>0), entry=100, stop=98, exit=99.
@@ -601,7 +626,7 @@ class TestBrokerExitRealization:
 
     @pytest.mark.asyncio
     async def test_paper_exit_passes_gross_pnl_for_single_cost_deduction(self, paper_brain):
-        """The exit logger receives gross PnL; session accounting retains net PnL."""
+        """The exit logger receives gross and authoritative net PnL."""
         paper_brain.ibkr_client = None
         paper_brain.bus = None
         paper_brain._log_trade_exit = AsyncMock()
@@ -626,8 +651,10 @@ class TestBrokerExitRealization:
 
         gross_pnl = paper_brain._log_trade_exit.await_args.args[3]
         net_pnl = paper_brain.session_pnl - starting_session_pnl
+        logged_net_pnl = paper_brain._log_trade_exit.await_args.kwargs["realized_net_pnl"]
         assert gross_pnl > net_pnl
         assert gross_pnl - net_pnl == pytest.approx(3.0, abs=1e-9)
+        assert logged_net_pnl == pytest.approx(net_pnl, abs=1e-9)
 
 
 # ---------------------------------------------------------------------------
