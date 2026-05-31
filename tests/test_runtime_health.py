@@ -1,4 +1,10 @@
+import asyncio
+import json
+import sqlite3
 from types import SimpleNamespace
+from unittest.mock import AsyncMock, MagicMock
+
+import pytest
 
 from runtime_health import ComponentHealth, build_health_snapshot, market_data_health
 
@@ -133,3 +139,45 @@ def test_trading_system_snapshot_preserves_openbb_fallback_detail(monkeypatch) -
     assert openbb["status"] == "FALLBACK"
     assert "pipeline fallback provider=yfinance" in openbb["detail"]
     assert "openbb" in snapshot["degraded"]
+
+
+@pytest.mark.asyncio
+async def test_runtime_health_snapshot_persists_and_publishes_immediately() -> None:
+    import main as main_mod
+
+    system = main_mod.TradingSystem.__new__(main_mod.TradingSystem)
+    system.db_conn = sqlite3.connect(":memory:")
+    system.db_conn.execute(
+        "CREATE TABLE system_state (key TEXT PRIMARY KEY, value TEXT, updated_at TIMESTAMP)"
+    )
+    system.db_lock = asyncio.Lock()
+    system.ibkr_client = SimpleNamespace(isConnected=lambda: True)
+    system.mt5_client = SimpleNamespace(
+        terminal_info=lambda: SimpleNamespace(connected=True)
+    )
+    system.bus = SimpleNamespace(publish=AsyncMock())
+    system._build_runtime_health_snapshot = MagicMock(
+        return_value={"overall": "DEGRADED", "components": {"openbb": {"status": "FALLBACK"}}}
+    )
+    system._record_system_event = MagicMock()
+    system._refresh_performance_summary = MagicMock()
+
+    snapshot = await system._persist_runtime_health_snapshot(
+        event_type="startup_health",
+        message="Startup runtime health",
+    )
+
+    rows = dict(system.db_conn.execute("SELECT key, value FROM system_state"))
+    assert snapshot == {"overall": "DEGRADED", "components": {"openbb": {"status": "FALLBACK"}}}
+    assert rows["ibkr_status"] == "connected"
+    assert rows["mt5_status"] == "connected"
+    assert json.loads(rows["service_health"]) == snapshot
+    assert int(rows["last_heartbeat"]) > 0
+    system._record_system_event.assert_called_once_with(
+        "startup_health",
+        "Startup runtime health",
+        agent="main",
+        details=snapshot,
+    )
+    system.bus.publish.assert_awaited_once_with("system.health", snapshot)
+    system._refresh_performance_summary.assert_called_once_with()
