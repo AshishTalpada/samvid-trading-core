@@ -8,6 +8,7 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from agent_c_ibkr import IBKRConnection
+from brain import TradingBrain
 
 
 def _connection_with_failed_audit() -> IBKRConnection:
@@ -241,6 +242,38 @@ async def test_recovery_classifies_orders_missing_from_broker(tmp_path, monkeypa
     ).fetchone()[0]
     assert status == "ReconciliationRequired"
     assert conn._recovered_orders == {124}
+
+
+@pytest.mark.asyncio
+async def test_ensure_connection_registers_callbacks_and_launches_recovery() -> None:
+    conn = IBKRConnection.__new__(IBKRConnection)
+    conn.is_connected = MagicMock(return_value=True)
+    conn.is_reconnecting = False
+    conn._callbacks_registered = False
+    conn._setup_callbacks = MagicMock(
+        side_effect=lambda: setattr(conn, "_callbacks_registered", True)
+    )
+    conn._recovered_orders = set()
+    conn._background_tasks = set()
+    conn.recover_orphaned_orders = AsyncMock()
+
+    result = await conn.ensure_connection()
+    await asyncio.sleep(0)
+
+    assert result is True
+    conn._setup_callbacks.assert_called_once()
+    conn.recover_orphaned_orders.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_brain_startup_initializes_connected_ibkr_runtime() -> None:
+    brain = TradingBrain.__new__(TradingBrain)
+    brain.ibkr_conn = SimpleNamespace(ensure_connection=AsyncMock())
+    brain._broker_is_connected = MagicMock(return_value=True)
+
+    await brain._initialize_ibkr_runtime()
+
+    brain.ibkr_conn.ensure_connection.assert_awaited_once()
 
 
 @pytest.mark.asyncio
