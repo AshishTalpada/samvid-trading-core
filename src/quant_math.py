@@ -56,17 +56,30 @@ if not _NUMBA_AVAILABLE:
 def ema_array(prices: np.ndarray, period: int) -> np.ndarray:
     """
     Full-array EMA — O(n), Numba JIT compiled.
-    Returns array of same length; first `period-1` values are NaN.
+    Returns an array of the same length. Values remain NaN until `period`
+    valid samples have arrived; NaN gaps do not poison later samples.
     """
     n = len(prices)
-    out = np.empty(n, dtype=np.float64)
+    out = np.full(n, np.nan)
+    if period <= 0:
+        raise ValueError("period must be positive")
+    if n == 0:
+        return out
+
     alpha = 2.0 / (period + 1)
-    out[0] = prices[0]
-    for i in range(1, n):
-        out[i] = alpha * prices[i] + (1.0 - alpha) * out[i - 1]
-    # Mask warm-up values
-    for i in range(min(period - 1, n)):
-        out[i] = np.nan
+    ema = 0.0
+    valid_samples = 0
+    for i in range(n):
+        price = prices[i]
+        if np.isnan(price):
+            continue
+        if valid_samples == 0:
+            ema = price
+        else:
+            ema = alpha * price + (1.0 - alpha) * ema
+        valid_samples += 1
+        if valid_samples >= period:
+            out[i] = ema
     return out
 
 
@@ -87,6 +100,8 @@ def rsi_array(prices: np.ndarray, period: int = 14) -> np.ndarray:
     """
     n = len(prices)
     out = np.full(n, np.nan)
+    if period <= 0:
+        raise ValueError("period must be positive")
     if n < period + 1:
         return out
 
@@ -99,6 +114,12 @@ def rsi_array(prices: np.ndarray, period: int = 14) -> np.ndarray:
 
     avg_gain = np.mean(gains[:period])
     avg_loss = np.mean(losses[:period])
+
+    if avg_loss < 1e-12:
+        out[period] = 100.0
+    else:
+        rs = avg_gain / avg_loss
+        out[period] = 100.0 - (100.0 / (1.0 + rs))
 
     for i in range(period, n - 1):
         avg_gain = (avg_gain * (period - 1) + gains[i]) / period
