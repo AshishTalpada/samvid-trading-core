@@ -186,6 +186,20 @@ def validate_execution_audit(path: str = "data/execution_audit.jsonl") -> list[s
     return [f"Execution audit chain failed verification: {verification.get('error', 'unknown')}"]
 
 
+def validate_paper_performance_baseline(path: str = "data/trading.db") -> list[str]:
+    """Surface missing or malformed post-repair paper measurement boundaries."""
+    _ensure_paths()
+    from paper_performance import load_performance_baseline
+
+    try:
+        baseline = load_performance_baseline(path)
+    except Exception as exc:
+        return [f"Paper performance baseline is invalid: {type(exc).__name__}: {exc}"]
+    if baseline is None:
+        return ["Paper performance baseline is not established"]
+    return []
+
+
 def main() -> int:
     os.environ.setdefault("SOVEREIGN_SKIP_PID_CHECK", "1")
     os.environ.setdefault("ALLOW_FORCE_LIVE", "0")
@@ -202,6 +216,7 @@ def main() -> int:
         ("Agent Wiring", validate_agent_wiring, True),
         ("Brain State Primitives", validate_brain_state, True),
         ("Execution Audit Chain", validate_execution_audit, True),
+        ("Paper Performance Baseline", validate_paper_performance_baseline, False),
     ]
 
     total_failures = 0
