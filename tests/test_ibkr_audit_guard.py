@@ -212,6 +212,38 @@ async def test_recovery_restores_durable_intent_lineage(tmp_path, monkeypatch) -
 
 
 @pytest.mark.asyncio
+async def test_recovery_classifies_orders_missing_from_broker(tmp_path, monkeypatch) -> None:
+    monkeypatch.chdir(tmp_path)
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+    db = sqlite3.connect(data_dir / "trading.db")
+    IBKRConnection._ensure_persistent_orders_schema(db)
+    db.execute(
+        "INSERT INTO persistent_orders "
+        "(orderId, symbol, status, filled, remaining, last_update, parent_id, intent_id) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        (124, "QQQ", "PreSubmitted", 0, 2, "now", 0, None),
+    )
+    db.commit()
+    db.close()
+
+    conn = IBKRConnection.__new__(IBKRConnection)
+    conn.is_connected = MagicMock(return_value=True)
+    conn.ib = SimpleNamespace(reqAllOpenOrdersAsync=AsyncMock(return_value=[]))
+    conn._intent_id_by_order_id = {}
+    conn._recovered_orders = set()
+
+    await conn.recover_orphaned_orders()
+
+    db = sqlite3.connect(data_dir / "trading.db")
+    status = db.execute(
+        "SELECT status FROM persistent_orders WHERE orderId = 124"
+    ).fetchone()[0]
+    assert status == "ReconciliationRequired"
+    assert conn._recovered_orders == {124}
+
+
+@pytest.mark.asyncio
 async def test_cancel_request_records_operator_action_lineage() -> None:
     conn = IBKRConnection.__new__(IBKRConnection)
     conn._execution_audit = MagicMock()
