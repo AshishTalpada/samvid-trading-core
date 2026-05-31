@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import os
 import socket
 import struct
 import time
@@ -21,27 +22,32 @@ class TimeSync:
         "time.cloudflare.com",
         "time.windows.com",
     ]
+    DNS_TIMEOUT_SEC = float(os.environ.get("SOVEREIGN_NTP_DNS_TIMEOUT_SEC", "1.5"))
+    PROBE_TIMEOUT_SEC = float(os.environ.get("SOVEREIGN_NTP_PROBE_TIMEOUT_SEC", "2.0"))
     _offset = 0.0  # system_time + offset = ntp_time
     _is_periodic_running = False
 
     @classmethod
-    async def sync(cls):
+    async def sync(cls) -> bool:
         """Asynchronously determine the NTP offset."""
-        for server in cls.NTP_SERVERS:
-            try:
-                loop = asyncio.get_running_loop()
-                addr_info = await loop.getaddrinfo(server, 123, proto=socket.IPPROTO_UDP)
-                if not addr_info:
-                    continue
-                ip_addr = addr_info[0][4][0]
+        results = await asyncio.gather(
+            *(cls._query_ntp_server(server) for server in cls.NTP_SERVERS),
+            return_exceptions=True,
+        )
+        for result in results:
+            if isinstance(result, BaseException):
+                continue
+            server, offset = result
+            cls._offset = offset
+            logger.info("Clock synchronized with %s. Offset: %.4fs", server, offset)
+            return True
 
-                logger.info(f"Synchronizing clock with {server} ({ip_addr})...")
-                offset = await cls._get_ntp_offset(ip_addr)
-                cls._offset = offset
-                logger.info(f" Clock Synchronized. Offset: {offset:.4f}s")
-                return True
-            except Exception as e:
-                logger.warning(f"Failed to sync with {server}: {e}")
+        failed = sum(isinstance(result, BaseException) for result in results)
+        logger.warning(
+            "NTP UDP sync unavailable across %s/%s servers. Trying HTTP fallback.",
+            failed,
+            len(cls.NTP_SERVERS),
+        )
 
         try:
             from session_manager import SovereignSession
@@ -78,6 +84,29 @@ class TimeSync:
         return False
 
     @classmethod
+    async def _query_ntp_server(cls, server: str) -> tuple[str, float]:
+        """Resolve and probe one NTP server within a tight startup budget."""
+        loop = asyncio.get_running_loop()
+        addr_info = await asyncio.wait_for(
+            loop.getaddrinfo(
+                server,
+                123,
+                family=socket.AF_INET,
+                type=socket.SOCK_DGRAM,
+                proto=socket.IPPROTO_UDP,
+            ),
+            timeout=cls.DNS_TIMEOUT_SEC,
+        )
+        if not addr_info:
+            raise OSError(f"no IPv4 UDP address for {server}")
+        ip_addr = addr_info[0][4][0]
+        offset = await asyncio.wait_for(
+            cls._get_ntp_offset(ip_addr, timeout_sec=cls.PROBE_TIMEOUT_SEC),
+            timeout=cls.PROBE_TIMEOUT_SEC + 0.25,
+        )
+        return server, offset
+
+    @classmethod
     async def start_periodic_sync(cls, interval_hours: int = 6):
         """Background task that periodically re-syncs the clock to prevent drift in long sessions."""
         if cls._is_periodic_running:
@@ -90,7 +119,7 @@ class TimeSync:
             await cls.sync()
 
     @staticmethod
-    async def _get_ntp_offset(host: str):
+    async def _get_ntp_offset(host: str, *, timeout_sec: float = 2.0) -> float:
         """Standard NTP UDP request (RFC 5905)."""
         # NTP packet is 48 bytes.
         # First byte is 0x1B (LI=0, VN=3, Mode=3 client)
@@ -102,13 +131,15 @@ class TimeSync:
 
         def _exchange():
             with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
-                s.settimeout(5.0)
+                s.settimeout(timeout_sec)
                 # Send request
                 send_time = time.time()
                 s.sendto(packet, (host, 123))
                 # Receive response
                 data, _ = s.recvfrom(48)
                 recv_time = time.time()
+                if len(data) < 48:
+                    raise ValueError(f"short NTP packet from {host}: {len(data)} bytes")
 
                 # Extract transmit timestamp (bytes 40-48)
                 # Format is 32-bit seconds since 1900, 32-bit fraction
