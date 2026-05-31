@@ -866,6 +866,77 @@ class TradingSystem:
             },
         )
 
+    def _runtime_connection_statuses(self) -> tuple[str, str]:
+        """Return broker connection states without allowing probe failures to escape."""
+        ibkr_value = "disconnected"
+        if self.ibkr_client:
+            try:
+                ibkr_value = "connected" if self.ibkr_client.isConnected() else "disconnected"
+            except Exception:
+                ibkr_value = "error"
+
+        mt5_value = "disconnected"
+        if self.mt5_client:
+            try:
+                info = self.mt5_client.terminal_info()
+                mt5_value = "connected" if info is not None and info.connected else "disconnected"
+            except Exception:
+                mt5_value = "error"
+        return ibkr_value, mt5_value
+
+    async def _persist_runtime_health_snapshot(
+        self,
+        *,
+        event_type: str = "heartbeat",
+        message: str = "Runtime heartbeat",
+    ) -> dict[str, Any] | None:
+        """Persist and publish a fresh operator snapshot through one serialized path."""
+        db = self.db_conn
+        if not db:
+            return None
+
+        async with self.db_lock:
+            cursor = None
+            try:
+                ibkr_value, mt5_value = self._runtime_connection_statuses()
+                health_snapshot = self._build_runtime_health_snapshot(
+                    ibkr_value=ibkr_value,
+                    mt5_value=mt5_value,
+                )
+                cursor = db.cursor()
+                cursor.executemany(
+                    "INSERT OR REPLACE INTO system_state (key, value, updated_at) "
+                    "VALUES (?, ?, CURRENT_TIMESTAMP)",
+                    (
+                        ("last_heartbeat", time.time_ns()),
+                        ("ibkr_status", ibkr_value),
+                        ("mt5_status", mt5_value),
+                        ("service_health", json.dumps(health_snapshot)),
+                    ),
+                )
+                self._record_system_event(
+                    event_type,
+                    message,
+                    agent="main",
+                    details=health_snapshot,
+                )
+                if self.bus:
+                    await self.bus.publish("system.health", health_snapshot)
+                self._refresh_performance_summary()
+                db.commit()
+                return health_snapshot
+            except sqlite3.OperationalError as exc:
+                if "locked" in str(exc).lower():
+                    logger.debug("Runtime health DB locked - skipping pulse.")
+                else:
+                    logger.error("Runtime health update failed: %s", exc)
+            except Exception as exc:
+                logger.error("Runtime health update failed: %s", exc)
+            finally:
+                if cursor is not None:
+                    cursor.close()
+        return None
+
     def _refresh_performance_summary(self) -> None:
         """Refresh the dashboard performance row even when no trade exits occur."""
         if not self.db_conn:
@@ -1812,6 +1883,10 @@ class TradingSystem:
                                 await asyncio.sleep(wait_time)
                             else:
                                 raise
+            await self._persist_runtime_health_snapshot(
+                event_type="startup_health",
+                message="Startup runtime health",
+            )
             if os.environ.get("SOVEREIGN_SKIP_PID_CHECK", "0") == "1":
                 logger.info("Smoke-test mode detected - startup complete without run loop.")
                 await self.shutdown()
@@ -1879,71 +1954,7 @@ class TradingSystem:
                 # 1. Update local heartbeat in database
                 db = self.db_conn
                 if db:
-                    try:
-                        cursor = db.cursor()
-                        cursor.execute(
-                            "INSERT OR REPLACE INTO system_state (key, value, updated_at) "
-                            "VALUES (?, ?, CURRENT_TIMESTAMP)",
-                            ("last_heartbeat", time.time_ns()),
-                        )
-                        ibkr_value = "disconnected"
-                        if self.ibkr_client:
-                            try:
-                                ibkr_value = (
-                                    "connected"
-                                    if self.ibkr_client.isConnected()
-                                    else "disconnected"
-                                )
-                            except Exception:
-                                ibkr_value = "error"
-                        cursor.execute(
-                            "INSERT OR REPLACE INTO system_state (key, value, updated_at) "
-                            "VALUES (?, ?, CURRENT_TIMESTAMP)",
-                            ("ibkr_status", ibkr_value),
-                        )
-                        mt5_value = "disconnected"
-                        if self.mt5_client:
-                            try:
-                                info = self.mt5_client.terminal_info()
-                                mt5_value = (
-                                    "connected"
-                                    if info is not None and info.connected
-                                    else "disconnected"
-                                )
-                            except Exception:
-                                mt5_value = "error"
-                        cursor.execute(
-                            "INSERT OR REPLACE INTO system_state (key, value, updated_at) "
-                            "VALUES (?, ?, CURRENT_TIMESTAMP)",
-                            ("mt5_status", mt5_value),
-                        )
-                        health_snapshot = self._build_runtime_health_snapshot(
-                            ibkr_value=ibkr_value,
-                            mt5_value=mt5_value,
-                        )
-                        cursor.execute(
-                            "INSERT OR REPLACE INTO system_state (key, value, updated_at) "
-                            "VALUES (?, ?, CURRENT_TIMESTAMP)",
-                            ("service_health", json.dumps(health_snapshot)),
-                        )
-                        self._record_system_event(
-                            "heartbeat",
-                            "Runtime heartbeat",
-                            agent="main",
-                            details=health_snapshot,
-                        )
-                        if self.bus:
-                            await self.bus.publish("system.health", health_snapshot)
-                        self._refresh_performance_summary()
-                        db.commit()
-                        cursor.close()
-                    except sqlite3.OperationalError as e:
-                        if "locked" in str(e).lower():
-                            logger.debug("Heartbeat DB locked - skipping pulse.")
-                        else:
-                            logger.error(f"Heartbeat update failed: {e}")
-                    except Exception as e:
-                        logger.error(f"Heartbeat update failed: {e}")
+                    await self._persist_runtime_health_snapshot()
 
                 # 2. Phone Home Telemetry (Remote Monitoring)
                 tele_url = Vault.get("TELEMETRY_URL")
