@@ -70,3 +70,33 @@ def test_api_state_collection_latency_is_measured(monkeypatch) -> None:
 
     assert health["latency_ms"] == pytest.approx(12.345)
     assert health["latency_source"] == "api_state_collection"
+
+
+def test_operator_component_probes_contain_optional_client_failures() -> None:
+    class BrokenIBKR:
+        def isConnected(self) -> bool:
+            raise RuntimeError("socket closed")
+
+    class BrokenMT5:
+        def terminal_info(self):
+            raise RuntimeError("terminal unavailable")
+
+    server = APIServer.__new__(APIServer)
+    server.system = SimpleNamespace(
+        ibkr_client=BrokenIBKR(),
+        mt5_client=BrokenMT5(),
+        questdb=SimpleNamespace(is_active=True),
+        dhatu_oracle=object(),
+        trading_brain=SimpleNamespace(is_running=True),
+    )
+
+    statuses = server._operator_component_statuses()
+
+    assert statuses == {
+        "ibkr": "ERROR",
+        "mt5": "ERROR",
+        "qdb": "ONLINE",
+        "dhatu": "ONLINE",
+        "brain": "ONLINE",
+        "sovereign": "ONLINE",
+    }
