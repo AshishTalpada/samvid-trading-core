@@ -1,6 +1,8 @@
 import sqlite3
 
-from paper_performance import build_paper_performance
+import pytest
+
+from paper_performance import build_paper_performance, establish_performance_baseline
 
 
 def _build_db(path) -> None:
@@ -88,10 +90,49 @@ def test_paper_performance_can_start_from_clean_trade_id_baseline(tmp_path) -> N
 
     report = build_paper_performance(path, min_trade_id=2)
 
-    assert report["window"] == {
-        "min_trade_id": 2,
-        "first_trade_id": 2,
-        "last_trade_id": 2,
-    }
+    assert report["window"]["min_trade_id"] == 2
+    assert report["window"]["first_trade_id"] == 2
+    assert report["window"]["last_trade_id"] == 2
+    assert report["window"]["baseline_source"] == "explicit_or_full_history"
     assert report["metrics"]["trades"] == 1
     assert report["metrics"]["net_pnl"] == 10.0
+
+
+def test_paper_performance_uses_stored_baseline_by_default(tmp_path) -> None:
+    path = tmp_path / "trading.db"
+    _build_db(path)
+    with sqlite3.connect(path) as conn:
+        conn.executemany(
+            "INSERT INTO trades VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            [
+                (1, "ibkr_paper", "LOSS", -50.0, -50.0, 0.0, 0.0, -1.0),
+                (2, "ibkr_paper", "WIN", 10.0, 10.0, 0.0, 0.0, 1.0),
+            ],
+        )
+    baseline = establish_performance_baseline(path, reason="test baseline")
+    with sqlite3.connect(path) as conn:
+        conn.execute(
+            "INSERT INTO trades VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            (3, "ibkr_paper", "WIN", 20.0, 20.0, 0.0, 0.0, 2.0),
+        )
+
+    report = build_paper_performance(path)
+
+    assert baseline["min_trade_id"] == 3
+    assert report["window"]["min_trade_id"] == 3
+    assert report["window"]["baseline_source"] == "stored_system_state"
+    assert report["metrics"]["trades"] == 1
+    assert report["metrics"]["net_pnl"] == 20.0
+
+
+def test_paper_performance_baseline_requires_force_to_replace(tmp_path) -> None:
+    path = tmp_path / "trading.db"
+    _build_db(path)
+    establish_performance_baseline(path, reason="first")
+
+    with pytest.raises(ValueError, match="already exists"):
+        establish_performance_baseline(path, reason="second")
+
+    replacement = establish_performance_baseline(path, reason="second", force=True)
+
+    assert replacement["reason"] == "second"
