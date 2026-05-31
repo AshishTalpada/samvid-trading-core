@@ -412,6 +412,28 @@ class IBKRConnection:
         except Exception as e:
             logger.error(f" ORDER PERSISTENCE FAILURE: {e}")
 
+    @staticmethod
+    def _mark_orders_reconciliation_required(order_ids: list[int]) -> None:
+        """Preserve broker-missing orders for manual audit without re-alerting every restart."""
+        if not order_ids:
+            return
+        try:
+            conn = sqlite3.connect(os.path.join("data", "trading.db"), timeout=60.0)
+            try:
+                conn.execute("PRAGMA journal_mode=WAL;")
+                conn.execute("PRAGMA busy_timeout = 60000;")
+                conn.executemany(
+                    "UPDATE persistent_orders "
+                    "SET status = 'ReconciliationRequired', last_update = ? "
+                    "WHERE orderId = ?",
+                    [(time.time_ns(), order_id) for order_id in order_ids],
+                )
+                conn.commit()
+            finally:
+                conn.close()
+        except Exception as e:
+            logger.error(f" ORDER RECONCILIATION PERSISTENCE FAILURE: {e}")
+
     def _on_order_status(self, trade) -> None:
         status = trade.orderStatus.status
         symbol = trade.contract.symbol
@@ -659,7 +681,9 @@ class IBKRConnection:
                 cursor.execute(
                     "SELECT orderId, symbol, status, parent_id, intent_id "
                     "FROM persistent_orders "
-                    "WHERE status NOT IN ('Filled', 'Cancelled', 'Inactive', 'ApiCancelled')"
+                    "WHERE status NOT IN ("
+                    "'Filled', 'Cancelled', 'Inactive', 'ApiCancelled', "
+                    "'ReconciliationRequired')"
                 )
                 orphans = cursor.fetchall()
             finally:
@@ -673,6 +697,7 @@ class IBKRConnection:
             open_trades = await self.ib.reqAllOpenOrdersAsync()
             broker_order_ids = {t.order.orderId for t in open_trades}
 
+            missing_from_broker = []
             for oid, sym, status, parent_id, intent_id in orphans:
                 if oid in broker_order_ids:
                     logger.warning(
@@ -695,7 +720,9 @@ class IBKRConnection:
                         f" CRITICAL: Order {oid} ({sym}) lost from broker! "
                         f"Status was {status}. Manual audit required."
                     )
+                    missing_from_broker.append(oid)
                 self._recovered_orders.add(oid)
+            self._mark_orders_reconciliation_required(missing_from_broker)
 
         except Exception as e:
             logger.error(f"IBKR Recovery Error: {e}")
