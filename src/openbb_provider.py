@@ -101,14 +101,29 @@ class OpenBBProvider:
 
     @property
     def status(self) -> str:
-        """Returns the current connectivity status (ONLINE, PROBING, or OFFLINE)."""
+        """Return the SDK lane status while preserving fallback visibility."""
+        if getattr(self, "_disabled_by_env", False):
+            return "OFFLINE"
         if not self._initialized:
             return "OFFLINE"
         if _OPENBB_AVAILABLE is True:
             return "ONLINE"
         if _OPENBB_AVAILABLE is False:
-            return "OFFLINE"
+            return "FALLBACK"
         return "PROBING"
+
+    def health_status(self) -> tuple[str, str]:
+        """Return a compact operator-facing state and reason."""
+        status = self.status
+        if getattr(self, "_disabled_by_env", False):
+            return status, "disabled by SOVEREIGN_DISABLE_OPENBB"
+        if status == "ONLINE":
+            return status, f"OpenBB SDK active; provider={self._provider}"
+        if status == "FALLBACK":
+            return status, f"OpenBB SDK unavailable; pipeline fallback provider={self._provider}"
+        if status == "PROBING":
+            return status, "OpenBB SDK availability probe pending"
+        return status, "provider not initialized"
 
     async def _ensure_obb(self) -> bool:
         """
