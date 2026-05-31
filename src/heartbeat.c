@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <fcntl.h>
+#include "native_exports.h"
 #ifdef _WIN32
 #include <io.h>
 #define open _open
@@ -27,7 +28,7 @@ int heartbeat_fd = -1;
 extern "C" {
 #endif
 
-int init_hardware_watchdog(const char* device_path) {
+SOVEREIGN_EXPORT int init_hardware_watchdog(const char* device_path) {
     if (device_path == NULL) return -1;  // Invalid parameter
     
 #ifdef __linux__
@@ -53,7 +54,7 @@ int init_hardware_watchdog(const char* device_path) {
 #endif
 }
 
-void pulse_heartbeat() {
+SOVEREIGN_EXPORT void pulse_heartbeat() {
 #ifdef __linux__
     if (heartbeat_fd >= 0) {
         int dummy;
@@ -64,7 +65,7 @@ void pulse_heartbeat() {
 #endif
 }
 
-void close_heartbeat() {
+SOVEREIGN_EXPORT void close_heartbeat() {
 #ifdef __linux__
     if (heartbeat_fd >= 0) {
         // Magic character 'V' tells the watchdog driver we are closing intentionally
