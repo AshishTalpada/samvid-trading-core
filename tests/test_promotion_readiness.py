@@ -20,6 +20,7 @@ def _ready_evidence() -> dict:
         "soak_summary": {"passed": True, "cycles": [{}, {}, {}]},
         "paper_performance": {
             "source": "sqlite_closed_paper_trades",
+            "window": {"baseline_source": "stored_system_state"},
             "metrics": {
                 "trades": 30,
                 "expectancy_net": 2.0,
@@ -95,3 +96,13 @@ def test_promotion_readiness_rejects_weak_closed_paper_performance() -> None:
     assert "closed paper expectancy is not positive after costs" in report["blockers"]
     assert "closed paper profit factor is below 1.20" in report["blockers"]
     assert "closed paper max drawdown exceeds 10.0%" in report["blockers"]
+
+
+def test_promotion_readiness_rejects_unanchored_performance_window() -> None:
+    evidence = _ready_evidence()
+    evidence["paper_performance"]["window"]["baseline_source"] = "explicit_or_full_history"
+
+    report = evaluate_promotion_readiness(**evidence)
+
+    assert report["approved"] is False
+    assert "paper performance artifact is not anchored to a stored baseline" in report["blockers"]
