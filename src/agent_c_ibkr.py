@@ -362,6 +362,56 @@ class IBKRConnection:
     def _on_account_summary(self, item) -> None:
         self._account_summary[item.tag] = item.value
 
+    @staticmethod
+    def _ensure_persistent_orders_schema(conn: sqlite3.Connection) -> None:
+        """Create or upgrade the restart-recovery cache without dropping live state."""
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS persistent_orders ("
+            "orderId INTEGER PRIMARY KEY, symbol TEXT, status TEXT, "
+            "filled REAL, remaining REAL, last_update TEXT, "
+            "parent_id INTEGER DEFAULT 0, intent_id TEXT)"
+        )
+        columns = {row[1] for row in conn.execute("PRAGMA table_info(persistent_orders)")}
+        if "parent_id" not in columns:
+            conn.execute("ALTER TABLE persistent_orders ADD COLUMN parent_id INTEGER DEFAULT 0")
+        if "intent_id" not in columns:
+            conn.execute("ALTER TABLE persistent_orders ADD COLUMN intent_id TEXT")
+
+    def _persist_order_status_snapshot(self, trade: Any, symbol: str, status: str) -> None:
+        """Write broker status and intent lineage for crash-safe order recovery."""
+        try:
+            os.makedirs("data", exist_ok=True)
+            conn = sqlite3.connect(os.path.join("data", "trading.db"), timeout=60.0)
+            try:
+                conn.execute("PRAGMA journal_mode=WAL;")
+                conn.execute("PRAGMA busy_timeout = 60000;")
+                self._ensure_persistent_orders_schema(conn)
+                order_id = int(trade.order.orderId)
+                parent_id = int(getattr(trade.order, "parentId", 0) or 0)
+                intent_id = self._intent_id_by_order_id.get(
+                    str(order_id)
+                ) or self._intent_id_by_order_id.get(str(parent_id))
+                conn.execute(
+                    "INSERT OR REPLACE INTO persistent_orders "
+                    "(orderId, symbol, status, filled, remaining, last_update, "
+                    "parent_id, intent_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                    (
+                        order_id,
+                        symbol,
+                        status,
+                        float(getattr(trade.orderStatus, "filled", 0) or 0),
+                        float(getattr(trade.orderStatus, "remaining", 0) or 0),
+                        time.time_ns(),
+                        parent_id,
+                        intent_id,
+                    ),
+                )
+                conn.commit()
+            finally:
+                conn.close()
+        except Exception as e:
+            logger.error(f" ORDER PERSISTENCE FAILURE: {e}")
+
     def _on_order_status(self, trade) -> None:
         status = trade.orderStatus.status
         symbol = trade.contract.symbol
@@ -383,52 +433,29 @@ class IBKRConnection:
                 },
             )
 
-        if status in ("Submitted", "PreSubmitted", "PartiallyFilled"):
+        if status:
             if not hasattr(self, "_order_persistence"):
                 self._order_persistence = {}
 
-            # Issue: IMPLEMENT: Persistent Order Tracking (SQLite Bridge)
-            def _persist_order_status():
-                try:
-                    db_path = os.path.join("data", "trading.db")
-                    if not os.path.exists("data"):
-                        os.makedirs("data")
-                    conn = sqlite3.connect(db_path, timeout=60.0)
-                    conn.execute("PRAGMA journal_mode=WAL;")
-                    conn.execute("PRAGMA busy_timeout = 60000;")
-                    conn.execute(
-                        "CREATE TABLE IF NOT EXISTS persistent_orders ("
-                        "orderId INTEGER PRIMARY KEY, symbol TEXT, status TEXT, "
-                        "filled REAL, remaining REAL, last_update TEXT)"
-                    )
-                    conn.execute(
-                        "INSERT OR REPLACE INTO persistent_orders "
-                        "(orderId, symbol, status, filled, remaining, last_update) "
-                        "VALUES (?, ?, ?, ?, ?, ?)",
-                        (
-                            trade.order.orderId,
-                            symbol,
-                            status,
-                            trade.orderStatus.filled,
-                            trade.orderStatus.remaining,
-                            time.time_ns(),
-                        ),
-                    )
-                    conn.commit()
-                    conn.close()
-                except Exception as e:
-                    logger.error(f" ORDER PERSISTENCE FAILURE: {e}")
-
             import threading as _threading
 
-            _threading.Thread(target=_persist_order_status, daemon=True).start()
+            _threading.Thread(
+                target=self._persist_order_status_snapshot,
+                args=(trade, symbol, status),
+                daemon=True,
+            ).start()
 
+            order_id = int(trade.order.orderId)
+            parent_id = int(getattr(trade.order, "parentId", 0) or 0)
             self._order_persistence[trade.order.orderId] = {
                 "symbol": symbol,
                 "status": status,
                 "filled": trade.orderStatus.filled,
                 "remaining": trade.orderStatus.remaining,
                 "last_update": time.time(),
+                "parent_id": parent_id,
+                "intent_id": self._intent_id_by_order_id.get(str(order_id))
+                or self._intent_id_by_order_id.get(str(parent_id)),
             }
 
         if status in ["Cancelled", "Inactive"] and trade.contract.symbol:
@@ -627,10 +654,12 @@ class IBKRConnection:
             try:
                 conn.execute("PRAGMA journal_mode=WAL;")
                 conn.execute("PRAGMA busy_timeout = 60000;")
+                self._ensure_persistent_orders_schema(conn)
                 cursor = conn.cursor()
                 cursor.execute(
-                    "SELECT orderId, symbol, status FROM persistent_orders "
-                    "WHERE status NOT IN ('Filled', 'Cancelled', 'Inactive')"
+                    "SELECT orderId, symbol, status, parent_id, intent_id "
+                    "FROM persistent_orders "
+                    "WHERE status NOT IN ('Filled', 'Cancelled', 'Inactive', 'ApiCancelled')"
                 )
                 orphans = cursor.fetchall()
             finally:
@@ -644,11 +673,23 @@ class IBKRConnection:
             open_trades = await self.ib.reqAllOpenOrdersAsync()
             broker_order_ids = {t.order.orderId for t in open_trades}
 
-            for oid, sym, status in orphans:
+            for oid, sym, status, parent_id, intent_id in orphans:
                 if oid in broker_order_ids:
                     logger.warning(
                         f" RECOVERY: Found live orphan {oid} for {sym}. Re-binding to tracking."
                     )
+                    if intent_id:
+                        self._intent_id_by_order_id[str(oid)] = str(intent_id)
+                        if parent_id:
+                            self._intent_id_by_order_id.setdefault(
+                                str(parent_id), str(intent_id)
+                            )
+                    else:
+                        logger.warning(
+                            " RECOVERY: Live orphan %s for %s has no durable intent lineage.",
+                            oid,
+                            sym,
+                        )
                 else:
                     logger.error(
                         f" CRITICAL: Order {oid} ({sym}) lost from broker! "
