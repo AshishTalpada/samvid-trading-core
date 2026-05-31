@@ -83,13 +83,24 @@ def test_operator_order_health_excludes_broker_terminal_statuses() -> None:
             (3, "Inactive"),
             (4, "ApiCancelled"),
             (5, "Submitted"),
+            (6, "ReconciliationRequired"),
         ],
     )
-    truth = {"order_health": {"persistent_orders": 0, "stale_orders": 0}}
+    truth = {
+        "order_health": {
+            "persistent_orders": 0,
+            "stale_orders": 0,
+            "reconciliation_required": 0,
+        }
+    }
 
     APIServer._populate_order_health(db.cursor(), truth)
 
-    assert truth["order_health"] == {"persistent_orders": 5, "stale_orders": 1}
+    assert truth["order_health"] == {
+        "persistent_orders": 6,
+        "stale_orders": 1,
+        "reconciliation_required": 1,
+    }
 
 
 def test_operator_component_probes_contain_optional_client_failures() -> None:
