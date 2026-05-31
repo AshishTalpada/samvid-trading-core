@@ -786,12 +786,18 @@ class TradingBrain(BrokerReconciler, HealthChecker, DataProvider, AccountingMixi
             logger.warning("Broker connectivity check failed: %s", exc)
             return False
 
+    async def _initialize_ibkr_runtime(self) -> None:
+        """Bind IBKR callbacks and launch crash recovery after the shared session connects."""
+        if self.ibkr_conn and self._broker_is_connected(self.ibkr_conn):
+            await self.ibkr_conn.ensure_connection()
+
     # MAIN LOOP
 
     async def start(self) -> None:
         """Start the trading brain as a background task."""
         self.is_running = True
         logger.info(f"Trading Brain started in {self.mode} mode.")
+        await self._initialize_ibkr_runtime()
 
         from config import PANIC_LIQUIDATE
 
