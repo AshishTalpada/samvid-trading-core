@@ -856,10 +856,6 @@ class TradingBrain(BrokerReconciler, HealthChecker, DataProvider, AccountingMixi
 
         self._mind_task = asyncio.create_task(self._run_trader_mind())
 
-        # Enhancement: wiring: give data_pipeline direct access to TV streamer tick prices.
-        if hasattr(self, "data_pipeline") and self.data_pipeline is not None:
-            self.data_pipeline._brain_tick_prices = self.last_tick_prices
-
         # Detects wiring disconnects by running non-destructive trial trades.
         self._phantom_probe_task = asyncio.create_task(self._run_phantom_probe())
 
@@ -1412,6 +1408,8 @@ class TradingBrain(BrokerReconciler, HealthChecker, DataProvider, AccountingMixi
         self.last_tick_prices[symbol] = float(price)
         self.last_tick_bids[symbol] = float(data.get("bid", price))
         self.last_tick_asks[symbol] = float(data.get("ask", price))
+        if getattr(self, "data_pipeline", None) is not None:
+            self.data_pipeline.record_realtime_tick(data)
 
         if symbol == "SPY":
             self.spy_buffer.append(float(price))
