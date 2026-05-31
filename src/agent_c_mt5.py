@@ -720,15 +720,8 @@ class MetaTrader5Agent:
 
         for pos in positions:
             if pos.magic == self.magic_number:
-                action = "BUY" if pos.type == 1 else "SELL"  # Reverse the position type to close it
                 logger.warning(f"[MT5] Liquidating Position {pos.ticket} ({pos.symbol})")
-                self.execute_market_order(
-                    pos.symbol,
-                    action,
-                    pos.volume,
-                    slippage_pts=50,
-                    is_close=True,
-                )
+                self.close_position(pos.ticket)
 
     def get_all_positions(self) -> Dict[str, float]:
         """Returns a mapping of {symbol: qty} for all open MT5 positions."""
