@@ -95,7 +95,10 @@ def test_health_status_requires_delivered_quotes(monkeypatch: pytest.MonkeyPatch
     streamer._allow_after_hours = True
     monkeypatch.setenv("SOVEREIGN_TV_QUOTES_MAX_AGE_SEC", "30")
 
-    assert streamer.health_status() == ("DELAYED", "connected but awaiting first quote")
+    status, detail = streamer.health_status()
+    assert status == "DELAYED"
+    assert "latest quote is" in detail
+    assert "awaiting first quote" in detail
 
     streamer._last_quote_at = time.monotonic() - 60.0
     status, detail = streamer.health_status()
