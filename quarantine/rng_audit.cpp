@@ -2,6 +2,8 @@
 #include <stdint.h>
 #include <stdio.h>
 
+#include "native_exports.h"
+
 /**
  * Sovereign Entropy Audit Engine
  * Performs real-time Shannon Entropy verification of Quantis QRNG streams.
@@ -9,7 +11,7 @@
  * which would signal a hardware sensor failure or adversary tampering.
  */
 
-extern "C" double compute_shannon_entropy(const uint8_t* data, size_t size) {
+extern "C" SOVEREIGN_EXPORT double compute_shannon_entropy(const uint8_t* data, size_t size) {
     if (data == NULL || size == 0) return 0.0;
     if (size > 1000000000) return 0.0;  // Prevent integer overflow in counts
     
@@ -29,7 +31,7 @@ extern "C" double compute_shannon_entropy(const uint8_t* data, size_t size) {
     return entropy;
 }
 
-extern "C" bool verify_entropy_health(const uint8_t* samples, size_t count, double threshold) {
+extern "C" SOVEREIGN_EXPORT bool verify_entropy_health(const uint8_t* samples, size_t count, double threshold) {
     if (samples == NULL || count == 0 || threshold < 0.0 || threshold > 8.0) {
         return false;
     }
