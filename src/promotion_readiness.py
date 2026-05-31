@@ -33,6 +33,7 @@ def evaluate_promotion_readiness(
     filled_intents = int(lineage.get("filled_intents", 0) or 0)
     commission_reports = int(costs.get("commission_reports", 0) or 0)
     performance = paper_performance.get("metrics", {})
+    performance_window = paper_performance.get("window", {})
     closed_paper_trades = int(performance.get("trades", 0) or 0)
 
     _block(blockers, audit.get("valid") is True, "execution audit chain is not valid")
@@ -85,6 +86,11 @@ def evaluate_promotion_readiness(
         blockers,
         paper_performance.get("source") == "sqlite_closed_paper_trades",
         "paper performance artifact source is not trusted",
+    )
+    _block(
+        blockers,
+        performance_window.get("baseline_source") == "stored_system_state",
+        "paper performance artifact is not anchored to a stored baseline",
     )
     _block(
         blockers,
