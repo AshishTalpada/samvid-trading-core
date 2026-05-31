@@ -72,6 +72,26 @@ def test_api_state_collection_latency_is_measured(monkeypatch) -> None:
     assert health["latency_source"] == "api_state_collection"
 
 
+def test_operator_order_health_excludes_broker_terminal_statuses() -> None:
+    db = sqlite3.connect(":memory:")
+    db.execute("CREATE TABLE persistent_orders (orderId INTEGER PRIMARY KEY, status TEXT)")
+    db.executemany(
+        "INSERT INTO persistent_orders (orderId, status) VALUES (?, ?)",
+        [
+            (1, "Filled"),
+            (2, "Cancelled"),
+            (3, "Inactive"),
+            (4, "ApiCancelled"),
+            (5, "Submitted"),
+        ],
+    )
+    truth = {"order_health": {"persistent_orders": 0, "stale_orders": 0}}
+
+    APIServer._populate_order_health(db.cursor(), truth)
+
+    assert truth["order_health"] == {"persistent_orders": 5, "stale_orders": 1}
+
+
 def test_operator_component_probes_contain_optional_client_failures() -> None:
     class BrokenIBKR:
         def isConnected(self) -> bool:
