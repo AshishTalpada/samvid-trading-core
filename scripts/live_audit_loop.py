@@ -187,6 +187,13 @@ ERROR_RE = re.compile(
     re.IGNORECASE,
 )
 WARN_RE  = re.compile(r"\bWARNING\b", re.IGNORECASE)
+DEGRADED_RE = re.compile(
+    r"(fallback|offline mode active|paused while|parked|"
+    r"scan suspended: US equity market is closed|"
+    r"not available\s*-\s*using .{0,40}provider|"
+    r"disabled or not configured)",
+    re.IGNORECASE,
+)
 OFFLINE_RE = re.compile(
     r"(offline|not connected|connection (failed|refused|lost|closed)|"
     r"failed to connect|unable to connect|timed? ?out|"
@@ -203,6 +210,7 @@ SERVICE_RE = re.compile(
 def analyse(log_path: Path) -> dict:
     errors: list[str] = []
     warnings: list[str] = []
+    degraded: list[str] = []
     offline: list[str] = []
     tracebacks: list[str] = []
     service_status: dict[str, list[str]] = defaultdict(list)
@@ -231,7 +239,9 @@ def analyse(log_path: Path) -> dict:
         elif WARN_RE.search(line):
             warnings.append(line.strip())
 
-        if OFFLINE_RE.search(line):
+        if DEGRADED_RE.search(line):
+            degraded.append(line.strip())
+        elif OFFLINE_RE.search(line):
             offline.append(line.strip())
 
         m = SERVICE_RE.search(line)
@@ -244,6 +254,7 @@ def analyse(log_path: Path) -> dict:
     return {
         "errors": errors,
         "warnings": warnings,
+        "degraded": degraded,
         "offline": offline,
         "tracebacks": tracebacks,
         "service_status": service_status,
@@ -256,6 +267,7 @@ def print_report(cycle: int, result: dict) -> None:
     print(f"  Lines processed : {result['total_lines']}")
     print(f"  Errors          : {len(result['errors'])}")
     print(f"  Warnings        : {len(result['warnings'])}")
+    print(f"  Degraded paths  : {len(result['degraded'])}")
     print(f"  Offline alerts  : {len(result['offline'])}")
     print(f"  Tracebacks      : {len(result['tracebacks'])}")
 
@@ -286,6 +298,11 @@ def print_report(cycle: int, result: dict) -> None:
                 count += 1
                 if count >= 10:
                     break
+
+    if result["degraded"]:
+        print("\n  [DEGRADED / FALLBACK PATHS]")
+        for item in result["degraded"][:10]:
+            print(f"  {item[:120]}")
 
     if result["offline"]:
         print("\n  [OFFLINE / CONNECTION ALERTS]")
