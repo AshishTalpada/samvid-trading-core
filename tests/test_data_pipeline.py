@@ -5,7 +5,9 @@ Tests for DataPipeline DB and Polars consistency.
 import os
 import sqlite3
 import tempfile
+import time
 from datetime import datetime, timezone
+from types import SimpleNamespace
 
 import pytest
 
@@ -75,3 +77,43 @@ def test_safe_polars_from_pandas_conversion() -> None:
     assert isinstance(pl_df, pl.DataFrame)
     assert len(pl_df) == 1
     assert set(pl_df.columns) == {"Open", "High", "Close"}
+
+
+@pytest.mark.asyncio
+async def test_realtime_tick_outranks_polling_fallback(pipeline_with_db, monkeypatch) -> None:
+    monkeypatch.setattr(
+        "data_pipeline.yf.Ticker",
+        lambda _symbol: SimpleNamespace(fast_info={"lastPrice": 400.0}),
+    )
+    pipeline_with_db.qdb = SimpleNamespace(enabled=False)
+    pipeline_with_db.finnhub_key = ""
+    pipeline_with_db.openbb = None
+    pipeline_with_db.record_realtime_tick(
+        {"symbol": "SPY", "price": 525.25, "source": "TradingView_WS"}
+    )
+
+    price = await pipeline_with_db.get_current_price("SPY")
+
+    assert price == pytest.approx(525.25)
+    assert pipeline_with_db._price_cache_source["SPY"] == "TradingView_WS"
+
+
+@pytest.mark.asyncio
+async def test_stale_realtime_tick_falls_back_to_yfinance(pipeline_with_db, monkeypatch) -> None:
+    monkeypatch.setenv("SOVEREIGN_REALTIME_TICK_MAX_AGE_SEC", "1")
+    monkeypatch.setattr(
+        "data_pipeline.yf.Ticker",
+        lambda _symbol: SimpleNamespace(fast_info={"lastPrice": 400.0}),
+    )
+    pipeline_with_db.qdb = SimpleNamespace(enabled=False)
+    pipeline_with_db.finnhub_key = ""
+    pipeline_with_db.openbb = None
+    pipeline_with_db.record_realtime_tick(
+        {"symbol": "SPY", "price": 525.25, "source": "TradingView_WS"}
+    )
+    pipeline_with_db._price_cache_ts["SPY"] = time.monotonic() - 5.0
+
+    price = await pipeline_with_db.get_current_price("SPY")
+
+    assert price == pytest.approx(400.0)
+    assert pipeline_with_db.get_last_price("SPY") is None
