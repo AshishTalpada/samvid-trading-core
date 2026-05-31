@@ -2,6 +2,8 @@
 #include <cmath>
 #include <stdint.h>
 
+#include "native_exports.h"
+
 /**
  * Agent-A SIMD Accelerator
  * Optimized for AVX-512 (Skylake-X / Ice Lake / H100)
@@ -9,7 +11,7 @@
  * across thousands of symbols in parallel.
  */
 
-extern "C" void compute_log_returns_simd(const double* prices, double* returns, int size) {
+extern "C" SOVEREIGN_EXPORT void compute_log_returns_simd(const double* prices, double* returns, int size) {
     if (size <= 1) return;  // Need at least 2 prices for returns
     int i = 0;
     
@@ -60,7 +62,7 @@ extern "C" void compute_log_returns_simd(const double* prices, double* returns, 
     }
 }
 
-extern "C" void apply_volatility_scaling_simd(double* signals, const double* vol, double target_vol, int size) {
+extern "C" SOVEREIGN_EXPORT void apply_volatility_scaling_simd(double* signals, const double* vol, double target_vol, int size) {
     if (size <= 0 || target_vol < 1e-10) return;  // Prevent division by zero
     int i = 0;
     
