@@ -144,7 +144,7 @@ class TVQuoteStreamer:
             max_age = 30.0
         max_age = max(5.0, min(max_age, 300.0))
         if age is None:
-            return "DELAYED", "connected but awaiting first quote"
+            return "DELAYED", "latest quote is unavailable; connected but awaiting first quote"
         if age > max_age:
             return "DELAYED", f"latest quote is {age:.1f}s old"
         return "ONLINE", f"quotes={self.quotes_seen}, age={age:.1f}s"
