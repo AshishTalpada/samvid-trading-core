@@ -106,6 +106,12 @@ class PositionMonitor:
                     self.closed_positions.append(pos)
                     continue
 
+                ibkr_regular_session_open = not (
+                    pos.account_type == "ibkr"
+                    and hasattr(self, "_is_market_open")
+                    and not self._is_market_open()
+                )
+
                 # MFE / MAE Tracking
                 risk_amt = abs(pos.entry_price - pos.initial_stop)
                 if risk_amt < 0.0001:
@@ -190,7 +196,10 @@ class PositionMonitor:
                 if thought_dna.get("new_stop"):
                     new_stop = float(thought_dna["new_stop"])
                     # Guard: only apply if it tightens (raises for long, lowers for short)
-                    if (not is_short and new_stop > pos.stop_loss) or (is_short and new_stop < pos.stop_loss):
+                    if ibkr_regular_session_open and (
+                        (not is_short and new_stop > pos.stop_loss)
+                        or (is_short and new_stop < pos.stop_loss)
+                    ):
                         pos.stop_loss = new_stop
 
                 # 7-level priority evaluation (Standard Engine)
@@ -210,6 +219,12 @@ class PositionMonitor:
 
                 elif decision.action == ExitAction.TIGHTEN:
                     if decision.new_stop is not None:
+                        if not ibkr_regular_session_open:
+                            logger.debug(
+                                "TIGHTEN DEFERRED [%s]: US equity market is closed.",
+                                pos.symbol,
+                            )
+                            continue
                         old_stop = pos.stop_loss
                         pos.stop_loss = decision.new_stop
 
@@ -428,14 +443,15 @@ class PositionMonitor:
                 return
 
             if (
-                exit_type == "PARTIAL"
-                and pos.account_type == "ibkr"
+                pos.account_type == "ibkr"
                 and hasattr(self, "_is_market_open")
                 and not self._is_market_open()
+                and not is_emergency
             ):
                 logger.info(
-                    "PARTIAL DEFERRED [%s]: US equity market is closed; "
+                    "%s DEFERRED [%s]: US equity market is closed; "
                     "keeping memory unchanged until a live fillable session.",
+                    exit_type,
                     symbol,
                 )
                 return
