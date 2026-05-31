@@ -202,28 +202,56 @@ class StartupProfiler:
 
 class TradingSystem:
     def _get_status_icon(self, component: str) -> str:
-        """Helper to return dynamic status icons including Probing states."""
+        """Return an ASCII-safe dynamic status label for startup notifications."""
         if component == "ibkr":
-            if hasattr(self, "ibkr_client") and self.ibkr_client and self.ibkr_client.isConnected():
-                return "🟢 ONLINE"
-            if "connect_ibkr" in self.background_tasks:
-                return "🟠 PROBING"
-            return "🔴 OFFLINE"
+            try:
+                if getattr(self, "ibkr_client", None) and self.ibkr_client.isConnected():
+                    return "GREEN ONLINE"
+            except Exception as exc:
+                logger.debug("Startup status probe failed for IBKR: %s", exc)
+                return "RED ERROR"
+            if "connect_ibkr" in getattr(self, "background_tasks", {}):
+                return "YELLOW PROBING"
+            return "RED OFFLINE"
         if component == "mt5":
-            if hasattr(self, "mt5_client") and self.mt5_client and self.mt5_client.terminal_info():
-                return "🟢 ONLINE"
-            if "connect_mt5" in self.background_tasks:
-                return "🟠 PROBING"
-            return "🔴 OFFLINE"
+            try:
+                if getattr(self, "mt5_client", None) and self.mt5_client.terminal_info():
+                    return "GREEN ONLINE"
+            except Exception as exc:
+                logger.debug("Startup status probe failed for MT5: %s", exc)
+                return "RED ERROR"
+            if "connect_mt5" in getattr(self, "background_tasks", {}):
+                return "YELLOW PROBING"
+            return "RED OFFLINE"
         if component == "qdb":
-            if hasattr(self, "qdb") and self.qdb and self.qdb.is_active:
-                return "🟢 ACTIVE"
-            return "🔴 OFFLINE"
+            try:
+                if getattr(self, "qdb", None) and self.qdb.is_active:
+                    return "GREEN ACTIVE"
+            except Exception as exc:
+                logger.debug("Startup status probe failed for QuestDB: %s", exc)
+                return "RED ERROR"
+            return "RED OFFLINE"
         if component == "dhatu":
-            if hasattr(self, "dhatu_oracle") and self.dhatu_oracle:
-                return "🟢 CALIBRATED"
-            return "🔴 OFFLINE"
-        return "⚪ UNKNOWN"
+            return "GREEN CALIBRATED" if getattr(self, "dhatu_oracle", None) else "RED OFFLINE"
+        return "UNKNOWN"
+
+    def _get_openbb_startup_status(self) -> str:
+        """Return the OpenBB lane state without hiding an active fallback provider."""
+        provider = getattr(self, "_openbb_provider", None)
+        if not provider:
+            return "RED OFFLINE"
+        try:
+            health_status = getattr(provider, "health_status", None)
+            status, detail = health_status() if callable(health_status) else (provider.status, "")
+            prefix = {
+                "ONLINE": "GREEN ONLINE",
+                "FALLBACK": "YELLOW FALLBACK",
+                "PROBING": "YELLOW PROBING",
+            }.get(str(status).upper(), "RED OFFLINE")
+            return f"{prefix} - {detail}" if detail else prefix
+        except Exception as exc:
+            logger.debug("Startup status probe failed for OpenBB: %s", exc)
+            return "RED ERROR"
 
     @property
     def requires_ibkr_connection(self) -> bool:
@@ -1772,22 +1800,7 @@ class TradingSystem:
             ibkr_status = self._get_status_icon("ibkr")
             mt5_status = self._get_status_icon("mt5")
             dhatu_status = self._get_status_icon("dhatu")
-            obb_status = (
-                "🟢 ACTIVE"
-                if (
-                    hasattr(self, "_openbb_provider")
-                    and self._openbb_provider
-                    and self._openbb_provider.is_available
-                )
-                else "🔴 OFFLINE"
-            )
-            slm_status = (
-                "🟢 VRAM LOADED"
-                if (
-                    hasattr(self, "native_slm") and self.native_slm and self.native_slm.is_available
-                )
-                else "🔴 OFFLINE"
-            )
+            obb_status = self._get_openbb_startup_status()
 
             if hasattr(self, "native_slm") and self.native_slm and self.native_slm.is_available:
                 slm_mode = getattr(self.native_slm, "mode", "native")
@@ -1800,13 +1813,13 @@ class TradingSystem:
             notification = (
                 f"[STARTUP] <b>Sovereign Trading System Online</b>\n\n"
                 f"<b>Mode:</b> <code>{self.mode.upper()}</code>\n"
-                f"───────────────────\n"
+                f"-------------------\n"
                 f"<b>IBKR Gateway:</b> {ibkr_status}\n"
                 f"<b>MetaTrader 5:</b> {mt5_status}\n"
                 f"<b>Dhatu Oracle:</b> {dhatu_status}\n"
                 f"<b>OpenBB Data:</b> {obb_status}\n"
                 f"<b>Native SLM:</b> {slm_status}\n"
-                f"───────────────────\n"
+                f"-------------------\n"
                 f"<b>Startup Latency:</b> "
                 f"{(datetime.now(timezone.utc) - start_time).total_seconds():.2f}s\n"
                 f"<i>{datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')} UTC</i>"
