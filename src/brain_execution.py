@@ -400,12 +400,24 @@ class ExecutionMixin:
         await asyncio.to_thread(_sync_log)  # type: ignore[arg-type]
 
     async def _log_trade_exit(
-        self, pos: "Position", exit_type: str, exit_price: float, pnl: float, r_multiple: float
+        self,
+        pos: "Position",
+        exit_type: str,
+        exit_price: float,
+        pnl: float,
+        r_multiple: float,
+        realized_net_pnl: float | None = None,
     ) -> None:
-        """Log a gross trade exit and teach downstream systems from net PnL."""
+        """Log a gross trade exit and teach downstream systems from authoritative net PnL."""
         from brain_reconcile import _safe_entry_time
 
-        net_pnl_for_learning = pnl
+        commission = getattr(pos, "commission_cost", 0.0) or 0.0
+        slippage = getattr(pos, "slippage_cost", 0.0) or 0.0
+        net_pnl_for_learning = (
+            realized_net_pnl
+            if realized_net_pnl is not None
+            else pnl - commission - slippage
+        )
 
         def _sync_log() -> None:
             nonlocal exit_price, net_pnl_for_learning, pnl
@@ -421,6 +433,8 @@ class ExecutionMixin:
                         if last_tick:
                             exit_price = last_tick
                             pnl = (exit_price - pos.entry_price) * pos.qty
+                            if realized_net_pnl is None:
+                                net_pnl_for_learning = pnl - commission - slippage
                             logger.info(
                                 "Reality Restored: %s price set to $%.2f", pos.symbol, exit_price
                             )
@@ -435,9 +449,7 @@ class ExecutionMixin:
                         ).total_seconds() / 3600
                         # pnl_dollars = gross PnL (price move only, pre-cost)
                         # net_pnl     = after commission + slippage deduction
-                        commission = getattr(pos, "commission_cost", 0.0) or 0.0
-                        slippage   = getattr(pos, "slippage_cost", 0.0) or 0.0
-                        net_pnl = pnl - commission - slippage
+                        net_pnl = net_pnl_for_learning
                         net_pnl_for_learning = net_pnl
 
                         # Outcome is based on net (after-cost) PnL
