@@ -547,6 +547,7 @@ class APIServer:
 
     def _get_full_state(self) -> dict[str, Any]:
         """Collect and serialize the current system state with real market data."""
+        collection_started = time.perf_counter()
         try:
             # 1. Dhatu Oracle Intelligence (Dynamic Graph)
             # Default rich initial state to ensure "WOW" factor on first load
@@ -1060,7 +1061,6 @@ class APIServer:
                         - getattr(self.system, "start_time", datetime.now()).astimezone()
                     ).total_seconds()
                 ),
-                "latency_ms": 0.45,
                 "components": {
                     "ibkr": "ONLINE"
                     if self.system.ibkr_client and self.system.ibkr_client.isConnected()
@@ -1080,6 +1080,8 @@ class APIServer:
             }
             if persisted_health:
                 health_data["production"] = persisted_health
+            portfolio_summary = PORTFOLIO_ANALYZER.summary()
+            self._annotate_collection_latency(health_data, collection_started)
 
             return {
                 "timestamp": time.time_ns(),
@@ -1087,11 +1089,18 @@ class APIServer:
                 "market": market_data,
                 "brain": brain_data,
                 "health": health_data,
-                "portfolio": PORTFOLIO_ANALYZER.summary(),
+                "portfolio": portfolio_summary,
             }
         except Exception as e:
             logger.error(f"Critical error collecting state for API: {e}")
             return {"error": str(e)}
+
+    @staticmethod
+    def _annotate_collection_latency(health_data: dict[str, Any], started_at: float) -> None:
+        """Attach measured API collection latency while preserving the existing field name."""
+        latency_ms = max(0.0, (time.perf_counter() - started_at) * 1000.0)
+        health_data["latency_ms"] = round(latency_ms, 3)
+        health_data["latency_source"] = "api_state_collection"
 
     async def start(self) -> bool:
         """Run the FastAPI server with uvicorn in the existing event loop."""
