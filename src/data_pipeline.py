@@ -113,7 +113,8 @@ class DataPipeline:
         self.last_vix: float | None = None
         self._last_reality_check: dict[str, float] = {}  # symbol -> timestamp (time.monotonic)
         self._price_cache: dict[str, float] = {}  # symbol -> last known price (sync-accessible)
-        self._price_cache_ts: dict[str, float] = {}  # symbol -> monotonic time of last TV push
+        self._price_cache_ts: dict[str, float] = {}  # symbol -> monotonic time of last price update
+        self._price_cache_source: dict[str, str] = {}  # symbol -> provider for operator evidence
 
         self._last_pulse_time: dict[str, float] = {}  # symbol -> last successful fetch (monotonic)
         self._vix_cache_ts: float = 0.0  # monotonic time of last successful VIX fetch
@@ -410,16 +411,43 @@ class DataPipeline:
             logger.error(f"Error fetching OHLCV for {symbol}: {e}\n{traceback.format_exc()}")
             return pl.DataFrame()
 
+    def record_realtime_tick(self, payload: dict[str, Any]) -> None:
+        """Record a validated bus tick so realtime providers outrank polling fallbacks briefly."""
+        symbol = str(payload.get("symbol") or "").strip().upper()
+        try:
+            price = float(payload.get("price") or 0.0)
+        except (TypeError, ValueError):
+            return
+        if not symbol or price <= 0:
+            return
+        self._price_cache[symbol] = price
+        self._price_cache_ts[symbol] = time.monotonic()
+        self._price_cache_source[symbol] = str(payload.get("source") or "realtime_bus")
+
+    def _fresh_realtime_price(self, symbol: str) -> float | None:
+        """Return a recent bus tick only while its freshness guarantee is valid."""
+        symbol = symbol.upper()
+        updated_at = self._price_cache_ts.get(symbol)
+        source = self._price_cache_source.get(symbol, "")
+        if updated_at is None or not source:
+            return None
+        try:
+            max_age = float(os.getenv("SOVEREIGN_REALTIME_TICK_MAX_AGE_SEC", "5"))
+        except ValueError:
+            max_age = 5.0
+        max_age = max(0.25, min(max_age, 30.0))
+        if time.monotonic() - updated_at > max_age:
+            return None
+        price = self._price_cache.get(symbol)
+        return float(price) if price and price > 0 else None
+
     async def get_current_price(self, symbol: str) -> float:
         """Get the most recent price. Priority: TV streamer → QuestDB → Finnhub → OpenBB → yfinance."""
         # Enhancement: Tier -1 — TradingView real-time tick prices (sub-second, free of rate limits).
-        # brain.py sets self._brain_tick_prices = brain.last_tick_prices after creating the pipeline.
-        _tv_prices: dict = getattr(self, "_brain_tick_prices", {})
-        if _tv_prices:
-            tv_price = _tv_prices.get(symbol, 0.0)
-            if tv_price and float(tv_price) > 0:
-                self._price_cache[symbol] = float(tv_price)
-                return float(tv_price)
+        # brain.on_tick() records bus ticks with a freshness timestamp and provider source.
+        realtime_price = self._fresh_realtime_price(symbol)
+        if realtime_price is not None:
+            return realtime_price
 
         # Tier 0: QuestDB (High-Speed Tick Cache)
         if self.qdb and self.qdb.enabled:
@@ -1352,11 +1380,8 @@ class DataPipeline:
             return None
 
     def get_last_price(self, symbol: str) -> float | None:
-        """Return the last price seen for this symbol from the async price cache.
-        Populated by get_current_price() calls. Returns None if never fetched.
-        """
-        price = self._price_cache.get(symbol)
-        return float(price) if price and price > 0 else None
+        """Return a recent bus tick for synchronous execution paths, if one exists."""
+        return self._fresh_realtime_price(symbol)
 
     async def fetch_macro_snapshot(self) -> dict[str, Any]:
         """
