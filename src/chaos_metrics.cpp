@@ -1,6 +1,14 @@
 #include <cmath>
 #include <vector>
 
+#include "native_exports.h"
+
+#if defined(__GNUC__) || defined(__clang__)
+#define SOVEREIGN_LIKELY(expression) __builtin_expect(!!(expression), 1)
+#else
+#define SOVEREIGN_LIKELY(expression) (expression)
+#endif
+
 // Deep Dive: Chaos Theory & Non-linear Dynamics for HFT
 // Computes the Largest Lyapunov Exponent (LLE) using Rosenstein's algorithm.
 // If LLE > 0, the market is deterministic chaos (predictable short-term).
@@ -8,7 +16,7 @@
 
 extern "C" {
 
-    double compute_lyapunov_exponent(const double* time_series, int n, int embedding_dimension, int time_delay) {
+    SOVEREIGN_EXPORT double compute_lyapunov_exponent(const double* time_series, int n, int embedding_dimension, int time_delay) {
         if (time_series == NULL || n <= 0 || embedding_dimension <= 0 || time_delay <= 0) {
             return 0.0;
         }
@@ -37,7 +45,7 @@ extern "C" {
             for (int j = 0; j < num_vectors; ++j) {
                 // Theiler window: ignore temporally correlated points (hot path)
                 int time_diff = std::abs(i - j);
-                if (__builtin_expect(time_diff > time_delay, 1)) { 
+                if (SOVEREIGN_LIKELY(time_diff > time_delay)) {
                     double dist_sq = 0.0;
                     int base_i = i * embedding_dimension;
                     int base_j = j * embedding_dimension;
