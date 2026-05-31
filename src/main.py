@@ -793,6 +793,16 @@ class TradingSystem:
         tvq = getattr(self, "tv_quote_streamer", None)
         ibkr_hft = getattr(self, "hft_streamer", None)
 
+        openbb_status = "OFFLINE"
+        openbb_detail = "not initialized"
+        if openbb:
+            health_status = getattr(openbb, "health_status", None)
+            if callable(health_status):
+                openbb_status, openbb_detail = health_status()
+            elif getattr(openbb, "is_available", False):
+                openbb_status = "ONLINE"
+                openbb_detail = "OpenBB SDK active"
+
         tv_status = "OFFLINE"
         tv_detail = "not initialized"
         if tvq:
@@ -837,11 +847,7 @@ class TradingSystem:
         components = [
             ComponentHealth("ibkr_execution", ibkr_status, critical=self.requires_ibkr_connection),
             ComponentHealth("mt5", mt5_status, critical=False),
-            ComponentHealth(
-                "openbb",
-                "ONLINE" if openbb and getattr(openbb, "is_available", False) else "OFFLINE",
-                critical=False,
-            ),
+            ComponentHealth("openbb", openbb_status, openbb_detail, critical=False),
             ComponentHealth("dhatu", "ONLINE" if dhatu else "OFFLINE", critical=True),
             data_plane,
             ComponentHealth("native_slm", slm_status, slm_detail, critical=False),
