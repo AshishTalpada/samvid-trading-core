@@ -629,7 +629,12 @@ class APIServer:
                 "outcomes": [],
                 "recent_trades": [],
                 "open_by_symbol": [],
-                "order_health": {"persistent_orders": 0, "stale_orders": 0, "failures": 0},
+                "order_health": {
+                    "persistent_orders": 0,
+                    "stale_orders": 0,
+                    "reconciliation_required": 0,
+                    "failures": 0,
+                },
                 "tasks": {"total": 0, "by_status": {}, "by_phase": {}, "recent": []},
                 "system_events": [],
                 "oracle_readings": [],
@@ -1085,12 +1090,19 @@ class APIServer:
 
         cursor.execute("SELECT COUNT(*) FROM persistent_orders")
         trading_truth["order_health"]["persistent_orders"] = int(cursor.fetchone()[0] or 0)
-        placeholders = ", ".join("?" for _ in TERMINAL_ORDER_STATUSES)
+        active_exclusions = (*TERMINAL_ORDER_STATUSES, "ReconciliationRequired")
+        placeholders = ", ".join("?" for _ in active_exclusions)
         cursor.execute(
             f"SELECT COUNT(*) FROM persistent_orders WHERE status NOT IN ({placeholders})",
-            TERMINAL_ORDER_STATUSES,
+            active_exclusions,
         )
         trading_truth["order_health"]["stale_orders"] = int(cursor.fetchone()[0] or 0)
+        cursor.execute(
+            "SELECT COUNT(*) FROM persistent_orders WHERE status = 'ReconciliationRequired'"
+        )
+        trading_truth["order_health"]["reconciliation_required"] = int(
+            cursor.fetchone()[0] or 0
+        )
 
     @staticmethod
     def _probe_component(name: str, probe: Callable[[], Any]) -> str:
