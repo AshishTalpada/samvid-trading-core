@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 import sqlite3
 import sys
 from datetime import datetime, timedelta, timezone
@@ -953,6 +954,30 @@ class TestHeartbeatVetoAgeGate:
         await brain._state_positioned()
 
         assert pos.stop_loss == pytest.approx(98.0)
+
+    @pytest.mark.asyncio
+    async def test_partial_exit_logs_once_while_ibkr_market_closed(self, caplog):
+        """After-hours monitor pulses should not spam runner setup notices."""
+        entry_time = datetime.now(timezone.utc) - timedelta(seconds=120)
+        brain, pos = _make_positioned_brain(entry_time, {"veto": False})
+        brain.mode = "ibkr_paper"
+        pos.account_type = "ibkr"
+        brain._is_market_open = MagicMock(return_value=False)
+        brain._state_lock = asyncio.Lock()
+        from exit_intelligence import ExitAction, ExitDecision
+
+        brain.exit_engine.evaluate = MagicMock(
+            return_value=ExitDecision(action=ExitAction.PARTIAL, reason="runner", priority=4)
+        )
+        caplog.set_level(logging.INFO, logger="brain_position")
+
+        await brain._state_positioned()
+        await brain._state_positioned()
+
+        messages = [record.getMessage() for record in caplog.records]
+        assert sum("PARTIAL DEFERRED [AAPL]" in message for message in messages) == 1
+        assert all("PARTIAL (Runner Setup)" not in message for message in messages)
+        brain._process_exit.assert_not_awaited()
 
     @pytest.mark.asyncio
     async def test_old_position_stop_breach_with_stop_breach_prefix(self):
