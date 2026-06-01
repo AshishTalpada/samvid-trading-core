@@ -48,8 +48,10 @@ def apply_migrations(
     try:
         import yoyo
     except ImportError as exc:
-        logger.error(
-            "yoyo-migrations not installed. Run: pip install yoyo-migrations. Error: %s", exc
+        logger.warning(
+            "yoyo-migrations not installed; startup will use schema fallback. "
+            "Install yoyo-migrations to restore migration tracking. Error: %s",
+            exc,
         )
         return
 
