@@ -93,6 +93,7 @@ class SoakStats:
     realized_net_pnl: float = 0.0
     max_open_positions: int = 0
     max_drawdown_pct: float = 0.0
+    forced_flatten_exits: int = 0
 
 
 class ActiveHoursSyntheticMarket:
@@ -222,7 +223,8 @@ async def run_active_hours_soak(
 ) -> dict[str, Any]:
     """Run the backend soak and return a machine-readable synthetic evidence report."""
     started = time.monotonic()
-    audit_path = ROOT / "tmp" / "active_hours_soak_execution_audit.jsonl"
+    out_path = ROOT / Path(json_out)
+    audit_path = out_path.with_name(f"{out_path.stem}_execution_audit.jsonl")
     audit_path.parent.mkdir(parents=True, exist_ok=True)
     audit_path.unlink(missing_ok=True)
     audit = ExecutionAuditLog(audit_path)
@@ -243,6 +245,54 @@ async def run_active_hours_soak(
     last_signal_at = started - 30.0
     last_report_at = started
     next_tick_at = started
+
+    def close_position(
+        symbol: str,
+        position: SyntheticPosition,
+        *,
+        price: float,
+        regime: str,
+        reason: str,
+    ) -> None:
+        nonlocal equity, peak_equity, trade_sequence
+        exit_side = "SELL" if position.side == "BUY" else "BUY"
+        side_sign = 1 if position.side == "BUY" else -1
+        spread = max(0.01, price * 0.00012)
+        fill_price = price - spread / 2 if exit_side == "SELL" else price + spread / 2
+        commission = max(1.0, position.quantity * 0.005)
+        trade_sequence += 1
+        intent_id = f"soak-exit-{trade_sequence}"
+        audit.append(
+            event="ORDER_INTENT",
+            symbol=symbol,
+            side=exit_side,
+            quantity=position.quantity,
+            order_type="MKT",
+            intent_id=intent_id,
+            details={"px": price, "regime": regime, "reason": reason, "synthetic": True},
+        )
+        _record_fill(
+            audit,
+            intent_id=intent_id,
+            symbol=symbol,
+            side=exit_side,
+            quantity=position.quantity,
+            intended_price=price,
+            fill_price=fill_price,
+            commission=commission,
+        )
+        pnl = (fill_price - position.entry_price) * position.quantity * side_sign - commission
+        stats.realized_net_pnl += pnl
+        equity += pnl
+        peak_equity = max(peak_equity, equity)
+        stats.max_drawdown_pct = max(
+            stats.max_drawdown_pct, (peak_equity - equity) / max(peak_equity, 1.0)
+        )
+        stats.exits_filled += 1
+        stats.wins += int(pnl > 0)
+        stats.losses += int(pnl <= 0)
+        stats.forced_flatten_exits += int(reason == "SESSION_END")
+        del positions[symbol]
 
     async def consume_ticks() -> None:
         while True:
@@ -287,42 +337,8 @@ async def run_active_hours_soak(
                 )
                 if not (stop_hit or target_hit or age >= max_hold_sec):
                     continue
-                exit_side = "SELL" if position.side == "BUY" else "BUY"
-                spread = max(0.01, price * 0.00012)
-                fill_price = price - spread / 2 if exit_side == "SELL" else price + spread / 2
-                commission = max(1.0, position.quantity * 0.005)
-                trade_sequence += 1
-                intent_id = f"soak-exit-{trade_sequence}"
-                audit.append(
-                    event="ORDER_INTENT",
-                    symbol=symbol,
-                    side=exit_side,
-                    quantity=position.quantity,
-                    order_type="MKT",
-                    intent_id=intent_id,
-                    details={"px": price, "regime": regime, "synthetic": True},
-                )
-                _record_fill(
-                    audit,
-                    intent_id=intent_id,
-                    symbol=symbol,
-                    side=exit_side,
-                    quantity=position.quantity,
-                    intended_price=price,
-                    fill_price=fill_price,
-                    commission=commission,
-                )
-                pnl = (fill_price - position.entry_price) * position.quantity * side_sign - commission
-                stats.realized_net_pnl += pnl
-                equity += pnl
-                peak_equity = max(peak_equity, equity)
-                stats.max_drawdown_pct = max(
-                    stats.max_drawdown_pct, (peak_equity - equity) / max(peak_equity, 1.0)
-                )
-                stats.exits_filled += 1
-                stats.wins += int(pnl > 0)
-                stats.losses += int(pnl <= 0)
-                del positions[symbol]
+                reason = "STOP" if stop_hit else "TARGET" if target_hit else "MAX_HOLD"
+                close_position(symbol, position, price=price, regime=regime, reason=reason)
 
             if now - last_signal_at >= signal_interval_sec and len(positions) < 6:
                 stats.signals_considered += 1
@@ -401,6 +417,16 @@ async def run_active_hours_soak(
             next_tick_at += 1.0 / max(tick_hz, 1.0)
             await asyncio.sleep(max(0.0, next_tick_at - time.monotonic()))
 
+        final_regime, _, _, _ = market.regime(1.0)
+        for symbol, position in list(positions.items()):
+            close_position(
+                symbol,
+                position,
+                price=market.prices[symbol],
+                regime=final_regime,
+                reason="SESSION_END",
+            )
+
         stale_probe = _pipeline_cache()
         stale_probe.record_realtime_tick(
             {"symbol": "SPY", "price": 525.0, "source": "SyntheticActiveHours"}
@@ -408,6 +434,8 @@ async def run_active_hours_soak(
         stale_probe._price_cache_ts["SPY"] = time.monotonic() - 60.0
         stale_cache_rejected = stale_probe._fresh_realtime_price("SPY") is None
         await asyncio.sleep(0.05)
+        await asyncio.wait_for(tick_queue.join(), timeout=2.0)
+        await asyncio.wait_for(batch_queue.join(), timeout=2.0)
         evidence = build_execution_evidence(audit_path)
         stats_payload = asdict(stats)
         checks = {
@@ -420,6 +448,7 @@ async def run_active_hours_soak(
             "execution_lineage_matched": evidence["lineage"]["unmatched_lineage_events"] == 0,
             "risk_freeze_exercised": stats.signals_frozen > 0,
             "orders_exercised": stats.entries_filled > 0 and stats.exits_filled > 0,
+            "positions_flattened_at_end": not positions,
         }
         report = {
             "mode": "synthetic_active_hours_soak",
@@ -441,7 +470,6 @@ async def run_active_hours_soak(
             "checks": checks,
             "passed": all(checks.values()),
         }
-        out_path = ROOT / Path(json_out)
         out_path.parent.mkdir(parents=True, exist_ok=True)
         out_path.write_text(json.dumps(report, indent=2, sort_keys=True), encoding="utf-8")
         return report
