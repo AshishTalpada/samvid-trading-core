@@ -480,13 +480,29 @@ class IBKRConnection:
                 or self._intent_id_by_order_id.get(str(parent_id)),
             }
 
-        if status in ["Cancelled", "Inactive"] and trade.contract.symbol:
-            # If we were trying to SELL (Exit), increment failure count in brain
+        if status in {"Cancelled", "Inactive", "ApiCancelled"} and trade.contract.symbol:
             brain = getattr(self, "brain", None)
-            if trade.order.action == "SELL" and brain:
-                symbol = trade.contract.symbol
-                current_fails = brain._exit_failure_counts.get(symbol, 0)
-                brain._exit_failure_counts[symbol] = current_fails + 1
+            matching_position = None
+            if brain:
+                matching_position = next(
+                    (position for position in brain.positions if position.symbol == symbol),
+                    None,
+                )
+                if matching_position:
+                    matching_position.meta.pop("exit_triggered", None)
+                    brain._exit_last_attempt.pop(symbol, None)
+
+            action = str(getattr(trade.order, "action", "")).upper()
+            is_exit_order = bool(
+                matching_position
+                and (
+                    (matching_position.qty > 0 and action == "SELL")
+                    or (matching_position.qty < 0 and action == "BUY")
+                )
+            )
+            if is_exit_order and brain:
+                current_fails = brain._exit_failure_count.get(symbol, 0)
+                brain._exit_failure_count[symbol] = current_fails + 1
                 logger.error(
                     f" SHIELD: Exit failure detected for {symbol}. "
                     f"Total Strikes: {current_fails + 1}"
