@@ -605,11 +605,17 @@ class NewsHarvester:
                     await asyncio.sleep(60)  # Poll every minute
 
                 except Exception as e:
-                    logger.error(
-                        "NewsHarvester: Neural Hub failure: %s",
-                        _short_exc(e) or repr(e),
-                        exc_info=True,
-                    )
+                    if isinstance(e, httpx.TimeoutException):
+                        logger.warning(
+                            "NewsHarvester: Neural Hub timeout; retrying next cycle: %s",
+                            _short_exc(e) or type(e).__name__,
+                        )
+                    else:
+                        logger.error(
+                            "NewsHarvester: Neural Hub failure: %s",
+                            _short_exc(e) or repr(e),
+                            exc_info=True,
+                        )
                     await asyncio.sleep(60)
 
 
