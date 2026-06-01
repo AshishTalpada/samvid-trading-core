@@ -3,7 +3,7 @@ import json
 import sqlite3
 from datetime import datetime
 from types import SimpleNamespace
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -146,6 +146,37 @@ def test_cancelled_status_records_terminal_lineage() -> None:
     assert kwargs["event"] == "ORDER_STATUS"
     assert kwargs["intent_id"] == "intent-123"
     assert kwargs["details"]["status"] == "Cancelled"
+
+
+def test_cancelled_exit_releases_position_latch_and_updates_active_strikes() -> None:
+    conn = IBKRConnection.__new__(IBKRConnection)
+    conn._execution_audit = MagicMock()
+    conn._intent_id_by_order_id = {}
+    position = SimpleNamespace(symbol="SPY", qty=2, meta={"exit_triggered": True})
+    conn.brain = SimpleNamespace(
+        positions=[position],
+        _exit_last_attempt={"SPY": datetime.now()},
+        _exit_failure_count={},
+    )
+    trade = SimpleNamespace(
+        contract=SimpleNamespace(symbol="SPY"),
+        order=SimpleNamespace(
+            orderId=123,
+            parentId=0,
+            action="SELL",
+            orderType="MKT",
+            totalQuantity=2,
+        ),
+        orderStatus=SimpleNamespace(status="Cancelled", filled=0, remaining=2),
+        log=[],
+    )
+
+    with patch("threading.Thread"):
+        conn._on_order_status(trade)
+
+    assert "exit_triggered" not in position.meta
+    assert "SPY" not in conn.brain._exit_last_attempt
+    assert conn.brain._exit_failure_count["SPY"] == 1
 
 
 def test_persistent_order_schema_upgrades_legacy_cache() -> None:
