@@ -1481,9 +1481,7 @@ class TradingBrain(BrokerReconciler, HealthChecker, DataProvider, AccountingMixi
         # Pre-market health check — validate all critical paths before risking capital
         health_ok, health_reason = await self._pre_market_health_check()
         if not health_ok:
-            logger.critical(
-                f"PRE-MARKET HEALTH CHECK FAILED: {health_reason}. Remaining in STANDBY."
-            )
+            self._log_pre_market_health_failure(health_reason)
             await asyncio.sleep(30)
             return
 
