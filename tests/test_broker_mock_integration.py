@@ -463,6 +463,33 @@ async def test_reconcile_refreshes_stale_ibkr_position_cache(paper_brain):
     paper_brain._update_trade_volume.assert_called_once_with("AAPL", "ibkr", 40.0)
 
 
+@pytest.mark.asyncio
+async def test_reconcile_defers_drift_alert_when_ibkr_reality_is_unavailable(paper_brain):
+    """Disconnected IBKR memory is unknown, not proof of a broker mismatch."""
+    paper_brain.positions = [
+        Position(
+            symbol="AAPL",
+            qty=100,
+            entry_price=150.0,
+            stop_loss=140.0,
+            take_profit=165.0,
+            account_type="ibkr",
+            entry_time=datetime(2024, 1, 1, tzinfo=timezone.utc),
+        )
+    ]
+    paper_brain.start_time = datetime(2024, 1, 1, tzinfo=timezone.utc)
+    paper_brain._broker_is_connected = lambda conn: conn.is_connected()
+    paper_brain.ibkr_conn.is_connected.return_value = False
+    paper_brain.ibkr_conn._positions_cache = {}
+    paper_brain.mt5_conn.is_connected.return_value = False
+
+    with patch("telegram_alerts.send_telegram_alert", new_callable=AsyncMock) as alert:
+        await paper_brain._reconcile_broker_positions()
+
+    assert [position.symbol for position in paper_brain.positions] == ["AAPL"]
+    alert.assert_not_awaited()
+
+
 # ===========================================================================
 # Reconciliation: _reconcile_open_trade_rows marks closed trades
 # ===========================================================================
