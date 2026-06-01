@@ -351,6 +351,7 @@ class TradingSystem:
         self._last_tick_time = time.monotonic()
         self._last_data_starvation_alert = 0.0
         self._recalibration_in_progress = False
+        self._ibkr_outage_active = False
 
         self._write_pid()
         self.profiler.mark("CONSTRUCTOR_COMPLETE")
@@ -1066,6 +1067,15 @@ class TradingSystem:
             try:
                 from ib_insync import IB, IBC
 
+                previous_client = self.ibkr_client
+                if previous_client:
+                    try:
+                        if previous_client.isConnected():
+                            logger.info("IBKR session already connected; reusing existing client.")
+                            return True
+                        previous_client.disconnect()
+                    except Exception as exc:
+                        logger.debug("IBKR stale-client cleanup skipped: %s", exc)
                 self.ibkr_client = IB()
 
                 auto_launch_ibkr = Vault.get("IBKR_AUTO_LAUNCH", "0").strip() == "1"
@@ -1188,6 +1198,7 @@ class TradingSystem:
                 # This ensures the system can at least see delayed prices if
                 # no live subscriptions are present (Prevents 10168 errors).
                 client.reqMarketDataType(3)
+                await self._bind_ibkr_runtime(reconcile=False)
                 logger.info("✓ IBKR Market Data: Type 3 (Delayed) enabled as fallback.")
 
                 return True
@@ -1195,6 +1206,109 @@ class TradingSystem:
             except Exception as e:
                 logger.error(f"IBKR connection error: {e}")
                 return False
+
+    async def _bind_ibkr_runtime(self, *, reconcile: bool = True) -> None:
+        """Rebind every IBKR consumer after startup or a late broker recovery."""
+        client = self.ibkr_client
+        if not client:
+            return
+
+        dms = getattr(self, "dms", None)
+        if dms:
+            dms.ibkr_client = client
+
+        brain = getattr(self, "trading_brain", None)
+        if not brain:
+            return
+
+        brain.ibkr_client = client
+        conn = getattr(brain, "ibkr_conn", None)
+        if conn:
+            conn.ib = client
+            conn.is_reconnecting = False
+            conn._callbacks_registered = False
+            await conn.ensure_connection()
+        if reconcile:
+            await brain._reconcile_broker_positions()
+
+    async def _run_ibkr_reconnect_loop(self) -> None:
+        """Keep the owned IBKR API session attached when TWS starts late or restarts."""
+        def _interval(name: str, default: float) -> float:
+            try:
+                return float(os.environ.get(name, str(default)))
+            except ValueError:
+                logger.warning("%s is invalid; using %.0fs.", name, default)
+                return default
+
+        base_delay = max(
+            5.0,
+            _interval("SOVEREIGN_IBKR_RECONNECT_INTERVAL_SEC", 15.0),
+        )
+        max_delay = max(
+            base_delay,
+            _interval("SOVEREIGN_IBKR_RECONNECT_MAX_INTERVAL_SEC", 300.0),
+        )
+        delay = base_delay
+
+        while self.is_running and not self._shutdown_in_progress:
+            connected = False
+            client = self.ibkr_client
+            if client:
+                try:
+                    connected = bool(client.isConnected())
+                except Exception as exc:
+                    logger.debug("IBKR reconnect health probe failed: %s", exc)
+
+            if connected:
+                if self._ibkr_outage_active:
+                    await self._bind_ibkr_runtime()
+                    self._ibkr_outage_active = False
+                    delay = base_delay
+                    logger.info("IBKR RECOVERY: execution session restored and reconciled.")
+                    await self.send_telegram_notification(
+                        "[EXECUTION] IBKR API session recovered. "
+                        "Runtime references rebound and broker positions reconciled."
+                    )
+                    await self._persist_runtime_health_snapshot(
+                        event_type="broker_recovered",
+                        message="IBKR execution session recovered",
+                    )
+                await asyncio.sleep(base_delay)
+                continue
+
+            if not self._ibkr_outage_active:
+                self._ibkr_outage_active = True
+                logger.warning(
+                    "IBKR OUTAGE: execution is offline. Runtime will keep retrying attachment."
+                )
+                await self.send_telegram_notification(
+                    "[EXECUTION] IBKR API session offline. "
+                    "New IBKR orders are blocked while automatic reattachment runs."
+                )
+                await self._persist_runtime_health_snapshot(
+                    event_type="broker_offline",
+                    message="IBKR execution session offline",
+                )
+
+            if await self.connect_ibkr():
+                await self._bind_ibkr_runtime()
+                self._ibkr_outage_active = False
+                delay = base_delay
+                logger.info("IBKR RECOVERY: automatic reattachment succeeded.")
+                await self.send_telegram_notification(
+                    "[EXECUTION] IBKR API session recovered. "
+                    "Runtime references rebound and broker positions reconciled."
+                )
+                await self._persist_runtime_health_snapshot(
+                    event_type="broker_recovered",
+                    message="IBKR execution session recovered",
+                )
+                await asyncio.sleep(base_delay)
+                continue
+
+            logger.warning("IBKR RECOVERY: attachment failed; retrying in %.0fs.", delay)
+            await asyncio.sleep(delay)
+            delay = min(delay * 2.0, max_delay)
 
     async def connect_mt5(self) -> bool | None:
         """Connect to MetaTrader 5 if credentials provided"""
@@ -1463,6 +1577,7 @@ class TradingSystem:
                 mt5_client=self.mt5_client,
                 ibkr_port=self.ibkr_port,
                 bus=self.bus,
+                requires_ibkr_connection=self.requires_ibkr_connection,
             )
 
             dms = self.dms
@@ -1746,6 +1861,8 @@ class TradingSystem:
 
             logger.info("\n[4/10] Starting Trading Brain (Standby Mode)...")
             await self.start_trading_brain()
+            if self.requires_ibkr_connection:
+                self._start_supervised_task("ibkr_reconnect", self._run_ibkr_reconnect_loop)
 
             # Start the Remote Command Listener IMMEDIATELY
             if self.telegram_remote:
@@ -1958,7 +2075,11 @@ class TradingSystem:
             )
             print(banner)
             market_open = self.trading_brain._is_market_open() if self.trading_brain else None
-            if market_open is False:
+            if self.requires_ibkr_connection and not ibkr_ok:
+                logger.warning(
+                    "STARTUP DEGRADED - IBKR execution offline; automatic reattachment active."
+                )
+            elif market_open is False:
                 logger.info(
                     "STARTUP COMPLETE - system healthy; market closed, new-trade scans deferred."
                 )
