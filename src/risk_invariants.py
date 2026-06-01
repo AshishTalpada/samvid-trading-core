@@ -19,6 +19,7 @@ class OrderThrottler:
         self._max = max(1, int(max_orders))
         self._window = timedelta(seconds=max(1, int(per_seconds)))
         self._timestamps: deque[datetime] = deque()
+        self._last_throttle_log_at: datetime | None = None
 
     def can_submit(self) -> bool:
         """Return True if an order may be submitted, False if throttled."""
@@ -27,16 +28,24 @@ class OrderThrottler:
         while self._timestamps and (now - self._timestamps[0]) > self._window:
             self._timestamps.popleft()
         if len(self._timestamps) >= self._max:
-            logger.error(
-                f"ORDER THROTTLED: {self._max} orders already submitted in "
-                f"{self._window.seconds}s. Standing down."
-            )
+            log_interval = timedelta(seconds=min(5, self._window.seconds))
+            if (
+                self._last_throttle_log_at is None
+                or now - self._last_throttle_log_at >= log_interval
+            ):
+                logger.warning(
+                    "ORDER THROTTLED: %s orders already submitted in %ss. Standing down.",
+                    self._max,
+                    self._window.seconds,
+                )
+                self._last_throttle_log_at = now
             return False
         self._timestamps.append(now)
         return True
 
     def reset(self) -> None:
         self._timestamps.clear()
+        self._last_throttle_log_at = None
 
 
 # Module-level singleton — import directly
