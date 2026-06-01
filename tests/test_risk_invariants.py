@@ -1,5 +1,21 @@
 # pyre-ignore-all-errors[21]
+import logging
 from pathlib import Path
+
+
+def test_order_throttler_rate_limits_expected_warning(caplog) -> None:
+    from src.risk_invariants import OrderThrottler  # type: ignore
+
+    throttler = OrderThrottler(max_orders=1, per_seconds=60)
+    assert throttler.can_submit() is True
+
+    with caplog.at_level(logging.WARNING):
+        assert throttler.can_submit() is False
+        assert throttler.can_submit() is False
+
+    warnings = [record for record in caplog.records if "ORDER THROTTLED" in record.message]
+    assert len(warnings) == 1
+    assert warnings[0].levelno == logging.WARNING
 
 
 def test_f6_chain_step_order_and_presence() -> None:
