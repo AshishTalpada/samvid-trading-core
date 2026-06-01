@@ -648,8 +648,40 @@ class TestBrokerExitRealization:
         assert pos in paper_brain.positions
 
     @pytest.mark.asyncio
-    async def test_ibkr_emergency_exit_allowed_when_market_closed(self, paper_brain):
-        """Safety exits remain routable outside the regular equity session."""
+    async def test_ibkr_emergency_exit_deferred_when_market_closed_by_default(
+        self, paper_brain, monkeypatch
+    ):
+        """Snapshot-driven safety exits do not queue next-open orders by default."""
+        monkeypatch.delenv("SOVEREIGN_ALLOW_AFTER_HOURS_IBKR_EMERGENCY_EXITS", raising=False)
+        paper_brain.mode = "ibkr_paper"
+        paper_brain.ibkr_conn.is_connected.return_value = True
+        paper_brain._broker_is_connected = MagicMock(return_value=True)
+        paper_brain._is_market_open = MagicMock(return_value=False)
+        paper_brain._place_ibkr_order = AsyncMock(return_value=12345)
+        paper_brain._confirm_ibkr_order_filled = AsyncMock(return_value=False)
+
+        pos = _make_position(
+            symbol="NVDA",
+            qty=12,
+            entry_time=datetime.now(timezone.utc) - timedelta(minutes=20),
+        )
+        paper_brain.positions = [pos]
+        pos.meta["exit_triggered"] = True
+
+        await paper_brain._process_exit(pos, "STOP_LOSS", 212.50)
+
+        paper_brain._place_ibkr_order.assert_not_awaited()
+        paper_brain._confirm_ibkr_order_filled.assert_not_awaited()
+        assert "exit_triggered" not in pos.meta
+        assert pos.qty == 12
+        assert pos in paper_brain.positions
+
+    @pytest.mark.asyncio
+    async def test_ibkr_emergency_exit_allowed_when_after_hours_override_enabled(
+        self, paper_brain, monkeypatch
+    ):
+        """Operators can explicitly permit emergency exit routing outside regular hours."""
+        monkeypatch.setenv("SOVEREIGN_ALLOW_AFTER_HOURS_IBKR_EMERGENCY_EXITS", "1")
         paper_brain.mode = "ibkr_paper"
         paper_brain.ibkr_conn.is_connected.return_value = True
         paper_brain._broker_is_connected = MagicMock(return_value=True)
@@ -881,6 +913,31 @@ class TestHeartbeatVetoAgeGate:
         await brain._state_positioned()
 
         brain._process_exit.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_after_hours_stop_breach_veto_is_deferred_without_spam(
+        self, monkeypatch, caplog
+    ):
+        """Closed-session snapshots do not route or repeatedly warn for heartbeat vetoes."""
+        monkeypatch.delenv("SOVEREIGN_ALLOW_AFTER_HOURS_IBKR_EMERGENCY_EXITS", raising=False)
+        entry_time = datetime.now(timezone.utc) - timedelta(seconds=120)
+        heartbeat = {"veto": True, "reason": "Hard stop breached: $97 <= $98"}
+
+        brain, pos = _make_positioned_brain(entry_time, heartbeat)
+        brain.mode = "ibkr_paper"
+        pos.account_type = "ibkr"
+        brain._is_market_open = MagicMock(return_value=False)
+        brain._state_lock = asyncio.Lock()
+
+        with caplog.at_level(logging.WARNING, logger="brain_position"):
+            await brain._state_positioned()
+            await brain._state_positioned()
+
+        brain._process_exit.assert_not_awaited()
+        deferred = [
+            record for record in caplog.records if "HEARTBEAT VETO DEFERRED" in record.message
+        ]
+        assert len(deferred) == 1
 
     @pytest.mark.asyncio
     async def test_veto_reason_mixed_case_stop_breached(self):
