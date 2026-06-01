@@ -18,6 +18,24 @@ logger = logging.getLogger(__name__)
 class HealthChecker:
     """Mixin: pre-market checks, status heartbeats, and risk-modifier decay."""
 
+    def _log_pre_market_health_failure(self, reason: str) -> None:
+        """Rate-limit degraded standby reporting without hiding reason changes."""
+        now = time.monotonic()
+        last_reason = str(getattr(self, "_last_health_failure_reason", ""))
+        last_log = float(getattr(self, "_last_health_failure_notice_ts", 0.0) or 0.0)
+        try:
+            interval = float(os.getenv("SOVEREIGN_HEALTH_FAILURE_LOG_INTERVAL_SEC", "300"))
+        except ValueError:
+            interval = 300.0
+
+        message = "PRE-MARKET HEALTH CHECK BLOCKED: %s. Remaining in STANDBY."
+        if reason != last_reason or now - last_log >= max(30.0, interval):
+            logger.warning(message, reason)
+            self._last_health_failure_reason = reason
+            self._last_health_failure_notice_ts = now
+        else:
+            logger.debug(message, reason)
+
     async def _pre_market_health_check(self) -> tuple[bool, str]:
         """
         Validate all critical execution paths before the first scan cycle.
