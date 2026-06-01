@@ -326,10 +326,26 @@ class BrokerReconciler:
                 | set(mt5_reality.keys())
                 | {p.symbol for p in self.positions}
             )
+            ibkr_visible = self._broker_is_connected(self.ibkr_conn) and (
+                ibkr_polled or bool(ibkr_reality)
+            )
+            mt5_visible = self._broker_is_connected(self.mt5_conn) and (
+                mt5_polled or bool(mt5_reality)
+            )
+            if not ibkr_visible:
+                report_lines.append(
+                    " IBKR reality unavailable; drift comparison deferred until a fresh poll."
+                )
+            if not mt5_visible:
+                report_lines.append(
+                    " MT5 reality unavailable; drift comparison deferred until a fresh poll."
+                )
             for sym in sorted(all_symbols):
                 for b in ("ibkr", "mt5"):
                     reality_map = ibkr_reality if b == "ibkr" else mt5_reality
-                    if b == "mt5" and not self._broker_is_connected(self.mt5_conn):
+                    if b == "ibkr" and not ibkr_visible:
+                        continue
+                    if b == "mt5" and not mt5_visible:
                         continue
 
                     m_pos = next(
