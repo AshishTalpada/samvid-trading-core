@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
 import time
 from datetime import datetime, timezone
 from typing import Any
@@ -111,6 +112,9 @@ class PositionMonitor:
                     and hasattr(self, "_is_market_open")
                     and not self._is_market_open()
                 )
+                if ibkr_regular_session_open:
+                    pos.meta.pop("heartbeat_veto_deferred_market_closed", None)
+                    pos.meta.pop("exit_deferred_market_closed", None)
 
                 # MFE / MAE Tracking
                 risk_amt = abs(pos.entry_price - pos.initial_stop)
@@ -180,6 +184,26 @@ class PositionMonitor:
                     # Allow VIX panic and belief-collapse vetoes immediately.
                     # Suppress stop-breach vetoes on positions under 60s (first-tick noise).
                     _is_stop_breach = "stop breached" in _veto_reason.lower()
+                    allow_after_hours_exit = (
+                        os.environ.get(
+                            "SOVEREIGN_ALLOW_AFTER_HOURS_IBKR_EMERGENCY_EXITS", "0"
+                        )
+                        == "1"
+                    )
+                    if (
+                        _is_stop_breach
+                        and not ibkr_regular_session_open
+                        and not allow_after_hours_exit
+                    ):
+                        if not pos.meta.get("heartbeat_veto_deferred_market_closed"):
+                            logger.warning(
+                                "HEARTBEAT VETO DEFERRED [%s]: %s. "
+                                "US equity market is closed.",
+                                pos.symbol,
+                                _veto_reason,
+                            )
+                            pos.meta["heartbeat_veto_deferred_market_closed"] = True
+                        continue
                     if _is_stop_breach and _pos_age_s < 60:
                         logger.debug(
                             "HEARTBEAT VETO suppressed for %s (age=%.0fs < 60s): %s",
@@ -450,20 +474,30 @@ class PositionMonitor:
                 logger.warning(
                     f"DELAYED EXIT [{symbol}]: {pos.account_type} is OFFLINE. Postponing pulse."
                 )
+                pos.meta.pop("exit_triggered", None)
                 return
 
-            if (
+            market_closed = (
                 pos.account_type == "ibkr"
                 and hasattr(self, "_is_market_open")
                 and not self._is_market_open()
-                and not is_emergency
-            ):
-                logger.info(
-                    "%s DEFERRED [%s]: US equity market is closed; "
-                    "keeping memory unchanged until a live fillable session.",
-                    exit_type,
-                    symbol,
-                )
+            )
+            allow_after_hours_exit = (
+                os.environ.get("SOVEREIGN_ALLOW_AFTER_HOURS_IBKR_EMERGENCY_EXITS", "0") == "1"
+            )
+            explicit_flatten = "FLATTEN" in exit_type.upper()
+            if market_closed and not allow_after_hours_exit and not explicit_flatten:
+                if not pos.meta.get("exit_deferred_market_closed"):
+                    logger.info(
+                        "%s DEFERRED [%s]: US equity market is closed; "
+                        "keeping memory unchanged until a live fillable session. "
+                        "Set SOVEREIGN_ALLOW_AFTER_HOURS_IBKR_EMERGENCY_EXITS=1 "
+                        "to permit intentional after-hours routing.",
+                        exit_type,
+                        symbol,
+                    )
+                    pos.meta["exit_deferred_market_closed"] = True
+                pos.meta.pop("exit_triggered", None)
                 return
 
             # Strike-3 Lockout check
