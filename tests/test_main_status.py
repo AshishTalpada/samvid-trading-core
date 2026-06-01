@@ -1,4 +1,7 @@
 from types import SimpleNamespace
+from unittest.mock import AsyncMock, patch
+
+import pytest
 
 from main import TradingSystem
 
@@ -61,3 +64,62 @@ def test_realtime_watchlist_matches_scanner_execution_watchlist() -> None:
 
     assert TradingSystem.execution_watchlist() == list(DataProvider.EXECUTION_WATCHLIST)
     assert len(TradingSystem.execution_watchlist()) == 26
+
+
+@pytest.mark.asyncio
+async def test_ibkr_runtime_rebind_updates_dms_brain_and_reconciles() -> None:
+    system = _system()
+    client = object()
+    conn = SimpleNamespace(
+        ib=None,
+        is_reconnecting=True,
+        _callbacks_registered=True,
+        ensure_connection=AsyncMock(),
+    )
+    brain = SimpleNamespace(
+        ibkr_client=None,
+        ibkr_conn=conn,
+        _reconcile_broker_positions=AsyncMock(),
+    )
+    dms = SimpleNamespace(ibkr_client=None)
+    system.ibkr_client = client
+    system.trading_brain = brain
+    system.dms = dms
+
+    await system._bind_ibkr_runtime()
+
+    assert dms.ibkr_client is client
+    assert brain.ibkr_client is client
+    assert conn.ib is client
+    assert conn.is_reconnecting is False
+    assert conn._callbacks_registered is False
+    conn.ensure_connection.assert_awaited_once()
+    brain._reconcile_broker_positions.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_ibkr_reconnect_loop_recovers_offline_execution() -> None:
+    class OfflineClient:
+        def isConnected(self) -> bool:
+            return False
+
+    system = _system()
+    system.ibkr_client = OfflineClient()
+    system.is_running = True
+    system._shutdown_in_progress = False
+    system._ibkr_outage_active = False
+    system.connect_ibkr = AsyncMock(return_value=True)
+    system._bind_ibkr_runtime = AsyncMock()
+    system.send_telegram_notification = AsyncMock(return_value=True)
+    system._persist_runtime_health_snapshot = AsyncMock()
+
+    async def stop_after_recovery(_delay: float) -> None:
+        system.is_running = False
+
+    with patch("main.asyncio.sleep", side_effect=stop_after_recovery):
+        await system._run_ibkr_reconnect_loop()
+
+    system.connect_ibkr.assert_awaited_once()
+    system._bind_ibkr_runtime.assert_awaited_once()
+    assert system._ibkr_outage_active is False
+    assert system.send_telegram_notification.await_count == 2
