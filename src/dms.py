@@ -61,6 +61,7 @@ class DMSMonitor:
         mt5_client=None,
         ibkr_port: int = 7497,
         bus: Optional["SharedIntelligenceBus"] = None,
+        requires_ibkr_connection: bool = False,
     ) -> None:
         self.bus = bus
         if not bot_token or bot_token == "YOUR_BOT_TOKEN_HERE":
@@ -96,6 +97,7 @@ class DMSMonitor:
         # Broker connections for emergency flatten
         self.ibkr_client = ibkr_client
         self.mt5_client = mt5_client
+        self.requires_ibkr_connection = requires_ibkr_connection
 
         # Grace period before flatten (Agent C alive check)
         self.grace_period = 15  # 15 seconds (down from 30s)
@@ -144,6 +146,16 @@ class DMSMonitor:
             return False
         # unreachable path — all branches above return; explicit for clarity
         return False  # noqa: F811
+
+    def _ibkr_is_connected(self) -> bool:
+        """Return whether emergency IBKR execution is currently usable."""
+        if not self.ibkr_client:
+            return False
+        try:
+            return bool(self.ibkr_client.isConnected())
+        except Exception as exc:
+            logger.debug("DMS: IBKR status probe failed: %s", exc)
+            return False
 
     def record_heartbeat(self, agent_id: str = "BRAIN_PRIMARY") -> None:
         """Record a heartbeat from a specific agent."""
@@ -542,7 +554,7 @@ class DMSMonitor:
         logger.critical(f"DMS FLATTEN COMPLETE: {total_flattened} positions closed")
 
     async def send_status_ok(self) -> None:
-        """Send hourly OK status message."""
+        """Send an hourly operational status message with execution truth."""
         current_time = datetime.now(timezone.utc)
 
         hb_summary = ""
@@ -550,17 +562,34 @@ class DMSMonitor:
             age = (current_time - ts).total_seconds()
             hb_summary += f"• {agent}: {int(age)}s ago\n"
 
+        ibkr_connected = self._ibkr_is_connected()
+
+        execution_degraded = self.requires_ibkr_connection and not ibkr_connected
+        headline = (
+            "<b>[DEGRADED] Sovereign Status: EXECUTION OFFLINE [DEGRADED]</b>"
+            if execution_degraded
+            else "<b>[OK] Sovereign Status: OPERATIONAL [OK]</b>"
+        )
+        execution_detail = (
+            "IBKR API session is offline. New IBKR orders remain blocked while recovery retries."
+            if execution_degraded
+            else "Execution broker requirements satisfied."
+        )
         message = (
-            " <b>[OK] Sovereign Status: OPERATIONAL [OK]</b> \n\n"
+            f" {headline} \n\n"
             f" <b>Status Time:</b> {current_time.strftime('%Y-%m-%d %H:%M:%S')}\n"
             f" <b>Heartbeat Matrix:</b>\n{hb_summary}\n"
+            f" <b>IBKR API:</b> {'connected' if ibkr_connected else 'offline'}\n"
             f" <b>Timeout Threshold:</b> {self.timeout}s\n\n"
-            "All intelligence nodes nominal."
+            f"{execution_detail}"
         )
 
         await self._send_telegram_message(message)
         self.last_status_ok = current_time
-        logger.info("Status OK message sent")
+        if execution_degraded:
+            logger.warning("DMS degraded status sent: IBKR execution offline.")
+        else:
+            logger.info("DMS operational status sent")
 
     async def run(self) -> None:
         """Main monitoring loop — check every 30s."""
@@ -577,7 +606,7 @@ class DMSMonitor:
             f" <b>Timeout:</b> {self.timeout}s\n"
             f" <b>Grace period:</b> {self.grace_period}s\n"
             f" <b>Check interval:</b> 30s\n"
-            f" <b>IBKR flatten:</b> {'enabled' if self.ibkr_client else 'disabled'}\n"
+            f" <b>IBKR flatten:</b> {'enabled' if self._ibkr_is_connected() else 'offline'}\n"
             f" <b>MT5 flatten:</b> {'enabled' if self.mt5_client else 'disabled'}"
         )
 
