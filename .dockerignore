@@ -22,9 +22,9 @@ venv/
 .venv/
 
 # Data (provided at runtime via Docker volumes)
-data/*.db
-data/*.db-shm
-data/*.db-wal
+data/
+models/
+outputs/
 qdbroot/
 questdb/
 questdb_data/
@@ -39,10 +39,8 @@ tests/
 *.coverage
 .pytest_cache/
 
-# Frontend (served separately if needed)
-frontend/node_modules/
-frontend/.env
-frontend/.env.local
+# Frontend (built and served separately)
+frontend/
 
 # Version control
 .git/
@@ -52,9 +50,18 @@ frontend/.env.local
 .vscode/
 .idea/
 .github/
+.claude/
 .windsurf/
 .cursor/
 .devin/
+docs/
+tools/
+contracts/
+android/
+ios/
+vr/
+hardware/
+deploy/
 
 # Temporary files
 tmp/
