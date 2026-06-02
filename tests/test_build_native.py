@@ -44,3 +44,11 @@ def test_find_vcvarsall_fails_clearly_without_toolchain(tmp_path, monkeypatch) -
 
     with pytest.raises(FileNotFoundError, match="Visual Studio Build Tools"):
         build_native._find_vcvarsall()
+
+
+def test_makefile_adds_src_include_path_for_quarantine_sources() -> None:
+    makefile = (build_native.ROOT / "Makefile").read_text(encoding="utf-8")
+
+    assert "CPPFLAGS=-Isrc" in makefile
+    assert "$(CC) $(CPPFLAGS) $(CFLAGS)" in makefile
+    assert "$(CXX) $(CPPFLAGS) $(CXXFLAGS)" in makefile
