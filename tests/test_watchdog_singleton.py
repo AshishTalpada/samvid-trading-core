@@ -3,6 +3,10 @@ from pathlib import Path
 import watchdog
 
 
+def test_silence_timeout_allows_one_watchdog_interval_of_scheduler_jitter() -> None:
+    assert watchdog.SILENCE_TIMEOUT >= 60 + watchdog.CHECK_INTERVAL
+
+
 def test_watchdog_pid_claim_refuses_live_existing_owner(tmp_path, monkeypatch) -> None:
     monkeypatch.chdir(tmp_path)
     data_dir = Path("data")
