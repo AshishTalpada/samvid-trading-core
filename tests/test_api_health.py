@@ -3,6 +3,7 @@ import sqlite3
 from types import SimpleNamespace
 
 import pytest
+from fastapi.testclient import TestClient
 
 from api_server import APIServer
 
@@ -60,6 +61,21 @@ def test_api_health_payload_marks_production_offline_as_down() -> None:
 
     assert payload["status"] == "DOWN"
     assert payload["production"]["overall"] == "OFFLINE"
+
+
+def test_api_liveness_probe_does_not_require_operator_credentials() -> None:
+    system = SimpleNamespace(
+        bus=SimpleNamespace(
+            on=lambda *_args: None,
+            subscribe=lambda *_args, **_kwargs: None,
+        )
+    )
+    server = APIServer(system)
+
+    response = TestClient(server.app).get("/health/live")
+
+    assert response.status_code == 200
+    assert response.json() == {"status": "UP"}
 
 
 def test_api_state_collection_latency_is_measured(monkeypatch) -> None:
