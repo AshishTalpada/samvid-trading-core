@@ -1,5 +1,6 @@
 CC=gcc
 CXX=g++
+CPPFLAGS=-Isrc
 CFLAGS=-O3 -march=native -mtune=native -flto -ffast-math -fPIC -std=c11
 CXXFLAGS=-O3 -march=native -mtune=native -flto -ffast-math -fPIC -std=c++17
 
@@ -26,11 +27,11 @@ $(TARGET): $(OBJECTS)
 
 build/%.o: %.c
 	$(MKDIR_P) $(dir $@)
-	$(CC) $(CFLAGS) -c -o $@ $<
+	$(CC) $(CPPFLAGS) $(CFLAGS) -c -o $@ $<
 
 build/%.o: %.cpp
 	$(MKDIR_P) $(dir $@)
-	$(CXX) $(CXXFLAGS) -c -o $@ $<
+	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -c -o $@ $<
 
 clean:
 	rm -rf build
