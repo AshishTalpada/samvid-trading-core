@@ -81,6 +81,10 @@ class APIServer:
     def _setup_health_check(self) -> None:
         """Standardized health check endpoint for monitoring and uptime verification."""
 
+        @self.app.get("/health/live", include_in_schema=False)
+        async def liveness_check():
+            return {"status": "UP"}
+
         @self.app.get("/health")
         async def health_check(key: str = Depends(self._verify_api_key)):
             return self._build_health_payload()
