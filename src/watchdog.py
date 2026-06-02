@@ -26,7 +26,7 @@ logger = logging.getLogger(__name__)
 DB_PATH = "data/trading.db"
 CHECK_INTERVAL = 30  # Check every 30 seconds (tightened from 60)
 LIVENESS_TIMEOUT = 120  # Task is live-locked if heartbeat > 120s stale
-SILENCE_TIMEOUT = 60  # System crashed if > 60s total silence (matches DMS)
+SILENCE_TIMEOUT = 90  # Allow one watchdog interval of jitter around the 60s engine pulse.
 MEMORY_THRESHOLD_MB = 1200
 
 
