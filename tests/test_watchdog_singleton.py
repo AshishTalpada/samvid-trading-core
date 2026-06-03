@@ -7,6 +7,22 @@ def test_silence_timeout_allows_one_watchdog_interval_of_scheduler_jitter() -> N
     assert watchdog.SILENCE_TIMEOUT >= 60 + watchdog.CHECK_INTERVAL
 
 
+def test_startup_silence_timeout_allows_slow_broker_probes() -> None:
+    assert watchdog.STARTUP_SILENCE_TIMEOUT >= 2 * watchdog.LIVENESS_TIMEOUT
+
+
+def test_soft_task_live_lock_does_not_force_engine_restart() -> None:
+    stale = {"AGENT_D": 180.0, "tv_quote_streamer": 181.0}
+
+    assert watchdog.hard_restart_stale_tasks(stale) == {}
+
+
+def test_core_task_live_lock_can_force_engine_restart() -> None:
+    stale = {"AGENT_D": 180.0, "BRAIN_PRIMARY": 181.0}
+
+    assert watchdog.hard_restart_stale_tasks(stale) == {"BRAIN_PRIMARY": 181.0}
+
+
 def test_watchdog_pid_claim_refuses_live_existing_owner(tmp_path, monkeypatch) -> None:
     monkeypatch.chdir(tmp_path)
     data_dir = Path("data")

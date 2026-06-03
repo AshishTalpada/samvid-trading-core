@@ -1829,12 +1829,21 @@ class TradingSystem:
 
             # 2. Start Critical Infrastructure synchronously/awaited
             await self.start_dms()
+            await self._persist_runtime_health_snapshot(
+                event_type="startup_progress",
+                message="Core infrastructure initialized; broker probing starting",
+            )
 
             # 3. Broker Matrix Probing (Serialized for stability)
             if self.requires_ibkr_connection:
                 await self.connect_ibkr()
             else:
                 logger.info("Paper mode active — skipping IBKR connection.")
+
+            await self._persist_runtime_health_snapshot(
+                event_type="startup_progress",
+                message="IBKR probe completed; MT5 probe starting",
+            )
 
             _mt5_authorized = False
             if hasattr(self, "mt5_login") and self.mt5_login:
@@ -1858,6 +1867,11 @@ class TradingSystem:
                     "MT5 Kill Switch ACTIVE: Skipping MetaTrader. "
                     f"Missing from Vault: {', '.join(missing)}"
                 )
+
+            await self._persist_runtime_health_snapshot(
+                event_type="startup_progress",
+                message="Broker probing completed; brain startup starting",
+            )
 
             logger.info("\n[4/10] Starting Trading Brain (Standby Mode)...")
             await self.start_trading_brain()
@@ -2042,6 +2056,10 @@ class TradingSystem:
     async def _run_forever(self) -> None:
         """Keep the system running"""
         logger.info("System running - Press Ctrl+C to stop\n")
+        await self._persist_runtime_health_snapshot(
+            event_type="run_loop_start",
+            message="Runtime loop entered",
+        )
 
         # Enhancement: Startup Health Banner (printed 10s after boot)
         await asyncio.sleep(10)
@@ -2090,8 +2108,6 @@ class TradingSystem:
 
         try:
             while self.is_running:
-                await asyncio.sleep(60)  # Pulse every 60 seconds
-
                 # 1. Update local heartbeat in database
                 db = self.db_conn
                 if db:
@@ -2127,6 +2143,8 @@ class TradingSystem:
                             f"Sovereign Monitor: {drops} ticks DROPPED during current "
                             "session. Bus Saturation detected."
                         )
+
+                await asyncio.sleep(60)  # Pulse every 60 seconds
 
                 # Checkpoint every 5 minutes (300s) to protect against local crashes
                 if not hasattr(self, "_last_freeze_time"):

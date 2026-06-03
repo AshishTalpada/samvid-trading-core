@@ -27,7 +27,9 @@ DB_PATH = "data/trading.db"
 CHECK_INTERVAL = 30  # Check every 30 seconds (tightened from 60)
 LIVENESS_TIMEOUT = 120  # Task is live-locked if heartbeat > 120s stale
 SILENCE_TIMEOUT = 90  # Allow one watchdog interval of jitter around the 60s engine pulse.
+STARTUP_SILENCE_TIMEOUT = 240  # Broker probes can legitimately block startup for several minutes.
 MEMORY_THRESHOLD_MB = 1200
+WATCHDOG_HARD_RESTART_TASKS = {"BRAIN_PRIMARY", "ENGINE", "MAIN"}
 
 
 def get_dynamic_memory_threshold() -> float:
@@ -100,7 +102,7 @@ def check_heartbeat(watchdog_start_time: datetime) -> bool:
                 seconds_since_start = (
                     datetime.now(timezone.utc) - watchdog_start_time
                 ).total_seconds()
-                if seconds_since_start > 120:
+                if seconds_since_start > STARTUP_SILENCE_TIMEOUT:
                     logger.critical(
                         f"SYSTEM STARTUP SILENCE DETECTED! No heartbeat written since watchdog started "
                         f"{seconds_since_start:.1f}s ago. Main engine may have failed during startup."
@@ -189,13 +191,34 @@ def check_task_liveness(watchdog_start_time: datetime) -> dict:
             age = now - heartbeat_ts
             if age > LIVENESS_TIMEOUT:
                 stale_tasks[task_name] = age
-                logger.critical(
-                    f"LIVE-LOCK DETECTED: Task '{task_name}' has not pulsed in {age:.0f}s "
-                    f"(threshold: {LIVENESS_TIMEOUT}s). Task may be stuck in an infinite await."
+                level = (
+                    logging.CRITICAL
+                    if task_name in WATCHDOG_HARD_RESTART_TASKS
+                    else logging.WARNING
+                )
+                logger.log(
+                    level,
+                    "LIVE-LOCK DETECTED: Task '%s' has not pulsed in %.0fs "
+                    "(threshold: %ss). %s",
+                    task_name,
+                    age,
+                    LIVENESS_TIMEOUT,
+                    "Hard restart eligible."
+                    if task_name in WATCHDOG_HARD_RESTART_TASKS
+                    else "Soft task only; engine restart suppressed.",
                 )
     except Exception as e:
         logger.error(f"Watchdog: Task liveness check failed: {e}")
     return stale_tasks
+
+
+def hard_restart_stale_tasks(stale_tasks: dict) -> dict:
+    """Return stale tasks that are allowed to trigger a full engine restart."""
+    return {
+        task_name: age
+        for task_name, age in stale_tasks.items()
+        if task_name in WATCHDOG_HARD_RESTART_TASKS
+    }
 
 
 def check_memory_usage() -> float:
@@ -297,7 +320,9 @@ def run_watchdog():
     logger.info("Sovereign Dead-Man Watchdog ACTIVE.")
     logger.info(
         f"Monitoring {DB_PATH} every {CHECK_INTERVAL}s | "
-        f"Silence threshold: {SILENCE_TIMEOUT}s | Live-lock threshold: {LIVENESS_TIMEOUT}s"
+        f"Silence threshold: {SILENCE_TIMEOUT}s | "
+        f"Startup silence threshold: {STARTUP_SILENCE_TIMEOUT}s | "
+        f"Live-lock threshold: {LIVENESS_TIMEOUT}s"
     )
 
     monitored_engine_start_time = datetime.now(timezone.utc)
@@ -313,10 +338,11 @@ def run_watchdog():
 
             is_alive = check_heartbeat(monitored_engine_start_time)
             stale = check_task_liveness(monitored_engine_start_time)
+            hard_stale = hard_restart_stale_tasks(stale)
             mem_usage = check_memory_usage()
 
             mem_limit = get_dynamic_memory_threshold()
-            should_restart = not is_alive or stale or (mem_usage > mem_limit)
+            should_restart = not is_alive or bool(hard_stale) or (mem_usage > mem_limit)
 
             if mem_usage > mem_limit:
                 logger.critical(
