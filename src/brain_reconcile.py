@@ -472,7 +472,8 @@ class BrokerReconciler:
                             exit_price = float(tick_prices[instrument])
                         if exit_price <= 0:
                             logger.warning(
-                                "Reconciliation: no live price for %s -- pnl recorded as 0",
+                                "Reconciliation: no live price for %s -- "
+                                "trade marked reconciliation-required without synthetic PnL",
                                 instrument,
                             )
                     except Exception as _price_err:
@@ -482,20 +483,26 @@ class BrokerReconciler:
                             _price_err,
                         )
 
-                    # Directional P&L: SHORT profits when price falls
                     if exit_price > 0:
+                        # Directional P&L: SHORT profits when price falls
                         if direction == "SHORT":
                             pnl = (entry_price - exit_price) * shares
                         else:
                             pnl = (exit_price - entry_price) * shares
+                        if pnl > 0:
+                            db_outcome = "WIN"
+                        elif pnl < 0:
+                            db_outcome = "LOSS"
+                        else:
+                            db_outcome = "BREAKEVEN"
+                        note = "LIQUIDATED: broker reality flat during reconciliation"
                     else:
-                        pnl = 0.0
-                    if pnl > 0:
-                        db_outcome = "WIN"
-                    elif pnl < 0:
-                        db_outcome = "LOSS"
-                    else:
-                        db_outcome = "BREAKEVEN"
+                        pnl = None
+                        db_outcome = "RECONCILIATION_REQUIRED"
+                        note = (
+                            "RECONCILIATION_REQUIRED: broker reality flat but no live "
+                            "price was available, so PnL was not synthesized"
+                        )
 
                     cursor.execute(
                         "UPDATE trades SET outcome = ?, exit_price = ?, pnl_dollars = ?, "
@@ -506,7 +513,7 @@ class BrokerReconciler:
                             exit_price if exit_price > 0 else None,
                             pnl,
                             pnl,
-                            "LIQUIDATED: broker reality flat during reconciliation",
+                            note,
                             trade_id,
                         ),
                     )

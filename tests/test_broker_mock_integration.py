@@ -510,6 +510,7 @@ def test_reconcile_marks_liquidated_closed_db_rows(paper_brain):
     ]
     paper_brain.db_conn = MagicMock()
     paper_brain.db_conn.cursor.return_value = mock_cursor
+    paper_brain.last_tick_prices = {"NVDA": 110.0}
 
     # Broker reality: flat (no NVDA position)
     reality: dict[str, float] = {}
@@ -525,6 +526,36 @@ def test_reconcile_marks_liquidated_closed_db_rows(paper_brain):
     # DB UPDATE should record exit data; "LIQUIDATED" now appears in the notes param
     executed_calls = [str(c) for c in mock_cursor.execute.call_args_list]
     assert any("LIQUIDATED" in c for c in executed_calls)
+
+
+def test_reconcile_requires_manual_review_when_flat_broker_has_no_price(paper_brain):
+    """Broker-flat reconciliation must not fabricate zero-PnL exits."""
+    paper_brain.positions = []
+    paper_brain.last_tick_prices = {}
+    paper_brain.last_tick_bids = {}
+    paper_brain.last_tick_asks = {}
+
+    old_ts = "2024-01-01T10:00:00+00:00"
+    mock_cursor = MagicMock()
+    mock_cursor.fetchall.return_value = [
+        (100, old_ts, "COIN", 200.0, 5, "LONG"),
+    ]
+    paper_brain.db_conn = MagicMock()
+    paper_brain.db_conn.cursor.return_value = mock_cursor
+
+    paper_brain._reconcile_open_trade_rows(
+        broker="IBKR",
+        reality={},
+        polled=True,
+        now_ts=datetime(2024, 1, 1, 10, 10, 0, tzinfo=timezone.utc),
+    )
+
+    update_args = mock_cursor.execute.call_args_list[-1].args[1]
+    assert update_args[0] == "RECONCILIATION_REQUIRED"
+    assert update_args[1] is None
+    assert update_args[2] is None
+    assert update_args[3] is None
+    assert "RECONCILIATION_REQUIRED" in update_args[4]
 
 
 # ===========================================================================
