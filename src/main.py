@@ -569,13 +569,17 @@ class TradingSystem:
 
     async def _init_questdb(self) -> None:
         _qdb_timeout = Vault.get("QUESTDB_CONNECT_TIMEOUT_SEC", str(QUESTDB_CONNECT_TIMEOUT_SEC))
+        _qdb_enabled_raw = Vault.get("QUESTDB_ENABLED", "")
+        _qdb_enabled = QUESTDB_ENABLED
+        if str(_qdb_enabled_raw).strip():
+            _qdb_enabled = str(_qdb_enabled_raw).strip().lower() in {"true", "1", "yes"}
         self.questdb = QuestDBAdapter(
             host=Vault.get("QUESTDB_HOST", QUESTDB_HOST),
             ilp_port=int(Vault.get("QUESTDB_PORT", str(QUESTDB_PORT))),
             pg_port=int(Vault.get("QUESTDB_PG_PORT", str(QUESTDB_PG_PORT))),
             user=Vault.get("QUESTDB_USER", QUESTDB_USER) or "admin",
             password=Vault.get("QUESTDB_PASSWORD", QUESTDB_PASSWORD) or "quest",
-            enabled=(Vault.get("QUESTDB_ENABLED", str(QUESTDB_ENABLED)).lower() == "true"),
+            enabled=_qdb_enabled,
             connect_timeout_sec=float(_qdb_timeout)
             if _qdb_timeout
             else QUESTDB_CONNECT_TIMEOUT_SEC,

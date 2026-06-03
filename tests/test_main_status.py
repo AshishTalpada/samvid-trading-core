@@ -98,6 +98,40 @@ async def test_ibkr_runtime_rebind_updates_dms_brain_and_reconciles() -> None:
 
 
 @pytest.mark.asyncio
+async def test_questdb_init_uses_detected_config_when_vault_toggle_empty() -> None:
+    system = _system()
+    system.bus = object()
+    system.profiler = SimpleNamespace(mark=lambda _name: None)
+
+    adapter = SimpleNamespace(enabled=True, start=AsyncMock(), is_active=True)
+    candle_writer = SimpleNamespace(start=AsyncMock())
+
+    def vault_get(key: str, default=None):
+        values = {
+            "QUESTDB_ENABLED": "",
+            "QUESTDB_HOST": default,
+            "QUESTDB_PORT": default,
+            "QUESTDB_PG_PORT": default,
+            "QUESTDB_USER": default,
+            "QUESTDB_PASSWORD": default,
+            "QUESTDB_CONNECT_TIMEOUT_SEC": default,
+        }
+        return values.get(key, default)
+
+    with (
+        patch("main.QUESTDB_ENABLED", True),
+        patch("main.Vault.get", side_effect=vault_get),
+        patch("main.QuestDBAdapter", return_value=adapter) as adapter_cls,
+        patch("questdb_candle_writer.CandleWriter", return_value=candle_writer),
+    ):
+        await system._init_questdb()
+
+    assert adapter_cls.call_args.kwargs["enabled"] is True
+    adapter.start.assert_awaited_once()
+    candle_writer.start.assert_awaited_once_with(system.bus)
+
+
+@pytest.mark.asyncio
 async def test_ibkr_reconnect_loop_recovers_offline_execution() -> None:
     class OfflineClient:
         def isConnected(self) -> bool:
