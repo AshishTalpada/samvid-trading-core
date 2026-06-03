@@ -905,6 +905,28 @@ class TradingBrain(BrokerReconciler, HealthChecker, DataProvider, AccountingMixi
             await self.stop()
             raise
 
+    def _log_circuit_breaker_throttled(
+        self,
+        key: str,
+        level: int,
+        message: str,
+        *,
+        interval_sec: float = 300.0,
+    ) -> None:
+        """Log persistent circuit-breaker states without flooding operator logs."""
+        now = time.monotonic()
+        last_logs = getattr(self, "_circuit_breaker_last_log", None)
+        if last_logs is None:
+            last_logs = {}
+            self._circuit_breaker_last_log = last_logs
+
+        last_seen = float(last_logs.get(key, 0.0) or 0.0)
+        if now - last_seen >= interval_sec:
+            logger.log(level, message)
+            last_logs[key] = now
+        else:
+            logger.debug(message)
+
     async def _run_loop(self) -> None:
         """The primary state machine loop for the Trading Brain."""
         logger.info("TradingBrain: Main system loop started.")
@@ -930,17 +952,37 @@ class TradingBrain(BrokerReconciler, HealthChecker, DataProvider, AccountingMixi
 
                     # Circuit breaker: per-cycle safety gate
                     if self._is_oracle_entry_frozen():
-                        logger.warning("CIRCUIT BREAKER: Oracle freeze active. Skipping cycle.")
+                        self._log_circuit_breaker_throttled(
+                            "oracle_freeze",
+                            logging.WARNING,
+                            "CIRCUIT BREAKER: Oracle freeze active. Skipping cycle.",
+                        )
                         await asyncio.sleep(self.scan_interval)
                         continue
 
                     if not self.ibkr_drawdown.is_trading_allowed():
-                        logger.critical("CIRCUIT BREAKER: Drawdown breach. Trading halted.")
+                        self._log_circuit_breaker_throttled(
+                            "drawdown",
+                            logging.CRITICAL,
+                            "CIRCUIT BREAKER: Drawdown breach. Trading halted.",
+                        )
                         await asyncio.sleep(60)
                         continue
 
                     if not self.loss_tracker.is_trading_allowed():
-                        logger.critical("CIRCUIT BREAKER: Loss streak. Trading halted.")
+                        pause_until = getattr(self.loss_tracker, "pause_until", None)
+                        pause_msg = (
+                            f" Pause until {pause_until.isoformat()}."
+                            if pause_until is not None
+                            else ""
+                        )
+                        self._log_circuit_breaker_throttled(
+                            "loss_streak",
+                            logging.CRITICAL,
+                            "CIRCUIT BREAKER: Loss streak. Trading halted."
+                            f"{pause_msg} Consecutive losses="
+                            f"{getattr(self.loss_tracker, 'consecutive_losses', '?')}.",
+                        )
                         await asyncio.sleep(60)
                         continue
 
