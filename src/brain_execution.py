@@ -625,6 +625,15 @@ class ExecutionMixin:
                 status = trade.orderStatus.status
                 if status not in ("PendingSubmit", "PreSubmitted", "Submitted"):
                     continue
+                parent_id = int(getattr(trade.order, "parentId", 0) or 0)
+                if parent_id:
+                    logger.debug(
+                        "FIX11 STALE_ORDER: Skipping protective child order #%s "
+                        "(parentId=%s).",
+                        getattr(trade.order, "orderId", "?"),
+                        parent_id,
+                    )
+                    continue
                 action = trade.order.action  # "BUY" or "SELL"
                 symbol = trade.contract.symbol
                 # Use log time of last status change; fall back to now - timeout as safe guess

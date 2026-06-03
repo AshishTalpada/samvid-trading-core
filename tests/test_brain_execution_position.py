@@ -20,6 +20,7 @@ import logging
 import sqlite3
 import sys
 from datetime import datetime, timedelta, timezone
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -817,6 +818,32 @@ def _make_positioned_brain(
     brain._mark_trade_liquidated = MagicMock()
 
     return brain, pos
+
+
+@pytest.mark.asyncio
+async def test_cancel_stale_entry_orders_skips_protective_child_orders() -> None:
+    from brain_execution import ExecutionMixin
+
+    mixin = ExecutionMixin()
+    mixin.ibkr_conn = MagicMock()
+    mixin.ibkr_conn.is_connected.return_value = True
+    mixin.ibkr_conn.cancel_order = AsyncMock(return_value=True)
+
+    child_trade = SimpleNamespace(
+        orderStatus=SimpleNamespace(status="Submitted"),
+        order=SimpleNamespace(orderId=77, parentId=12, action="SELL"),
+        contract=SimpleNamespace(symbol="JPM"),
+        log=[
+            SimpleNamespace(
+                time=datetime.now(timezone.utc) - timedelta(seconds=600),
+            )
+        ],
+    )
+    mixin.ibkr_conn.ib.trades.return_value = [child_trade]
+
+    await mixin._cancel_stale_entry_orders(timeout_sec=120)
+
+    mixin.ibkr_conn.cancel_order.assert_not_awaited()
 
 
 class TestHeartbeatVetoAgeGate:

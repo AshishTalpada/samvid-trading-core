@@ -58,9 +58,9 @@ class AgentC:
 class BrokerErrorProtocol:
     """Agent C Error Handlers (IBKR Codes)."""
 
-    NON_CRITICAL = [2104, 2106, 2158, 2157]
+    NON_CRITICAL = [202, 2104, 2106, 2158, 2157, 10148]
     RETRYABLE = [1100, 1101, 1102, 10167, 10182]
-    CRITICAL = [201, 202, 10148, 10197, 321, 322]
+    CRITICAL = [201, 10197, 321, 322]
 
     @staticmethod
     def is_critical(code: int) -> bool:
@@ -75,6 +75,8 @@ class IBKRConnection:
     Connection Mind.
         Handles Fault-Tolerant Broker Handshakes and FA-Routing.
     """
+
+    ORPHAN_MISSING_GRACE_SEC = 15 * 60
 
     def __init__(self, ib_client=None) -> None:
         if ib_client is not None:
@@ -695,7 +697,7 @@ class IBKRConnection:
                 self._ensure_persistent_orders_schema(conn)
                 cursor = conn.cursor()
                 cursor.execute(
-                    "SELECT orderId, symbol, status, parent_id, intent_id "
+                    "SELECT orderId, symbol, status, parent_id, intent_id, last_update "
                     "FROM persistent_orders "
                     "WHERE status NOT IN ("
                     "'Filled', 'Cancelled', 'Inactive', 'ApiCancelled', "
@@ -714,7 +716,7 @@ class IBKRConnection:
             broker_order_ids = {t.order.orderId for t in open_trades}
 
             missing_from_broker = []
-            for oid, sym, status, parent_id, intent_id in orphans:
+            for oid, sym, status, parent_id, intent_id, last_update in orphans:
                 if oid in broker_order_ids:
                     logger.warning(
                         f" RECOVERY: Found live orphan {oid} for {sym}. Re-binding to tracking."
@@ -732,6 +734,17 @@ class IBKRConnection:
                             sym,
                         )
                 else:
+                    age_sec = self._order_snapshot_age_seconds(last_update)
+                    if age_sec < self.ORPHAN_MISSING_GRACE_SEC:
+                        logger.warning(
+                            "RECOVERY: Order %s (%s) absent from broker open-order snapshot "
+                            "but only %.0fs old; deferring reconciliation until broker state "
+                            "settles.",
+                            oid,
+                            sym,
+                            age_sec,
+                        )
+                        continue
                     logger.error(
                         f" CRITICAL: Order {oid} ({sym}) lost from broker! "
                         f"Status was {status}. Manual audit required."
@@ -742,6 +755,22 @@ class IBKRConnection:
 
         except Exception as e:
             logger.error(f"IBKR Recovery Error: {e}")
+
+    @staticmethod
+    def _order_snapshot_age_seconds(last_update: object) -> float:
+        """Best-effort age parser for durable order snapshots."""
+        raw = str(last_update or "").strip()
+        if not raw or raw.lower() == "now":
+            return float("inf")
+        try:
+            if raw.isdigit():
+                value = int(raw)
+                if value > 10_000_000_000_000_000:
+                    return max(0.0, time.time() - (value / 1_000_000_000))
+                return max(0.0, time.time() - value)
+            return max(0.0, time.time() - datetime.fromisoformat(raw).timestamp())
+        except (OSError, ValueError, OverflowError):
+            return float("inf")
 
     def get_account_value(self) -> float:
         """Returns NAV from the real-time cache (No API Polling).
