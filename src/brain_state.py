@@ -332,6 +332,17 @@ class ConsecutiveLossTracker:
             return f"paused until {pause.isoformat()}"
         return "new entries allowed"
 
+    def force_reduce_only(self, reason: str) -> None:
+        """Block new entries until the next session without faking trade outcomes."""
+        self.reduce_only = True
+        self.pause_until = self._next_regular_session_recovery_time()
+        self.last_escalation_reason = reason
+        logger.critical(
+            "G1 RECOVERY LOCK: %s. New entries blocked until %s",
+            reason,
+            self.pause_until.isoformat(),
+        )
+
 
 
 @dataclass

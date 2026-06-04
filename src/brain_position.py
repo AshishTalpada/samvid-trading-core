@@ -25,6 +25,8 @@ from system_types import Position
 
 logger = logging.getLogger(__name__)
 
+MAX_LOSS_R_MULTIPLE = abs(float(os.getenv("SOVEREIGN_MAX_LOSS_R_MULTIPLE", "2.5")))
+
 
 class PositionMonitor:
     """Mixin: position monitoring, exit processing, emergency flattening."""
@@ -651,6 +653,28 @@ class PositionMonitor:
                 if abs(pos.entry_price - pos.stop_loss) > 0
                 else 0
             )
+            raw_r_multiple = r_multiple
+            r_invariant_override = ""
+            if r_multiple < -MAX_LOSS_R_MULTIPLE:
+                r_multiple = -MAX_LOSS_R_MULTIPLE
+                r_invariant_override = "MAX_R_LOSS_CLAMP"
+                logger.critical(
+                    "MAX-R INVARIANT BREACH [%s]: raw_r=%.2f clamped_r=%.2f "
+                    "entry=%.4f stop=%.4f exit=%.4f qty=%.4f exit_type=%s. "
+                    "Forcing recovery mode.",
+                    pos.symbol,
+                    raw_r_multiple,
+                    r_multiple,
+                    pos.entry_price,
+                    pos.stop_loss,
+                    exit_price,
+                    pos.qty,
+                    exit_type,
+                )
+                if hasattr(self, "loss_tracker"):
+                    self.loss_tracker.force_reduce_only(
+                        f"max-R invariant breach on {pos.symbol}: {raw_r_multiple:.2f}R"
+                    )
 
             intended_price = getattr(pos, "target", exit_price)
             slippage_pct = abs(exit_price - intended_price) / max(intended_price, 0.01)
@@ -660,6 +684,7 @@ class PositionMonitor:
                     f"SLIPPAGE DETECTED: {pos.symbol} fill deviated {slippage_pct:.2%} "
                     "from target. Trade marked as DIRTY."
                 )
+            ledger_overrides = [label for label in ("DIRTY_FILL" if is_dirty else "", r_invariant_override) if label]
 
             commission_cost = max(2.0, exit_shares * 0.005)
             vol_multiplier = 1.0 + (exit_shares / 2000.0)
@@ -731,10 +756,12 @@ class PositionMonitor:
                         r_multiple=r_multiple,
                         triggered_by="exit_intelligence",
                         agent_votes={"exit_intelligence": exit_type},
-                        override="DIRTY_FILL" if is_dirty else "",
+                        override="|".join(ledger_overrides),
                         meta={
                             "entry_price": pos.entry_price,
                             "exit_price": adjusted_exit_price,
+                            "raw_r_multiple": round(raw_r_multiple, 3),
+                            "r_invariant_override": r_invariant_override,
                             "slippage_pct": round(slippage_pct, 5),
                             "regime": self.current_regime,
                             "pattern": pos.pattern or "",

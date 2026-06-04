@@ -736,6 +736,39 @@ class TestBrokerExitRealization:
         assert gross_pnl - net_pnl == pytest.approx(3.0, abs=1e-9)
         assert logged_net_pnl == pytest.approx(net_pnl, abs=1e-9)
 
+    @pytest.mark.asyncio
+    async def test_exit_clamps_catastrophic_r_and_enters_recovery(self, paper_brain):
+        """A corrupt stop/risk basis must not teach the system impossible loss-R."""
+        paper_brain.ibkr_client = None
+        paper_brain.bus = None
+        paper_brain._log_trade_exit = AsyncMock()
+        pos = _make_position(
+            symbol="GS",
+            qty=10,
+            entry=100.0,
+            stop=99.0,
+            commission=0.0,
+            slippage=0.0,
+            entry_time=datetime.now(timezone.utc) - timedelta(minutes=20),
+        )
+        pos.account_type = "paper"
+        paper_brain.positions = [pos]
+
+        with (
+            patch("brain_position.PORTFOLIO_ANALYZER.record_close"),
+            patch("brain_position.LEDGER.record_exit") as ledger_exit,
+            patch("telegram_alerts.send_telegram_alert", new_callable=AsyncMock),
+        ):
+            await paper_brain._process_exit(pos, "HEARTBEAT_VETO", 90.0)
+
+        logged_r = paper_brain._log_trade_exit.await_args.args[4]
+        assert logged_r == pytest.approx(-2.5)
+        paper_brain.loss_tracker.force_reduce_only.assert_called_once()
+        assert "max-R invariant breach" in paper_brain.loss_tracker.force_reduce_only.call_args.args[0]
+        assert ledger_exit.call_args.kwargs["r_multiple"] == pytest.approx(-2.5)
+        assert ledger_exit.call_args.kwargs["meta"]["raw_r_multiple"] == pytest.approx(-10.0)
+        assert "MAX_R_LOSS_CLAMP" in ledger_exit.call_args.kwargs["override"]
+
 
 # ---------------------------------------------------------------------------
 # Positioned brain fixture factory
