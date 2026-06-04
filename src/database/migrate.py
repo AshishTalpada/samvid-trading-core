@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import argparse
 import logging
+import sqlite3
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
@@ -29,6 +30,83 @@ logger = logging.getLogger(__name__)
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 _MIGRATIONS_DIR = _PROJECT_ROOT / "migrations"
 _DEFAULT_DB = _PROJECT_ROOT / "data" / "trading.db"
+
+
+def _migration_id(path: Path) -> str:
+    return path.name.removesuffix(".sql")
+
+
+def _migration_files(migrations_dir: Path) -> list[Path]:
+    return sorted(
+        path
+        for path in migrations_dir.glob("*.sql")
+        if not path.name.endswith(".rollback.sql")
+    )
+
+
+def _apply_migrations_sqlite_fallback(db_path: Path, migrations_dir: Path) -> None:
+    """Apply SQL migrations with local tracking when yoyo is unavailable."""
+    if not migrations_dir.exists():
+        logger.warning("Migrations directory not found: %s - skipping.", migrations_dir)
+        return
+
+    if not db_path.parent.exists():
+        db_path.parent.mkdir(parents=True, exist_ok=True)
+
+    conn = sqlite3.connect(db_path, timeout=60)
+    try:
+        conn.execute("PRAGMA journal_mode=WAL;")
+        conn.execute("PRAGMA busy_timeout = 60000;")
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS sovereign_migrations (
+                id TEXT PRIMARY KEY,
+                applied_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+            """
+        )
+        applied = {
+            row[0]
+            for row in conn.execute("SELECT id FROM sovereign_migrations").fetchall()
+        }
+
+        pending = [path for path in _migration_files(migrations_dir) if _migration_id(path) not in applied]
+        if not pending:
+            logger.info("No pending migrations.")
+            return
+
+        logger.info(
+            "Applying %d migration(s) with built-in SQLite tracker: %s",
+            len(pending),
+            [_migration_id(path) for path in pending],
+        )
+        for path in pending:
+            migration_id = _migration_id(path)
+            sql = path.read_text(encoding="utf-8")
+            try:
+                with conn:
+                    conn.executescript(sql)
+                    conn.execute(
+                        "INSERT OR IGNORE INTO sovereign_migrations (id) VALUES (?)",
+                        (migration_id,),
+                    )
+            except sqlite3.OperationalError as exc:
+                message = str(exc).lower()
+                if "duplicate column name" in message or "already exists" in message:
+                    logger.info(
+                        "Migration %s: schema object already exists - marking as applied.",
+                        migration_id,
+                    )
+                    with conn:
+                        conn.execute(
+                            "INSERT OR IGNORE INTO sovereign_migrations (id) VALUES (?)",
+                            (migration_id,),
+                        )
+                    continue
+                raise
+        logger.info("All migrations applied successfully with built-in SQLite tracker.")
+    finally:
+        conn.close()
 
 
 def apply_migrations(
@@ -49,10 +127,13 @@ def apply_migrations(
         import yoyo
     except ImportError as exc:
         logger.warning(
-            "yoyo-migrations not installed; startup will use schema fallback. "
-            "Install yoyo-migrations to restore migration tracking. Error: %s",
+            "yoyo-migrations unavailable; using built-in SQLite migration tracker. "
+            "Install project dependencies with uv sync to restore yoyo CLI support. Error: %s",
             exc,
         )
+        db_path = Path(db_path or _DEFAULT_DB)
+        migrations_dir = Path(migrations_dir or _MIGRATIONS_DIR)
+        _apply_migrations_sqlite_fallback(db_path, migrations_dir)
         return
 
     db_path = Path(db_path or _DEFAULT_DB)

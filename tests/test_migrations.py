@@ -17,6 +17,7 @@ Verifies:
  12. Rollback then re-apply is idempotent (round-trip)
 """
 
+import builtins
 import sqlite3
 import sys
 
@@ -42,6 +43,17 @@ def _columns(db_path: str, table: str) -> set[str]:
     cols = {row[1] for row in cur.fetchall()}
     conn.close()
     return cols
+
+
+def _block_yoyo_import(monkeypatch) -> None:
+    real_import = builtins.__import__
+
+    def guarded_import(name, *args, **kwargs):
+        if name == "yoyo" or name.startswith("yoyo."):
+            raise ImportError("simulated missing yoyo")
+        return real_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", guarded_import)
 
 
 # ---------------------------------------------------------------------------
@@ -108,6 +120,26 @@ def test_migrations_are_idempotent(tmp_path):
     # Second call — yoyo tracks applied migrations; nothing should break
     apply_migrations(db_path=db_path, migrations_dir=_MIGRATIONS_DIR)
     assert "trades" in _tables(db_path)
+
+
+def test_apply_migrations_uses_sqlite_tracker_when_yoyo_missing(tmp_path, monkeypatch):
+    """Startup must still apply and track migrations when yoyo is unavailable."""
+    _block_yoyo_import(monkeypatch)
+    db_path = str(tmp_path / "fallback.db")
+
+    apply_migrations(db_path=db_path, migrations_dir=_MIGRATIONS_DIR)
+    apply_migrations(db_path=db_path, migrations_dir=_MIGRATIONS_DIR)
+
+    assert "trades" in _tables(db_path)
+    assert "regime_at_entry" in _columns(db_path, "trades")
+    conn = sqlite3.connect(db_path)
+    rows = conn.execute("SELECT id FROM sovereign_migrations ORDER BY id").fetchall()
+    conn.close()
+    assert [row[0] for row in rows] == [
+        "0001.create-core-schema",
+        "0002.add-performance-summary-kv-cols",
+        "0003.add-trades-regime-at-entry",
+    ]
 
 
 def test_apply_migrations_missing_dir_is_graceful(tmp_path):
