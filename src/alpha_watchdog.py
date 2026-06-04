@@ -36,7 +36,7 @@ class AlphaDecayWatchdog:
         std = statistics.stdev(returns)
         return (mean / std * math.sqrt(252)) if std > 0 else 0.0
 
-    def evaluate(self, strategy_id: str) -> Dict:
+    def evaluate(self, strategy_id: str, *, emit_log: bool = True) -> Dict:
         buf = list(self._pnl.get(strategy_id, []))
         if len(buf) < self.fast:
             return {"status": "WARMING_UP", "fast_sharpe": 0.0, "slow_sharpe": 0.0}
@@ -58,7 +58,7 @@ class AlphaDecayWatchdog:
             self._alert_counts[strategy_id] = 0
             status = "HEALTHY"
 
-        if status != "HEALTHY":
+        if emit_log and status != "HEALTHY":
             logger.warning(
                 f"[WATCHDOG] {strategy_id}: {status} | Fast={fast_sharpe:.2f} Slow={slow_sharpe:.2f} Decay={decay_ratio:.0%}"
             )

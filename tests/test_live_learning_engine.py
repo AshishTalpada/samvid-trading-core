@@ -39,3 +39,18 @@ async def test_live_learning_engine_updates_alpha_watchdog_on_exit(tmp_path):
     strategy_id = "opening_range_breakout|TRENDING|RTH"
     assert engine._latest_alpha_health[strategy_id]["status"] == "WARMING_UP"
     assert engine._latest_alpha_health[strategy_id]["strategy_id"] == strategy_id
+
+
+def test_live_learning_engine_can_hydrate_alpha_health_silently(tmp_path):
+    engine = LiveLearningEngine(db_path=str(tmp_path / "learning.db"))
+    engine.alpha_watchdog.evaluate = MagicMock(return_value={"status": "RETIRE"})
+
+    health = engine._record_alpha_health(
+        {"pattern": "ADOPTED_ORPHAN", "regime": "BULL", "session": "RTH", "pnl": -10.0},
+        emit_log=False,
+    )
+
+    assert health["strategy_id"] == "ADOPTED_ORPHAN|BULL|RTH"
+    engine.alpha_watchdog.evaluate.assert_called_once_with(
+        "ADOPTED_ORPHAN|BULL|RTH", emit_log=False
+    )

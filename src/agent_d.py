@@ -1368,7 +1368,7 @@ class LiveLearningEngine:
             for r in reversed(rows):
                 self._recent_trades.append(dict(r))
             for trade in self._recent_trades:
-                self._record_alpha_health(trade)
+                self._record_alpha_health(trade, emit_log=False)
 
             rating = self._gate.rate_data(self._n_trades)
             _lld_logger.info(
@@ -1452,14 +1452,14 @@ class LiveLearningEngine:
         session = str(trade.get("session") or "RTH").strip() or "RTH"
         return f"{pattern}|{regime}|{session}"
 
-    def _record_alpha_health(self, trade: dict) -> dict[str, Any]:
+    def _record_alpha_health(self, trade: dict, *, emit_log: bool = True) -> dict[str, Any]:
         strategy_id = self._strategy_key(trade)
         try:
             pnl = float(trade.get("pnl", 0.0))
         except (TypeError, ValueError):
             pnl = 0.0
         self.alpha_watchdog.record(strategy_id, pnl)
-        health = self.alpha_watchdog.evaluate(strategy_id)
+        health = self.alpha_watchdog.evaluate(strategy_id, emit_log=emit_log)
         health["strategy_id"] = strategy_id
         self._latest_alpha_health[strategy_id] = health
         return health
