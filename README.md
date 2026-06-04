@@ -1,189 +1,181 @@
-# Samvid Trading Core — Open-Source AI Algorithmic Trading System
+# Samvid Trading Core
 
-[![Build Status](https://github.com/AshishTalpada/samvid-trading-core/actions/workflows/main.yml/badge.svg)](https://github.com/AshishTalpada/samvid-trading-core/actions)
-[![Latest Release](https://img.shields.io/github/v/tag/AshishTalpada/samvid-trading-core?label=release&color=cyan)](https://github.com/AshishTalpada/samvid-trading-core/releases)
-[![Python 3.11+](https://img.shields.io/badge/Python-3.11+-3776AB.svg?logo=python&logoColor=white)](https://www.python.org/downloads/)
-[![Rust](https://img.shields.io/badge/Rust-Native_Core-orange.svg?logo=rust)](https://www.rust-lang.org/)
-[![FastAPI](https://img.shields.io/badge/API-FastAPI-009688.svg?logo=fastapi)](https://fastapi.tiangolo.com/)
-[![Linter](https://img.shields.io/badge/linting-ruff-261230.svg?logo=ruff)](https://github.com/astral-sh/ruff)
-[![Tests](https://img.shields.io/badge/tests-90_passing-brightgreen.svg)](#-test-suite--reliability)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+Open-source AI trading system for Interactive Brokers, MetaTrader 5, paper trading, market-data monitoring, execution safety, and quantitative strategy research.
 
-> **Samvid** (Sanskrit: *Consensus / Shared Intelligence*) — An open-source, production-grade **AI multi-agent algorithmic trading system** for Interactive Brokers (IBKR), MetaTrader 5, and TradingView. Built with Python, Rust, FastAPI, and asyncio for institutional-quality automated stock trading, forex execution, and quantitative finance research.
+Samvid Trading Core is a Python-first algorithmic trading platform designed for serious solo builders who want a transparent backend for signal discovery, broker execution, risk controls, trade reconciliation, and operator observability. The project combines real-time market data ingestion, multi-agent decision review, IBKR paper/live routing safeguards, MT5 connectivity, Telegram alerts, execution evidence, and post-trade learning.
 
-## What is Samvid Trading Core?
+> Trading is risky. This software is research infrastructure, not financial advice. Use paper trading, broker safeguards, and independent review before risking capital.
 
-**Samvid Trading Core** is a free, open-source algorithmic trading bot and automated trading platform that uses **11 specialized AI agents** working together in a consensus-based mesh to make trading decisions. Unlike monolithic trading bots, Samvid uses a **quorum voting model** — no single agent can execute a trade alone. Pattern recognition, sentiment analysis, macro economics, and risk management must all agree before execution.
+## What This Project Does
 
-### Key Features
+- Runs an AI-assisted trading brain for equities, options-adjacent workflows, and multi-broker automation.
+- Connects to Interactive Brokers TWS or IB Gateway for IBKR paper trading and controlled live execution.
+- Supports MetaTrader 5 connectivity for broker-aware runtime checks and future FX workflows.
+- Ingests market data from multiple lanes, including OHLCV data, broker snapshots, and real-time tick streams.
+- Applies risk controls before entries, during open positions, and after realized losses.
+- Reconciles local trade state against broker reality to detect stale, orphaned, or unmanaged positions.
+- Publishes clean Telegram notifications for trade exits, broker issues, runtime health, and operator review.
+- Tracks post-trade performance, alpha decay, execution evidence, and promotion readiness.
 
-- **Multi-Agent AI Trading** — 11 autonomous agents (Pattern Discovery, Belief Tracker, Sentiment Classifier, Macro Oracle, Risk Guard, etc.)
-- **Interactive Brokers (IBKR) Integration** — Full order execution, bracket orders, Financial Advisor multi-account support
-- **MetaTrader 5 Support** — FTMO challenge-compliant execution with daily loss limits
-- **TradingView Real-Time Quotes** — WebSocket-based tick streaming at 100Hz
-- **Institutional Risk Management** — Circuit breakers, position sizing (Kelly/fractional), correlation monitoring, Black Swan protection
-- **FastAPI Dashboard & WebSocket API** — Real-time telemetry, trade monitoring, operator control
-- **Rust Native Acceleration** — PyO3-based native core for latency-critical paths
-- **QuestDB Time-Series Database** — Sub-millisecond OHLCV queries for 30+ instruments
-- **Numba JIT Math** — Pre-compiled EMA, RSI, ATR, Kalman filters for HFT-speed signal generation
-- **Telegram Bot Integration** — Real-time trade alerts, remote command execution
-- **Zero-Secrets Architecture** — OS-level credential vault (Windows Credential Manager / macOS Keychain)
+## Core Keywords
 
-### Who Is This For?
+AI trading system, algorithmic trading bot, Interactive Brokers trading bot, IBKR paper trading, MetaTrader 5 automation, Python trading system, quantitative trading platform, multi-agent trading AI, execution risk management, automated trading backend, paper trading framework, trading reconciliation engine, Telegram trading alerts, real-time market data pipeline.
 
-- Quantitative traders building automated trading systems
-- Developers researching multi-agent AI architectures for finance
-- Prop firm traders needing FTMO/funded-account compliance
-- Anyone looking for an open-source alternative to commercial algo trading platforms
+## Architecture Overview
 
-**Status: v1.0-beta | Research & Paper Trading | Event-Driven Execution**
+Samvid Trading Core is organized around a backend-first execution architecture:
 
----
+- `src/main.py` starts the system, safety defaults, broker connections, market-data services, and watchdogs.
+- `src/brain.py` coordinates market scanning, state transitions, risk checks, and position lifecycle.
+- `src/coordinator.py` performs entry vetting, quorum logic, broker routing, and market-data proof checks.
+- `src/brain_position.py` manages open positions, exit intelligence, trade-finalization alerts, and realized PnL.
+- `src/brain_reconcile.py` compares database state against broker reality and marks stale rows safely.
+- `src/agent_c_ibkr.py` handles Interactive Brokers order routing, audit logs, order recovery, and durable order state.
+- `src/agent_d.py` learns from `trade.exit` events and updates calibration and alpha-health telemetry.
+- `src/data_pipeline.py` manages OHLCV, tick, news, and provider fallback paths.
+- `src/tv_quote_streamer.py` provides a real-time quote lane for fast market updates where configured.
 
-## 🚀 Live Demonstration
+## Broker And Data Support
 
-Experience the "Samvid Intelligence Mesh" telemetry in a zero-dependency terminal simulation.
+| Area | Status |
+| --- | --- |
+| IBKR TWS / IB Gateway | Supported for paper mode and guarded live mode |
+| IBKR paper trading | Primary execution validation path |
+| MetaTrader 5 | Optional Windows integration |
+| TradingView quote stream | Real-time quote lane when enabled |
+| yfinance / OHLCV fallback | Supported for lower-frequency data |
+| QuestDB | Optional high-throughput market-data storage |
+| Telegram | Operator alerts and remote status workflows |
+| SQLite | Local trade, evidence, and migration state |
 
-```bash
-# Run the live sovereign demonstration
-python src/demonstration.py
-```
+## Safety And Risk Controls
 
----
+This system is intentionally conservative around live execution:
 
-## 🧠 Architecture Overview
+- Paper mode is the default safe path.
+- Live mode requires explicit authorization.
+- Entries require recent verified market-data proof.
+- Fresh real-time ticks can satisfy entry proof when OHLCV bars lag.
+- Consecutive losses trigger reduce-only, paper/recovery lock, or audit-required states.
+- Catastrophic R-multiple outliers are clamped for learning while preserving actual PnL.
+- Broker reconciliation does not fabricate PnL when live prices are unavailable.
+- Missing active IBKR orders receive a broker-settlement grace window before manual reconciliation.
 
-Samvid is designed for modularity and high-frequency event processing:
+## Telegram Trade Alerts
 
-*   **Autonomous Agent Mesh**: 11 specialized agents (e.g., Pattern Atlas, Belief Tracker) communicate via an internal Intelligence Bus.
-*   **Consensus-Based Quorum**: No single agent can execute a trade; a quorum-based matrix ensures that technical, macro, and risk parameters are all satisfied.
-*   **Dhatu Macro Oracle**: A causation-focused state machine mapping macro variables (Yields, VIX, Energy) into 5 distinct market regimes (Vriddhi, Sthiti, Kshaya, etc.).
-*   **Zero-Keys Security**: Credential management is handled via an OS-level secure vault (keyring) ensuring no plaintext secrets ever touch the disk.
+Trade finalization alerts include operator-useful context:
 
-### Data Flow & Quorum
-```mermaid
-graph TD
-    Market[Market Data / HFT Ticks] --> Bus[Intelligence Bus]
-    Bus --> AgentA[Agent A: Pattern Discovery]
-    Bus --> AgentB[Agent B: Sentiment Classifier]
-    AgentA --> Quorum{Samvid Quorum Matrix}
-    AgentB --> Quorum
-    Dhatu[Dhatu Macro Oracle] --> Quorum
-    Quorum -->|Consensus Reached| AgentC[Agent C: MT5/IBKR Executor]
-    AgentC --> Safety[Blackswan / Risk Guard]
-    Safety -->|Pass| Trade[Trade Execution]
-```
+- Symbol and account
+- Position size
+- Entry and exit price
+- Strategy intent
+- Pattern name
+- Exit method
+- Price source
+- Net PnL
+- R multiple
+- Session PnL
 
----
+This avoids vague alerts and makes it easier to understand why a trade closed.
 
-## 🖼️ Dashboard Preview
+## Setup
 
-![Live Dashboard](docs/images/dashboard.png)
-*Live v1.0-beta Intelligence Dashboard showing real-time agent consensus and macro state synthesis.*
-
----
-
-## 🧪 Test Suite & Reliability
-
-The system is backed by a comprehensive suite of **24 test modules** covering unit, integration, and high-load stress testing:
-
-*   **Stress Testing**: Modules like `stress_test_500k.py` validate the Intelligence Bus under extreme message loads.
-*   **Behavioral Logic**: `test_behavioral_logic.py` ensures agents adhere to the consensus protocol.
-*   **Risk Invariants**: `test_risk_invariants.py` strictly enforces position sizing and stop-loss rules.
-*   **Integration**: End-to-end flows from data ingestion to mock execution are validated in `test_integration.py`.
+Use Python 3.11 or 3.12.
 
 ```bash
-# Run the full test suite
-pytest tests/
+uv sync
 ```
 
----
+Run lint and tests:
 
-## 🛠️ Technology Stack
-
-| Layer | Technology |
-| :--- | :--- |
-| **Language** | Python 3.11+ (Asyncio, type-hinted), Rust (PyO3 native extensions) |
-| **Trading APIs** | Interactive Brokers (ib_insync), MetaTrader 5, TradingView WebSocket |
-| **Web Framework** | FastAPI + Uvicorn (async REST + WebSocket API) |
-| **Frontend** | React 18, Vite, Framer Motion, TradingView Lightweight Charts |
-| **Databases** | QuestDB (time-series ticks), SQLite3 (system state), ChromaDB (vector memory) |
-| **Math/ML** | NumPy, Polars, Numba JIT, Bayesian inference, Kalman filters |
-| **Security** | OS keyring vault, HMAC-SHA256, Fernet AES encryption |
-| **Infra** | Docker (QuestDB), systemd/PM2, Telegram Bot API |
-
----
-
-## 🚀 Getting Started
-
-### 1. Installation
 ```bash
-# Clone the repository
-git clone https://github.com/AshishTalpada/samvid-trading-core.git
-cd samvid-trading-core
-
-# Quick Setup via Makefile
-make setup
+uv run ruff check src/ tests/ scripts/
+uv run python -m pytest tests -q
 ```
 
-### 2. Execution
+Run startup validation:
+
 ```bash
-# Spin up infrastructure (QuestDB)
-make docker-up
-
-# Start the full stack
-make dev
+uv run python scripts/startup_validation.py
 ```
 
----
+Run the system in paper mode:
 
-## 🌐 Related Projects & Alternatives
+```bash
+set TRADING_MODE=paper
+uv run python src/main.py
+```
 
-If you're looking for algorithmic trading systems, you might also explore:
-- [Zipline](https://github.com/quantopian/zipline) — Backtesting library
-- [Lean](https://github.com/QuantConnect/Lean) — QuantConnect's algo trading engine
-- [FreqTrade](https://github.com/freqtrade/freqtrade) — Crypto trading bot
-- [Jesse](https://github.com/jesse-ai/jesse) — Python algo trading framework
+On PowerShell:
 
-**Samvid differentiates** with its multi-agent consensus architecture, IBKR/MT5 dual-broker support, and real-time Rust-accelerated execution path.
+```powershell
+$env:TRADING_MODE = "paper"
+uv run python src/main.py
+```
 
----
+## Important Environment Variables
 
-## 📚 Documentation & Resources
+| Variable | Purpose |
+| --- | --- |
+| `TRADING_MODE` | `paper`, `ibkr_paper`, or `live` |
+| `ALLOW_FORCE_LIVE` | Must be `1` to permit live mode |
+| `SOVEREIGN_SKIP_PID_CHECK` | Test-only singleton bypass |
+| `SOVEREIGN_TV_QUOTES_ENABLED` | Enable or disable TradingView quote lane |
+| `SOVEREIGN_IBKR_ACTIVE_ORDER_GRACE_SEC` | Grace window for active IBKR orders missing from snapshots |
+| `SOVEREIGN_ENTRY_DATA_PROOF_MAX_AGE_SEC` | Max age for entry market-data proof |
+| `TELEGRAM_BOT_TOKEN` | Telegram alert bot token |
+| `TELEGRAM_CHAT_ID` | Telegram destination chat ID |
 
-- [Architecture Overview](docs/ARCHITECTURE.md)
-- [Agent System Design](docs/AGENTS.md)
-- [Risk Management Rules](docs/RISK.md)
-- [API Reference (FastAPI)](http://localhost:8000/docs) *(when running)*
+## Production Readiness Position
 
----
+Samvid Trading Core is a serious trading-system prototype with production-oriented backend components. It is not a hedge-fund production platform yet.
 
-## 🤝 Contributing
+Before live capital, prove the following:
 
-Contributions are welcome! Please read our contributing guidelines before submitting PRs. Areas where help is especially appreciated:
-- Additional broker integrations (Alpaca, Binance)
-- Backtesting engine improvements
-- Frontend dashboard features
-- Documentation and tutorials
+- Stable IBKR paper trading over many sessions
+- Positive expectancy after commission, slippage, and rejects
+- Complete execution evidence
+- Clean reconciliation history
+- No stale order state
+- No unreviewed broker orphan positions
+- Real-time data reliability under market hours
+- Operator alerts that are actionable and not noisy
+- Disaster recovery and restart behavior
 
----
+## Development Workflow
 
-## 🛡️ License
+Recommended checks before every push:
 
-This project is licensed under the **MIT License** — see the [LICENSE](LICENSE) file for details.
+```bash
+uv run ruff check src/ tests/ scripts/ --output-format=github
+uv run python -m compileall -q src tests
+uv run python -m pytest tests -q
+```
 
----
+For startup/run audits:
 
-## ⚠️ Disclaimer
+```bash
+uv run python scripts/live_audit_loop.py --cycles 3 --duration 60
+```
 
-*This software is provided for **research and educational purposes only**. Algorithmic trading involves substantial financial risk. Past performance does not guarantee future results. The authors are not responsible for any financial losses incurred through use of this software. Always paper trade first.*
+## Repository Focus
 
----
+This repository prioritizes backend reliability over visual polish:
 
-<details>
-<summary><strong>SEO Keywords</strong> (for search engine discoverability)</summary>
+- Broker state correctness
+- Real-time data proof
+- Risk gating
+- Position monitoring
+- Exit accounting
+- Database migrations
+- Execution auditability
+- Operator notifications
+- Testable behavior
 
-algorithmic trading system, automated trading bot, AI trading bot python, interactive brokers api python, IBKR automated trading, metatrader 5 python bot, quantitative trading platform, open source trading system, multi-agent trading system, algorithmic trading github, python trading bot, automated stock trading, forex trading bot, trading system architecture, real-time market data python, fastapi trading dashboard, rust trading system, position sizing algorithm, risk management trading, FTMO trading bot, prop firm trading bot, consensus based trading, event driven trading system, asyncio trading, questdb trading, numba trading signals, kalman filter trading, bayesian trading system
+## License
 
-</details>
+MIT License.
 
+## Disclaimer
+
+This project is provided for research and engineering purposes only. Algorithmic trading can lose money quickly. You are responsible for broker permissions, exchange rules, regulatory compliance, taxes, risk controls, and all trading decisions.
