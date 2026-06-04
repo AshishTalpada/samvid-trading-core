@@ -971,6 +971,7 @@ class TradingBrain(BrokerReconciler, HealthChecker, DataProvider, AccountingMixi
 
                     if not self.loss_tracker.is_trading_allowed():
                         pause_until = getattr(self.loss_tracker, "pause_until", None)
+                        reason = getattr(self.loss_tracker, "status_reason", lambda: "loss streak")()
                         pause_msg = (
                             f" Pause until {pause_until.isoformat()}."
                             if pause_until is not None
@@ -978,13 +979,13 @@ class TradingBrain(BrokerReconciler, HealthChecker, DataProvider, AccountingMixi
                         )
                         self._log_circuit_breaker_throttled(
                             "loss_streak",
-                            logging.CRITICAL,
-                            "CIRCUIT BREAKER: Loss streak. Trading halted."
+                            logging.WARNING,
+                            "RECOVERY MODE: Loss streak blocks new entries; "
+                            "protective monitoring remains active."
                             f"{pause_msg} Consecutive losses="
-                            f"{getattr(self.loss_tracker, 'consecutive_losses', '?')}.",
+                            f"{getattr(self.loss_tracker, 'consecutive_losses', '?')}. "
+                            f"Reason={reason}.",
                         )
-                        await asyncio.sleep(60)
-                        continue
 
                     if self.emergency_halted:
                         await self._handle_emergency()
@@ -1513,9 +1514,10 @@ class TradingBrain(BrokerReconciler, HealthChecker, DataProvider, AccountingMixi
             return
 
         if not self.loss_tracker.is_trading_allowed():
+            reason = getattr(self.loss_tracker, "status_reason", lambda: "loss streak")()
             logger.warning(
                 "G1 escalation — trading suspended "
-                f"(consecutive losses: {self.loss_tracker.consecutive_losses})"
+                f"(consecutive losses: {self.loss_tracker.consecutive_losses}, reason={reason})"
             )
             await asyncio.sleep(60)
             return
@@ -1703,6 +1705,37 @@ class TradingBrain(BrokerReconciler, HealthChecker, DataProvider, AccountingMixi
                 if self._scan_cycle % 10 == 1:
                     logger.info(f"SCAN SUSPENDED: [{self.active_broker}] is currently offline.")
                 await asyncio.sleep(5)
+                return
+
+            if not self.loss_tracker.is_trading_allowed():
+                reason = getattr(self.loss_tracker, "status_reason", lambda: "loss streak")()
+                pause_until = getattr(self.loss_tracker, "pause_until", None)
+                logger.warning(
+                    "SCAN BLOCKED: recovery mode is active; new entries disabled. "
+                    "Existing positions remain under exit monitoring. losses=%s pause_until=%s reason=%s",
+                    getattr(self.loss_tracker, "consecutive_losses", "?"),
+                    pause_until.isoformat() if pause_until else "n/a",
+                    reason,
+                )
+                self.pending_signals.clear()
+                async with self._state_lock:
+                    self.last_scan_stats = {
+                        "cycle": self._scan_cycle,
+                        "watchlist": len(watchlist),
+                        "scanned": 0,
+                        "gated": len(watchlist),
+                        "gate_active": 0,
+                        "gate_cooldown": 0,
+                        "gate_vetting": 0,
+                        "patterns_detected": 0,
+                        "patterns_approved": 0,
+                        "pending": 0,
+                        "regime": self.current_regime,
+                        "recovery_mode": True,
+                    }
+                    status_snapshot = dict(self.last_scan_stats)
+                await self._maybe_send_execution_status(status_snapshot, "RECOVERY")
+                await asyncio.sleep(min(60.0, max(5.0, self.scan_interval)))
                 return
 
             if self._oracle_freeze or self._oracle_risk_modifier <= 0.0:

@@ -159,9 +159,9 @@ class ConsecutiveLossTracker:
     """
     Graduated response:
     2 losses -> 50% size reduction
-    3 losses -> 25% size + 1h pause
-    4 losses -> paper mode
-    5+ losses -> paper + audit required
+    3 losses -> reduce-only until the next regular session
+    4 losses -> paper/recovery lock until the next regular session
+    5+ losses -> paper + audit required until the next regular session
     """
 
     consecutive_losses: int = 0
@@ -170,10 +170,26 @@ class ConsecutiveLossTracker:
     audit_required: bool = False
     pause_until: datetime | None = None
     last_loss_time: datetime | None = None
+    reduce_only: bool = False
+    last_escalation_reason: str = ""
+
+    @staticmethod
+    def _next_regular_session_recovery_time(now_utc: datetime | None = None) -> datetime:
+        """Return the next unattended recovery checkpoint after the regular open."""
+        tz = pytz.timezone("US/Eastern")
+        now_et = (now_utc or datetime.now(timezone.utc)).astimezone(tz)
+        recovery_et = now_et.replace(hour=9, minute=45, second=0, microsecond=0)
+        if now_et >= recovery_et:
+            recovery_et += timedelta(days=1)
+        while recovery_et.weekday() >= 5:
+            recovery_et += timedelta(days=1)
+        return recovery_et.astimezone(timezone.utc)
 
     def _apply_time_decay(self) -> None:
-        """Automatically recover 1 loss every 4 hours of inactivity."""
+        """Automatically recover only while below reduce-only escalation."""
         if self.consecutive_losses <= 0 or not self.last_loss_time:
+            return
+        if self.consecutive_losses >= 3:
             return
 
         now = datetime.now(timezone.utc)
@@ -186,6 +202,9 @@ class ConsecutiveLossTracker:
             self.consecutive_losses = max(0, self.consecutive_losses - recovered)
             if self.consecutive_losses < 4:
                 self.paper_mode_forced = False
+            if self.consecutive_losses < 3:
+                self.reduce_only = False
+                self.last_escalation_reason = ""
             if self.consecutive_losses < old_losses:
                 logger.info(
                     f" RECOVERY: System regained {recovered} loss units via Time-Decay. "
@@ -212,6 +231,8 @@ class ConsecutiveLossTracker:
                     self.win_streak = 0
                     self.paper_mode_forced = False
                     self.audit_required = False
+                    self.reduce_only = False
+                    self.last_escalation_reason = ""
                     self.pause_until = None
                     self.last_loss_time = None
 
@@ -224,6 +245,8 @@ class ConsecutiveLossTracker:
             self.win_streak += 1  # Win streak tracking
             self.paper_mode_forced = False
             self.audit_required = False
+            self.reduce_only = False
+            self.last_escalation_reason = ""
             self.pause_until = None
             if self.win_streak >= 3:
                 logger.info(
@@ -237,20 +260,29 @@ class ConsecutiveLossTracker:
             if self.consecutive_losses >= 5:
                 self.paper_mode_forced = True
                 self.audit_required = True
+                self.reduce_only = True
+                self.pause_until = self._next_regular_session_recovery_time(self.last_loss_time)
+                self.last_escalation_reason = "paper + audit required until next session"
                 logger.critical(
                     f"G1 LEVEL 5: {self.consecutive_losses} consecutive losses — "
-                    "PAPER MODE + AUDIT REQUIRED"
+                    f"PAPER MODE + AUDIT REQUIRED until {self.pause_until.isoformat()}"
                 )
             elif self.consecutive_losses >= 4:
                 self.paper_mode_forced = True
+                self.reduce_only = True
+                self.pause_until = self._next_regular_session_recovery_time(self.last_loss_time)
+                self.last_escalation_reason = "paper/recovery lock until next session"
                 logger.error(
-                    f"G1 LEVEL 4: {self.consecutive_losses} consecutive losses — FORCED PAPER MODE"
+                    f"G1 LEVEL 4: {self.consecutive_losses} consecutive losses — "
+                    f"FORCED PAPER MODE until {self.pause_until.isoformat()}"
                 )
             elif self.consecutive_losses >= 3:
-                self.pause_until = datetime.now(timezone.utc) + timedelta(hours=1)
+                self.reduce_only = True
+                self.pause_until = self._next_regular_session_recovery_time(self.last_loss_time)
+                self.last_escalation_reason = "reduce-only until next session"
                 logger.warning(
                     f"G1 LEVEL 3: {self.consecutive_losses} consecutive losses — "
-                    "25% size + 1h pause"
+                    f"REDUCE-ONLY until {self.pause_until.isoformat()}"
                 )
             elif self.consecutive_losses >= 2:
                 logger.warning(
@@ -265,7 +297,7 @@ class ConsecutiveLossTracker:
         if self.consecutive_losses >= 4:
             return 0.0  # Paper mode — no real trades
         elif self.consecutive_losses >= 3:
-            return 0.25
+            return 0.0  # reduce-only: no new entries
         elif self.consecutive_losses >= 2:
             return 0.50
 
@@ -279,13 +311,26 @@ class ConsecutiveLossTracker:
         return 1.0
 
     def is_trading_allowed(self) -> bool:
-        """Check if trading is allowed (not paused/paper)."""
-        if self.paper_mode_forced:
+        """Check if new entries are allowed."""
+        if self.paper_mode_forced or self.reduce_only:
             return False
         pause = self.pause_until
         if pause and datetime.now(timezone.utc) < pause:
             return False
         return True
+
+    def status_reason(self) -> str:
+        """Human-readable reason for blocking new entries."""
+        if self.audit_required:
+            return "audit required after severe loss streak"
+        if self.paper_mode_forced:
+            return self.last_escalation_reason or "paper mode forced by loss streak"
+        if self.reduce_only:
+            return self.last_escalation_reason or "reduce-only after loss streak"
+        pause = self.pause_until
+        if pause and datetime.now(timezone.utc) < pause:
+            return f"paused until {pause.isoformat()}"
+        return "new entries allowed"
 
 
 

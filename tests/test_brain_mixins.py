@@ -19,6 +19,7 @@ from datetime import datetime, timedelta, timezone
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+import pytz
 
 sys.path.insert(0, "src")
 
@@ -605,17 +606,21 @@ class TestConsecutiveLossTracker:
         tracker.record_outcome(is_win=False)
         assert tracker.get_size_modifier() == pytest.approx(0.50)
 
-    def test_three_losses_gives_25_pct_modifier(self):
+    def test_three_losses_enters_reduce_only(self):
         tracker = ConsecutiveLossTracker()
         for _ in range(3):
             tracker.record_outcome(is_win=False)
-        assert tracker.get_size_modifier() == pytest.approx(0.25)
+        assert tracker.reduce_only is True
+        assert tracker.is_trading_allowed() is False
+        assert tracker.get_size_modifier() == pytest.approx(0.0)
+        assert tracker.pause_until is not None
 
     def test_four_losses_forces_paper_mode(self):
         tracker = ConsecutiveLossTracker()
         for _ in range(4):
             tracker.record_outcome(is_win=False)
         assert tracker.paper_mode_forced is True
+        assert tracker.reduce_only is True
         assert tracker.is_trading_allowed() is False
 
     def test_five_losses_sets_audit_required(self):
@@ -642,6 +647,14 @@ class TestConsecutiveLossTracker:
         tracker = ConsecutiveLossTracker()
         tracker.pause_until = datetime.now(timezone.utc) - timedelta(seconds=1)
         assert tracker.is_trading_allowed() is True
+
+    def test_three_loss_recovery_checkpoint_is_next_regular_session(self):
+        tracker = ConsecutiveLossTracker()
+        now = datetime(2026, 6, 3, 14, 0, tzinfo=timezone.utc)
+        recovery = tracker._next_regular_session_recovery_time(now)
+        assert recovery > now
+        assert recovery.astimezone(pytz.timezone("US/Eastern")).hour == 9
+        assert recovery.astimezone(pytz.timezone("US/Eastern")).minute == 45
 
 
 # ============================================================================
