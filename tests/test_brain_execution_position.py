@@ -769,6 +769,26 @@ class TestBrokerExitRealization:
         assert ledger_exit.call_args.kwargs["meta"]["raw_r_multiple"] == pytest.approx(-10.0)
         assert "MAX_R_LOSS_CLAMP" in ledger_exit.call_args.kwargs["override"]
 
+    def test_position_monitor_prefers_realtime_pipeline_price(self, paper_brain):
+        paper_brain.data_pipeline = MagicMock()
+        paper_brain.data_pipeline.get_last_price.return_value = 90.0
+        paper_brain.last_tick_prices = {"GS": 91.0}
+
+        price, source = paper_brain._resolve_position_monitor_price("GS", 95.0)
+
+        assert price == pytest.approx(90.0)
+        assert source == "realtime_pipeline"
+
+    def test_position_monitor_uses_brain_tick_before_snapshot(self, paper_brain):
+        paper_brain.data_pipeline = MagicMock()
+        paper_brain.data_pipeline.get_last_price.return_value = None
+        paper_brain.last_tick_prices = {"GS": 91.0}
+
+        price, source = paper_brain._resolve_position_monitor_price("GS", 95.0)
+
+        assert price == pytest.approx(91.0)
+        assert source == "brain_tick_cache"
+
 
 # ---------------------------------------------------------------------------
 # Positioned brain fixture factory

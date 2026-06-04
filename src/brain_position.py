@@ -31,6 +31,38 @@ MAX_LOSS_R_MULTIPLE = abs(float(os.getenv("SOVEREIGN_MAX_LOSS_R_MULTIPLE", "2.5"
 class PositionMonitor:
     """Mixin: position monitoring, exit processing, emergency flattening."""
 
+    def _resolve_position_monitor_price(
+        self,
+        symbol: str,
+        snapshot_price: float | None,
+    ) -> tuple[float | None, str]:
+        """Choose the freshest price source for protective exit monitoring."""
+        symbol = symbol.upper()
+        pipeline = getattr(self, "data_pipeline", None)
+        if pipeline is not None and hasattr(pipeline, "get_last_price"):
+            try:
+                realtime_price = pipeline.get_last_price(symbol)
+                if realtime_price is not None and float(realtime_price) > 0:
+                    return float(realtime_price), "realtime_pipeline"
+            except Exception as exc:
+                logger.debug("Realtime pipeline price unavailable for %s: %s", symbol, exc)
+
+        last_ticks = getattr(self, "last_tick_prices", {}) or {}
+        try:
+            tick_price = last_ticks.get(symbol)
+            if tick_price is not None and float(tick_price) > 0:
+                return float(tick_price), "brain_tick_cache"
+        except Exception as exc:
+            logger.debug("Brain tick cache price unavailable for %s: %s", symbol, exc)
+
+        if snapshot_price is not None:
+            try:
+                if float(snapshot_price) > 0:
+                    return float(snapshot_price), "market_snapshot"
+            except (TypeError, ValueError):
+                return None, "unavailable"
+        return None, "unavailable"
+
     async def _state_positioned(self) -> None:
         """Monitor active positions using 7-Level Exit Intelligence Engine."""
         self._sanitize_positions()  # Ensure memory is objects, not dicts
@@ -64,15 +96,22 @@ class PositionMonitor:
                 except asyncio.TimeoutError:
                     logger.warning("Market data timeout for %s — skipping this tick", pos.symbol)
                     continue
-                current_price = (
+                snapshot_price = (
                     market_data.get("price")
                     if market_data and market_data.get("price") is not None
-                    else pos.entry_price
+                    else None
                 )
+                current_price, price_source = self._resolve_position_monitor_price(
+                    pos.symbol, snapshot_price
+                )
+                if current_price is None:
+                    current_price = pos.entry_price
+                    price_source = "entry_fallback"
                 vix = market_data.get("vix", 18.0) if market_data else 18.0
 
                 # Update Bayesian belief and real-time PnL
                 pos.current_price = current_price
+                pos.meta["monitor_price_source"] = price_source
                 pos.unrealized_pnl = (current_price - pos.entry_price) * pos.qty
 
                 # Check IBKR cache to stop 'Phantom Tightening' logs
