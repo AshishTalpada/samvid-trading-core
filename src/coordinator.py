@@ -50,6 +50,26 @@ class TradingCoordinator:
         self.exoskeleton = ApexExoskeleton(brain)
         self._semaphore: asyncio.Semaphore | None = None  # Lazy-init to bind to running loop
 
+    def _has_fresh_realtime_entry_tick(self, symbol: str) -> bool:
+        """Use the realtime tick cache as entry proof when OHLCV bars are delayed."""
+        data_pipeline = getattr(self.brain, "data_pipeline", None)
+        get_last_price = getattr(data_pipeline, "get_last_price", None)
+        if not callable(get_last_price):
+            return False
+        try:
+            price = get_last_price(symbol.upper())
+        except Exception as exc:
+            logger.warning(
+                "Coordinator: realtime entry tick proof lookup failed for %s: %s",
+                symbol,
+                exc,
+            )
+            return False
+        try:
+            return float(price or 0.0) > 0.0
+        except (TypeError, ValueError):
+            return False
+
     def _entry_data_block_reason(self, symbol: str) -> str | None:
         """Return a fail-closed reason when live entry data proof is missing or expired."""
         if str(getattr(self.brain, "mode", "paper")).lower() == "paper":
@@ -62,6 +82,8 @@ class TradingCoordinator:
             return "verified bar freshness store unavailable"
         verified_at = freshness_proofs.get(symbol.upper())
         if verified_at is None:
+            if self._has_fresh_realtime_entry_tick(symbol):
+                return None
             return "no verified fresh bar available"
 
         try:
@@ -71,6 +93,8 @@ class TradingCoordinator:
         max_age = max(5.0, min(max_age, 300.0))
         proof_age = time.monotonic() - float(verified_at)
         if proof_age > max_age:
+            if self._has_fresh_realtime_entry_tick(symbol):
+                return None
             return f"verified bar freshness proof expired ({proof_age:.1f}s > {max_age:.1f}s)"
         return None
 

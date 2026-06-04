@@ -18,6 +18,7 @@ def mock_coordinator():
     brain.current_regime = "TRENDING"
     brain._oracle_dhatu = "Sthiti"
     brain._vetting_cooldowns = {}
+    brain.data_pipeline = None
     brain.ibkr_drawdown = MagicMock()
     brain.ibkr_drawdown.peak_equity = 5000.0
     brain.ibkr_drawdown.current_equity = 5000.0
@@ -116,6 +117,15 @@ class TestEntryDataFreshness:
 
         assert mock_coordinator._entry_data_block_reason("SPY") is None
 
+    def test_ibkr_entry_with_realtime_tick_proof_is_allowed(self, mock_coordinator) -> None:
+        mock_coordinator.brain.mode = "ibkr_paper"
+        mock_coordinator.brain._last_fresh_bar_at = {}
+        mock_coordinator.brain.data_pipeline = MagicMock()
+        mock_coordinator.brain.data_pipeline.get_last_price.return_value = 501.25
+
+        assert mock_coordinator._entry_data_block_reason("SPY") is None
+        mock_coordinator.brain.data_pipeline.get_last_price.assert_called_once_with("SPY")
+
     def test_ibkr_entry_with_expired_freshness_proof_is_blocked(
         self, mock_coordinator, monkeypatch: pytest.MonkeyPatch
     ) -> None:
@@ -124,6 +134,17 @@ class TestEntryDataFreshness:
         monkeypatch.setenv("SOVEREIGN_ENTRY_DATA_PROOF_MAX_AGE_SEC", "30")
 
         assert "expired" in mock_coordinator._entry_data_block_reason("SPY")
+
+    def test_ibkr_entry_with_expired_bar_and_realtime_tick_is_allowed(
+        self, mock_coordinator, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        mock_coordinator.brain.mode = "ibkr_paper"
+        mock_coordinator.brain._last_fresh_bar_at = {"SPY": time.monotonic() - 60.0}
+        mock_coordinator.brain.data_pipeline = MagicMock()
+        mock_coordinator.brain.data_pipeline.get_last_price.return_value = 501.25
+        monkeypatch.setenv("SOVEREIGN_ENTRY_DATA_PROOF_MAX_AGE_SEC", "30")
+
+        assert mock_coordinator._entry_data_block_reason("SPY") is None
 
 
 class TestLifecycleBasics:
