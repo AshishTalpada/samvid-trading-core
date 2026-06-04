@@ -32,6 +32,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict
 
+from alpha_watchdog import AlphaDecayWatchdog
+
 
 class LiveRecursiveEvolution:
     """
@@ -1283,6 +1285,8 @@ class LiveLearningEngine:
         self._n_wins = 0
         self._recent_trades: _deque[dict] = _deque(maxlen=200)  # RAM-Lean buffer
         self._candle_queue: _asyncio.Queue | None = None
+        self.alpha_watchdog = AlphaDecayWatchdog()
+        self._latest_alpha_health: dict[str, dict[str, Any]] = {}
         self._ensure_table()
         self._load_history()
 
@@ -1363,6 +1367,8 @@ class LiveLearningEngine:
             # Store reversed to maintain ASC order in the deque
             for r in reversed(rows):
                 self._recent_trades.append(dict(r))
+            for trade in self._recent_trades:
+                self._record_alpha_health(trade)
 
             rating = self._gate.rate_data(self._n_trades)
             _lld_logger.info(
@@ -1439,6 +1445,25 @@ class LiveLearningEngine:
 
         _lld_logger.warning("LiveLearningEngine: batch persist failed after repeated retries")
 
+    @staticmethod
+    def _strategy_key(trade: dict) -> str:
+        pattern = str(trade.get("pattern") or "UNKNOWN").strip() or "UNKNOWN"
+        regime = str(trade.get("regime") or "UNKNOWN").strip() or "UNKNOWN"
+        session = str(trade.get("session") or "RTH").strip() or "RTH"
+        return f"{pattern}|{regime}|{session}"
+
+    def _record_alpha_health(self, trade: dict) -> dict[str, Any]:
+        strategy_id = self._strategy_key(trade)
+        try:
+            pnl = float(trade.get("pnl", 0.0))
+        except (TypeError, ValueError):
+            pnl = 0.0
+        self.alpha_watchdog.record(strategy_id, pnl)
+        health = self.alpha_watchdog.evaluate(strategy_id)
+        health["strategy_id"] = strategy_id
+        self._latest_alpha_health[strategy_id] = health
+        return health
+
     async def _handle_trade_exit(self, payload: dict) -> None:
         """
         Handle a "trade.exit" bus event.
@@ -1464,6 +1489,7 @@ class LiveLearningEngine:
         self._n_trades += 1
         if trade["outcome"] == "WIN":
             self._n_wins += 1
+        alpha_health = self._record_alpha_health(trade)
 
         n = self._n_trades
 
@@ -1478,6 +1504,13 @@ class LiveLearningEngine:
             self.evolution_engine.evolve_live(
                 pattern_name=trade["pattern"], pnl=trade["pnl"], regime=trade["regime"]
             )
+
+        if (
+            self.bus is not None
+            and alpha_health.get("status") in {"DECAY", "RETIRE"}
+            and not payload.get("is_dirty", False)
+        ):
+            await self.bus.publish("alpha.decay", alpha_health)
 
         # Build matrix if threshold crossed (AND trade is NOT dirty)
         is_dirty = payload.get("is_dirty", False)
