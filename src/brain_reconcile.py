@@ -455,6 +455,7 @@ class BrokerReconciler:
                     stale_trades.append((int(tid), symbol or "", entry_price, shares, direction))
 
             if stale_trades:
+                outcome_counts: dict[str, int] = {}
                 for trade_id, instrument, entry_price, shares, direction in stale_trades:
                     # Resolve current market price for exit_price.
                     # Try bid/ask midpoint first, then last_tick_prices.
@@ -503,6 +504,7 @@ class BrokerReconciler:
                             "RECONCILIATION_REQUIRED: broker reality flat but no live "
                             "price was available, so PnL was not synthesized"
                         )
+                    outcome_counts[db_outcome] = outcome_counts.get(db_outcome, 0) + 1
 
                     cursor.execute(
                         "UPDATE trades SET outcome = ?, exit_price = ?, pnl_dollars = ?, "
@@ -519,12 +521,30 @@ class BrokerReconciler:
                     )
 
                 self.db_conn.commit()
-                logger.warning(
-                    "Reconciliation: marked %s stale %s OPEN trade row(s) "
-                    "LIQUIDATED after fresh broker poll.",
-                    len(stale_trades),
-                    broker.upper(),
+                if outcome_counts.get("RECONCILIATION_REQUIRED"):
+                    logger.warning(
+                        "Reconciliation: marked %s stale %s OPEN trade row(s) "
+                        "RECONCILIATION_REQUIRED after fresh broker poll.",
+                        outcome_counts["RECONCILIATION_REQUIRED"],
+                        broker.upper(),
+                    )
+                closed_count = sum(
+                    count
+                    for outcome, count in outcome_counts.items()
+                    if outcome != "RECONCILIATION_REQUIRED"
                 )
+                if closed_count:
+                    logger.warning(
+                        "Reconciliation: marked %s stale %s OPEN trade row(s) closed "
+                        "after fresh broker poll. Outcomes=%s",
+                        closed_count,
+                        broker.upper(),
+                        {
+                            outcome: count
+                            for outcome, count in outcome_counts.items()
+                            if outcome != "RECONCILIATION_REQUIRED"
+                        },
+                    )
         except Exception as exc:
             logger.debug("DB open-trade reconciliation failed for %s: %s", broker, exc)
         finally:

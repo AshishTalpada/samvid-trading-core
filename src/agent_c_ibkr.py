@@ -77,6 +77,9 @@ class IBKRConnection:
     """
 
     ORPHAN_MISSING_GRACE_SEC = 15 * 60
+    ACTIVE_ORDER_MISSING_GRACE_SEC = float(
+        os.environ.get("SOVEREIGN_IBKR_ACTIVE_ORDER_GRACE_SEC", "300")
+    )
 
     def __init__(self, ib_client=None) -> None:
         if ib_client is not None:
@@ -735,20 +738,43 @@ class IBKRConnection:
                         )
                 else:
                     age_sec = self._order_snapshot_age_seconds(last_update)
-                    if age_sec < self.ORPHAN_MISSING_GRACE_SEC:
+                    active_status = status in {
+                        "PendingSubmit",
+                        "PreSubmitted",
+                        "Submitted",
+                        "PendingCancel",
+                    }
+                    grace_sec = (
+                        self.ACTIVE_ORDER_MISSING_GRACE_SEC
+                        if active_status
+                        else self.ORPHAN_MISSING_GRACE_SEC
+                    )
+                    if age_sec < grace_sec:
                         logger.warning(
                             "RECOVERY: Order %s (%s) absent from broker open-order snapshot "
                             "but only %.0fs old; deferring reconciliation until broker state "
-                            "settles.",
+                            "settles (grace %.0fs, status=%s).",
                             oid,
                             sym,
                             age_sec,
+                            grace_sec,
+                            status,
                         )
                         continue
-                    logger.error(
-                        f" CRITICAL: Order {oid} ({sym}) lost from broker! "
-                        f"Status was {status}. Manual audit required."
-                    )
+                    if active_status:
+                        logger.warning(
+                            "RECOVERY: Active order %s (%s) still absent from broker after "
+                            "%.0fs (status=%s); marking reconciliation-required for audit.",
+                            oid,
+                            sym,
+                            age_sec,
+                            status,
+                        )
+                    else:
+                        logger.error(
+                            f" CRITICAL: Order {oid} ({sym}) lost from broker! "
+                            f"Status was {status}. Manual audit required."
+                        )
                     missing_from_broker.append(oid)
                 self._recovered_orders.add(oid)
             self._mark_orders_reconciliation_required(missing_from_broker)
@@ -760,8 +786,10 @@ class IBKRConnection:
     def _order_snapshot_age_seconds(last_update: object) -> float:
         """Best-effort age parser for durable order snapshots."""
         raw = str(last_update or "").strip()
-        if not raw or raw.lower() == "now":
+        if not raw:
             return float("inf")
+        if raw.lower() == "now":
+            return 0.0
         try:
             if raw.isdigit():
                 value = int(raw)

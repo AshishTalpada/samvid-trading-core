@@ -528,7 +528,7 @@ def test_reconcile_marks_liquidated_closed_db_rows(paper_brain):
     assert any("LIQUIDATED" in c for c in executed_calls)
 
 
-def test_reconcile_requires_manual_review_when_flat_broker_has_no_price(paper_brain):
+def test_reconcile_requires_manual_review_when_flat_broker_has_no_price(paper_brain, caplog):
     """Broker-flat reconciliation must not fabricate zero-PnL exits."""
     paper_brain.positions = []
     paper_brain.last_tick_prices = {}
@@ -543,12 +543,13 @@ def test_reconcile_requires_manual_review_when_flat_broker_has_no_price(paper_br
     paper_brain.db_conn = MagicMock()
     paper_brain.db_conn.cursor.return_value = mock_cursor
 
-    paper_brain._reconcile_open_trade_rows(
-        broker="IBKR",
-        reality={},
-        polled=True,
-        now_ts=datetime(2024, 1, 1, 10, 10, 0, tzinfo=timezone.utc),
-    )
+    with caplog.at_level("WARNING"):
+        paper_brain._reconcile_open_trade_rows(
+            broker="IBKR",
+            reality={},
+            polled=True,
+            now_ts=datetime(2024, 1, 1, 10, 10, 0, tzinfo=timezone.utc),
+        )
 
     update_args = mock_cursor.execute.call_args_list[-1].args[1]
     assert update_args[0] == "RECONCILIATION_REQUIRED"
@@ -556,6 +557,8 @@ def test_reconcile_requires_manual_review_when_flat_broker_has_no_price(paper_br
     assert update_args[2] is None
     assert update_args[3] is None
     assert "RECONCILIATION_REQUIRED" in update_args[4]
+    assert "RECONCILIATION_REQUIRED after fresh broker poll" in caplog.text
+    assert "LIQUIDATED after fresh broker poll" not in caplog.text
 
 
 # ===========================================================================
