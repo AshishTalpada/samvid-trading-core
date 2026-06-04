@@ -737,6 +737,40 @@ class TestBrokerExitRealization:
         assert logged_net_pnl == pytest.approx(net_pnl, abs=1e-9)
 
     @pytest.mark.asyncio
+    async def test_exit_telegram_alert_includes_trade_method(self, paper_brain):
+        """Operator alerts must show the actual setup instead of generic branding."""
+        paper_brain.ibkr_client = None
+        paper_brain.bus = None
+        paper_brain._log_trade_exit = AsyncMock()
+        pos = _make_position(
+            symbol="MSFT",
+            qty=5,
+            entry=100.0,
+            commission=0.0,
+            slippage=0.0,
+            entry_time=datetime.now(timezone.utc) - timedelta(minutes=20),
+        )
+        pos.account_type = "paper"
+        pos.pattern = "opening_range_breakout"
+        pos.meta["intent"] = "momentum_continuation"
+        pos.meta["monitor_price_source"] = "data_pipeline_realtime"
+        paper_brain.positions = [pos]
+
+        with (
+            patch("brain_position.PORTFOLIO_ANALYZER.record_close"),
+            patch("brain_position.LEDGER.record_exit"),
+            patch("telegram_alerts.send_telegram_alert", new_callable=AsyncMock) as tg,
+        ):
+            await paper_brain._process_exit(pos, "TARGET_HIT", 103.0)
+
+        message = tg.await_args.args[0]
+        assert "<b>Strategy:</b> momentum_continuation" in message
+        assert "<b>Pattern:</b> opening_range_breakout" in message
+        assert "<b>Exit Method:</b> Target Hit (TARGET_HIT)" in message
+        assert "<b>Price Source:</b> data_pipeline_realtime" in message
+        assert "Sovereign Signal" not in message
+
+    @pytest.mark.asyncio
     async def test_exit_clamps_catastrophic_r_and_enters_recovery(self, paper_brain):
         """A corrupt stop/risk basis must not teach the system impossible loss-R."""
         paper_brain.ibkr_client = None

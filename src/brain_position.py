@@ -863,8 +863,11 @@ class PositionMonitor:
 
             # Smart Metadata Recovery
             icon = "💰" if realized_net_pnl > 0 else "📉" if realized_net_pnl < 0 else "🛡️"
-            intent = pos.meta.get("intent") or getattr(pos, "intent", "Sovereign")
-            pattern_name = pos.meta.get("pattern") or pos.pattern or "Sovereign Signal"
+            raw_intent = str(pos.meta.get("intent") or getattr(pos, "intent", "") or "").strip()
+            raw_pattern = str(pos.meta.get("pattern") or pos.pattern or "").strip()
+            intent = raw_intent if raw_intent else "METHOD_UNAVAILABLE"
+            pattern_name = raw_pattern if raw_pattern else "PATTERN_UNAVAILABLE"
+            monitor_price_source = str(pos.meta.get("monitor_price_source") or "unknown").strip()
 
             # Account ID Sanitization
             acc_id = pos.account_id
@@ -876,7 +879,7 @@ class PositionMonitor:
             # Reason Translation
             reason = exit_type.replace("_", " ").title()
             if "HEARTBEAT" in reason.upper():
-                reason = "Sovereign Safety Veto"
+                reason = "Heartbeat Safety Veto"
 
             # Duration Formatting
             duration_min = (now - _safe_entry_time(pos.entry_time)).total_seconds() / 60
@@ -907,7 +910,8 @@ class PositionMonitor:
                 "───────────────────\n"
                 f"<b>Strategy:</b> {intent}\n"
                 f"<b>Pattern:</b> {pattern_name}\n"
-                f"<b>Reason:</b> {reason}\n"
+                f"<b>Exit Method:</b> {reason} ({exit_type})\n"
+                f"<b>Price Source:</b> {monitor_price_source}\n"
                 "───────────────────\n"
                 f"<b>Outcome:</b> {outcome}\n"
                 f"<b>Net PnL:</b> <code>${realized_net_pnl:+.2f}</code>\n"
