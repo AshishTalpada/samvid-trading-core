@@ -52,6 +52,7 @@ def build_execution_evidence(
         if record.get("event") == "ORDER_INTENT" and record.get("intent_id")
     }
     first_fill_by_intent: dict[str, dict[str, Any]] = {}
+    fill_qty_by_intent: dict[str, float] = {}
     matched_fills = 0
     unmatched_lineage_events = 0
     slippage_values: list[float] = []
@@ -69,6 +70,7 @@ def build_execution_evidence(
                 intent_price = float((intents[intent_id].get("details") or {}).get("px", 0) or 0)
                 fill_price = float(details.get("fill_price", 0) or 0)
                 quantity = float(record.get("quantity", 0) or 0)
+                fill_qty_by_intent[intent_id] = fill_qty_by_intent.get(intent_id, 0.0) + quantity
                 if intent_price > 0 and fill_price > 0 and quantity > 0:
                     slippage_values.append(abs(fill_price - intent_price) * quantity)
         if record.get("event") == "ORDER_COMMISSION":
@@ -81,6 +83,17 @@ def build_execution_evidence(
     ]
     intent_count = len(intents)
     filled_intents = len(first_fill_by_intent)
+    overfilled_intents = 0
+    underfilled_intents = 0
+    for intent_id, intent_record in intents.items():
+        intended_qty = abs(float(intent_record.get("quantity", 0) or 0))
+        filled_qty = abs(fill_qty_by_intent.get(intent_id, 0.0))
+        if intended_qty <= 0 or filled_qty <= 0:
+            continue
+        if filled_qty > intended_qty * 1.001:
+            overfilled_intents += 1
+        elif filled_qty < intended_qty * 0.999:
+            underfilled_intents += 1
     legacy_records = sum(1 for record in records if not record.get("intent_id"))
     cancel_statuses = Counter(
         str((record.get("details") or {}).get("status", "UNKNOWN"))
@@ -99,6 +112,9 @@ def build_execution_evidence(
             "filled_intents": filled_intents,
             "unfilled_intents": max(0, intent_count - filled_intents),
             "matched_fills": matched_fills,
+            "fill_fragments": max(0, matched_fills - filled_intents),
+            "overfilled_intents": overfilled_intents,
+            "underfilled_intents": underfilled_intents,
             "unmatched_lineage_events": unmatched_lineage_events,
             "legacy_records_without_intent_id": legacy_records,
             "intent_fill_rate": filled_intents / intent_count if intent_count else 0.0,

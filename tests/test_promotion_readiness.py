@@ -8,6 +8,9 @@ def _ready_evidence() -> dict:
             "lineage": {
                 "intents": 30,
                 "filled_intents": 20,
+                "matched_fills": 20,
+                "overfilled_intents": 0,
+                "underfilled_intents": 0,
                 "unmatched_lineage_events": 0,
             },
             "costs": {
@@ -62,8 +65,20 @@ def test_promotion_readiness_rejects_incomplete_cost_coverage() -> None:
     report = evaluate_promotion_readiness(**evidence)
 
     assert report["approved"] is False
-    assert "commission coverage is incomplete for modern fills" in report["blockers"]
-    assert "slippage coverage is incomplete for modern fills" in report["blockers"]
+    assert "commission coverage is incomplete for fill fragments" in report["blockers"]
+    assert "slippage coverage is incomplete for fill fragments" in report["blockers"]
+
+
+def test_promotion_readiness_rejects_fill_quantity_mismatches() -> None:
+    evidence = _ready_evidence()
+    evidence["execution_evidence"]["lineage"]["overfilled_intents"] = 1
+    evidence["execution_evidence"]["lineage"]["underfilled_intents"] = 1
+
+    report = evaluate_promotion_readiness(**evidence)
+
+    assert report["approved"] is False
+    assert "broker audit contains overfilled intents" in report["blockers"]
+    assert "broker audit contains underfilled intents" in report["blockers"]
 
 
 def test_promotion_readiness_rejects_weak_soak_or_replay() -> None:

@@ -43,6 +43,8 @@ def test_execution_evidence_reports_lineage_cost_latency_and_slippage(tmp_path) 
     assert report["lineage"]["intents"] == 1
     assert report["lineage"]["filled_intents"] == 1
     assert report["lineage"]["intent_fill_rate"] == 1.0
+    assert report["lineage"]["matched_fills"] == 1
+    assert report["lineage"]["fill_fragments"] == 0
     assert report["costs"]["total_commission"] == 1.25
     assert report["costs"]["total_observed_slippage"] == 0.5
     assert report["latency_ms"]["samples"] == 1
@@ -133,3 +135,43 @@ def test_execution_evidence_classifies_legacy_records_without_intent_id(tmp_path
     assert record["intent_id"]
     assert report["lineage"]["intents"] == 0
     assert report["lineage"]["legacy_records_without_intent_id"] == 1
+
+
+def test_execution_evidence_reports_fill_fragments_and_overfills(tmp_path) -> None:
+    path = tmp_path / "audit.jsonl"
+    audit = ExecutionAuditLog(path)
+    audit.append(
+        event="ORDER_INTENT",
+        symbol="JPM",
+        side="SELL",
+        quantity=100,
+        order_type="SINGLE",
+        intent_id="intent-jpm",
+        details={"px": 300.0},
+    )
+    audit.append(
+        event="ORDER_FILL",
+        symbol="JPM",
+        side="SLD",
+        quantity=60,
+        order_type="FILL",
+        intent_id="intent-jpm",
+        details={"fill_price": 299.9, "lineage_status": "MATCHED"},
+    )
+    audit.append(
+        event="ORDER_FILL",
+        symbol="JPM",
+        side="SLD",
+        quantity=45,
+        order_type="FILL",
+        intent_id="intent-jpm",
+        details={"fill_price": 299.8, "lineage_status": "MATCHED"},
+    )
+
+    report = build_execution_evidence(path)
+
+    assert report["lineage"]["filled_intents"] == 1
+    assert report["lineage"]["matched_fills"] == 2
+    assert report["lineage"]["fill_fragments"] == 1
+    assert report["lineage"]["overfilled_intents"] == 1
+    assert report["lineage"]["underfilled_intents"] == 0

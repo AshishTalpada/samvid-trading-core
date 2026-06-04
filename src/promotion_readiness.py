@@ -31,6 +31,7 @@ def evaluate_promotion_readiness(
     soak_cycles = soak_summary.get("cycles", [])
     intents = int(lineage.get("intents", 0) or 0)
     filled_intents = int(lineage.get("filled_intents", 0) or 0)
+    matched_fills = int(lineage.get("matched_fills", 0) or 0)
     commission_reports = int(costs.get("commission_reports", 0) or 0)
     performance = paper_performance.get("metrics", {})
     performance_window = paper_performance.get("window", {})
@@ -69,18 +70,28 @@ def evaluate_promotion_readiness(
     )
     _block(
         blockers,
+        int(lineage.get("overfilled_intents", 0) or 0) == 0,
+        "broker audit contains overfilled intents",
+    )
+    _block(
+        blockers,
+        int(lineage.get("underfilled_intents", 0) or 0) == 0,
+        "broker audit contains underfilled intents",
+    )
+    _block(
+        blockers,
         filled_intents > 0,
         "no modern paper fills recorded",
     )
     _block(
         blockers,
-        commission_reports >= filled_intents,
-        "commission coverage is incomplete for modern fills",
+        commission_reports >= matched_fills,
+        "commission coverage is incomplete for fill fragments",
     )
     _block(
         blockers,
-        int(costs.get("observed_slippage_events", 0) or 0) >= filled_intents,
-        "slippage coverage is incomplete for modern fills",
+        int(costs.get("observed_slippage_events", 0) or 0) >= matched_fills,
+        "slippage coverage is incomplete for fill fragments",
     )
     _block(
         blockers,
@@ -124,8 +135,12 @@ def evaluate_promotion_readiness(
             "restart_soak_cycles": len(soak_cycles),
             "modern_intents": intents,
             "filled_intents": filled_intents,
+            "matched_fills": matched_fills,
+            "fill_fragments": int(lineage.get("fill_fragments", 0) or 0),
             "commission_reports": commission_reports,
             "observed_slippage_events": int(costs.get("observed_slippage_events", 0) or 0),
+            "overfilled_intents": int(lineage.get("overfilled_intents", 0) or 0),
+            "underfilled_intents": int(lineage.get("underfilled_intents", 0) or 0),
             "unmatched_lineage_events": int(lineage.get("unmatched_lineage_events", 0) or 0),
             "closed_paper_trades": closed_paper_trades,
             "paper_expectancy_net": float(performance.get("expectancy_net", 0.0) or 0.0),
