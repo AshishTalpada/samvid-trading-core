@@ -952,11 +952,7 @@ class TradingBrain(BrokerReconciler, HealthChecker, DataProvider, AccountingMixi
 
                     # Circuit breaker: per-cycle safety gate
                     if self._is_oracle_entry_frozen():
-                        self._log_circuit_breaker_throttled(
-                            "oracle_freeze",
-                            logging.WARNING,
-                            "CIRCUIT BREAKER: Oracle freeze active. Skipping cycle.",
-                        )
+                        self._log_oracle_freeze_cycle()
                         await asyncio.sleep(self.scan_interval)
                         continue
 
@@ -1069,6 +1065,20 @@ class TradingBrain(BrokerReconciler, HealthChecker, DataProvider, AccountingMixi
                 await asyncio.sleep(5)
 
         logger.info("TradingBrain: Main system loop exited.")
+
+    def _log_oracle_freeze_cycle(self) -> None:
+        """Log oracle freeze without noisy warnings when the market is closed."""
+        market_open = self._is_market_open()
+        self._log_circuit_breaker_throttled(
+            "oracle_freeze" if market_open else "oracle_freeze_after_hours",
+            logging.WARNING if market_open else logging.INFO,
+            (
+                "CIRCUIT BREAKER: Oracle freeze active. Skipping cycle."
+                if market_open
+                else "Oracle freeze remains active after hours; live entries are already paused."
+            ),
+            interval_sec=300.0 if market_open else 1800.0,
+        )
 
     async def _run_periodic_freeze(self) -> None:
         """Periodically saves the cognitive state to the Quantum Session Restorer."""

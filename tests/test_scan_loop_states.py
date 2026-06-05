@@ -2,6 +2,7 @@
 Tests for TradingBrain scan loop state transitions and circuit breakers.
 """
 
+import logging
 from datetime import datetime, timezone
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -97,6 +98,21 @@ async def test_oracle_freeze_unblocks_when_normal(minimal_brain) -> None:
     brain._oracle_freeze = False
     brain._oracle_dhatu = "Sthiti"
     assert brain._is_oracle_entry_frozen() is False
+
+
+def test_after_hours_oracle_freeze_uses_info_throttle(minimal_brain) -> None:
+    brain = minimal_brain
+    brain._is_market_open = MagicMock(return_value=False)
+    brain._log_circuit_breaker_throttled = MagicMock()
+
+    brain._log_oracle_freeze_cycle()
+
+    brain._log_circuit_breaker_throttled.assert_called_once_with(
+        "oracle_freeze_after_hours",
+        logging.INFO,
+        "Oracle freeze remains active after hours; live entries are already paused.",
+        interval_sec=1800.0,
+    )
 
 
 @pytest.mark.asyncio
