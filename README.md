@@ -253,6 +253,8 @@ It is not yet a hedge-fund production platform. To move closer to that level, it
 
 MIT License.
 
+Copyright (c) 2026 Ashishkumar Talpada.
+
 ## Disclaimer
 
 Trading can lose money quickly. You are responsible for broker permissions, exchange rules, taxes, compliance, strategy validation, risk controls, and all decisions made with this software.
