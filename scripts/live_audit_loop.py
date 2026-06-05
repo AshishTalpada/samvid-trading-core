@@ -82,14 +82,18 @@ def _kill_existing_engine() -> None:
 
 def _clear_stale_pid_files() -> None:
     """Remove sentinels only when their recorded process is demonstrably dead."""
+    import psutil
+
     for name in ("main.pid", "watchdog.pid"):
         path = ROOT / "data" / name
         try:
             pid = int(path.read_text(encoding="utf-8").strip())
-            os.kill(pid, 0)
         except FileNotFoundError:
             continue
-        except (OSError, ValueError):
+        except ValueError:
+            path.unlink(missing_ok=True)
+            continue
+        if not psutil.pid_exists(pid):
             path.unlink(missing_ok=True)
 
 
