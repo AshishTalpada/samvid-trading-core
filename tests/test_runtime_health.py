@@ -179,6 +179,7 @@ def test_trading_system_snapshot_preserves_openbb_fallback_detail(monkeypatch) -
 @pytest.mark.asyncio
 async def test_execution_status_reports_recovery_lock(monkeypatch) -> None:
     brain = DummyHealthBrain()
+    brain._last_execution_status_notice = -1_000.0
     monkeypatch.setenv("SOVEREIGN_EXECUTION_STATUS_INTERVAL_SEC", "0")
 
     alert = AsyncMock()
@@ -206,6 +207,7 @@ async def test_execution_status_reports_recovery_lock(monkeypatch) -> None:
 @pytest.mark.asyncio
 async def test_execution_status_reports_oracle_freeze(monkeypatch) -> None:
     brain = DummyHealthBrain()
+    brain._last_execution_status_notice = -1_000.0
     monkeypatch.setenv("SOVEREIGN_EXECUTION_STATUS_INTERVAL_SEC", "0")
 
     alert = AsyncMock()
