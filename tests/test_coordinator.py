@@ -3,6 +3,7 @@ Tests for TradingCoordinator logic and wiring.
 """
 
 import time
+from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 import pytest
@@ -145,6 +146,46 @@ class TestEntryDataFreshness:
         monkeypatch.setenv("SOVEREIGN_ENTRY_DATA_PROOF_MAX_AGE_SEC", "30")
 
         assert mock_coordinator._entry_data_block_reason("SPY") is None
+
+
+class TestExecutionAlerts:
+    """Telegram execution alerts should identify the actual broker-paper route."""
+
+    def test_execution_alert_includes_ibkr_paper_context(self, mock_coordinator) -> None:
+        mock_coordinator.brain.mode = "ibkr_paper"
+        mock_coordinator.brain.active_broker = "IBKR"
+        pattern = SimpleNamespace(
+            name="opening_range_breakout",
+            category="SCALP",
+            entry=501.25,
+            stop=499.75,
+            target=505.50,
+            r_r_ratio=2.3,
+        )
+
+        message = mock_coordinator._format_execution_alert(
+            symbol="SPY",
+            order_id=4812,
+            pattern=pattern,
+            order_side="BUY",
+            intent="Scalp",
+            shares=3,
+            quorum_count=7,
+            decision={
+                "confidence": 0.64,
+                "paper_exploration": True,
+                "reason": "IBKR_PAPER_EXPLORATION near-miss accepted",
+            },
+            task_id="TASK-1",
+        )
+
+        assert "<b>Mode:</b> <code>IBKR_PAPER</code>" in message
+        assert "<b>Broker:</b> IBKR" in message
+        assert "<b>Order ID:</b> <code>4812</code>" in message
+        assert "<b>Side / Method:</b> LONG Scalp" in message
+        assert "<b>Pattern:</b> opening_range_breakout" in message
+        assert "<b>Paper Exploration:</b> YES" in message
+        assert "IBKR_PAPER_EXPLORATION" in message
 
 
 class TestLifecycleBasics:

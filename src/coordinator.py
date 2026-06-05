@@ -98,6 +98,50 @@ class TradingCoordinator:
             return f"verified bar freshness proof expired ({proof_age:.1f}s > {max_age:.1f}s)"
         return None
 
+    def _format_execution_alert(
+        self,
+        *,
+        symbol: str,
+        order_id: Any,
+        pattern: Any,
+        order_side: str,
+        intent: str,
+        shares: int,
+        quorum_count: int,
+        decision: dict[str, Any],
+        task_id: str,
+    ) -> str:
+        """Build the operator Telegram alert after broker acceptance."""
+        side_str = "LONG" if order_side == "BUY" else "SHORT"
+        full_intent = f"{side_str} {intent}"
+        mode = str(getattr(self.brain, "mode", "UNKNOWN")).upper()
+        broker = str(getattr(self.brain, "active_broker", "UNKNOWN")).upper()
+        pattern_name = str(getattr(pattern, "name", "UNKNOWN") or "UNKNOWN")
+        category = str(getattr(pattern, "category", intent) or intent)
+        confidence = float(decision.get("confidence", 0.0) or 0.0) * 100.0
+        exploration = "YES" if decision.get("paper_exploration") else "NO"
+        reason = str(decision.get("reason", "Approved by coordinator"))[:220]
+        rr = float(getattr(pattern, "r_r_ratio", 0.0) or 0.0)
+        return (
+            f"[EXECUTION] <b>{symbol}</b> broker order accepted\n"
+            f"<b>Mode:</b> <code>{mode}</code>\n"
+            f"<b>Broker:</b> {broker}\n"
+            f"<b>Order ID:</b> <code>{order_id}</code>\n"
+            f"<b>Side / Method:</b> {full_intent}\n"
+            f"<b>Pattern:</b> {pattern_name}\n"
+            f"<b>Setup Class:</b> {category}\n"
+            f"<b>Price:</b> ${float(getattr(pattern, 'entry', 0.0) or 0.0):.2f}\n"
+            f"<b>Qty:</b> {shares}\n"
+            f"<b>Stop:</b> ${float(getattr(pattern, 'stop', 0.0) or 0.0):.2f}\n"
+            f"<b>Target:</b> ${float(getattr(pattern, 'target', 0.0) or 0.0):.2f}\n"
+            f"<b>Net R:R:</b> {rr:.2f}\n"
+            f"<b>Confidence:</b> {confidence:.1f}%\n"
+            f"<b>Paper Exploration:</b> {exploration}\n"
+            f"<b>Quorum:</b> {quorum_count} agents\n"
+            f"<b>Task:</b> <code>{task_id}</code>\n"
+            f"<b>Reason:</b> {reason}"
+        )
+
     def _finalize_open_task(self, task: Any, phase: str, reason: str) -> None:
         """Close a spawned task when a pre-vetting guard returns early."""
         if not task:
@@ -1349,14 +1393,17 @@ class TradingCoordinator:
                     full_intent = f"{side_str} {intent}"
 
                     await send_telegram_alert(
-                        f" *EXECUTION: {symbol}*\n"
-                        f"Type: {full_intent}\n"
-                        f"Price: ${pattern.entry:.2f}\n"
-                        f"Qty: {shares}\n"
-                        f"SL: ${pattern.stop:.2f}\n"
-                        f"TP: ${pattern.target:.2f}\n"
-                        f"Quorum: {quorum_count} Agents\n"
-                        f"Task: {task.id if task else 'N/A'}"
+                        self._format_execution_alert(
+                            symbol=symbol,
+                            order_id=order_id,
+                            pattern=pattern,
+                            order_side=order_side,
+                            intent=intent,
+                            shares=shares,
+                            quorum_count=quorum_count,
+                            decision=decision,
+                            task_id=task.id if task else "N/A",
+                        )
                     )
 
                     from system_types import Position
@@ -1380,6 +1427,16 @@ class TradingCoordinator:
                         regime_at_entry=self.brain.current_regime,
                         commission_cost=max(2.0, shares * 0.005),
                         slippage_cost=shares * pattern.entry * 0.0005,
+                    )
+                    pos.meta.update(
+                        {
+                            "intent": full_intent,
+                            "execution_mode": getattr(self.brain, "mode", "UNKNOWN"),
+                            "execution_broker": self.brain.active_broker,
+                            "order_id": str(order_id),
+                            "paper_exploration": bool(decision.get("paper_exploration")),
+                            "decision_reason": str(decision.get("reason", ""))[:500],
+                        }
                     )
                     async with self.brain._state_lock:
                         self.brain.positions.append(pos)
