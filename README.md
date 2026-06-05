@@ -51,46 +51,33 @@ This keeps IBKR focused on execution while the TradingView quote streamer suppli
 
 ## Architecture Picture
 
-```mermaid
-flowchart LR
-    TV["TradingView Quote Streamer"] --> BUS["Event Bus"]
-    OHLCV["OHLCV / Data Pipeline"] --> BUS
-    NEWS["News / Dhatu Oracle"] --> BUS
-    BUS --> BRAIN["TradingBrain"]
-    BRAIN --> COORD["TradingCoordinator"]
-    COORD --> RISK["Risk Gates / Entry Proof"]
-    RISK --> IBKR["IBKR Paper Execution"]
-    IBKR --> REC["Broker Reconciliation"]
-    REC --> DB["SQLite Evidence Store"]
-    BRAIN --> TG["Telegram Operator Alerts"]
-    REC --> TG
-    DB --> LEARN["Post-trade Learning"]
-    LEARN --> BRAIN
+```text
+TradingView Quote Streamer ┐
+OHLCV / Data Pipeline      ├─> Event Bus ─> TradingBrain ─> TradingCoordinator
+News / Dhatu Oracle        ┘                                  │
+                                                              v
+                                                Risk Gates / Entry Proof
+                                                              │
+                                                              v
+                                                    IBKR Paper Execution
+                                                              │
+                                                              v
+Broker Reconciliation ─> SQLite Evidence Store ─> Post-trade Learning
+          │                                      │
+          └────────────> Telegram Alerts <──────┘
 ```
 
 ## Execution Workflow
 
-```mermaid
-sequenceDiagram
-    participant Data as Market Data
-    participant Brain as TradingBrain
-    participant Coord as Coordinator
-    participant Risk as Risk Gates
-    participant IBKR as IBKR Paper
-    participant TG as Telegram
-    participant DB as Evidence DB
-
-    Data->>Brain: candle.batch / quote ticks
-    Brain->>Coord: candidate setup
-    Coord->>Risk: freshness, friction, quorum, loss locks
-    Risk-->>Coord: approve or veto
-    Coord->>IBKR: submit paper order
-    IBKR-->>Coord: broker order id / reject
-    Coord->>TG: execution or rejection alert
-    Coord->>DB: persist trade/evidence
-    IBKR->>DB: fill/status reconciliation
-    DB->>TG: exit and audit alerts
-```
+| Step | Flow |
+| --- | --- |
+| 1 | Market data publishes candles, quote ticks, and news context. |
+| 2 | `TradingBrain` detects a candidate setup and sends it to the coordinator. |
+| 3 | `TradingCoordinator` checks freshness, friction, quorum, and loss locks. |
+| 4 | Approved orders route to IBKR paper execution. Vetoed orders are logged. |
+| 5 | Telegram receives execution, rejection, startup, health, and exit alerts. |
+| 6 | SQLite stores trade evidence, order state, and reconciliation records. |
+| 7 | Post-trade learning consumes `trade.exit` events and feeds future decisions. |
 
 ## What Makes It Useful
 
