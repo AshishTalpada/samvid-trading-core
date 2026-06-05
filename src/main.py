@@ -2642,14 +2642,10 @@ class TradingSystem:
                 # Check Ingestion Health (Delta since last HFT tick)
                 drift = time.monotonic() - self._last_tick_time
 
-                # If we haven't seen a tick in 5 minutes, we are likely 'Blinded'.
-                # Do not refresh _last_tick_time here; only _on_hft_pulse() may
-                # prove the data plane is actually alive.
-                if (
-                    drift > 300
-                    and not self._recalibration_in_progress
-                    and self._is_us_equity_market_open()
-                ):
+                # If we haven't seen a tick in 5 minutes while a fast-lane source
+                # is expected, we are likely 'blinded'. OHLCV-only runs should not
+                # produce false HFT starvation warnings.
+                if self._should_alert_hft_starvation(drift):
                     now_mono = time.monotonic()
                     if now_mono - self._last_data_starvation_alert > 300:
                         logger.warning(
@@ -2695,6 +2691,21 @@ class TradingSystem:
                 logger.error(f"Watchdog Error (Aegis): {e}")
 
             pass
+
+    def _hft_fast_lane_expected(self) -> bool:
+        """Return True only when an HFT tick source should be producing pulses."""
+        tv_enabled = os.environ.get("SOVEREIGN_TV_QUOTES_ENABLED", "1") == "1"
+        ibkr_hft_enabled = os.environ.get("SOVEREIGN_IBKR_HFT_ENABLED", "0") == "1"
+        return bool(tv_enabled or (self.hft_streamer and ibkr_hft_enabled))
+
+    def _should_alert_hft_starvation(self, drift: float) -> bool:
+        """Gate HFT starvation alerts to avoid false positives in OHLCV-only mode."""
+        return (
+            drift > 300
+            and not self._recalibration_in_progress
+            and self._is_us_equity_market_open()
+            and self._hft_fast_lane_expected()
+        )
 
     def _is_us_equity_market_open(self) -> bool:
         """Return True during regular US equity market hours."""

@@ -6,7 +6,20 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
+from brain_health import HealthChecker
 from runtime_health import ComponentHealth, build_health_snapshot, market_data_health
+
+
+class DummyHealthBrain(HealthChecker):
+    def __init__(self) -> None:
+        self.mode = "paper"
+        self.active_broker = "IBKR"
+        self.current_regime = "TRENDING"
+        self._oracle_dhatu = "Sthiti"
+        self._last_execution_status_notice = 0.0
+
+    def _is_market_open(self) -> bool:
+        return True
 
 
 def test_health_snapshot_marks_degraded_for_paused_free_feed() -> None:
@@ -161,6 +174,82 @@ def test_trading_system_snapshot_preserves_openbb_fallback_detail(monkeypatch) -
     assert openbb["status"] == "FALLBACK"
     assert "pipeline fallback provider=yfinance" in openbb["detail"]
     assert "openbb" in snapshot["degraded"]
+
+
+@pytest.mark.asyncio
+async def test_execution_status_reports_recovery_lock(monkeypatch) -> None:
+    brain = DummyHealthBrain()
+    monkeypatch.setenv("SOVEREIGN_EXECUTION_STATUS_INTERVAL_SEC", "0")
+
+    alert = AsyncMock()
+    monkeypatch.setattr("telegram_alerts.send_telegram_alert", alert)
+
+    await brain._maybe_send_execution_status(
+        {
+            "watchlist": 30,
+            "scanned": 0,
+            "gated": 30,
+            "pending": 0,
+            "recovery_mode": True,
+            "pause_until": "2026-06-05T13:45:00+00:00",
+            "recovery_reason": "audit required after severe loss streak",
+        },
+        "RECOVERY",
+    )
+
+    message = alert.await_args.args[0]
+    assert "Recovery/audit lock is active" in message
+    assert "2026-06-05T13:45:00+00:00" in message
+    assert "audit required after severe loss streak" in message
+
+
+@pytest.mark.asyncio
+async def test_execution_status_reports_oracle_freeze(monkeypatch) -> None:
+    brain = DummyHealthBrain()
+    monkeypatch.setenv("SOVEREIGN_EXECUTION_STATUS_INTERVAL_SEC", "0")
+
+    alert = AsyncMock()
+    monkeypatch.setattr("telegram_alerts.send_telegram_alert", alert)
+
+    await brain._maybe_send_execution_status(
+        {
+            "watchlist": 30,
+            "scanned": 0,
+            "gated": 30,
+            "pending": 0,
+            "oracle_freeze": True,
+        },
+        "18.4",
+    )
+
+    message = alert.await_args.args[0]
+    assert "Oracle freeze is active" in message
+
+
+def test_hft_starvation_alert_suppressed_when_fast_lane_disabled(monkeypatch) -> None:
+    import main as main_mod
+
+    system = main_mod.TradingSystem.__new__(main_mod.TradingSystem)
+    system.hft_streamer = None
+    system._recalibration_in_progress = False
+    system._is_us_equity_market_open = lambda: True
+    monkeypatch.setenv("SOVEREIGN_TV_QUOTES_ENABLED", "0")
+    monkeypatch.setenv("SOVEREIGN_IBKR_HFT_ENABLED", "0")
+
+    assert system._should_alert_hft_starvation(10_000.0) is False
+
+
+def test_hft_starvation_alert_active_when_tv_quotes_enabled(monkeypatch) -> None:
+    import main as main_mod
+
+    system = main_mod.TradingSystem.__new__(main_mod.TradingSystem)
+    system.hft_streamer = None
+    system._recalibration_in_progress = False
+    system._is_us_equity_market_open = lambda: True
+    monkeypatch.setenv("SOVEREIGN_TV_QUOTES_ENABLED", "1")
+    monkeypatch.setenv("SOVEREIGN_IBKR_HFT_ENABLED", "0")
+
+    assert system._should_alert_hft_starvation(301.0) is True
 
 
 @pytest.mark.asyncio

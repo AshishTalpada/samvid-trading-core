@@ -134,7 +134,20 @@ class HealthChecker:
         if watchlist <= 0:
             return
 
-        if (
+        if stats.get("recovery_mode"):
+            pause_until = stats.get("pause_until") or "next eligible session"
+            recovery_reason = stats.get("recovery_reason") or "loss streak recovery lock"
+            reason = (
+                "Recovery/audit lock is active; new entries are disabled while "
+                f"existing positions remain under exit monitoring. Reset target: {pause_until}. "
+                f"Reason: {recovery_reason}."
+            )
+        elif stats.get("oracle_freeze"):
+            reason = (
+                "Oracle freeze is active; new entries are intentionally paused until "
+                "the Dhatu/risk state clears."
+            )
+        elif (
             not self._is_market_open()
             and os.environ.get("SOVEREIGN_ALLOW_CLOSED_MARKET_SCANS") != "1"
         ):

@@ -1710,12 +1710,15 @@ class TradingBrain(BrokerReconciler, HealthChecker, DataProvider, AccountingMixi
             if not self.loss_tracker.is_trading_allowed():
                 reason = getattr(self.loss_tracker, "status_reason", lambda: "loss streak")()
                 pause_until = getattr(self.loss_tracker, "pause_until", None)
-                logger.warning(
+                self._log_circuit_breaker_throttled(
+                    "scan_recovery_mode",
+                    logging.WARNING,
                     "SCAN BLOCKED: recovery mode is active; new entries disabled. "
-                    "Existing positions remain under exit monitoring. losses=%s pause_until=%s reason=%s",
-                    getattr(self.loss_tracker, "consecutive_losses", "?"),
-                    pause_until.isoformat() if pause_until else "n/a",
-                    reason,
+                    "Existing positions remain under exit monitoring. "
+                    f"losses={getattr(self.loss_tracker, 'consecutive_losses', '?')} "
+                    f"pause_until={pause_until.isoformat() if pause_until else 'n/a'} "
+                    f"reason={reason}",
+                    interval_sec=300.0,
                 )
                 self.pending_signals.clear()
                 async with self._state_lock:
@@ -1732,6 +1735,8 @@ class TradingBrain(BrokerReconciler, HealthChecker, DataProvider, AccountingMixi
                         "pending": 0,
                         "regime": self.current_regime,
                         "recovery_mode": True,
+                        "pause_until": pause_until.isoformat() if pause_until else None,
+                        "recovery_reason": reason,
                     }
                     status_snapshot = dict(self.last_scan_stats)
                 await self._maybe_send_execution_status(status_snapshot, "RECOVERY")
@@ -1739,12 +1744,29 @@ class TradingBrain(BrokerReconciler, HealthChecker, DataProvider, AccountingMixi
                 return
 
             if self._oracle_freeze or self._oracle_risk_modifier <= 0.0:
-                if self._scan_cycle % 10 == 1:
-                    logger.warning(
-                        "SCAN SUSPENDED: Oracle freeze active "
-                        f"({self._oracle_dhatu}, modifier={self._oracle_risk_modifier:.2f})."
-                    )
                 self.pending_signals.clear()
+                self._log_circuit_breaker_throttled(
+                    "scan_oracle_freeze",
+                    logging.WARNING,
+                    "SCAN SUSPENDED: Oracle freeze active "
+                    f"({self._oracle_dhatu}, modifier={self._oracle_risk_modifier:.2f}).",
+                    interval_sec=300.0,
+                )
+                async with self._state_lock:
+                    self.last_scan_stats = {
+                        "cycle": self._scan_cycle,
+                        "watchlist": len(watchlist),
+                        "scanned": 0,
+                        "gated": len(watchlist),
+                        "gate_active": 0,
+                        "gate_cooldown": 0,
+                        "gate_vetting": 0,
+                        "patterns_detected": 0,
+                        "patterns_approved": 0,
+                        "pending": 0,
+                        "regime": self.current_regime,
+                        "oracle_freeze": True,
+                    }
                 await asyncio.sleep(self.scan_interval)
                 return
 
