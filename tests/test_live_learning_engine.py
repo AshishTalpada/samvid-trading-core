@@ -1,3 +1,4 @@
+import sqlite3
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -53,4 +54,43 @@ def test_live_learning_engine_can_hydrate_alpha_health_silently(tmp_path):
     assert health["strategy_id"] == "ADOPTED_ORPHAN|BULL|RTH"
     engine.alpha_watchdog.evaluate.assert_called_once_with(
         "ADOPTED_ORPHAN|BULL|RTH", emit_log=False
+    )
+
+
+@pytest.mark.asyncio
+async def test_live_learning_engine_persists_market_observation(tmp_path):
+    engine = LiveLearningEngine(db_path=str(tmp_path / "learning.db"))
+
+    await engine._handle_market_observation(
+        {
+            "observed_at": "2026-06-05T14:00:00+00:00",
+            "symbol": "SPY",
+            "event_type": "PATTERN_LOW_CONFIDENCE",
+            "pattern": "bull_flag",
+            "confidence": 57.5,
+            "price": 604.25,
+            "regime": "TRENDING",
+            "dhatu_state": "STHIRA",
+            "source": "brain.scan",
+            "metadata": {"reason": "confidence below approval floor"},
+        }
+    )
+
+    conn = sqlite3.connect(tmp_path / "learning.db")
+    row = conn.execute(
+        """
+        SELECT symbol, event_type, pattern, confidence, price, regime, forward_status
+        FROM agent_d_market_observations
+        """
+    ).fetchone()
+    conn.close()
+
+    assert row == (
+        "SPY",
+        "PATTERN_LOW_CONFIDENCE",
+        "bull_flag",
+        57.5,
+        604.25,
+        "TRENDING",
+        "PENDING",
     )

@@ -1243,6 +1243,26 @@ class LiveLearningEngine:
         )
     """
 
+    OBSERVATION_TABLE_DDL = """
+        CREATE TABLE IF NOT EXISTS agent_d_market_observations (
+            id              INTEGER PRIMARY KEY AUTOINCREMENT,
+            observed_at     TEXT DEFAULT CURRENT_TIMESTAMP,
+            symbol          TEXT NOT NULL,
+            event_type      TEXT NOT NULL,
+            pattern         TEXT,
+            confidence      REAL,
+            price           REAL,
+            regime          TEXT,
+            dhatu_state     TEXT,
+            source          TEXT,
+            forward_status  TEXT DEFAULT 'PENDING',
+            forward_return_5m REAL,
+            forward_return_15m REAL,
+            forward_return_60m REAL,
+            metadata_json   TEXT
+        )
+    """
+
     def _connect(self) -> _sqlite3.Connection:
         """Create a SQLite connection with retry support for locked databases."""
         for attempt in range(1, 6):
@@ -1296,6 +1316,13 @@ class LiveLearningEngine:
         try:
             conn = self._connect()
             conn.execute(self.TABLE_DDL)
+            conn.execute(self.OBSERVATION_TABLE_DDL)
+            conn.execute(
+                """
+                CREATE INDEX IF NOT EXISTS idx_agent_d_observations_symbol_time
+                ON agent_d_market_observations(symbol, observed_at)
+                """
+            )
 
             # Migration: Ensure trade_id column exists (solution for Bug #40)
             cursor = conn.execute("PRAGMA table_info(agent_d_trades)")
@@ -1444,6 +1471,59 @@ class LiveLearningEngine:
                     conn.close()
 
         _lld_logger.warning("LiveLearningEngine: batch persist failed after repeated retries")
+
+    def _persist_market_observation(self, observation: dict[str, Any]) -> None:
+        conn = None
+        try:
+            conn = self._connect()
+            conn.execute(self.OBSERVATION_TABLE_DDL)
+            conn.execute(
+                """
+                CREATE INDEX IF NOT EXISTS idx_agent_d_observations_symbol_time
+                ON agent_d_market_observations(symbol, observed_at)
+                """
+            )
+            conn.execute(
+                """
+                INSERT INTO agent_d_market_observations (
+                    observed_at, symbol, event_type, pattern, confidence, price,
+                    regime, dhatu_state, source, metadata_json
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    observation.get("observed_at") or observation.get("timestamp"),
+                    str(observation.get("symbol") or "").upper(),
+                    str(observation.get("event_type") or "UNKNOWN"),
+                    observation.get("pattern"),
+                    float(observation.get("confidence", 0.0) or 0.0),
+                    float(observation.get("price", 0.0) or 0.0),
+                    observation.get("regime", "UNKNOWN"),
+                    observation.get("dhatu_state", "UNKNOWN"),
+                    observation.get("source", "unknown"),
+                    json.dumps(observation.get("metadata", {}), default=str)[:12000],
+                ),
+            )
+            conn.commit()
+        except Exception as exc:
+            _lld_logger.warning("LiveLearningEngine: market observation persist failed: %s", exc)
+        finally:
+            if conn is not None:
+                conn.close()
+
+    async def _handle_market_observation(self, payload: dict[str, Any]) -> None:
+        """Persist non-execution market evidence for future forward-return learning."""
+        symbol = str(payload.get("symbol") or "").upper()
+        event_type = str(payload.get("event_type") or "UNKNOWN")
+        if not symbol:
+            return
+        await _asyncio.to_thread(self._persist_market_observation, payload)
+        _lld_logger.debug(
+            "Agent D curiosity: observed %s for %s (%s, confidence=%.1f).",
+            event_type,
+            symbol,
+            payload.get("pattern", "UNKNOWN"),
+            float(payload.get("confidence", 0.0) or 0.0),
+        )
 
     @staticmethod
     def _strategy_key(trade: dict) -> str:
@@ -1608,8 +1688,11 @@ class LiveLearningEngine:
             _lld_logger.warning("LiveLearningEngine: no bus — running in passive mode")
             return
 
-        _lld_logger.info("LiveLearningEngine: Starting — subscribed to trade.exit")
+        _lld_logger.info(
+            "LiveLearningEngine: Starting — subscribed to trade.exit and market.observation"
+        )
         q = self.bus.subscribe("trade.exit", maxsize=200)
+        q_obs = self.bus.subscribe("market.observation", maxsize=1000)
 
         if self._matrix.activated:
             await self._publish_calibration()
@@ -1628,13 +1711,28 @@ class LiveLearningEngine:
                     await self._deep_reflection()
                     last_dream_at = now
 
-                # Wait for a trade exit
+                # Wait for either a trade exit or a market observation.
                 try:
-                    payload = await _asyncio.wait_for(q.get(), timeout=60.0)
-                    _lld_logger.info(
-                        " INTELLIGENCE: New trade outcome received. Evolving Matrix..."
+                    trade_task = _asyncio.create_task(q.get())
+                    obs_task = _asyncio.create_task(q_obs.get())
+                    done, pending = await _asyncio.wait(
+                        {trade_task, obs_task},
+                        timeout=60.0,
+                        return_when=_asyncio.FIRST_COMPLETED,
                     )
-                    await self._handle_trade_exit(payload)
+                    for task in pending:
+                        task.cancel()
+                    if not done:
+                        continue
+                    for task in done:
+                        payload = task.result()
+                        if task is trade_task:
+                            _lld_logger.info(
+                                " INTELLIGENCE: New trade outcome received. Evolving Matrix..."
+                            )
+                            await self._handle_trade_exit(payload)
+                        else:
+                            await self._handle_market_observation(payload)
                 except (_asyncio.TimeoutError, TimeoutError):
                     continue
 

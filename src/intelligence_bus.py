@@ -17,6 +17,10 @@ Topics (canonical list):
                           payload: {"symbol": str, "pattern": str, "outcome": str,
                                     "r_multiple": float, "pnl": float,
                                     "regime": str, "hold_hours": float}
+  "market.observation"  — Brain/agents observed a trade-relevant market event without
+                          requiring execution
+                          payload: {"symbol": str, "event_type": str, "pattern": str,
+                                    "confidence": float, "price": float, "regime": str}
   "calibration.update"  — Agent D updated the expectancy matrix
                           payload: {"n_trades": int, "data_rating": str,
                                     "top_patterns": [{"key": str, "win_rate": float, "avg_r": float}]}
@@ -83,6 +87,7 @@ class SharedIntelligenceBus:
             "tick.hft": 5,  # 100Hz stream (Pulse)
             "news.hft": 6,  # High-freq news
             "institutional.flow": 7,  # Large size alerts (Impact)
+            "market.observation": 10,  # Shadow learning from watched market behavior
             "candle.batch": 12,  # 1m/5m/1h closures
             "oracle.state": 15,  # Routine updates
             "calibration.update": 20,  # Slow learning

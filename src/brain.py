@@ -1575,6 +1575,63 @@ class TradingBrain(BrokerReconciler, HealthChecker, DataProvider, AccountingMixi
         else:
             logger.debug(detail)
 
+    async def _publish_market_observation(
+        self,
+        symbol: str,
+        event_type: str,
+        pattern: str,
+        *,
+        confidence: float | None = None,
+        price: float | None = None,
+        reason: str = "",
+        metadata: dict[str, Any] | None = None,
+    ) -> None:
+        """Publish bounded shadow-learning observations from watched market behavior."""
+        if not self.bus:
+            return
+        if os.environ.get("SOVEREIGN_MARKET_OBSERVATION_LEARNING", "1") != "1":
+            return
+
+        try:
+            throttle_sec = max(
+                30.0,
+                float(os.environ.get("SOVEREIGN_MARKET_OBSERVATION_THROTTLE_SEC", "300")),
+            )
+        except ValueError:
+            throttle_sec = 300.0
+
+        cache = getattr(self, "_market_observation_log", None)
+        if cache is None:
+            cache = {}
+            self._market_observation_log = cache
+
+        key = (symbol.upper(), event_type, pattern, reason[:120])
+        now_mono = time.monotonic()
+        last_seen = float(cache.get(key, 0.0) or 0.0)
+        if now_mono - last_seen < throttle_sec:
+            return
+        cache[key] = now_mono
+
+        await self.bus.publish(
+            "market.observation",
+            {
+                "observed_at": datetime.now(timezone.utc).isoformat(),
+                "symbol": symbol.upper(),
+                "event_type": event_type,
+                "pattern": pattern,
+                "confidence": float(confidence or 0.0),
+                "price": float(price or 0.0),
+                "regime": self.current_regime,
+                "dhatu_state": getattr(self, "_oracle_dhatu", "UNKNOWN"),
+                "source": "brain.scan",
+                "metadata": {
+                    "reason": reason,
+                    "scan_cycle": self._scan_cycle,
+                    **(metadata or {}),
+                },
+            },
+        )
+
     async def _state_scanning(self) -> None:
         """Agent A scans for pattern opportunities in parallel."""
 
@@ -1899,6 +1956,10 @@ class TradingBrain(BrokerReconciler, HealthChecker, DataProvider, AccountingMixi
                             df_pl = df_pd
                         else:
                             df_pl = safe_polars_from_pandas(df_pd)
+                        try:
+                            current_scan_price = float(df_pl.select(pl.col("close").last()).item())
+                        except Exception:
+                            current_scan_price = 0.0
 
                         tr_expr = pl.max_horizontal(
                             [
@@ -1934,6 +1995,18 @@ class TradingBrain(BrokerReconciler, HealthChecker, DataProvider, AccountingMixi
                                     "confidence below approval floor",
                                     confidence=float(best_low.confidence),
                                 )
+                                await self._publish_market_observation(
+                                    symbol,
+                                    "PATTERN_LOW_CONFIDENCE",
+                                    best_low.name,
+                                    confidence=float(best_low.confidence),
+                                    price=current_scan_price,
+                                    reason="confidence below approval floor",
+                                    metadata={
+                                        "category": getattr(best_low, "category", "UNKNOWN"),
+                                        "rr": getattr(best_low, "r_r_ratio", None),
+                                    },
+                                )
                             return None
 
                         best = max(found, key=lambda x: x.confidence)
@@ -1954,6 +2027,18 @@ class TradingBrain(BrokerReconciler, HealthChecker, DataProvider, AccountingMixi
                                 "CHOPPY regime blocks HFT/SCALP patterns",
                                 confidence=float(best.confidence),
                             )
+                            await self._publish_market_observation(
+                                symbol,
+                                "PATTERN_REGIME_BLOCKED",
+                                best.name,
+                                confidence=float(best.confidence),
+                                price=current_scan_price,
+                                reason="CHOPPY regime blocks HFT/SCALP patterns",
+                                metadata={
+                                    "category": getattr(best, "category", "UNKNOWN"),
+                                    "rr": getattr(best, "r_r_ratio", None),
+                                },
+                            )
                             logger.debug(
                                 f"Scan [{symbol}]: {best.name} ({best.category}) skipped"
                                 f" — CHOPPY regime blocks HFT/SCALP patterns."
@@ -1966,6 +2051,18 @@ class TradingBrain(BrokerReconciler, HealthChecker, DataProvider, AccountingMixi
 
                         logger.info(
                             f" DISCOVERY: {symbol} matched {best.name} ({best.confidence:.1f}%)"
+                        )
+                        await self._publish_market_observation(
+                            symbol,
+                            "PATTERN_DISCOVERY",
+                            best.name,
+                            confidence=float(best.confidence),
+                            price=current_scan_price,
+                            reason="pattern approved by scanner",
+                            metadata={
+                                "category": getattr(best, "category", "UNKNOWN"),
+                                "rr": getattr(best, "r_r_ratio", None),
+                            },
                         )
 
                         # Logging every scan discovery caused 1.3M row bloat in 12 hours.
