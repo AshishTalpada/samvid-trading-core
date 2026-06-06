@@ -178,7 +178,10 @@ class RegimeStopEngine:
             "regime": regime,
             "stop_type": stop_type,
             "rationale": rationale,
-            "risk_reward_ratio": (atr * multiplier * 2) / (atr * multiplier),
+            # Target is placed at 2x the stop distance, so the planned R:R is constant.
+            # (The previous expression (atr*m*2)/(atr*m) was a tautology that also raised
+            # ZeroDivisionError when atr == 0.0, which calculate_atr() returns on thin data.)
+            "risk_reward_ratio": 2.0,
         }
 
     def calculate_trailing_stop(
