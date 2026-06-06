@@ -67,6 +67,8 @@ from brain_position import PositionMonitor
 from brain_reconcile import BrokerReconciler
 from config import (
     FORCED_PAPER_MODE,
+    MARKET_OBSERVATION_LEARNING_ENABLED,
+    MARKET_OBSERVATION_THROTTLE_SEC,
     QUESTDB_ENABLED,
     STARTING_CAPITAL_CAD,
 )
@@ -1589,16 +1591,25 @@ class TradingBrain(BrokerReconciler, HealthChecker, DataProvider, AccountingMixi
         """Publish bounded shadow-learning observations from watched market behavior."""
         if not self.bus:
             return
-        if os.environ.get("SOVEREIGN_MARKET_OBSERVATION_LEARNING", "1") != "1":
+        learning_enabled = os.environ.get(
+            "SOVEREIGN_MARKET_OBSERVATION_LEARNING",
+            "1" if MARKET_OBSERVATION_LEARNING_ENABLED else "0",
+        )
+        if learning_enabled != "1":
             return
 
         try:
             throttle_sec = max(
                 30.0,
-                float(os.environ.get("SOVEREIGN_MARKET_OBSERVATION_THROTTLE_SEC", "300")),
+                float(
+                    os.environ.get(
+                        "SOVEREIGN_MARKET_OBSERVATION_THROTTLE_SEC",
+                        str(MARKET_OBSERVATION_THROTTLE_SEC),
+                    )
+                ),
             )
         except ValueError:
-            throttle_sec = 300.0
+            throttle_sec = MARKET_OBSERVATION_THROTTLE_SEC
 
         cache = getattr(self, "_market_observation_log", None)
         if cache is None:

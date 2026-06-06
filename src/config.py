@@ -28,6 +28,36 @@ TRADING_MODE = Vault.get("TRADING_MODE", "ibkr_paper").strip().lower()
 if TRADING_MODE not in VALID_TRADING_MODES:
     TRADING_MODE = DEFAULT_TRADING_MODE
 
+
+def _safe_float_config(key: str, default: float, minimum: float) -> float:
+    try:
+        return max(minimum, float(Vault.get(key, str(default))))
+    except (TypeError, ValueError):
+        return default
+
+
+# Market observation learning
+# Records meaningful scanner observations even when no trade is executed. These rows
+# are isolated from realized trade expectancy so they cannot pollute PnL/R stats.
+MARKET_OBSERVATION_LEARNING_ENABLED = (
+    Vault.get("SOVEREIGN_MARKET_OBSERVATION_LEARNING", "1").strip() == "1"
+)
+MARKET_OBSERVATION_THROTTLE_SEC = _safe_float_config(
+    "SOVEREIGN_MARKET_OBSERVATION_THROTTLE_SEC",
+    300.0,
+    30.0,
+)
+MARKET_OBSERVATION_FORWARD_HORIZONS_MIN = tuple(
+    int(part.strip())
+    for part in Vault.get(
+        "SOVEREIGN_MARKET_OBSERVATION_FORWARD_HORIZONS_MIN",
+        "5,15,60",
+    ).split(",")
+    if part.strip().isdigit()
+)
+if not MARKET_OBSERVATION_FORWARD_HORIZONS_MIN:
+    MARKET_OBSERVATION_FORWARD_HORIZONS_MIN = (5, 15, 60)
+
 # Risk Management
 SYSTEM_MAX_RISK = 0.04
 CASH_RESERVE = 0.20

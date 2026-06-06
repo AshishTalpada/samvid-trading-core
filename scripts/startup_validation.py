@@ -101,6 +101,31 @@ def validate_env() -> list[str]:
     mode = Vault.get("TRADING_MODE", "") or os.environ.get("TRADING_MODE", "")
     if not mode:
         warnings.append("TRADING_MODE not set (defaulting to paper) — SAFE")
+    observation_enabled = (
+        Vault.get("SOVEREIGN_MARKET_OBSERVATION_LEARNING", "1").strip() == "1"
+    )
+    if not observation_enabled:
+        warnings.append(
+            "SOVEREIGN_MARKET_OBSERVATION_LEARNING=0 - scanner curiosity learning is disabled"
+        )
+
+    try:
+        throttle_sec = float(Vault.get("SOVEREIGN_MARKET_OBSERVATION_THROTTLE_SEC", "300"))
+        if throttle_sec < 30:
+            warnings.append(
+                "SOVEREIGN_MARKET_OBSERVATION_THROTTLE_SEC below 30s - DB spam risk"
+            )
+    except ValueError:
+        warnings.append(
+            "SOVEREIGN_MARKET_OBSERVATION_THROTTLE_SEC invalid - using 300s default"
+        )
+
+    horizons_raw = Vault.get("SOVEREIGN_MARKET_OBSERVATION_FORWARD_HORIZONS_MIN", "5,15,60")
+    horizons = [part.strip() for part in horizons_raw.split(",") if part.strip()]
+    if not horizons or any(not part.isdigit() for part in horizons):
+        warnings.append(
+            "SOVEREIGN_MARKET_OBSERVATION_FORWARD_HORIZONS_MIN invalid - using 5,15,60"
+        )
     return warnings
 
 
