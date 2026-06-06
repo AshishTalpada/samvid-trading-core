@@ -33,6 +33,9 @@ class VIXCircuitBreaker:
             return False
 
         oldest_vix = self.tick_history[0][1]
+        # Guard against glitched/zero ticks: a 0.0 baseline would crash the breaker itself.
+        if oldest_vix <= 0:
+            return False
         percent_change = (vix_value - oldest_vix) / oldest_vix
 
         if percent_change >= self.spike_threshold:
