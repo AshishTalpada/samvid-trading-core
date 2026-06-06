@@ -7,13 +7,16 @@ Safety helpers: emergency halt and runtime paper-mode enforcement.
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import os
+from pathlib import Path
 from typing import Any
 
 from telegram_alerts import send_telegram_alert
 
 logger = logging.getLogger("safety")
+DEFAULT_PROMOTION_READINESS_REPORT = Path("data/promotion_readiness_report.json")
 
 
 def _send_safety_alert(message: str, category: str = "Safety") -> None:
@@ -43,6 +46,38 @@ def _force_paper_mode(system: Any, reason: str) -> None:
         " SOVEREIGN: Startup safety enforced PAPER mode. Live trading is disabled until explicitly authorized.",
         category="Startup",
     )
+
+
+def _promotion_gate_required(vault: Any) -> bool:
+    raw = os.environ.get("SOVEREIGN_REQUIRE_PROMOTION_FOR_LIVE", "").strip()
+    if not raw:
+        raw = vault.get("SOVEREIGN_REQUIRE_PROMOTION_FOR_LIVE", "1").strip()
+    return raw != "0"
+
+
+def _promotion_readiness_path(vault: Any) -> Path:
+    raw = os.environ.get("SOVEREIGN_PROMOTION_READINESS_REPORT", "").strip()
+    if not raw:
+        raw = vault.get(
+            "SOVEREIGN_PROMOTION_READINESS_REPORT",
+            str(DEFAULT_PROMOTION_READINESS_REPORT),
+        ).strip()
+    return Path(raw or DEFAULT_PROMOTION_READINESS_REPORT)
+
+
+def _promotion_readiness_approved(path: Path) -> tuple[bool, str]:
+    if not path.exists():
+        return False, f"promotion readiness report missing: {path}"
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except Exception as exc:
+        return False, f"promotion readiness report unreadable: {type(exc).__name__}: {exc}"
+    if payload.get("approved") is True:
+        return True, "promotion readiness approved"
+    blockers = payload.get("blockers")
+    if isinstance(blockers, list) and blockers:
+        return False, "; ".join(str(item) for item in blockers[:5])
+    return False, "promotion readiness report is not approved"
 
 
 def apply_runtime_safety(system: Any) -> None:
@@ -85,6 +120,18 @@ def apply_runtime_safety(system: Any) -> None:
                     "Startup Safety: TRADING_MODE=live requires ALLOW_FORCE_LIVE=1. Defaulting to paper mode."
                 )
                 env_mode = ""
+            elif (
+                env_mode == "live"
+                and allow_live
+                and _promotion_gate_required(Vault)
+            ):
+                approved, reason = _promotion_readiness_approved(_promotion_readiness_path(Vault))
+                if not approved:
+                    _force_paper_mode(
+                        system,
+                        f"TRADING_MODE=live blocked by promotion readiness gate: {reason}",
+                    )
+                    return
 
         if env_mode:
             system.mode = env_mode
