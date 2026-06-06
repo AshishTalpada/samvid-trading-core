@@ -54,7 +54,10 @@ class AuditAgent:
         _agent_ids = [o.get("agent", "UNKNOWN") for o in agent_outputs]
 
         vote_dist = Counter(votes)
-        dominant_vote, dominant_count = vote_dist.most_common(1)[0]
+        if votes:
+            dominant_vote, dominant_count = vote_dist.most_common(1)[0]
+        else:
+            dominant_vote, dominant_count = "ABSTAIN", 0
         herding_ratio = dominant_count / len(votes) if votes else 0.0
         if herding_ratio > 0.85:
             issues.append(
