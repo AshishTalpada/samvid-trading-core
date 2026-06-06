@@ -174,8 +174,18 @@ def test_walkforward_returns_valid_structure(ohlcv_500):
     bt = WalkForwardBacktester(window_size=80, step_size=25)
     result = bt.run(ohlcv_500)
     for key in ("total_signals", "simulated_trades", "win_rate", "avg_r_multiple",
-                "expectancy", "sharpe_proxy", "patterns_found"):
+                "expectancy", "sharpe_proxy", "profit_factor", "max_drawdown_r",
+                "patterns_found"):
         assert key in result, f"Missing key in backtest result: {key}"
+
+
+def test_walkforward_max_drawdown_is_non_positive(ohlcv_500):
+    """Max drawdown (peak-to-trough in R) can never be positive; profit factor >= 0."""
+    from backtester import WalkForwardBacktester
+    bt = WalkForwardBacktester(window_size=80, step_size=25)
+    result = bt.run(ohlcv_500)
+    assert result["max_drawdown_r"] <= 0.0
+    assert result["profit_factor"] >= 0.0
 
 
 def test_walkforward_win_rate_in_range(ohlcv_500):

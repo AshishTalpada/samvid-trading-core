@@ -177,6 +177,8 @@ class WalkForwardBacktester:
                 "avg_r_multiple": 0.0,
                 "expectancy": 0.0,
                 "sharpe_proxy": 0.0,
+                "profit_factor": 0.0,
+                "max_drawdown_r": 0.0,
                 "patterns_found": [],
             }
 
@@ -192,6 +194,16 @@ class WalkForwardBacktester:
         std_r = float(np.std(r_multiples)) if len(r_multiples) > 1 else 1.0
         sharpe_proxy = avg_r / std_r if std_r > 0 else 0.0
 
+        # Profit factor (gross win R / gross loss R) and peak-to-trough drawdown in R units,
+        # measured on the cumulative R equity curve so the synthetic harness reports the
+        # same risk metric (max drawdown) the live edge-validation engine does.
+        gross_win_r = sum(r for r in r_multiples if r > 0)
+        gross_loss_r = abs(sum(r for r in r_multiples if r < 0))
+        profit_factor = gross_win_r / gross_loss_r if gross_loss_r > 0 else 0.0
+        equity_curve = np.cumsum(r_multiples)
+        running_peak = np.maximum.accumulate(equity_curve)
+        max_drawdown_r = float(np.min(equity_curve - running_peak)) if len(equity_curve) else 0.0
+
         pattern_counts: dict[str, int] = {}
         for t in all_trades:
             pattern_counts[t["pattern"]] = pattern_counts.get(t["pattern"], 0) + 1
@@ -203,6 +215,8 @@ class WalkForwardBacktester:
             "avg_r_multiple": round(avg_r, 4),
             "expectancy": round(expectancy, 4),
             "sharpe_proxy": round(sharpe_proxy, 4),
+            "profit_factor": round(profit_factor, 4),
+            "max_drawdown_r": round(max_drawdown_r, 4),
             "patterns_found": sorted(pattern_counts.items(), key=lambda x: -x[1]),
         }
 
@@ -237,6 +251,8 @@ if __name__ == "__main__":
     print(f"  Avg R-multiple         : {results['avg_r_multiple']:+.3f}R")
     print(f"  Expectancy             : {results['expectancy']:+.3f}R/trade")
     print(f"  Sharpe proxy           : {results['sharpe_proxy']:+.3f}")
+    print(f"  Profit factor          : {results['profit_factor']:.3f}")
+    print(f"  Max drawdown           : {results['max_drawdown_r']:+.3f}R")
     if results["patterns_found"]:
         print("\n  Top patterns by signal count:")
         for name, count in results["patterns_found"][:5]:
