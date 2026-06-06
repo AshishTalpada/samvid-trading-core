@@ -34,5 +34,5 @@ class TintOrchestrator:
         votes = [v["vote"] for v in results.values()]
         confs = [v["confidence"] for v in results.values()]
         avg_conf = sum(confs) / len(confs) if confs else 0.0
-        dominant = max(set(votes), key=votes.count)
+        dominant = max(set(votes), key=votes.count) if votes else "ABSTAIN"
         return {"vote": dominant, "confidence": avg_conf, "breakdown": results}
