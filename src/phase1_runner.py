@@ -12,7 +12,9 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
 import sys
+from dataclasses import dataclass
 
 logger = logging.getLogger(__name__)
 
@@ -21,9 +23,34 @@ logger = logging.getLogger(__name__)
 # Their logic is now natively integrated into DhatuOracle and TradingBrain.
 
 RUN_LOCK = asyncio.Lock()
+DEFAULT_MIN_PHASE1_BARS = 1200
 
 
-async def _check_data_integrity(db_path: str, symbol: str = "SPY") -> int:
+@dataclass(frozen=True)
+class Phase1Coverage:
+    symbol: str
+    bars: int
+    min_bars: int
+
+    @property
+    def ready(self) -> bool:
+        return self.bars >= self.min_bars
+
+
+def _phase1_min_bars() -> int:
+    raw = os.environ.get("SOVEREIGN_PHASE1_MIN_BARS", str(DEFAULT_MIN_PHASE1_BARS))
+    try:
+        return max(1, int(raw))
+    except ValueError:
+        logger.warning(
+            "Invalid SOVEREIGN_PHASE1_MIN_BARS=%r; using %s.",
+            raw,
+            DEFAULT_MIN_PHASE1_BARS,
+        )
+        return DEFAULT_MIN_PHASE1_BARS
+
+
+async def _count_symbol_bars(db_path: str, symbol: str = "SPY") -> int:
     """Run a blocking SQLite operation safely in a thread pool executor."""
     import os
     import sqlite3
@@ -43,29 +70,78 @@ async def _check_data_integrity(db_path: str, symbol: str = "SPY") -> int:
         return 0
 
 
-async def run_backtest(db_path: str = "data/trading.db", symbols: list[str] = None) -> None:
+async def _collect_data_coverage(
+    db_path: str,
+    symbols: list[str],
+    min_bars: int,
+) -> list[Phase1Coverage]:
+    counts = await asyncio.gather(*(_count_symbol_bars(db_path, symbol) for symbol in symbols))
+    return [
+        Phase1Coverage(symbol=symbol, bars=count, min_bars=min_bars)
+        for symbol, count in zip(symbols, counts, strict=True)
+    ]
+
+
+def _coverage_summary(coverage: list[Phase1Coverage]) -> str:
+    return ", ".join(
+        f"{item.symbol}={item.bars}/{item.min_bars}{' OK' if item.ready else ' MISSING'}"
+        for item in coverage
+    )
+
+
+async def _maybe_backfill(symbols: list[str]) -> None:
+    from data_pipeline import DataPipeline
+
+    print(f"\n  Phase 1 data below threshold. Backfill allowed; requesting {symbols}...")
+    pipeline = DataPipeline()
+    for sym in symbols:
+        try:
+            await pipeline.backfill_gap(sym)
+        except Exception as exc:
+            logger.warning("Backfill %s failed: %s", sym, exc)
+    print(" Data backfill attempt complete.")
+
+
+async def run_backtest(
+    db_path: str = "data/trading.db",
+    symbols: list[str] | None = None,
+    *,
+    min_bars: int | None = None,
+    allow_backfill: bool | None = None,
+) -> None:
     if symbols is None:
         symbols = ["SPY", "QQQ", "IWM"]
     async with RUN_LOCK:
         from backtest_engine import run_phase1_validation
-        from data_pipeline import DataPipeline
 
-        # Check if we have enough data; if not, run pipeline first
-        logger.info(f"Phase1: Validating data integrity for {symbols[0]}...")
-        count = await asyncio.to_thread(_check_data_integrity, db_path, symbols[0])
-        has_data = count >= 200
+        min_bars = min_bars or _phase1_min_bars()
+        allow_backfill = (
+            os.environ.get("SOVEREIGN_PHASE1_ALLOW_BACKFILL", "0") == "1"
+            if allow_backfill is None
+            else allow_backfill
+        )
 
-        if not has_data:
-            print(
-                f"\n  Insufficient data in DB ({count} bars). Running data pipeline to backfill {symbols}..."
+        logger.info("Phase1: Validating data coverage for %s...", symbols)
+        coverage = await _collect_data_coverage(db_path, symbols, min_bars)
+        print(f"\n  Phase 1 data coverage: {_coverage_summary(coverage)}")
+
+        if any(not item.ready for item in coverage) and allow_backfill:
+            await _maybe_backfill(symbols)
+            coverage = await _collect_data_coverage(db_path, symbols, min_bars)
+            print(f"  Phase 1 data coverage after backfill: {_coverage_summary(coverage)}")
+
+        missing = [item for item in coverage if not item.ready]
+        if missing:
+            logger.error(
+                "Phase1: insufficient historical coverage. Required %s bars per symbol; got %s.",
+                min_bars,
+                _coverage_summary(coverage),
             )
-            pipeline = DataPipeline()
-            for sym in symbols:
-                try:
-                    await pipeline.backfill_gap(sym)
-                except Exception as _e:
-                    logger.warning(f"Backfill {sym} failed: {_e}")
-            print(" Data backfill complete.")
+            print("\n  PHASE 1 BLOCKED - insufficient historical OHLCV evidence.")
+            print(f"  Required minimum bars per symbol: {min_bars}")
+            print(f"  Coverage: {_coverage_summary(coverage)}")
+            print("  Load more 1-minute history into data/trading.db before validating edge.")
+            sys.exit(1)
 
         success = await run_phase1_validation(
             db_path=db_path,
