@@ -22,6 +22,7 @@ def evaluate_promotion_readiness(
     min_profit_factor: float = 1.20,
     max_drawdown_pct: float = 0.10,
     min_soak_cycles: int = 3,
+    min_paper_calendar_days: float = 30.0,
 ) -> dict[str, Any]:
     """Return an auditable paper-to-production gate without optimistic defaults."""
     blockers: list[str] = []
@@ -36,6 +37,7 @@ def evaluate_promotion_readiness(
     performance = paper_performance.get("metrics", {})
     performance_window = paper_performance.get("window", {})
     closed_paper_trades = int(performance.get("trades", 0) or 0)
+    paper_calendar_days = float(performance_window.get("calendar_days", 0.0) or 0.0)
 
     _block(blockers, audit.get("valid") is True, "execution audit chain is not valid")
     _block(
@@ -110,6 +112,12 @@ def evaluate_promotion_readiness(
     )
     _block(
         blockers,
+        paper_calendar_days >= min_paper_calendar_days,
+        f"closed paper track record requires {min_paper_calendar_days:.0f} calendar days; "
+        f"found {paper_calendar_days:.1f}",
+    )
+    _block(
+        blockers,
         float(performance.get("expectancy_net", 0.0) or 0.0) > 0,
         "closed paper expectancy is not positive after costs",
     )
@@ -143,6 +151,7 @@ def evaluate_promotion_readiness(
             "underfilled_intents": int(lineage.get("underfilled_intents", 0) or 0),
             "unmatched_lineage_events": int(lineage.get("unmatched_lineage_events", 0) or 0),
             "closed_paper_trades": closed_paper_trades,
+            "paper_calendar_days": paper_calendar_days,
             "paper_expectancy_net": float(performance.get("expectancy_net", 0.0) or 0.0),
             "paper_profit_factor": float(performance.get("profit_factor", 0.0) or 0.0),
             "paper_max_drawdown_pct": float(performance.get("max_drawdown_pct", 0.0) or 0.0),

@@ -29,6 +29,33 @@ def _as_float(value: Any) -> float | None:
         return None
 
 
+def _parse_timestamp(value: Any) -> datetime | None:
+    if value is None:
+        return None
+    raw = str(value).strip()
+    if not raw:
+        return None
+    try:
+        if raw.isdigit():
+            number = int(raw)
+            if number > 10_000_000_000_000_000:
+                return datetime.fromtimestamp(number / 1_000_000_000, tz=timezone.utc)
+            return datetime.fromtimestamp(number, tz=timezone.utc)
+        parsed = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+        if parsed.tzinfo is None:
+            parsed = parsed.replace(tzinfo=timezone.utc)
+        return parsed.astimezone(timezone.utc)
+    except (ValueError, OSError, OverflowError):
+        return None
+
+
+def _table_columns(conn: sqlite3.Connection, table: str) -> set[str]:
+    try:
+        return {row[1] for row in conn.execute(f"PRAGMA table_info({table})").fetchall()}
+    except sqlite3.OperationalError:
+        return set()
+
+
 def load_performance_baseline(db_path: str | Path = "data/trading.db") -> dict[str, Any] | None:
     """Load the persisted post-repair measurement boundary, if one exists."""
     with sqlite3.connect(str(db_path), timeout=60.0) as conn:
@@ -98,25 +125,33 @@ def build_paper_performance(
     baseline = load_performance_baseline(db_path) if min_trade_id is None else None
     resolved_min_trade_id = int(baseline["min_trade_id"]) if baseline else int(min_trade_id or 0)
     placeholders = ",".join("?" for _ in trading_modes)
-    query = f"""
-        SELECT
-            id, trading_mode, outcome, COALESCE(pnl_dollars, 0),
-            COALESCE(net_pnl, pnl_dollars, 0), COALESCE(commission, 0),
-            COALESCE(slippage, 0), COALESCE(r_multiple, 0)
-        FROM trades
-        WHERE outcome IN ('WIN', 'LOSS', 'BREAKEVEN')
-          AND trading_mode IN ({placeholders})
-          AND id >= ?
-        ORDER BY id ASC
-    """
     with sqlite3.connect(str(db_path), timeout=60.0) as conn:
+        columns = _table_columns(conn, "trades")
+        timestamp_select = "timestamp" if "timestamp" in columns else "NULL"
+        query = f"""
+            SELECT
+                id, {timestamp_select}, trading_mode, outcome, COALESCE(pnl_dollars, 0),
+                COALESCE(net_pnl, pnl_dollars, 0), COALESCE(commission, 0),
+                COALESCE(slippage, 0), COALESCE(r_multiple, 0)
+            FROM trades
+            WHERE outcome IN ('WIN', 'LOSS', 'BREAKEVEN')
+              AND trading_mode IN ({placeholders})
+              AND id >= ?
+            ORDER BY id ASC
+        """
         rows = conn.execute(query, (*trading_modes, resolved_min_trade_id)).fetchall()
 
-    pnls = [value for row in rows if (value := _as_float(row[4])) is not None]
-    gross_pnls = [value for row in rows if (value := _as_float(row[3])) is not None]
-    commissions = [value for row in rows if (value := _as_float(row[5])) is not None]
-    slippages = [value for row in rows if (value := _as_float(row[6])) is not None]
-    r_multiples = [value for row in rows if (value := _as_float(row[7])) is not None]
+    pnls = [value for row in rows if (value := _as_float(row[5])) is not None]
+    gross_pnls = [value for row in rows if (value := _as_float(row[4])) is not None]
+    commissions = [value for row in rows if (value := _as_float(row[6])) is not None]
+    slippages = [value for row in rows if (value := _as_float(row[7])) is not None]
+    r_multiples = [value for row in rows if (value := _as_float(row[8])) is not None]
+    timestamps = [value for row in rows if (value := _parse_timestamp(row[1])) is not None]
+    first_ts = min(timestamps) if timestamps else None
+    last_ts = max(timestamps) if timestamps else None
+    calendar_days = (
+        (last_ts - first_ts).total_seconds() / 86_400.0 if first_ts and last_ts else 0.0
+    )
     wins = [pnl for pnl in pnls if pnl > 0]
     losses = [pnl for pnl in pnls if pnl < 0]
     gross_profit = sum(wins)
@@ -130,6 +165,10 @@ def build_paper_performance(
             "min_trade_id": resolved_min_trade_id,
             "first_trade_id": int(rows[0][0]) if rows else None,
             "last_trade_id": int(rows[-1][0]) if rows else None,
+            "first_trade_timestamp": first_ts.isoformat() if first_ts else None,
+            "last_trade_timestamp": last_ts.isoformat() if last_ts else None,
+            "calendar_days": round(calendar_days, 4),
+            "timestamp_samples": len(timestamps),
             "baseline_source": "stored_system_state" if baseline else "explicit_or_full_history",
             "baseline": baseline,
         },

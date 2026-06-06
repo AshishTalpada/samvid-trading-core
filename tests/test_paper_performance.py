@@ -23,6 +23,25 @@ def _build_db(path) -> None:
         )
 
 
+def _build_timestamped_db(path) -> None:
+    with sqlite3.connect(path) as conn:
+        conn.execute(
+            """
+            CREATE TABLE trades (
+                id INTEGER PRIMARY KEY,
+                timestamp TEXT,
+                trading_mode TEXT,
+                outcome TEXT,
+                pnl_dollars REAL,
+                net_pnl REAL,
+                commission REAL,
+                slippage REAL,
+                r_multiple REAL
+            )
+            """
+        )
+
+
 def test_paper_performance_measures_net_quality_and_cost_drag(tmp_path) -> None:
     path = tmp_path / "trading.db"
     _build_db(path)
@@ -57,6 +76,7 @@ def test_paper_performance_handles_empty_history(tmp_path) -> None:
     assert report["metrics"]["trades"] == 0
     assert report["metrics"]["expectancy_net"] == 0.0
     assert report["metrics"]["profit_factor"] == 0.0
+    assert report["window"]["calendar_days"] == 0.0
 
 
 def test_paper_performance_reports_encrypted_optional_field_coverage(tmp_path) -> None:
@@ -123,6 +143,26 @@ def test_paper_performance_uses_stored_baseline_by_default(tmp_path) -> None:
     assert report["window"]["baseline_source"] == "stored_system_state"
     assert report["metrics"]["trades"] == 1
     assert report["metrics"]["net_pnl"] == 20.0
+
+
+def test_paper_performance_reports_timestamp_calendar_span(tmp_path) -> None:
+    path = tmp_path / "trading.db"
+    _build_timestamped_db(path)
+    with sqlite3.connect(path) as conn:
+        conn.executemany(
+            "INSERT INTO trades VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            [
+                (1, "2026-01-01T14:30:00+00:00", "ibkr_paper", "WIN", 10, 10, 0, 0, 1),
+                (2, "2026-01-31T14:30:00+00:00", "ibkr_paper", "LOSS", -5, -5, 0, 0, -1),
+            ],
+        )
+
+    report = build_paper_performance(path)
+
+    assert report["window"]["timestamp_samples"] == 2
+    assert report["window"]["calendar_days"] == 30.0
+    assert report["window"]["first_trade_timestamp"] == "2026-01-01T14:30:00+00:00"
+    assert report["window"]["last_trade_timestamp"] == "2026-01-31T14:30:00+00:00"
 
 
 def test_paper_performance_baseline_requires_force_to_replace(tmp_path) -> None:

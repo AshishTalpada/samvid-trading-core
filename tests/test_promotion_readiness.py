@@ -23,7 +23,7 @@ def _ready_evidence() -> dict:
         "soak_summary": {"passed": True, "cycles": [{}, {}, {}]},
         "paper_performance": {
             "source": "sqlite_closed_paper_trades",
-            "window": {"baseline_source": "stored_system_state"},
+            "window": {"baseline_source": "stored_system_state", "calendar_days": 30.0},
             "metrics": {
                 "trades": 30,
                 "expectancy_net": 2.0,
@@ -111,6 +111,16 @@ def test_promotion_readiness_rejects_weak_closed_paper_performance() -> None:
     assert "closed paper expectancy is not positive after costs" in report["blockers"]
     assert "closed paper profit factor is below 1.20" in report["blockers"]
     assert "closed paper max drawdown exceeds 10.0%" in report["blockers"]
+
+
+def test_promotion_readiness_rejects_short_paper_calendar_span() -> None:
+    evidence = _ready_evidence()
+    evidence["paper_performance"]["window"]["calendar_days"] = 2.5
+
+    report = evaluate_promotion_readiness(**evidence)
+
+    assert report["approved"] is False
+    assert "closed paper track record requires 30 calendar days; found 2.5" in report["blockers"]
 
 
 def test_promotion_readiness_rejects_unanchored_performance_window() -> None:
