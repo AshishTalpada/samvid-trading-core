@@ -42,7 +42,7 @@ def _windows_command(vcvarsall: Path, target: Path = TARGET) -> str:
         f'call "{vcvarsall}" x64\n'
         "if errorlevel 1 exit /b %errorlevel%\n"
         "cl /O2 /std:c11 /experimental:c11atomics /LD "
-        f'/Fe:"{target}" {sources} /I"src"\n'
+        f'/Fe:"{PureWindowsPath(target)}" {sources} /I"src"\n'
         "if errorlevel 1 exit /b %errorlevel%\n"
     )
 
