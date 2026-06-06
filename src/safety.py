@@ -99,7 +99,13 @@ def apply_runtime_safety(system: Any) -> None:
             )
 
     except Exception as e:
-        logger.error(f"Safety startup enforcement failed: {e}")
+        # Fail CLOSED: if the safety gate itself errors we must never leave the system in
+        # a potentially-live mode that bypassed the ALLOW_FORCE_LIVE authorization check.
+        logger.error(f"Safety startup enforcement failed: {e} — forcing paper mode")
+        try:
+            system.mode = "paper"
+        except Exception as set_exc:
+            logger.critical(f"Safety: could not force paper mode after failure: {set_exc}")
 
 
 def EMERGENCY_HALT(reason: str = "EMERGENCY HALT invoked") -> None:
