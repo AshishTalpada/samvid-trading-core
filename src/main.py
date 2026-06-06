@@ -393,11 +393,13 @@ class TradingSystem:
             pid_file = "data/main.pid"
             os.makedirs(os.path.dirname(pid_file), exist_ok=True)
             current_pid = os.getpid()
+            stale_raw = ""
 
             if os.path.exists(pid_file):
                 try:
                     with open(pid_file, "r") as f:
-                        old_pid = int(f.read().strip())
+                        stale_raw = (f.read() or "").strip()
+                    old_pid = int(stale_raw)
 
                     if old_pid != current_pid and psutil.pid_exists(old_pid):
                         proc = psutil.Process(old_pid)
@@ -442,7 +444,32 @@ class TradingSystem:
                 except (ValueError, psutil.NoSuchProcess, psutil.AccessDenied):
                     pass  # Stale or invalid PID file
 
-            with open(pid_file, "w") as f:
+            # Remove the file only if it still holds the stale PID we read, so we never
+            # clobber a PID that another instance may have just claimed.
+            try:
+                with open(pid_file, "r") as rf:
+                    if stale_raw and (rf.read() or "").strip() == stale_raw:
+                        os.remove(pid_file)
+            except (OSError, ValueError):
+                pass
+
+            # Atomic single-instance claim. O_EXCL guarantees only one process can
+            # create the PID file, closing the TOCTOU race where two engines launched
+            # at the same instant both passed the check above and both ran.
+            try:
+                fd = os.open(pid_file, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+            except FileExistsError:
+                logger.critical(
+                    " CRITICAL: Lost single-instance race for %s; another Sovereign "
+                    "engine claimed it concurrently. Exiting duplicate.",
+                    pid_file,
+                )
+                print(
+                    "\nDuplicate Sovereign instance blocked (concurrent launch).\n",
+                    file=sys.stderr,
+                )
+                sys.exit(1)
+            with os.fdopen(fd, "w") as f:
                 f.write(str(current_pid))
             logger.debug(f"PID {current_pid} recorded to {pid_file}")
         except Exception as e:
