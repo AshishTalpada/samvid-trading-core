@@ -19,6 +19,7 @@ if TYPE_CHECKING:
 
 from agent_a import agent_a_validate_trade
 from decision_ledger import LEDGER
+from execution.slippage import SlippageModel
 from telegram_alerts import send_telegram_alert
 
 logger = logging.getLogger(__name__)
@@ -49,6 +50,43 @@ class TradingCoordinator:
         self._pending_vets = set()
         self.exoskeleton = ApexExoskeleton(brain)
         self._semaphore: asyncio.Semaphore | None = None  # Lazy-init to bind to running loop
+        self.slippage_model = SlippageModel()
+
+    def _estimate_entry_friction_per_share(
+        self,
+        *,
+        entry_price: float,
+        shares: int,
+        spread_data: dict[str, Any] | None,
+    ) -> float:
+        """Estimate per-share entry friction using spread plus modeled slippage."""
+        entry_price = float(entry_price or 0.0)
+        shares = max(1, int(shares or 1))
+        spread_data = spread_data or {}
+        spread = max(0.0, float(spread_data.get("spread", 0.0) or 0.0))
+        if entry_price <= 0:
+            return spread
+
+        order_notional = entry_price * shares
+        bid = float(spread_data.get("bid", 0.0) or 0.0)
+        ask = float(spread_data.get("ask", 0.0) or 0.0)
+        top_liquidity = float(
+            spread_data.get("top_liquidity")
+            or spread_data.get("book_liquidity_at_price")
+            or 0.0
+        )
+        if top_liquidity <= 0 and bid > 0 and ask > 0:
+            # Conservative fallback: assume only the estimated order notional is visible
+            # at top of book when no L2 size is provided.
+            top_liquidity = order_notional
+
+        spread_pct = spread / entry_price
+        slippage_pct = self.slippage_model.predict_slippage(
+            order_notional,
+            spread_pct,
+            top_liquidity,
+        )
+        return spread + (entry_price * slippage_pct)
 
     def _has_fresh_realtime_entry_tick(self, symbol: str) -> bool:
         """Use the realtime tick cache as entry proof when OHLCV bars are delayed."""
@@ -310,7 +348,11 @@ class TradingCoordinator:
                 spread_data = await self.brain.get_current_spread(symbol)
                 # Implementation: get_current_spread() can return None; guard before calling .get()
                 spread_data = spread_data or {}
-                spread = spread_data.get("spread", 0.01) or 0.01
+                spread = self._estimate_entry_friction_per_share(
+                    entry_price=pattern.entry,
+                    shares=est_shares,
+                    spread_data=spread_data,
+                )
                 comm_per_share = COMMISSION_PER_ROUND_TRIP / est_shares
 
                 total_reward_dollars = reward_amt - spread - comm_per_share

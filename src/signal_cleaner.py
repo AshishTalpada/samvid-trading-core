@@ -1,5 +1,9 @@
 import numpy as np
-import pywt
+
+try:
+    import pywt
+except ImportError:  # pragma: no cover - exercised through import behavior in lean envs
+    pywt = None
 
 
 class WaveletSignalCleaner:
@@ -16,6 +20,14 @@ class WaveletSignalCleaner:
 
     def clean(self, prices: list[float]) -> np.ndarray:
         arr = np.array(prices, dtype=float)
+        if len(arr) == 0:
+            return arr
+        if pywt is None:
+            window = min(7, max(1, len(arr)))
+            kernel = np.ones(window, dtype=float) / window
+            padded = np.pad(arr, (window // 2, window - 1 - window // 2), mode="edge")
+            return np.convolve(padded, kernel, mode="valid")[: len(arr)]
+
         coeffs = pywt.wavedec(arr, self.wavelet, level=self.level)
         # Universal threshold: sigma * sqrt(2 * log(n))
         sigma = np.median(np.abs(coeffs[-1])) / 0.6745

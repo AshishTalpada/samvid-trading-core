@@ -186,11 +186,19 @@ def check_vault():
             ("FINNHUB_API_KEY", "Finnhub data"),
             ("QUESTDB_ENABLED", "QuestDB toggle"),
         ]
+        defaults = {
+            "IBKR_HOST": "localhost",
+            "IBKR_PORT": "7497",
+            "IBKR_CLIENT_ID": "500",
+            "QUESTDB_ENABLED": "auto",
+        }
 
         for key, purpose in keys_to_check:
-            val = Vault.get(key)
+            raw_val = Vault.get(key)
+            val = raw_val or defaults.get(key)
             if val and str(val).strip() and "YOUR_" not in str(val).upper():
-                ok(f"{key} configured ({purpose})")
+                suffix = "effective default" if key in defaults and not raw_val else "configured"
+                ok(f"{key} {suffix} ({purpose})")
             else:
                 warn(f"{key} missing or placeholder ({purpose})")
 
@@ -250,12 +258,32 @@ def check_database():
         tables = [row[0] for row in cursor.fetchall()]
         conn.close()
 
-        critical_tables = ["positions", "trades", "orders", "ledger"]
+        critical_tables = ["positions", "trades", "persistent_orders"]
         for t in critical_tables:
             if t in tables:
                 ok(f"Table '{t}' exists")
             else:
                 warn(f"Table '{t}' missing")
+
+        ledger_path = Path("data/decision_ledger.db")
+        if ledger_path.exists():
+            try:
+                ledger_conn = sqlite3.connect(ledger_path)
+                ledger_tables = {
+                    row[0]
+                    for row in ledger_conn.execute(
+                        "SELECT name FROM sqlite_master WHERE type='table'"
+                    ).fetchall()
+                }
+                ledger_conn.close()
+                if "ledger" in ledger_tables:
+                    ok("Decision ledger database/table exists")
+                else:
+                    warn("Decision ledger database exists but table 'ledger' is missing")
+            except Exception as exc:
+                warn(f"Decision ledger check failed: {exc}")
+        else:
+            warn("Decision ledger database missing (created on first ledger event)")
 
         if "agent_d_trades" in tables:
             ok("Table 'agent_d_trades' exists (Agent D learning data)")
@@ -277,9 +305,9 @@ def check_pattern_detection():
     try:
         import polars as pl
 
-        from agent_a import PatternRecognizer
+        from agent_a import PatternDetector
 
-        recognizer = PatternRecognizer()
+        recognizer = PatternDetector()
 
         # Generate synthetic bullish data for bull flag
         data = {

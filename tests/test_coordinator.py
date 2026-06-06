@@ -148,6 +148,35 @@ class TestEntryDataFreshness:
         assert mock_coordinator._entry_data_block_reason("SPY") is None
 
 
+class TestExecutionFriction:
+    """Execution cost estimation should use the wired slippage model safely."""
+
+    def test_entry_friction_uses_spread_and_model_slippage(self, mock_coordinator) -> None:
+        friction = mock_coordinator._estimate_entry_friction_per_share(
+            entry_price=100.0,
+            shares=10,
+            spread_data={
+                "bid": 99.99,
+                "ask": 100.01,
+                "spread": 0.02,
+                "top_liquidity": 10000.0,
+            },
+        )
+
+        assert friction > 0.02
+        assert friction < 0.05
+
+    def test_entry_friction_handles_missing_l2_liquidity(self, mock_coordinator) -> None:
+        friction = mock_coordinator._estimate_entry_friction_per_share(
+            entry_price=100.0,
+            shares=10,
+            spread_data={"bid": 99.99, "ask": 100.01, "spread": 0.02},
+        )
+
+        assert friction > 0.02
+        assert friction == pytest.approx(0.045, abs=0.001)
+
+
 class TestExecutionAlerts:
     """Telegram execution alerts should identify the actual broker-paper route."""
 
