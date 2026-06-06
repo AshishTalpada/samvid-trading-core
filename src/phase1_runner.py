@@ -43,7 +43,7 @@ async def _check_data_integrity(db_path: str, symbol: str = "SPY") -> int:
         return 0
 
 
-async def run_backtest(db_path: str = "trading.db", symbols: list[str] = None) -> None:
+async def run_backtest(db_path: str = "data/trading.db", symbols: list[str] = None) -> None:
     if symbols is None:
         symbols = ["SPY", "QQQ", "IWM"]
     async with RUN_LOCK:
@@ -87,7 +87,7 @@ if __name__ == "__main__":
         sys.exit(1)
 
     mode = sys.argv[1].lower()
-    db = sys.argv[2] if len(sys.argv) > 2 else "trading.db"
+    db = sys.argv[2] if len(sys.argv) > 2 else "data/trading.db"
     symbols_str = sys.argv[3] if len(sys.argv) > 3 else "SPY,QQQ,IWM"
     symbols = [s.strip().upper() for s in symbols_str.split(",")]
 

@@ -149,7 +149,7 @@ class WalkForwardEngine:
 
     def __init__(
         self,
-        db_path: str = "trading.db",
+        db_path: str = "data/trading.db",
         train_bars: int = 1000,  # ~5 months of 1min bars per session
         test_bars: int = 200,  # ~1 month out-of-sample
         stop_loss_pct: float = 0.015,  # 1.5% stop
@@ -376,7 +376,7 @@ def aggregate_results(results: list[WalkForwardResult]) -> dict:
 
 
 async def run_phase1_validation(
-    db_path: str = "trading.db", symbols: Optional[list[str]] = None, capital: float = 500.0
+    db_path: str = "data/trading.db", symbols: Optional[list[str]] = None, capital: float = 500.0
 ) -> None:
     """
     Run full Phase 1 validation.
@@ -446,6 +446,6 @@ if __name__ == "__main__":
     import sys
 
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
-    db = sys.argv[1] if len(sys.argv) > 1 else "trading.db"
+    db = sys.argv[1] if len(sys.argv) > 1 else "data/trading.db"
     syms = sys.argv[2:] if len(sys.argv) > 2 else None
     asyncio.run(run_phase1_validation(db_path=db, symbols=syms))
