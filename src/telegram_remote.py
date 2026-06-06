@@ -51,7 +51,10 @@ class TelegramRemote:
 
         logger.info(" Sovereign Remote: Listening for high-priority commands...")
         self.is_running = True
-        self.session = aiohttp.ClientSession()
+        # total > the 30s getUpdates long-poll so normal polls aren't cut off, but a
+        # stalled/black-holed connection is aborted (and retried by the loop) instead of
+        # hanging the listener forever and disabling remote panic/status commands.
+        self.session = aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=45))
 
         # Subscribe to bus to maintain an internal "Status Snapshot" for zero-latency replies
         self.bus.on("oracle.state", self._update_dhatu)
