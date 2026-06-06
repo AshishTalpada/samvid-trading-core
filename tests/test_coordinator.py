@@ -174,7 +174,9 @@ class TestExecutionFriction:
         )
 
         assert friction > 0.02
-        assert friction == pytest.approx(0.045, abs=0.001)
+        # Full spread (0.02) + modeled market impact (~0.015); the half-spread bundled by
+        # the slippage model is stripped to avoid double-counting the spread.
+        assert friction == pytest.approx(0.035, abs=0.001)
 
 
 class TestExecutionAlerts:

@@ -86,7 +86,11 @@ class TradingCoordinator:
             spread_pct,
             top_liquidity,
         )
-        return spread + (entry_price * slippage_pct)
+        # predict_slippage() bundles half the bid/ask spread into its result. The caller
+        # already adds the full `spread` below, so strip the half-spread component here to
+        # avoid double-counting it (which over-inflates friction by ~1.5x the spread).
+        impact_pct = max(0.0, slippage_pct - (spread_pct / 2.0))
+        return spread + (entry_price * impact_pct)
 
     def _has_fresh_realtime_entry_tick(self, symbol: str) -> bool:
         """Use the realtime tick cache as entry proof when OHLCV bars are delayed."""
