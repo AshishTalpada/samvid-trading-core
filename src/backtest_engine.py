@@ -88,7 +88,16 @@ class WalkForwardResult:
         if len(self.trades) < 3:
             return 0.0
         pnls = np.array([t.pnl_pct for t in self.trades])
+        # Annualized assuming ~1 trade/day; see sharpe_per_trade for the raw ratio.
         return float(np.mean(pnls) / (np.std(pnls) + 1e-10) * np.sqrt(252))
+
+    @property
+    def sharpe_per_trade(self) -> float:
+        """Raw per-trade Sharpe (mean/std of trade returns) with no annualization assumption."""
+        if len(self.trades) < 3:
+            return 0.0
+        pnls = np.array([t.pnl_pct for t in self.trades])
+        return float(np.mean(pnls) / (np.std(pnls) + 1e-10))
 
     @property
     def max_drawdown(self) -> float:
@@ -329,7 +338,10 @@ def aggregate_results(results: list[WalkForwardResult]) -> dict:
     gross_loss = abs(sum(t.pnl_usd for t in all_trades if t.pnl_usd <= 0))
     profit_factor = gross_win / (gross_loss + 1e-10)
 
+    # 'sharpe' is annualized assuming ~1 trade/day; 'sharpe_per_trade' is the raw ratio,
+    # which reviewers should rely on when the real trade cadence differs from daily.
     sharpe = float(np.mean(all_pnl_pct) / (np.std(all_pnl_pct) + 1e-10) * np.sqrt(252))
+    sharpe_per_trade = float(np.mean(all_pnl_pct) / (np.std(all_pnl_pct) + 1e-10))
 
     # t-statistic: is the mean return statistically different from 0?
     from scipy import stats as sp_stats
@@ -358,6 +370,7 @@ def aggregate_results(results: list[WalkForwardResult]) -> dict:
     result = {
         "verdict": verdict,
         "sharpe": round(sharpe, 3),
+        "sharpe_per_trade": round(sharpe_per_trade, 4),
         "t_statistic": round(float(t_stat), 3),
         "p_value": round(float(p_value), 4),
         "statistically_significant": bool(p_value < 0.05),

@@ -230,3 +230,46 @@ def test_run_walk_forward_convenience():
     result = run_walk_forward(n_bars=250, window_size=80, step_size=20, seed=5)
     assert isinstance(result, dict)
     assert "expectancy" in result
+
+
+# ---------------------------------------------------------------------------
+# Real-data WalkForwardEngine smoke test (DB-backed edge validation path)
+# ---------------------------------------------------------------------------
+
+def test_backtest_engine_runs_on_synthetic_db(tmp_path):
+    """The DB-backed edge engine must run end-to-end on a temp SQLite DB and the
+    aggregate report must expose the full metric set (incl. sharpe_per_trade, max_drawdown)."""
+    import asyncio
+    import sqlite3
+
+    from backtest_engine import WalkForwardEngine, aggregate_results
+    from backtester import generate_ohlcv
+
+    db = tmp_path / "trading.db"
+    df = generate_ohlcv(n_bars=400, seed=11)
+    conn = sqlite3.connect(str(db))
+    conn.execute(
+        "CREATE TABLE ohlcv (symbol TEXT, timestamp TEXT, open REAL, high REAL, "
+        "low REAL, close REAL, volume REAL)"
+    )
+    rows = list(zip(
+        ["SPY"] * len(df),
+        [str(ts) for ts in df["timestamp"].to_list()],
+        df["open"].to_list(), df["high"].to_list(), df["low"].to_list(),
+        df["close"].to_list(), df["volume"].to_list(),
+        strict=True,
+    ))
+    conn.executemany("INSERT INTO ohlcv VALUES (?,?,?,?,?,?,?)", rows)
+    conn.commit()
+    conn.close()
+
+    engine = WalkForwardEngine(db_path=str(db), train_bars=150, test_bars=60)
+    windows = asyncio.run(engine.run("SPY"))
+    stats = aggregate_results(windows)
+
+    # No windows/trades is a valid (non-crashing) outcome; only assert structure when present.
+    if "error" not in stats:
+        for key in ("verdict", "sharpe", "sharpe_per_trade", "max_drawdown",
+                    "profit_factor", "win_rate", "total_trades"):
+            assert key in stats, f"aggregate_results missing key: {key}"
+        assert stats["max_drawdown"] <= 0.0
