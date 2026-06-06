@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 import subprocess
 import sys
+import time
 from pathlib import Path, PureWindowsPath
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -35,14 +36,19 @@ def _find_vcvarsall() -> Path:
     return candidates[0]
 
 
-def _windows_command(vcvarsall: Path) -> str:
+def _windows_command(vcvarsall: Path, target: Path = TARGET) -> str:
     sources = " ".join(f'"{PureWindowsPath(source.relative_to(ROOT))}"' for source in SOURCES)
     return (
         f'call "{vcvarsall}" x64\n'
         "if errorlevel 1 exit /b %errorlevel%\n"
         "cl /O2 /std:c11 /experimental:c11atomics /LD "
-        f'/Fe:"{TARGET}" {sources} /I"src"\n'
+        f'/Fe:"{target}" {sources} /I"src"\n'
+        "if errorlevel 1 exit /b %errorlevel%\n"
     )
+
+
+def _windows_fallback_target() -> Path:
+    return ROOT / "build" / "native_builds" / f"libsovereign_{time.time_ns()}.dll"
 
 
 def build_native() -> int:
@@ -52,13 +58,29 @@ def build_native() -> int:
 
     TARGET.parent.mkdir(parents=True, exist_ok=True)
     if sys.platform == "win32":
+        vcvarsall = _find_vcvarsall()
         result = subprocess.run(
             ["cmd.exe", "/d", "/q"],
             cwd=ROOT,
             check=False,
-            input=_windows_command(_find_vcvarsall()),
+            input=_windows_command(vcvarsall, TARGET),
             text=True,
         )
+        if result.returncode != 0 and TARGET.exists():
+            fallback_target = _windows_fallback_target()
+            fallback_target.parent.mkdir(parents=True, exist_ok=True)
+            print(
+                "Primary native DLL may be locked by a running process; "
+                f"retrying link as {fallback_target}",
+                file=sys.stderr,
+            )
+            result = subprocess.run(
+                ["cmd.exe", "/d", "/q"],
+                cwd=ROOT,
+                check=False,
+                input=_windows_command(vcvarsall, fallback_target),
+                text=True,
+            )
     else:
         result = subprocess.run(["make", "all"], cwd=ROOT, check=False)
 
