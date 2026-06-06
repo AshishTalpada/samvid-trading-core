@@ -35,7 +35,6 @@ class CachedPosition:
     def notional(self) -> float:
         return self.quantity * self.entry_price
 
-    @property
     def unrealized_pnl(self, current_price: float = 0.0) -> float:
         if current_price <= 0:
             return 0.0
