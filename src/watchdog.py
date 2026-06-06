@@ -31,6 +31,102 @@ STARTUP_SILENCE_TIMEOUT = 240  # Broker probes can legitimately block startup fo
 MEMORY_THRESHOLD_MB = 1200
 WATCHDOG_HARD_RESTART_TASKS = {"BRAIN_PRIMARY", "ENGINE", "MAIN"}
 
+# Subprocess workers the engine spawns. On an emergency reboot the watchdog kills the
+# old engine without /T (to avoid killing itself, since it is a descendant of main),
+# which would otherwise orphan these workers and let them accumulate across reboots.
+_WORKER_SCRIPT_MARKERS = (
+    "neural_sandbox",
+    "slm_compat_worker",
+    "master_trainer",
+    "train_phase1",
+    "train_slm",
+)
+
+
+def select_orphan_worker_pids(processes, main_pid, protected_pids):
+    """Return descendant PIDs of main_pid that are spawned worker subprocesses and are
+    NOT in protected_pids (the watchdog's own subtree).
+
+    Pure function (no psutil) so the selection logic is unit-testable. ``processes`` is
+    an iterable of dicts with keys ``pid``, ``ppid`` and ``cmdline`` (a string).
+    """
+    children: dict = {}
+    for proc in processes:
+        children.setdefault(proc.get("ppid"), []).append(proc)
+
+    victims: list = []
+    seen: set = set()
+    stack = list(children.get(main_pid, []))
+    while stack:
+        proc = stack.pop()
+        pid = proc.get("pid")
+        if pid in seen:
+            continue
+        seen.add(pid)
+        stack.extend(children.get(pid, []))
+        if pid in protected_pids:
+            continue
+        cmd = (proc.get("cmdline") or "").lower()
+        if any(marker in cmd for marker in _WORKER_SCRIPT_MARKERS):
+            victims.append(pid)
+    return victims
+
+
+def _watchdog_protected_pids():
+    """PIDs the watchdog must never kill: itself and its launcher/trampoline ancestors."""
+    protected = {os.getpid()}
+    try:
+        import psutil
+
+        proc = psutil.Process(os.getpid())
+        for _ in range(6):
+            parent = proc.parent()
+            if parent is None:
+                break
+            protected.add(parent.pid)
+            proc = parent
+    except Exception:
+        pass
+    return protected
+
+
+def _find_orphan_worker_pids(main_pid):
+    """Snapshot the process table and return engine-spawned worker PIDs to terminate."""
+    try:
+        import psutil
+    except Exception:
+        return []
+    snapshot = []
+    try:
+        for p in psutil.process_iter(["pid", "ppid", "cmdline"]):
+            snapshot.append(
+                {
+                    "pid": p.info.get("pid"),
+                    "ppid": p.info.get("ppid"),
+                    "cmdline": " ".join(p.info.get("cmdline") or []),
+                }
+            )
+    except Exception as exc:
+        logger.debug("Watchdog: orphan worker scan failed: %s", exc)
+        return []
+    return select_orphan_worker_pids(snapshot, main_pid, _watchdog_protected_pids())
+
+
+def _kill_orphan_workers(pids):
+    """Force-kill the given orphaned worker PIDs (best effort, never raises)."""
+    if not pids:
+        return
+    try:
+        import psutil
+    except Exception:
+        return
+    for vpid in pids:
+        try:
+            psutil.Process(vpid).kill()
+            logger.info("Watchdog: Terminated orphaned worker PID %s after reboot.", vpid)
+        except Exception as exc:
+            logger.debug("Watchdog: could not kill orphan worker %s: %s", vpid, exc)
+
 
 def get_dynamic_memory_threshold() -> float:
     """Calculates a safe memory threshold based on total system RAM (70% or max 2GB)."""
@@ -392,6 +488,7 @@ def run_watchdog():
 
                         pid_file = "data/main.pid"
                         pid_to_kill = None
+                        orphan_worker_pids = []
                         if os.path.exists(pid_file):
                             try:
                                 with open(pid_file, "r") as f:
@@ -402,6 +499,9 @@ def run_watchdog():
                                 )
 
                         if pid_to_kill and pid_to_kill.isdigit():
+                            # Capture engine-spawned workers BEFORE killing main, while
+                            # the process tree is still intact.
+                            orphan_worker_pids = _find_orphan_worker_pids(int(pid_to_kill))
                             try:
                                 logger.info(
                                     "Watchdog: Terminating stale main process "
@@ -423,6 +523,9 @@ def run_watchdog():
                                 "Watchdog: Ignoring invalid PID file content: %r", pid_to_kill
                             )
                             _remove_pid_file(pid_file, pid_to_kill)
+
+                        # Reap workers orphaned by the (no-/T) kill of the old engine.
+                        _kill_orphan_workers(orphan_worker_pids)
 
                         project_root = Path(__file__).resolve().parent.parent
                         main_script = project_root / "src" / "main.py"
