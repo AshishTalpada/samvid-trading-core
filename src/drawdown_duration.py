@@ -29,6 +29,11 @@ class DrawdownDurationModel:
         if current_drawdown_pct <= 0 or annualized_volatility <= 0:
             return {"expected_days": 0, "probability_1_month": 1.0}
 
+        # A >=100% drawdown is a total wipeout: recovery is mathematically impossible and
+        # the required_return / log() below would divide by zero or take log of a non-positive.
+        if current_drawdown_pct >= 1.0:
+            return {"expected_days": float("inf"), "probability_1_month": 0.0}
+
         # Drift (mu) and Variance (sigma^2)
         mu = annualized_return
         sigma = annualized_volatility
