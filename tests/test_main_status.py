@@ -157,3 +157,44 @@ async def test_ibkr_reconnect_loop_recovers_offline_execution() -> None:
     system._bind_ibkr_runtime.assert_awaited_once()
     assert system._ibkr_outage_active is False
     assert system.send_telegram_notification.await_count == 2
+
+
+@pytest.mark.asyncio
+async def test_ibkr_reconnect_loop_uses_critical_delay_when_positions_exposed() -> None:
+    class OfflineClient:
+        def isConnected(self) -> bool:
+            return False
+
+    system = _system()
+    system.ibkr_client = OfflineClient()
+    system.trading_brain = SimpleNamespace(
+        positions=[SimpleNamespace(account_type="ibkr", qty=10)]
+    )
+    system.is_running = True
+    system._shutdown_in_progress = False
+    system._ibkr_outage_active = False
+    system.connect_ibkr = AsyncMock(return_value=False)
+    system.send_telegram_notification = AsyncMock(return_value=True)
+    system._persist_runtime_health_snapshot = AsyncMock()
+
+    sleep_calls: list[float] = []
+
+    async def stop_after_retry(delay: float) -> None:
+        sleep_calls.append(delay)
+        system.is_running = False
+
+    with (
+        patch.dict(
+            "main.os.environ",
+            {
+                "SOVEREIGN_IBKR_RECONNECT_INTERVAL_SEC": "15",
+                "SOVEREIGN_IBKR_RECONNECT_MAX_INTERVAL_SEC": "300",
+                "SOVEREIGN_IBKR_RECONNECT_CRITICAL_INTERVAL_SEC": "7",
+            },
+        ),
+        patch("main.asyncio.sleep", side_effect=stop_after_retry),
+    ):
+        await system._run_ibkr_reconnect_loop()
+
+    assert sleep_calls == [7.0]
+    system.connect_ibkr.assert_awaited_once()

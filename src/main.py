@@ -1235,6 +1235,22 @@ class TradingSystem:
         if reconcile:
             await brain._reconcile_broker_positions()
 
+    def _has_exposed_ibkr_positions(self) -> bool:
+        """Return True when memory shows IBKR positions that need an execution path."""
+        brain = getattr(self, "trading_brain", None)
+        if not brain:
+            return False
+        for pos in list(getattr(brain, "positions", []) or []):
+            try:
+                if (
+                    str(getattr(pos, "account_type", "")).lower() == "ibkr"
+                    and abs(float(getattr(pos, "qty", 0.0) or 0.0)) > 0.0001
+                ):
+                    return True
+            except (TypeError, ValueError):
+                continue
+        return False
+
     async def _run_ibkr_reconnect_loop(self) -> None:
         """Keep the owned IBKR API session attached when TWS starts late or restarts."""
         def _interval(name: str, default: float) -> float:
@@ -1250,7 +1266,11 @@ class TradingSystem:
         )
         max_delay = max(
             base_delay,
-            _interval("SOVEREIGN_IBKR_RECONNECT_MAX_INTERVAL_SEC", 300.0),
+            _interval("SOVEREIGN_IBKR_RECONNECT_MAX_INTERVAL_SEC", 60.0),
+        )
+        critical_delay = max(
+            5.0,
+            _interval("SOVEREIGN_IBKR_RECONNECT_CRITICAL_INTERVAL_SEC", 20.0),
         )
         delay = base_delay
 
@@ -1310,8 +1330,13 @@ class TradingSystem:
                 await asyncio.sleep(base_delay)
                 continue
 
-            logger.warning("IBKR RECOVERY: attachment failed; retrying in %.0fs.", delay)
-            await asyncio.sleep(delay)
+            retry_delay = min(delay, critical_delay) if self._has_exposed_ibkr_positions() else delay
+            logger.warning(
+                "IBKR RECOVERY: attachment failed; retrying in %.0fs%s.",
+                retry_delay,
+                " because IBKR positions are exposed" if retry_delay < delay else "",
+            )
+            await asyncio.sleep(retry_delay)
             delay = min(delay * 2.0, max_delay)
 
     async def connect_mt5(self) -> bool | None:

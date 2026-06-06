@@ -31,6 +31,53 @@ MAX_LOSS_R_MULTIPLE = abs(float(os.getenv("SOVEREIGN_MAX_LOSS_R_MULTIPLE", "2.5"
 class PositionMonitor:
     """Mixin: position monitoring, exit processing, emergency flattening."""
 
+    async def _notify_delayed_exit(
+        self,
+        pos: Position,
+        exit_type: str,
+        exit_price: float,
+        reason: str,
+    ) -> None:
+        """Escalate broker-blocked exits without mutating realized trade state."""
+        now = datetime.now(timezone.utc)
+        alerts = getattr(self, "_delayed_exit_alerts", None)
+        if alerts is None:
+            alerts = {}
+            self._delayed_exit_alerts = alerts
+
+        try:
+            interval_sec = max(
+                30.0,
+                float(os.environ.get("SOVEREIGN_DELAYED_EXIT_ALERT_SEC", "120")),
+            )
+        except ValueError:
+            interval_sec = 120.0
+
+        key = f"{pos.account_type}:{pos.symbol}:{exit_type}"
+        last_alert = alerts.get(key)
+        if last_alert and (now - last_alert).total_seconds() < interval_sec:
+            return
+        alerts[key] = now
+
+        from telegram_alerts import send_telegram_alert
+
+        side = "LONG" if pos.qty > 0 else "SHORT"
+        message = (
+            f"<b>DELAYED EXIT: {pos.symbol}</b>\n"
+            f"<b>Reason:</b> {reason}\n"
+            f"<b>Account:</b> {str(pos.account_type).upper()}\n"
+            f"<b>Side/Size:</b> {side} {abs(pos.qty):.0f}\n"
+            f"<b>Exit Method:</b> {exit_type}\n"
+            f"<b>Entry:</b> ${pos.entry_price:,.2f}\n"
+            f"<b>Trigger Price:</b> ${exit_price:,.2f}\n"
+            f"<b>Stop:</b> ${pos.stop_loss:,.2f}\n"
+            "No trade.exit event was emitted because the broker did not confirm an exit."
+        )
+        try:
+            await send_telegram_alert(message)
+        except Exception as exc:
+            logger.warning("Delayed-exit Telegram alert failed for %s: %s", pos.symbol, exc)
+
     def _resolve_position_monitor_price(
         self,
         symbol: str,
@@ -491,8 +538,9 @@ class PositionMonitor:
 
     async def _process_exit(self, pos: Position, exit_type: str, exit_price: float) -> None:
         """Standardized Exit Resolver (Pillar 5 Upgrade)."""
+        symbol = getattr(pos, "symbol", "UNKNOWN")
+        strikes = 0
         try:
-            symbol = pos.symbol
             now = datetime.now(timezone.utc)
 
             # SOVEREIGN BYPASS: Always allow emergency exits (STOP, VETO, VIX, SAFETY)
@@ -514,6 +562,12 @@ class PositionMonitor:
             if not broker_online:
                 logger.warning(
                     f"DELAYED EXIT [{symbol}]: {pos.account_type} is OFFLINE. Postponing pulse."
+                )
+                await self._notify_delayed_exit(
+                    pos,
+                    exit_type,
+                    exit_price,
+                    f"{pos.account_type} execution path is offline",
                 )
                 pos.meta.pop("exit_triggered", None)
                 return

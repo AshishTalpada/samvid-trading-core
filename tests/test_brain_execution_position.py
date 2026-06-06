@@ -705,6 +705,34 @@ class TestBrokerExitRealization:
         assert pos in paper_brain.positions
 
     @pytest.mark.asyncio
+    async def test_ibkr_delayed_exit_alerts_without_realizing_trade(self, paper_brain):
+        """Broker outages must alert operators but never fake a confirmed trade exit."""
+        paper_brain.mode = "ibkr_paper"
+        paper_brain._broker_is_connected = MagicMock(return_value=False)
+        paper_brain._place_ibkr_order = AsyncMock()
+        paper_brain._log_trade_exit = AsyncMock()
+        pos = _make_position(
+            symbol="MA",
+            qty=-60,
+            entry=478.30,
+            stop=485.48,
+            entry_time=datetime.now(timezone.utc) - timedelta(minutes=20),
+        )
+        pos.meta["exit_triggered"] = True
+        paper_brain.positions = [pos]
+
+        with patch("telegram_alerts.send_telegram_alert", new_callable=AsyncMock) as tg:
+            await paper_brain._process_exit(pos, "HEARTBEAT_VETO", 488.30)
+
+        paper_brain._place_ibkr_order.assert_not_awaited()
+        paper_brain._log_trade_exit.assert_not_awaited()
+        assert pos in paper_brain.positions
+        assert "exit_triggered" not in pos.meta
+        message = tg.await_args.args[0]
+        assert "DELAYED EXIT: MA" in message
+        assert "No trade.exit event was emitted" in message
+
+    @pytest.mark.asyncio
     async def test_paper_exit_passes_gross_pnl_for_single_cost_deduction(self, paper_brain):
         """The exit logger receives gross and authoritative net PnL."""
         paper_brain.ibkr_client = None
