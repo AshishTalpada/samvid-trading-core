@@ -305,7 +305,7 @@ class ConsecutiveLossTracker:
             # Capped compounding: max 1.15x (15% boost) to prevent runaway sizing.
             # Previously uncapped up to 2.0x — a 5-win streak could double position size
             # beyond the F6 Kelly chain limits, bypassing risk controls.
-            multiplier = 1.0 + (min(self.win_streak, 4) - 3) * 0.05
+            multiplier = 1.0 + (self.win_streak - 2) * 0.05
             return min(float(multiplier), 1.15)
 
         return 1.0
