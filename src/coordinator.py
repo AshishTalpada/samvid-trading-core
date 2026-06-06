@@ -548,8 +548,9 @@ class TradingCoordinator:
                     )
                     return False
 
-                # Fetch spread for sizing
-                spread_data = await self.brain.get_current_spread(symbol)
+                # Fetch spread for sizing. get_current_spread() can return None, so
+                # fail closed to an empty dict before the sizer subscripts it below.
+                spread_data = await self.brain.get_current_spread(symbol) or {}
 
                 # Early Agent D veto gate — avoid sizing cost for statistically doomed trades
                 if not is_probe:
@@ -604,7 +605,7 @@ class TradingCoordinator:
                             entry_price=pattern.entry,
                             stop_price=pattern.stop,
                             target_price=pattern.target,
-                            spread=spread_data["spread"],
+                            spread=float(spread_data.get("spread", 0.0) or 0.0),
                             instrument=symbol,
                             ohlcv_df=ohlcv_for_sizing,
                             regime=self.brain.current_regime,
