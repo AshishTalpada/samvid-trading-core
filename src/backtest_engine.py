@@ -17,6 +17,10 @@ logger = logging.getLogger(__name__)
 
 _db_lock = asyncio.Lock()
 
+PHASE1_MIN_PROFIT_FACTOR = 1.30
+PHASE1_MAX_DRAWDOWN = 0.12
+PHASE1_MAX_P_VALUE = 0.05
+
 
 @dataclass
 class Trade:
@@ -322,6 +326,7 @@ def aggregate_results(results: list[WalkForwardResult]) -> dict:
 
     total_trades = len(all_trades)
     total_pnl_usd = sum(t.pnl_usd for t in all_trades)
+    expectancy_net_usd = total_pnl_usd / total_trades if total_trades else 0.0
     win_rate = sum(1 for t in all_trades if t.pnl_usd > 0) / (total_trades + 1e-10)
     avg_win = (
         float(np.mean([t.pnl_usd for t in all_trades if t.pnl_usd > 0]))
@@ -377,6 +382,7 @@ def aggregate_results(results: list[WalkForwardResult]) -> dict:
         "total_trades": total_trades,
         "win_rate": round(win_rate, 4),
         "profit_factor": round(profit_factor, 3),
+        "expectancy_net_usd": round(expectancy_net_usd, 4),
         "avg_win_usd": round(avg_win, 2),
         "avg_loss_usd": round(avg_loss, 2),
         "total_pnl_usd": round(total_pnl_usd, 2),
@@ -386,6 +392,64 @@ def aggregate_results(results: list[WalkForwardResult]) -> dict:
     }
 
     return result
+
+
+def phase1_gate_report(
+    all_symbol_results: dict[str, dict],
+    *,
+    min_profit_factor: float = PHASE1_MIN_PROFIT_FACTOR,
+    max_drawdown: float = PHASE1_MAX_DRAWDOWN,
+    max_p_value: float = PHASE1_MAX_P_VALUE,
+) -> dict:
+    """Evaluate Phase 1 with objective promotion gates from the roadmap."""
+    symbol_reports: dict[str, dict] = {}
+    required_passes = len(all_symbol_results) // 2 + 1
+
+    for symbol, stats in all_symbol_results.items():
+        expectancy = float(stats.get("expectancy_net_usd", 0.0) or 0.0)
+        profit_factor = float(stats.get("profit_factor", 0.0) or 0.0)
+        p_value = float(stats.get("p_value", 1.0) or 1.0)
+        sharpe_per_trade = float(stats.get("sharpe_per_trade", 0.0) or 0.0)
+        max_dd = abs(float(stats.get("max_drawdown", 1.0) or 0.0))
+
+        blockers = []
+        if p_value >= max_p_value:
+            blockers.append(f"p_value {p_value:.4f} >= {max_p_value:.4f}")
+        if profit_factor < min_profit_factor:
+            blockers.append(f"profit_factor {profit_factor:.3f} < {min_profit_factor:.3f}")
+        if expectancy <= 0:
+            blockers.append(f"expectancy_net_usd {expectancy:.4f} <= 0")
+        if sharpe_per_trade <= 0:
+            blockers.append(f"sharpe_per_trade {sharpe_per_trade:.4f} <= 0")
+        if max_dd > max_drawdown:
+            blockers.append(f"max_drawdown {max_dd:.4f} > {max_drawdown:.4f}")
+
+        symbol_reports[symbol] = {
+            "passed": not blockers,
+            "blockers": blockers,
+            "metrics": {
+                "p_value": p_value,
+                "profit_factor": profit_factor,
+                "expectancy_net_usd": expectancy,
+                "sharpe_per_trade": sharpe_per_trade,
+                "max_drawdown": max_dd,
+            },
+        }
+
+    passed_symbols = [symbol for symbol, report in symbol_reports.items() if report["passed"]]
+    significant_symbols = [
+        symbol
+        for symbol, stats in all_symbol_results.items()
+        if float(stats.get("p_value", 1.0) or 1.0) < max_p_value
+    ]
+
+    return {
+        "passed": bool(all_symbol_results) and len(passed_symbols) >= required_passes,
+        "required_passes": required_passes,
+        "passed_symbols": passed_symbols,
+        "significant_symbols": significant_symbols,
+        "symbol_reports": symbol_reports,
+    }
 
 
 async def run_phase1_validation(
@@ -436,19 +500,27 @@ async def run_phase1_validation(
     print("=" * 65)
     if all_symbol_results:
         avg_sharpe = np.mean([v["sharpe"] for v in all_symbol_results.values()])
-        sig_count = sum(1 for v in all_symbol_results.values() if v["statistically_significant"])
+        gate = phase1_gate_report(all_symbol_results)
+        sig_count = len(gate["significant_symbols"])
         print(f"  Average Sharpe across symbols: {avg_sharpe:.3f}")
         print(f"  Statistically significant symbols: {sig_count}/{len(all_symbol_results)}")
+        print(
+            "  Symbols passing all gates: "
+            f"{len(gate['passed_symbols'])}/{len(all_symbol_results)} "
+            f"(required {gate['required_passes']})"
+        )
 
-        if avg_sharpe >= 1.0 and sig_count >= (len(all_symbol_results) // 2 + 1):
+        if gate["passed"]:
             print("\n   PHASE 1 PASSED — Edge is real. Proceed to Phase 2 (Live Paper Trading).")
             return True
-        elif avg_sharpe >= 0.5:
-            print("\n    EDGE EXISTS BUT WEAK — Tune signal weights before live deployment.")
-            return False
-        else:
-            print("\n   NO SIGNIFICANT EDGE — Do not deploy live capital.")
-            return False
+        print("\n   PHASE 1 FAILED - Do not deploy live capital.")
+        for symbol, report in gate["symbol_reports"].items():
+            if report["passed"]:
+                continue
+            print(f"  {symbol} blockers:")
+            for blocker in report["blockers"]:
+                print(f"    - {blocker}")
+        return False
     else:
         print("\n   CRITICAL: No results generated. Check database integrity.")
         return False

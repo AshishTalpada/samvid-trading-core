@@ -269,7 +269,15 @@ def test_backtest_engine_runs_on_synthetic_db(tmp_path):
 
     # No windows/trades is a valid (non-crashing) outcome; only assert structure when present.
     if "error" not in stats:
-        for key in ("verdict", "sharpe", "sharpe_per_trade", "max_drawdown",
-                    "profit_factor", "win_rate", "total_trades"):
+        for key in (
+            "verdict",
+            "sharpe",
+            "sharpe_per_trade",
+            "max_drawdown",
+            "profit_factor",
+            "expectancy_net_usd",
+            "win_rate",
+            "total_trades",
+        ):
             assert key in stats, f"aggregate_results missing key: {key}"
         assert stats["max_drawdown"] <= 0.0
