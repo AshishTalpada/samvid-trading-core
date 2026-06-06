@@ -18,6 +18,10 @@ class ExecutionAuditLog:
     def __init__(self, path: str | os.PathLike[str] = "data/execution_audit.jsonl") -> None:
         self.path = Path(path)
         self._lock = threading.Lock()
+        # Monotonic guard: Windows time.time_ns() resolution can return identical values
+        # for rapid successive appends, which would break timestamp windowing and make
+        # intent->fill latency zero/negative. Track the last stamp and force increase.
+        self._last_ts_ns = 0
 
     def _last_hash(self) -> str:
         if not self.path.exists():
@@ -100,8 +104,10 @@ class ExecutionAuditLog:
     ) -> dict[str, Any]:
         with self._lock:
             previous_hash = self._last_hash()
+            ts_ns = max(time.time_ns(), self._last_ts_ns + 1)
+            self._last_ts_ns = ts_ns
             record = {
-                "timestamp_ns": time.time_ns(),
+                "timestamp_ns": ts_ns,
                 "intent_id": intent_id or uuid.uuid4().hex,
                 "event": event,
                 "symbol": str(symbol).upper(),
