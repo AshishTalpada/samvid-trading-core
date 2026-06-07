@@ -1795,9 +1795,10 @@ class LiveLearningEngine:
     def get_win_rate(self, pattern: str, regime: str, session: str = "RTH") -> float:
         """
         Get calibrated win rate for a pattern+regime combo.
-        Returns 0.60 default if matrix not yet activated.
+        Returns 0.50 (neutral) default if matrix not yet activated —
+        we do NOT trade on fantasy win rates before sufficient data.
         """
-        return self._matrix.get_win_rate(pattern, regime, session, default=0.60)
+        return self._matrix.get_win_rate(pattern, regime, session, default=0.50)
 
     def evaluate_proposal(
         self, pattern_name: str, regime: str, session: str = "RTH"
