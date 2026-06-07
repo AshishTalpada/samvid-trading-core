@@ -35,3 +35,32 @@ build/%.o: %.cpp
 
 clean:
 	rm -rf build
+
+# ── Roadmap evidence & promotion gate ──────────────────────────────────────
+PY?=python
+DB?=data/trading.db
+SYMBOLS?=SPY,QQQ,IWM
+SOAK_CYCLES?=3
+
+.PHONY: preflight phase1 reliability-probe execution-report paper-report soak roadmap-gate
+
+preflight:
+	$(PY) scripts/preflight.py
+
+phase1:
+	$(PY) src/phase1_runner.py backtest $(DB) $(SYMBOLS)
+
+reliability-probe:
+	$(PY) src/backend_reliability_probe.py
+
+execution-report:
+	$(PY) scripts/execution_audit_report.py
+
+paper-report:
+	$(PY) scripts/paper_performance_report.py --db $(DB)
+
+soak:
+	$(PY) scripts/live_audit_loop.py --cycles $(SOAK_CYCLES)
+
+roadmap-gate:
+	$(PY) scripts/roadmap_gate.py --db $(DB)
