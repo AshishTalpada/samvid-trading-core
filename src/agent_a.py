@@ -442,7 +442,7 @@ class PatternDetector:
         pole_end = df["close"].tail(10).to_numpy()[-1]
         pole_gain = (pole_end - pole_start) / (pole_start + 1e-10)
 
-        if pole_gain < 0.002:  # Massively relaxed: 0.2%+ pole
+        if pole_gain < 0.015:  # Minimum 1.5% pole — anything less is noise, not a real flag
             return None
 
         # Detect consolidation (flag)
@@ -742,8 +742,8 @@ class PatternDetector:
 
         current_rsi = df["rsi"].tail(1).item()
 
-        # Oversold condition: RSI < 45 (Aggressive entry)
-        if current_rsi >= 45:
+        # Oversold condition: RSI < 30 (Standard oversold threshold)
+        if current_rsi >= 30:
             return None
 
         # Bullish divergence: price making lower low, RSI making higher low
@@ -2068,14 +2068,51 @@ def agent_a_validate_trade(
             task.transition(TaskStatus.FAILED)
         return {"agent": "Agent_A", "vote": "NO", "reason": "Friction Veto: Hurdle not met."}
 
-    if pattern.r_r_ratio < 0.2:
+    # 5. REGIME-ADJUSTED R:R HURDLE (replaces fixed 0.2 threshold)
+    # CHOPPY/VOLATILE needs higher R:R to compensate for noise
+    # TRENDING/GAP_UP can accept lower R:R due to directional tailwind
+    regime_rr_map = {
+        "TRENDING": 0.15,
+        "GAP_UP": 0.15,
+        "GAP_DOWN": 0.20,
+        "CHOPPY": 0.35,
+        "VOLATILE": 0.40,
+        "RISK_OFF": 0.50,
+    }
+    min_rr = regime_rr_map.get(regime, 0.20)
+    if pattern.r_r_ratio < min_rr:
         if task:
             task.transition(TaskStatus.FAILED)
         return {
             "agent": "Agent_A",
             "vote": "NO",
-            "reason": f"R:R Veto: {pattern.r_r_ratio:.2f} < 0.2",
+            "reason": f"R:R Veto: {pattern.r_r_ratio:.2f} < {min_rr:.2f} (regime={regime})",
         }
+
+    # 6. AGENT D EDGE MEASUREMENT (Sample Size + Kelly Edge)
+    # Only trust historical win rates if we have >= 30 samples (law of large numbers)
+    # Kelly edge = win_rate - (1 - win_rate) / r_r_ratio
+    # Positive edge = expected value > 0. Negative edge = statistical loser.
+    agent_d_wr = kwargs.get("agent_d_win_rate")
+    agent_d_n = kwargs.get("agent_d_n_trades", 0)
+    if agent_d_wr is not None and isinstance(agent_d_wr, float) and agent_d_n >= 30:
+        kelly_edge = agent_d_wr - (1.0 - agent_d_wr) / max(pattern.r_r_ratio, 0.01)
+        if kelly_edge < 0.05:  # Require at least 5% edge before risking capital
+            if task:
+                task.transition(TaskStatus.FAILED)
+            return {
+                "agent": "Agent_A",
+                "vote": "NO",
+                "reason": (
+                    f"Edge Veto: Kelly={kelly_edge:.2%} (WR={agent_d_wr:.1%}, "
+                    f"n={agent_d_n}, R:R={pattern.r_r_ratio:.2f})"
+                ),
+            }
+        if task:
+            task.log(
+                f"Agent A: Edge verified. Kelly={kelly_edge:.2%} "
+                f"(WR={agent_d_wr:.1%}, n={agent_d_n})"
+            )
 
     if "entropy_score" in kwargs:
         final_lambda = entropy_calc.entropy_modifier(int(final_lambda), kwargs["entropy_score"])
