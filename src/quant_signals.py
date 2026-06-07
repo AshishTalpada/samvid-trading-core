@@ -107,8 +107,15 @@ class RegimeFilter:
             confidence = float(posteriors[-1][current_state])
 
             score = {"BULL": 0.8, "SIDEWAYS": 0.0, "BEAR": -0.8}.get(regime, 0.0)
+            # Emit a DIRECTIONAL vote (BUY/SELL/NEUTRAL) so the consensus tally and
+            # regime_veto can actually use it; the regime name is preserved in meta.
+            vote = "BUY" if score > 0.05 else "SELL" if score < -0.05 else "NEUTRAL"
             return SignalResult(
-                "regime", score, confidence, regime, {"regime": regime, "state": int(current_state)}
+                "regime",
+                score,
+                confidence,
+                vote,
+                {"regime": regime, "state": int(current_state)},
             )
         except Exception as e:
             logger.error(f"RegimeFilter predict error: {e}")
