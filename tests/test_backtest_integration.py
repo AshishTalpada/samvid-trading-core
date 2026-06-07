@@ -281,3 +281,37 @@ def test_backtest_engine_runs_on_synthetic_db(tmp_path):
         ):
             assert key in stats, f"aggregate_results missing key: {key}"
         assert stats["max_drawdown"] <= 0.0
+
+
+def test_loader_selects_densest_timeframe_and_excludes_junk(tmp_path):
+    """Regression: the loader must not mix timeframes. It should auto-select the
+    densest timeframe and exclude sparse synthetic rows (e.g. 1970-epoch 1h junk)."""
+    import asyncio
+    import sqlite3
+
+    from backtest_engine import load_ohlcv_from_db
+
+    db = tmp_path / "trading.db"
+    conn = sqlite3.connect(str(db))
+    conn.execute(
+        "CREATE TABLE ohlcv (symbol TEXT, timestamp TEXT, open REAL, high REAL, "
+        "low REAL, close REAL, volume REAL, timeframe TEXT)"
+    )
+    minute_rows = [
+        ("SPY", f"2026-01-01T09:{30 + i:02d}:00-05:00", 100.0 + i, 101.0 + i,
+         99.0 + i, 100.5 + i, 1000.0, "1m")
+        for i in range(25)
+    ]
+    junk_rows = [
+        ("SPY", f"1970-01-01T00:00:00.{i:09d}", 9999.0, 9999.0, 9999.0, 9999.0, 1.0, "1h")
+        for i in range(5)
+    ]
+    conn.executemany("INSERT INTO ohlcv VALUES (?,?,?,?,?,?,?,?)", minute_rows + junk_rows)
+    conn.commit()
+    conn.close()
+
+    _opens, _highs, _lows, closes, timestamps = asyncio.run(load_ohlcv_from_db(str(db), "SPY"))
+
+    assert len(closes) == 25, "loader must return only the densest (1m) timeframe"
+    assert 9999.0 not in closes, "synthetic 1h junk must be excluded"
+    assert all(not ts.startswith("1970") for ts in timestamps)

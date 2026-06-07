@@ -114,12 +114,18 @@ class WalkForwardResult:
 
 
 async def load_ohlcv_from_db(
-    db_path: str, symbol: str
+    db_path: str, symbol: str, timeframe: Optional[str] = None
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, list[str]]:
     """
     Load OHLCV from SQLite.
     Returns (opens, highs, lows, closes, volumes, timestamps).
     Uses global _db_lock to prevent contention during parallel validation bursts.
+
+    The ``ohlcv`` table can hold several timeframes (e.g. 1m, 1h, 1d) for the same
+    symbol. Loading them together and sorting by timestamp produces a corrupted
+    "Frankenstein" series, so we load a single timeframe. When ``timeframe`` is not
+    specified we auto-select the densest one for the symbol, which also excludes
+    sparse synthetic/test rows.
     """
     async with _db_lock:
         try:
@@ -128,20 +134,47 @@ async def load_ohlcv_from_db(
                 conn = sqlite3.connect(db_path, timeout=60.0)
                 conn.execute("PRAGMA journal_mode=WAL;")
                 cursor = conn.cursor()
-                # Load open/high/low/close for realistic intra-bar simulation
-                cursor.execute(
-                    "SELECT timestamp, open, high, low, close, volume FROM ohlcv "
-                    "WHERE symbol=? ORDER BY timestamp ASC",
-                    (symbol,),
+                has_timeframe = any(
+                    row[1] == "timeframe"
+                    for row in cursor.execute("PRAGMA table_info(ohlcv)").fetchall()
                 )
+                selected_tf = timeframe
+                if has_timeframe and selected_tf is None:
+                    cursor.execute(
+                        "SELECT timeframe, COUNT(*) AS c FROM ohlcv WHERE symbol=? "
+                        "GROUP BY timeframe ORDER BY c DESC LIMIT 1",
+                        (symbol,),
+                    )
+                    densest = cursor.fetchone()
+                    selected_tf = densest[0] if densest else None
+                # Load open/high/low/close for realistic intra-bar simulation
+                if has_timeframe and selected_tf is not None:
+                    cursor.execute(
+                        "SELECT timestamp, open, high, low, close, volume FROM ohlcv "
+                        "WHERE symbol=? AND timeframe=? ORDER BY timestamp ASC",
+                        (symbol, selected_tf),
+                    )
+                else:
+                    cursor.execute(
+                        "SELECT timestamp, open, high, low, close, volume FROM ohlcv "
+                        "WHERE symbol=? ORDER BY timestamp ASC",
+                        (symbol,),
+                    )
                 rows = cursor.fetchall()
                 conn.close()
-                return rows
+                return rows, selected_tf
 
-            rows = await asyncio.to_thread(_load)
+            rows, selected_tf = await asyncio.to_thread(_load)
 
             if not rows:
                 return np.array([]), np.array([]), np.array([]), np.array([]), []
+            logger.info(
+                "Loaded %d %s bars for %s (timeframe=%s)",
+                len(rows),
+                selected_tf or "mixed",
+                symbol,
+                selected_tf or "n/a",
+            )
             timestamps = [r[0] for r in rows]
             opens = np.array([float(r[1]) for r in rows])
             highs = np.array([float(r[2]) for r in rows])
