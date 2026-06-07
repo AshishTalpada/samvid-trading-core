@@ -42,7 +42,7 @@ DB?=data/trading.db
 SYMBOLS?=SPY,QQQ,IWM
 SOAK_CYCLES?=3
 
-.PHONY: preflight phase1 reliability-probe execution-report paper-report soak roadmap-gate
+.PHONY: preflight phase1 reliability-probe execution-report paper-report soak roadmap-gate edge-decay-watch
 
 preflight:
 	$(PY) scripts/preflight.py
@@ -64,3 +64,6 @@ soak:
 
 roadmap-gate:
 	$(PY) scripts/roadmap_gate.py --db $(DB)
+
+edge-decay-watch:
+	$(PY) scripts/edge_decay_watch.py --db $(DB)
