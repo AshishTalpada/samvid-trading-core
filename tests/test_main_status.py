@@ -1,4 +1,6 @@
+import logging
 import os
+from logging.handlers import RotatingFileHandler
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
@@ -57,6 +59,24 @@ def test_startup_status_preserves_openbb_fallback_detail() -> None:
 
     assert status == (
         "YELLOW FALLBACK - OpenBB SDK unavailable; pipeline fallback provider=yfinance"
+    )
+
+
+def test_pytest_routes_main_logs_away_from_operator_log() -> None:
+    expected = os.path.abspath(os.environ["SOVEREIGN_LOG_FILE"])
+    assert expected.endswith("tmp\\pytest_trading_system.log") or expected.endswith(
+        "tmp/pytest_trading_system.log"
+    )
+
+    file_handlers = [
+        handler
+        for handler in logging.getLogger().handlers
+        if isinstance(handler, RotatingFileHandler)
+    ]
+    assert any(os.path.abspath(handler.baseFilename) == expected for handler in file_handlers)
+    assert all(
+        not os.path.abspath(handler.baseFilename).endswith(os.path.join("logs", "trading_system.log"))
+        for handler in file_handlers
     )
 
 

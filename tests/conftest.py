@@ -14,6 +14,10 @@ def pytest_configure(config):
     """Ensure sensitive environment variables are populated for testing to avoid Vault blocks in CI."""
     import os
 
+    test_log = Path(__file__).resolve().parent.parent / "tmp" / "pytest_trading_system.log"
+    test_log.parent.mkdir(parents=True, exist_ok=True)
+    os.environ.setdefault("SOVEREIGN_LOG_FILE", str(test_log))
+
     test_secrets = {
         "SESSION_SECRET": "TEST_SESSION_SECRET_UNSECURE_MOCK_FOR_TESTS_ONLY",
         "MT5_LOGIN": "999999",

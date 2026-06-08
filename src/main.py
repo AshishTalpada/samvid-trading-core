@@ -128,8 +128,10 @@ root_logger = logging.getLogger()
 root_logger.setLevel(logging.INFO)
 
 # File handler with rotation
+log_file = Path(os.environ.get("SOVEREIGN_LOG_FILE", "logs/trading_system.log"))
+log_file.parent.mkdir(parents=True, exist_ok=True)
 file_handler = RotatingFileHandler(
-    "logs/trading_system.log",
+    str(log_file),
     encoding="utf-8",
     maxBytes=15 * 1024 * 1024,  # Expanded to 15MB
     backupCount=7,
