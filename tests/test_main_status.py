@@ -1,3 +1,4 @@
+import os
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
@@ -64,6 +65,23 @@ def test_realtime_watchlist_matches_scanner_execution_watchlist() -> None:
 
     assert TradingSystem.execution_watchlist() == list(DataProvider.EXECUTION_WATCHLIST)
     assert len(TradingSystem.execution_watchlist()) == 26
+
+
+def test_write_pid_reclaims_dead_stale_lock(tmp_path, monkeypatch) -> None:
+    import psutil
+
+    system = _system()
+    monkeypatch.delenv("SOVEREIGN_SKIP_PID_CHECK", raising=False)
+    monkeypatch.chdir(tmp_path)
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+    pid_file = data_dir / "main.pid"
+    pid_file.write_text("999999", encoding="utf-8")
+    monkeypatch.setattr(psutil, "pid_exists", lambda _pid: False)
+
+    system._write_pid()
+
+    assert pid_file.read_text(encoding="utf-8") == str(os.getpid())
 
 
 @pytest.mark.asyncio

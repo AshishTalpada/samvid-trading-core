@@ -62,10 +62,12 @@ class NativeSLM:
                 self._available = True
                 self._fallback_mode = True
                 self._status_detail = "deterministic fallback: llama-cpp-python missing"
-                logger.warning(
-                    "Native SLM runtime missing; deterministic fallback online for %s.",
-                    model_path,
+                log = (
+                    logger.warning
+                    if os.environ.get("SOVEREIGN_REQUIRE_NATIVE_SLM", "0") == "1"
+                    else logger.info
                 )
+                log("Native SLM fallback online for %s: llama-cpp-python missing.", model_path)
             else:
                 logger.info("llama-cpp-python not installed. Native SLM offline.")
             return

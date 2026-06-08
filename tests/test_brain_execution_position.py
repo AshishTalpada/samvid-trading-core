@@ -1060,7 +1060,7 @@ class TestHeartbeatVetoAgeGate:
     async def test_after_hours_stop_breach_veto_is_deferred_without_spam(
         self, monkeypatch, caplog
     ):
-        """Closed-session snapshots do not route or repeatedly warn for heartbeat vetoes."""
+        """Closed-session snapshots do not route or repeatedly log heartbeat vetoes."""
         monkeypatch.delenv("SOVEREIGN_ALLOW_AFTER_HOURS_IBKR_EMERGENCY_EXITS", raising=False)
         entry_time = datetime.now(timezone.utc) - timedelta(seconds=120)
         heartbeat = {"veto": True, "reason": "Hard stop breached: $97 <= $98"}
@@ -1071,7 +1071,7 @@ class TestHeartbeatVetoAgeGate:
         brain._is_market_open = MagicMock(return_value=False)
         brain._state_lock = asyncio.Lock()
 
-        with caplog.at_level(logging.WARNING, logger="brain_position"):
+        with caplog.at_level(logging.INFO, logger="brain_position"):
             await brain._state_positioned()
             await brain._state_positioned()
 

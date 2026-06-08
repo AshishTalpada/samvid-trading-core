@@ -284,7 +284,7 @@ class PositionMonitor:
                         and not allow_after_hours_exit
                     ):
                         if not pos.meta.get("heartbeat_veto_deferred_market_closed"):
-                            logger.warning(
+                            logger.info(
                                 "HEARTBEAT VETO DEFERRED [%s]: %s. "
                                 "US equity market is closed.",
                                 pos.symbol,

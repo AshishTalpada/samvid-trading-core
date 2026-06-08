@@ -393,13 +393,13 @@ class TradingSystem:
             pid_file = "data/main.pid"
             os.makedirs(os.path.dirname(pid_file), exist_ok=True)
             current_pid = os.getpid()
-            stale_raw = ""
+            existing_raw = ""
 
             if os.path.exists(pid_file):
                 try:
                     with open(pid_file, "r") as f:
-                        stale_raw = (f.read() or "").strip()
-                    old_pid = int(stale_raw)
+                        existing_raw = (f.read() or "").strip()
+                    old_pid = int(existing_raw)
 
                     if old_pid != current_pid and psutil.pid_exists(old_pid):
                         proc = psutil.Process(old_pid)
@@ -436,22 +436,55 @@ class TradingSystem:
 
                         if "python" in proc_name:
                             logger.warning(
-                                f"Stale PID file detected for PID {old_pid}. "
+                                f"PID file points at unrelated Python process {old_pid}. "
                                 "Process exists but does not appear to be the "
                                 "current Sovereign instance. "
                                 "Overwriting PID file."
                             )
-                except (ValueError, psutil.NoSuchProcess, psutil.AccessDenied):
-                    pass  # Stale or invalid PID file
+                    else:
+                        logger.info(
+                            "Stale PID file detected for dead PID %s. Reclaiming lock.",
+                            old_pid,
+                        )
+                except ValueError:
+                    logger.warning(
+                        "Invalid PID file content in %s: %r. Reclaiming lock.",
+                        pid_file,
+                        existing_raw,
+                    )
+                except (psutil.NoSuchProcess, psutil.AccessDenied) as exc:
+                    logger.info(
+                        "PID file owner %r could not be verified (%s). Reclaiming lock.",
+                        existing_raw,
+                        exc,
+                    )
 
             # Remove the file only if it still holds the stale PID we read, so we never
             # clobber a PID that another instance may have just claimed.
-            try:
-                with open(pid_file, "r") as rf:
-                    if stale_raw and (rf.read() or "").strip() == stale_raw:
+            if existing_raw:
+                try:
+                    with open(pid_file, "r") as rf:
+                        current_raw = (rf.read() or "").strip()
+                    if current_raw == existing_raw:
                         os.remove(pid_file)
-            except (OSError, ValueError):
-                pass
+                        logger.info("Removed stale PID lock %s containing %r.", pid_file, existing_raw)
+                    else:
+                        logger.info(
+                            "PID lock %s changed from %r to %r during startup; "
+                            "leaving it for atomic duplicate detection.",
+                            pid_file,
+                            existing_raw,
+                            current_raw,
+                        )
+                except FileNotFoundError:
+                    pass
+                except OSError as exc:
+                    logger.error(
+                        "Failed to remove stale PID lock %s containing %r: %s",
+                        pid_file,
+                        existing_raw,
+                        exc,
+                    )
 
             # Atomic single-instance claim. O_EXCL guarantees only one process can
             # create the PID file, closing the TOCTOU race where two engines launched
@@ -459,10 +492,16 @@ class TradingSystem:
             try:
                 fd = os.open(pid_file, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
             except FileExistsError:
+                try:
+                    with open(pid_file, "r") as rf:
+                        owner_raw = (rf.read() or "").strip()
+                except OSError:
+                    owner_raw = "<unreadable>"
                 logger.critical(
                     " CRITICAL: Lost single-instance race for %s; another Sovereign "
-                    "engine claimed it concurrently. Exiting duplicate.",
+                    "engine claimed it concurrently. Owner content=%r. Exiting duplicate.",
                     pid_file,
+                    owner_raw,
                 )
                 print(
                     "\nDuplicate Sovereign instance blocked (concurrent launch).\n",
