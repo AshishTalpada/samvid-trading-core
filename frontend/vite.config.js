@@ -7,10 +7,17 @@ export default defineConfig({
   build: {
     rollupOptions: {
       output: {
-        manualChunks: {
-          react: ['react', 'react-dom'],
-          charts: ['lightweight-charts'],
-          motion: ['framer-motion']
+        manualChunks(id) {
+          if (id.includes('node_modules/react') || id.includes('node_modules/react-dom')) {
+            return 'react'
+          }
+          if (id.includes('node_modules/lightweight-charts')) {
+            return 'charts'
+          }
+          if (id.includes('node_modules/framer-motion')) {
+            return 'motion'
+          }
+          return undefined
         }
       }
     }
