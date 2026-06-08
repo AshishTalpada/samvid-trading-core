@@ -204,6 +204,7 @@ The system does not treat a trade as just a row in a database. It turns exits in
 | `src/telegram_alerts.py` | Telegram alert transport, sanitization, and rate limiting. |
 | `src/brain_health.py` | Runtime health and throttled execution status reports. |
 | `scripts/live_audit_loop.py` | Kill/restart audit runner and log summarizer. |
+| `scripts/signal_ic_diagnostic.py` | Per-signal information coefficient diagnostic for alpha-quality evidence. |
 | `tests/` | Risk, execution, startup, reconciliation, health, and integration coverage. |
 
 ## Verification
@@ -227,6 +228,14 @@ Run a short restart audit:
 ```bash
 uv run python scripts/live_audit_loop.py --cycles 1 --duration 35
 ```
+
+Run the alpha-evidence diagnostic before trusting a signal family:
+
+```bash
+uv run python scripts/signal_ic_diagnostic.py --symbols SPY,QQQ,IWM --horizon 10 --stride 5 --lookback 200
+```
+
+This measures whether each QuantConsensus sub-signal predicts forward returns before stops, fills, commissions, or trade simulation. Treat weak or statistically insignificant IC as a research blocker, not as proof that more execution speed will fix the edge.
 
 ## Environment Variables
 
