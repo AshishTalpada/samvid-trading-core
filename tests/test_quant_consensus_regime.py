@@ -59,3 +59,28 @@ def test_regime_predict_without_model_is_neutral():
 
     result = RegimeFilter().predict(np.linspace(100.0, 110.0, 60))
     assert result.vote == "NEUTRAL"
+
+
+def test_regime_filter_falls_back_when_hmm_backend_unavailable(monkeypatch):
+    import builtins
+
+    from quant_signals import RegimeFilter
+
+    real_import = builtins.__import__
+
+    def blocked_hmm_import(name, *args, **kwargs):
+        if name == "hmmlearn":
+            raise ImportError("blocked native backend")
+        return real_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", blocked_hmm_import)
+    regime_filter = RegimeFilter()
+    prices = np.linspace(100.0, 130.0, 160)
+
+    regime_filter.fit(prices)
+    result = regime_filter.predict(prices)
+
+    assert regime_filter._fallback_enabled is True
+    assert result.meta["fallback"] is True
+    assert result.vote == "BUY"
+    assert result.meta["regime"] == "BULL"

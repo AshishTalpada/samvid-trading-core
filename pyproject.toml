@@ -43,6 +43,7 @@ dependencies = [
     "openbb>=4.7.2",
     "fastembed>=0.8.0",
     "psycopg2-binary>=2.9.12",
+    "hmmlearn>=0.3.3",
 ]
 keywords = [
     "algorithmic-trading",

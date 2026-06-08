@@ -6,6 +6,7 @@ Each signal is independently testable and has a known theoretical basis.
 from __future__ import annotations
 
 import logging
+import os
 from dataclasses import dataclass, field
 from typing import Optional
 
@@ -44,26 +45,93 @@ class RegimeFilter:
         self.n_regimes = n_regimes
         self._model = None
         self._regime_labels: dict[int, str] = {}
+        self._fallback_enabled = False
+        self._fallback_reason = ""
+        self._fallback_return_threshold = 0.0
+        self._fallback_vol_threshold = 0.0
+
+    def _fit_fallback(self, returns: np.ndarray, reason: str) -> None:
+        """Configure a deterministic regime fallback when HMM binaries are unavailable."""
+        flat_returns = returns.reshape(-1)
+        if len(flat_returns) == 0:
+            return
+        rolling_window = min(20, len(flat_returns))
+        rolling_returns = np.convolve(flat_returns, np.ones(rolling_window), mode="valid")
+        self._fallback_return_threshold = float(np.std(rolling_returns) * 0.25)
+        self._fallback_vol_threshold = float(np.percentile(np.abs(flat_returns), 75))
+        self._fallback_enabled = True
+        self._fallback_reason = reason[:180]
+        log_method = (
+            logger.warning
+            if os.environ.get("SOVEREIGN_REQUIRE_HMM_REGIME", "0") == "1"
+            else logger.info
+        )
+        log_method(
+            "RegimeFilter: HMM unavailable (%s); using deterministic momentum/volatility fallback.",
+            self._fallback_reason,
+        )
+
+    def _predict_fallback(self, prices: np.ndarray) -> SignalResult:
+        returns = np.diff(np.log(np.abs(prices) + 1e-10))
+        returns = returns[np.isfinite(returns)]
+        if len(returns) < 5:
+            return SignalResult(
+                "regime",
+                0.0,
+                0.25,
+                "NEUTRAL",
+                {"regime": "UNKNOWN", "fallback": True, "reason": self._fallback_reason},
+            )
+        window = returns[-min(20, len(returns)) :]
+        momentum = float(np.sum(window))
+        realized_vol = float(np.mean(np.abs(window)))
+        threshold = max(self._fallback_return_threshold, 1e-6)
+        if realized_vol > max(self._fallback_vol_threshold * 1.75, 1e-6):
+            regime = "SIDEWAYS"
+            score = 0.0
+        elif momentum > threshold:
+            regime = "BULL"
+            score = 0.45
+        elif momentum < -threshold:
+            regime = "BEAR"
+            score = -0.45
+        else:
+            regime = "SIDEWAYS"
+            score = 0.0
+        confidence = min(0.75, 0.35 + abs(momentum) / (threshold * 6.0))
+        vote = "BUY" if score > 0.05 else "SELL" if score < -0.05 else "NEUTRAL"
+        return SignalResult(
+            "regime",
+            score,
+            float(confidence),
+            vote,
+            {
+                "regime": regime,
+                "fallback": True,
+                "reason": self._fallback_reason,
+                "momentum": momentum,
+                "realized_vol": realized_vol,
+            },
+        )
 
     def fit(self, prices: np.ndarray) -> None:
         """Fit HMM on historical log-returns. Call during backtesting."""
+        returns = np.diff(np.log(np.abs(prices) + 1e-10)).reshape(-1, 1)
+        returns = returns[np.isfinite(returns).all(axis=1)]
+
+        if len(returns) < 100:
+            logger.warning(f"RegimeFilter: insufficient data ({len(returns)} < 100)")
+            return
+
+        # Statistical Floor: Reject if variance is too low (e.g., flat market/bad data)
+        if np.var(returns) < 1e-9:
+            logger.warning(
+                "RegimeFilter: Statistical Floor Veto (Variance < 1e-9). fitting aborted."
+            )
+            return
+
         try:
             from hmmlearn import hmm
-
-            returns = np.diff(np.log(np.abs(prices) + 1e-10)).reshape(-1, 1)
-            returns = returns[np.isfinite(returns).all(axis=1)]
-
-            if len(returns) < 100:
-                logger.warning(f"RegimeFilter: insufficient data ({len(returns)} < 100)")
-                return
-
-            # Statistical Floor: Reject if variance is too low (e.g., flat market/bad data)
-            if np.var(returns) < 1e-9:
-                logger.warning(
-                    "RegimeFilter: Statistical Floor Veto (Variance < 1e-9). fitting aborted."
-                )
-                return
-
             model = hmm.GaussianHMM(
                 n_components=self.n_regimes,
                 covariance_type="diag",
@@ -85,14 +153,16 @@ class RegimeFilter:
                 sorted_idx[2]: "BULL",
             }
             logger.info(f"RegimeFilter fitted. Labels: {self._regime_labels}")
-        except ImportError:
-            logger.warning("hmmlearn not installed — RegimeFilter disabled. pip install hmmlearn")
+        except ImportError as e:
+            self._fit_fallback(returns, str(e))
         except Exception as e:
             logger.error(f"RegimeFilter fit error: {e}")
 
     def predict(self, prices: np.ndarray) -> SignalResult:
         """Predict current regime from recent prices."""
         if self._model is None:
+            if self._fallback_enabled:
+                return self._predict_fallback(prices)
             return SignalResult("regime", 0.0, 0.3, "NEUTRAL", {"regime": "UNKNOWN"})
 
         returns = np.diff(np.log(np.abs(prices) + 1e-10)).reshape(-1, 1)
