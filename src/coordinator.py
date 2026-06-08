@@ -394,7 +394,7 @@ class TradingCoordinator:
                         task.log(
                             f"FRICTION_VETO: Net RR {real_rr:.2f} < {threshold} (S:{spread}, C:{comm_per_share:.3f}). Aborting."
                         )
-                    logger.warning(
+                    logger.info(
                         f"Coordinator [{symbol}]  FRICTION VETO: Net RR {real_rr:.2f} is < {threshold}."
                     )
 

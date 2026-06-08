@@ -218,9 +218,19 @@ class IBKRConnection:
             # 3. Temporal Execution Awareness
             is_eth = self.is_extended_hours()
             if is_eth:
+                allow_after_hours_entries = (
+                    os.environ.get("SOVEREIGN_ALLOW_AFTER_HOURS_IBKR_ENTRIES", "0") == "1"
+                )
+                if not is_close and not allow_after_hours_entries:
+                    return (
+                        False,
+                        "MARKET_CLOSED: Outside regular trading hours; new IBKR entries are "
+                        "blocked. Use SOVEREIGN_ALLOW_AFTER_HOURS_IBKR_ENTRIES=1 only for "
+                        "intentional extended-hours entry routing.",
+                    )
                 logger.info(
-                    f" ETH MODE: Order for {symbol} detected Post-Market. "
-                    "outsideRth will be FORCED."
+                    f"ETH MODE: Order for {symbol} detected outside RTH. "
+                    "Exit/explicit extended-hours route permitted; outsideRth will be set."
                 )
 
             # 4. Margin cushion guard
@@ -1050,13 +1060,16 @@ class IBKRConnection:
                 tp = self.round_to_tick(take_profit)
 
                 # 1. Entry Order
-                # Enhancement: Force tif=DAY on bracket orders (paper mode overrides GTC -> Error 10349)
-                order_tif = "DAY"
+                # Keep regular-session brackets DAY. Use GTC only for deliberately enabled
+                # extended-hours routing, where IBKR can reject DAY preset conversions.
+                extended_hours = self.is_extended_hours()
+                order_tif = "GTC" if extended_hours else "DAY"
                 parent = LimitOrder(direction, shares, lmt)
                 parent.orderId = self.ib.client.getReqId()
                 parent.transmit = False
                 parent.overridePercentageConstraints = True
                 parent.tif = order_tif
+                parent.outsideRth = extended_hours
 
                 # Replaced Stop-Market with Stop-Limit ('Recovery Limit')
                 # A 2% buffer ensures fill in fast markets while capping
@@ -1074,6 +1087,7 @@ class IBKRConnection:
                 sl_order.transmit = False
                 sl_order.overridePercentageConstraints = True
                 sl_order.tif = order_tif
+                sl_order.outsideRth = extended_hours
 
                 # 3. Take Profit Order
                 tp_order = LimitOrder(opp_direction, shares, tp)
@@ -1081,6 +1095,7 @@ class IBKRConnection:
                 tp_order.transmit = True  # Final order in bracket transmits the entire group
                 tp_order.overridePercentageConstraints = True
                 tp_order.tif = order_tif
+                tp_order.outsideRth = extended_hours
 
                 ids = []
                 # Resolve the 'Multi-Account Pillage' issue where empty IBKR_ACCOUNT_ID
@@ -1692,7 +1707,7 @@ class PositionSizingChain:
         max_notional = min(balance * 0.10, hard_cap)
 
         if step8_shares > 0 and (step8_shares * price) > max_notional:
-            logger.warning(
+            logger.info(
                 f"Sizer: Capping {instrument} at max notional "
                 f"(${max_notional:,.2f}) because math was too aggressive."
             )

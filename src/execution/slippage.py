@@ -31,7 +31,7 @@ class SlippageModel:
             return 0.0
 
         if book_liquidity_at_price <= 0:
-            logger.warning("Zero liquidity detected at top of book. Slippage risk high.")
+            logger.info("Zero liquidity detected at top of book. Using conservative slippage.")
             return max(bid_ask_spread * 3.0, self.base_impact_bps / 10000.0)
 
         # Square root impact model: Impact ~ sqrt(OrderSize / Liquidity)
