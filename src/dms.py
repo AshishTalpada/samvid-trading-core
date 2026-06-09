@@ -157,6 +157,24 @@ class DMSMonitor:
             logger.debug("DMS: IBKR status probe failed: %s", exc)
             return False
 
+    def _ibkr_software_is_active(self) -> bool:
+        """Return True when TWS/Gateway is running even if the API session is offline."""
+        targets = ("tws.exe", "ibgateway.exe", "tws", "ibgateway")
+        try:
+            import psutil
+
+            for proc in psutil.process_iter(["name", "cmdline"]):
+                try:
+                    name = str(proc.info.get("name") or "").lower()
+                    cmdline = " ".join(proc.info.get("cmdline") or []).lower()
+                except (psutil.Error, TypeError):
+                    continue
+                if any(target in name or target in cmdline for target in targets):
+                    return True
+        except Exception as exc:
+            logger.debug("DMS: IBKR software process probe failed: %s", exc)
+        return False
+
     def record_heartbeat(self, agent_id: str = "BRAIN_PRIMARY") -> None:
         """Record a heartbeat from a specific agent."""
         current_time = datetime.now(timezone.utc)
@@ -563,6 +581,7 @@ class DMSMonitor:
             hb_summary += f"• {agent}: {int(age)}s ago\n"
 
         ibkr_connected = self._ibkr_is_connected()
+        ibkr_software_active = self._ibkr_software_is_active()
 
         execution_degraded = self.requires_ibkr_connection and not ibkr_connected
         headline = (
@@ -570,15 +589,24 @@ class DMSMonitor:
             if execution_degraded
             else "<b>[OK] Sovereign Status: OPERATIONAL [OK]</b>"
         )
-        execution_detail = (
-            "IBKR API session is offline. New IBKR orders remain blocked while recovery retries."
-            if execution_degraded
-            else "Execution broker requirements satisfied."
-        )
+        if execution_degraded and ibkr_software_active:
+            execution_detail = (
+                "TWS/Gateway process is running, but the API socket is not attached. "
+                "New IBKR orders remain blocked while recovery retries. Check TWS API "
+                "settings, paper port, trusted IPs, and duplicate client IDs."
+            )
+        elif execution_degraded:
+            execution_detail = (
+                "TWS/Gateway process was not detected and IBKR API is offline. "
+                "New IBKR orders remain blocked while recovery retries."
+            )
+        else:
+            execution_detail = "Execution broker requirements satisfied."
         message = (
             f" {headline} \n\n"
             f" <b>Status Time:</b> {current_time.strftime('%Y-%m-%d %H:%M:%S')}\n"
             f" <b>Heartbeat Matrix:</b>\n{hb_summary}\n"
+            f" <b>IBKR App:</b> {'running' if ibkr_software_active else 'not detected'}\n"
             f" <b>IBKR API:</b> {'connected' if ibkr_connected else 'offline'}\n"
             f" <b>Timeout Threshold:</b> {self.timeout}s\n\n"
             f"{execution_detail}"

@@ -121,6 +121,30 @@ def test_ibkr_probe_policy_accepts_operator_overrides(monkeypatch) -> None:
     assert system._ibkr_probe_timeout_sec() == 1.0
 
 
+def test_ibkr_probe_diagnostic_text_includes_socket_context(monkeypatch) -> None:
+    monkeypatch.setenv("SOVEREIGN_IBKR_PROBE_HOSTS", "127.0.0.1")
+    monkeypatch.setenv("SOVEREIGN_IBKR_PROBE_PORTS", "7497")
+
+    system = _system()
+    system.ibkr_port = 7497
+    system.ibkr_client_id = 500
+    system._ibkr_last_probe_summary = {
+        "hosts": ["127.0.0.1"],
+        "ports": [7497],
+        "client_id_start": 500,
+        "client_id_attempts": 2,
+        "last_error": "TimeoutError",
+    }
+
+    text = system._ibkr_probe_diagnostic_text(software_active=True)
+
+    assert "IBKR app=running" in text
+    assert "hosts=127.0.0.1" in text
+    assert "ports=7497" in text
+    assert "clientIds=500-501" in text
+    assert "TimeoutError" in text
+
+
 def test_write_pid_reclaims_dead_stale_lock(tmp_path, monkeypatch) -> None:
     import psutil
 

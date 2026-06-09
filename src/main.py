@@ -1230,6 +1230,16 @@ class TradingSystem:
                 probe_timeout = self._ibkr_probe_timeout_sec()
                 client_id_attempts = self._ibkr_probe_client_id_attempts()
                 hosts_to_try = self._ibkr_probe_hosts()
+                self._ibkr_last_probe_summary = {
+                    "hosts": hosts_to_try,
+                    "ports": ports_to_try,
+                    "client_id_start": base_client_id,
+                    "client_id_attempts": client_id_attempts,
+                    "budget_sec": probe_budget,
+                    "timeout_sec": probe_timeout,
+                    "last_error": "",
+                    "connected": False,
+                }
 
                 for client_id_offset in range(client_id_attempts):
                     current_id = base_client_id + client_id_offset
@@ -1245,6 +1255,9 @@ class TradingSystem:
                                     ",".join(hosts_to_try),
                                     ",".join(str(p) for p in ports_to_try),
                                     client_id_attempts,
+                                )
+                                self._ibkr_last_probe_summary["last_error"] = (
+                                    f"probe budget exhausted after {elapsed:.1f}s"
                                 )
                                 return False
                             try:
@@ -1268,8 +1281,20 @@ class TradingSystem:
                                 if client.isConnected():
                                     connected = True
                                     self.ibkr_client_id = current_id
+                                    self._ibkr_last_probe_summary.update(
+                                        {
+                                            "connected": True,
+                                            "connected_host": host,
+                                            "connected_port": port,
+                                            "connected_client_id": current_id,
+                                            "last_error": "",
+                                        }
+                                    )
                                     break
                             except Exception as e:
+                                self._ibkr_last_probe_summary["last_error"] = (
+                                    f"{host}:{port} clientId={current_id}: {type(e).__name__}: {e}"
+                                )
                                 logger.debug(f"Probe failed for {host}:{port}: {e}")
                                 try:
                                     client.disconnect()
@@ -1283,6 +1308,14 @@ class TradingSystem:
                         break
 
                 if not connected:
+                    logger.warning(
+                        "IBKR probe failed: hosts=%s ports=%s client_ids=%s-%s last_error=%s",
+                        ",".join(hosts_to_try),
+                        ",".join(str(p) for p in ports_to_try),
+                        base_client_id,
+                        base_client_id + client_id_attempts - 1,
+                        self._ibkr_last_probe_summary.get("last_error") or "unknown",
+                    )
                     return False
                 accounts = client.managedAccounts()
                 logger.info(f"✓ IBKR connected - Accounts: {accounts}")
@@ -1299,6 +1332,10 @@ class TradingSystem:
                 return True
 
             except Exception as e:
+                self._ibkr_last_probe_summary = {
+                    "last_error": f"{type(e).__name__}: {e}",
+                    "connected": False,
+                }
                 logger.error(f"IBKR connection error: {e}")
                 return False
 
@@ -1348,7 +1385,7 @@ class TradingSystem:
             if ports:
                 return ports
 
-        primary = int(self.ibkr_port)
+        primary = int(getattr(self, "ibkr_port", 7497))
         fallback = 4002 if primary == 7497 else 7497
         return [primary] if primary == fallback else [primary, fallback]
 
@@ -1391,6 +1428,22 @@ class TradingSystem:
             except (TypeError, ValueError):
                 continue
         return False
+
+    def _ibkr_probe_diagnostic_text(self, *, software_active: bool | None = None) -> str:
+        summary = getattr(self, "_ibkr_last_probe_summary", {}) or {}
+        hosts = summary.get("hosts") or self._ibkr_probe_hosts()
+        ports = summary.get("ports") or self._ibkr_probe_ports()
+        configured_client_id = int(getattr(self, "ibkr_client_id", 500))
+        client_id_start = int(summary.get("client_id_start", configured_client_id))
+        attempts = int(summary.get("client_id_attempts", self._ibkr_probe_client_id_attempts()))
+        client_id_end = client_id_start + max(1, attempts) - 1
+        last_error = str(summary.get("last_error") or "no probe error captured")
+        app_state = "running" if software_active else "not detected"
+        return (
+            f"IBKR app={app_state}; API probe hosts={','.join(map(str, hosts))}; "
+            f"ports={','.join(map(str, ports))}; clientIds={client_id_start}-{client_id_end}; "
+            f"last={last_error}"
+        )
 
     async def _run_ibkr_reconnect_loop(self) -> None:
         """Keep the owned IBKR API session attached when TWS starts late or restarts."""
@@ -1443,12 +1496,14 @@ class TradingSystem:
 
             if not self._ibkr_outage_active:
                 self._ibkr_outage_active = True
+                software_active = await self._is_ibkr_process_active()
                 logger.warning(
                     "IBKR OUTAGE: execution is offline. Runtime will keep retrying attachment."
                 )
                 await self.send_telegram_notification(
                     "[EXECUTION] IBKR API session offline. "
-                    "New IBKR orders are blocked while automatic reattachment runs."
+                    "New IBKR orders are blocked while automatic reattachment runs.\n"
+                    f"{self._ibkr_probe_diagnostic_text(software_active=software_active)}"
                 )
                 await self._persist_runtime_health_snapshot(
                     event_type="broker_offline",
