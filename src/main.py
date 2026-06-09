@@ -304,14 +304,17 @@ class TradingSystem:
         self.telegram_chat_id = Vault.get("TELEGRAM_CHAT_ID")
 
         # Ensure we have write permissions in the project root before starting.
+        test_file = Path(_root) / ".write_test"
         try:
-            test_file = _root + "/.write_test"
-            with open(test_file, "w") as f:
-                f.write("Sovereign Write Test")
-            os.remove(test_file)
+            test_file.write_text("Sovereign Write Test", encoding="utf-8")
         except (IOError, OSError) as e:
             logger.critical(f" CRITICAL: Project path is NOT writable ({_root}). Error: {e}")
             raise RuntimeError("Sovereign Initialization Failed: No write access to PROJECT_PATH.")
+        finally:
+            try:
+                test_file.unlink(missing_ok=True)
+            except OSError as exc:
+                logger.debug("Startup write-test cleanup skipped for %s: %s", test_file, exc)
 
         # Ensure directories exist
         Path("data").mkdir(exist_ok=True)
