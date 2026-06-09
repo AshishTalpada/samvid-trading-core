@@ -1220,27 +1220,50 @@ class TradingSystem:
                     logger.info("Waiting 45 seconds for TWS/Gateway to initialize...")
                     await asyncio.sleep(45)
 
-                ports_to_try = [self.ibkr_port, 4002 if self.ibkr_port == 7497 else 7497]
+                ports_to_try = self._ibkr_probe_ports()
                 connected = False
                 base_client_id = self.ibkr_client_id
                 self.ibkr_account_id = Vault.get("IBKR_ACCOUNT_ID", "")
                 client = self.ibkr_client
+                probe_started = time.monotonic()
+                probe_budget = self._ibkr_probe_budget_sec()
+                probe_timeout = self._ibkr_probe_timeout_sec()
+                client_id_attempts = self._ibkr_probe_client_id_attempts()
+                hosts_to_try = self._ibkr_probe_hosts()
 
-                # Optimized Range: 10 attempts (10s each) to avoid massive hangs
-                for client_id_offset in range(10):
+                for client_id_offset in range(client_id_attempts):
                     current_id = base_client_id + client_id_offset
-                    # Prioritize 127.0.0.1 on Windows as ::1 often causes timeout issues with TWS
-                    for host in ["127.0.0.1", "localhost", "::1"]:
+                    for host in hosts_to_try:
                         for port in ports_to_try:
+                            elapsed = time.monotonic() - probe_started
+                            remaining = probe_budget - elapsed
+                            if remaining <= 0:
+                                logger.warning(
+                                    "IBKR probe budget exhausted after %.1fs "
+                                    "(hosts=%s ports=%s client_ids=%s).",
+                                    elapsed,
+                                    ",".join(hosts_to_try),
+                                    ",".join(str(p) for p in ports_to_try),
+                                    client_id_attempts,
+                                )
+                                return False
                             try:
-                                logger.info(f"Sovereign Probe: {host}:{port} (ID: {current_id})...")
-                                # Lower timeout for the socket connection to 5s, but allow
-                                # more for data sync
+                                attempt_timeout = max(1.0, min(probe_timeout, remaining))
+                                logger.info(
+                                    "Sovereign Probe: %s:%s (ID: %s, timeout=%.1fs)...",
+                                    host,
+                                    port,
+                                    current_id,
+                                    attempt_timeout,
+                                )
                                 await asyncio.wait_for(
                                     client.connectAsync(
-                                        host=host, port=port, clientId=current_id, timeout=10
+                                        host=host,
+                                        port=port,
+                                        clientId=current_id,
+                                        timeout=attempt_timeout,
                                     ),
-                                    timeout=15.0,
+                                    timeout=attempt_timeout + 1.0,
                                 )
                                 if client.isConnected():
                                     connected = True
@@ -1278,6 +1301,56 @@ class TradingSystem:
             except Exception as e:
                 logger.error(f"IBKR connection error: {e}")
                 return False
+
+    @staticmethod
+    def _ibkr_env_float(name: str, default: float, minimum: float) -> float:
+        try:
+            return max(minimum, float(os.environ.get(name, str(default))))
+        except ValueError:
+            logger.warning("%s is invalid; using %.1fs.", name, default)
+            return max(minimum, default)
+
+    @staticmethod
+    def _ibkr_env_int(name: str, default: int, minimum: int, maximum: int) -> int:
+        try:
+            value = int(os.environ.get(name, str(default)))
+        except ValueError:
+            logger.warning("%s is invalid; using %s.", name, default)
+            value = default
+        return min(maximum, max(minimum, value))
+
+    def _ibkr_probe_budget_sec(self) -> float:
+        return self._ibkr_env_float("SOVEREIGN_IBKR_PROBE_BUDGET_SEC", 45.0, 5.0)
+
+    def _ibkr_probe_timeout_sec(self) -> float:
+        return self._ibkr_env_float("SOVEREIGN_IBKR_PROBE_TIMEOUT_SEC", 3.0, 1.0)
+
+    def _ibkr_probe_client_id_attempts(self) -> int:
+        return self._ibkr_env_int("SOVEREIGN_IBKR_CLIENT_ID_ATTEMPTS", 4, 1, 20)
+
+    def _ibkr_probe_hosts(self) -> list[str]:
+        raw = os.environ.get("SOVEREIGN_IBKR_PROBE_HOSTS", "127.0.0.1").strip()
+        hosts = [host.strip() for host in raw.split(",") if host.strip()]
+        return hosts or ["127.0.0.1"]
+
+    def _ibkr_probe_ports(self) -> list[int]:
+        raw = os.environ.get("SOVEREIGN_IBKR_PROBE_PORTS", "").strip()
+        if raw:
+            ports: list[int] = []
+            for item in raw.split(","):
+                try:
+                    port = int(item.strip())
+                except ValueError:
+                    logger.warning("Ignoring invalid IBKR probe port: %s", item)
+                    continue
+                if port not in ports:
+                    ports.append(port)
+            if ports:
+                return ports
+
+        primary = int(self.ibkr_port)
+        fallback = 4002 if primary == 7497 else 7497
+        return [primary] if primary == fallback else [primary, fallback]
 
     async def _bind_ibkr_runtime(self, *, reconcile: bool = True) -> None:
         """Rebind every IBKR consumer after startup or a late broker recovery."""

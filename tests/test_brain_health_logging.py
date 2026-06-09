@@ -14,3 +14,4 @@ def test_pre_market_health_failure_logging_is_rate_limited(caplog) -> None:
     debug = [record for record in caplog.records if record.levelno == logging.DEBUG]
     assert len(warnings) == 1
     assert len(debug) == 1
+    assert "EXECUTION HEALTH CHECK BLOCKED" in warnings[0].message

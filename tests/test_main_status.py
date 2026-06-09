@@ -87,6 +87,40 @@ def test_realtime_watchlist_matches_scanner_execution_watchlist() -> None:
     assert len(TradingSystem.execution_watchlist()) == 26
 
 
+def test_ibkr_probe_policy_is_bounded_by_default(monkeypatch) -> None:
+    monkeypatch.delenv("SOVEREIGN_IBKR_PROBE_HOSTS", raising=False)
+    monkeypatch.delenv("SOVEREIGN_IBKR_PROBE_PORTS", raising=False)
+    monkeypatch.delenv("SOVEREIGN_IBKR_CLIENT_ID_ATTEMPTS", raising=False)
+    monkeypatch.delenv("SOVEREIGN_IBKR_PROBE_BUDGET_SEC", raising=False)
+    monkeypatch.delenv("SOVEREIGN_IBKR_PROBE_TIMEOUT_SEC", raising=False)
+
+    system = _system()
+    system.ibkr_port = 7497
+
+    assert system._ibkr_probe_hosts() == ["127.0.0.1"]
+    assert system._ibkr_probe_ports() == [7497, 4002]
+    assert system._ibkr_probe_client_id_attempts() == 4
+    assert system._ibkr_probe_budget_sec() == 45.0
+    assert system._ibkr_probe_timeout_sec() == 3.0
+
+
+def test_ibkr_probe_policy_accepts_operator_overrides(monkeypatch) -> None:
+    monkeypatch.setenv("SOVEREIGN_IBKR_PROBE_HOSTS", "127.0.0.1,localhost")
+    monkeypatch.setenv("SOVEREIGN_IBKR_PROBE_PORTS", "7497,4002,7497,bad")
+    monkeypatch.setenv("SOVEREIGN_IBKR_CLIENT_ID_ATTEMPTS", "99")
+    monkeypatch.setenv("SOVEREIGN_IBKR_PROBE_BUDGET_SEC", "2")
+    monkeypatch.setenv("SOVEREIGN_IBKR_PROBE_TIMEOUT_SEC", "0.1")
+
+    system = _system()
+    system.ibkr_port = 7497
+
+    assert system._ibkr_probe_hosts() == ["127.0.0.1", "localhost"]
+    assert system._ibkr_probe_ports() == [7497, 4002]
+    assert system._ibkr_probe_client_id_attempts() == 20
+    assert system._ibkr_probe_budget_sec() == 5.0
+    assert system._ibkr_probe_timeout_sec() == 1.0
+
+
 def test_write_pid_reclaims_dead_stale_lock(tmp_path, monkeypatch) -> None:
     import psutil
 

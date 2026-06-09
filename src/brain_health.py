@@ -28,7 +28,7 @@ class HealthChecker:
         except ValueError:
             interval = 300.0
 
-        message = "PRE-MARKET HEALTH CHECK BLOCKED: %s. Remaining in STANDBY."
+        message = "EXECUTION HEALTH CHECK BLOCKED: %s. Remaining in STANDBY."
         if reason != last_reason or now - last_log >= max(30.0, interval):
             logger.warning(message, reason)
             self._last_health_failure_reason = reason
