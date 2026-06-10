@@ -329,6 +329,20 @@ class DataProvider:
         haircut_pct = 0.02 + (vix / 250.0)
         safe_equity = raw_equity * (1.0 - haircut_pct)
 
+        # Allocation cap: the sizer may only deploy a fraction of the LIVE account.
+        # Without this, paper accounts (which default to ~$1M of phantom money) make
+        # the sizer open $30k-$60k positions on a system calibrated for a small account.
+        # Applying the allocation fraction to the *actual* NAV keeps paper-mode sizing
+        # proportional to the real account (e.g. $1M paper -> $400k usable at 0.40).
+        # Drawdown tracking still uses full NAV via _get_account_value, so it stays accurate.
+        from config import FTMO_ALLOCATION_FRACTION, IBKR_ALLOCATION_FRACTION
+
+        alloc_fraction = (
+            IBKR_ALLOCATION_FRACTION if account_type == "ibkr" else FTMO_ALLOCATION_FRACTION
+        )
+        alloc_fraction = max(0.0, min(1.0, alloc_fraction))
+        safe_equity *= alloc_fraction
+
         logger.debug(
             "Defensive Equity: Raw $%.2f | VIX %.1f | Haircut %.1f%% | Safe $%.2f",
             raw_equity,

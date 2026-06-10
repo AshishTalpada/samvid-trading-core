@@ -53,6 +53,40 @@ def test_live_bar_age_contract_is_bounded(monkeypatch: pytest.MonkeyPatch) -> No
 
 
 @pytest.mark.asyncio
+async def test_safe_buying_power_caps_sizing_to_allocation_fraction(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The sizer must deploy only the allocation fraction of the ACTUAL account NAV.
+
+    Regression: paper accounts default to ~$1M of phantom money. Without the cap the
+    sizer opened $30k-$60k positions on a small-account-calibrated system.
+    """
+    import config
+
+    monkeypatch.setattr(config, "IBKR_ALLOCATION_FRACTION", 0.40, raising=False)
+    monkeypatch.setattr(config, "FTMO_ALLOCATION_FRACTION", 0.49, raising=False)
+
+    provider = _Provider(":memory:")
+
+    async def _fake_nav(account_type: str, force_fresh: bool = False) -> float:
+        return 1_000_000.0  # phantom IBKR paper balance
+
+    async def _fake_vix() -> float:
+        return 0.0  # haircut = 2% base only -> deterministic
+
+    monkeypatch.setattr(provider, "_get_account_value", _fake_nav, raising=False)
+    monkeypatch.setattr(provider, "_get_vix", _fake_vix, raising=False)
+
+    ibkr_bp = await provider.get_safe_buying_power("ibkr")
+    mt5_bp = await provider.get_safe_buying_power("mt5")
+
+    # safe = NAV * (1 - 0.02 haircut) * alloc_fraction
+    assert ibkr_bp == pytest.approx(1_000_000.0 * 0.98 * 0.40)  # ~$392k, not $1M
+    assert mt5_bp == pytest.approx(1_000_000.0 * 0.98 * 0.49)
+    assert ibkr_bp < 1_000_000.0  # the phantom balance is never used in full
+
+
+@pytest.mark.asyncio
 async def test_fetch_ohlcv_rejects_stale_live_bar(tmp_path, monkeypatch: pytest.MonkeyPatch) -> None:
     db_path = str(tmp_path / "stale.db")
     _seed_bar(db_path, (datetime.now(timezone.utc) - timedelta(minutes=5)).isoformat())

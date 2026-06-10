@@ -176,8 +176,14 @@ PANIC_LIQUIDATE = False  # Set to True to force-close all positions on startup
 
 # Capital Calibration: Set to $500 for Live Account Alignment
 STARTING_CAPITAL_CAD = float(Vault.get("TOTAL_CAPITAL", "500.0"))
-IBKR_ALLOCATION_CAD = STARTING_CAPITAL_CAD * 0.40  # Reduced to 40% for safer margin
-FTMO_ALLOCATION_CAD = STARTING_CAPITAL_CAD * 0.49
+# Fraction of the LIVE account value the sizer is allowed to deploy on IBKR.
+# Sizing buying power = actual NetLiquidation * this fraction (e.g. $1M paper -> $400k).
+# This keeps paper-mode sizing proportional to the real account instead of letting
+# the sizer act on the full phantom paper balance.
+IBKR_ALLOCATION_FRACTION = float(Vault.get("IBKR_ALLOCATION_FRACTION", "0.40"))
+FTMO_ALLOCATION_FRACTION = float(Vault.get("FTMO_ALLOCATION_FRACTION", "0.49"))
+IBKR_ALLOCATION_CAD = STARTING_CAPITAL_CAD * IBKR_ALLOCATION_FRACTION
+FTMO_ALLOCATION_CAD = STARTING_CAPITAL_CAD * FTMO_ALLOCATION_FRACTION
 RISK_PER_TRADE_PCT = 0.005  # 0.5% - Institutional fractional form
 
 # USD -> CAD conversion rate for cross-border asset execution.
