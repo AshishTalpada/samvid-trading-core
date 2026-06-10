@@ -1080,9 +1080,11 @@ class TradingSystem:
                 "updated_from": "main.heartbeat",
             }
             now = datetime.now(timezone.utc)
+            # Store as ISO string: the default sqlite3 datetime adapter is deprecated (Py3.12+).
+            now_iso = now.isoformat()
             cursor.execute(
                 "UPDATE performance_summary SET value=?, updated_at=? WHERE key='latest'",
-                (json.dumps(summary), now),
+                (json.dumps(summary), now_iso),
             )
             if cursor.rowcount == 0:
                 cursor.execute(
@@ -1099,7 +1101,7 @@ class TradingSystem:
                         summary["net_pnl"],
                         "latest",
                         json.dumps(summary),
-                        now,
+                        now_iso,
                     ),
                 )
             cursor.close()
