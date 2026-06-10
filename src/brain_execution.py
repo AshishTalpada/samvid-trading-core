@@ -514,7 +514,7 @@ class ExecutionMixin:
                             cursor.execute(
                                 "INSERT OR REPLACE INTO performance_summary (key, value, updated_at) "
                                 "VALUES (?, ?, ?)",
-                                ("latest", json.dumps(summary), datetime.now(timezone.utc)),
+                                ("latest", json.dumps(summary), datetime.now(timezone.utc).isoformat()),
                             )
                         self.db_conn.commit()
                     except Exception as e:
