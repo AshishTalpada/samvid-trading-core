@@ -21,6 +21,21 @@ PHASE1_MIN_PROFIT_FACTOR = 1.30
 PHASE1_MAX_DRAWDOWN = 0.12
 PHASE1_MAX_P_VALUE = 0.05
 
+# Per-instrument one-way friction (slippage + half-spread) as a price fraction.
+# Values are drawn from public market microstructure for the most liquid names, NOT
+# optimized against the backtest. A flat 0.10% spread / 0.05% slippage assumption is
+# ~10-50x too punitive for mega-liquid ETFs (real SPY spread is ~$0.01 on ~$600).
+# Unknown symbols fall back to the conservative constructor defaults.
+INSTRUMENT_ONE_WAY_FRICTION = {
+    # Mega-liquid index ETFs: ~1bp full spread + ~1bp slippage -> ~1.5bps one-way.
+    "SPY": 0.00015, "QQQ": 0.00015, "IWM": 0.00020,
+    "VOO": 0.00015, "IVV": 0.00015, "DIA": 0.00020,
+    # Liquid futures: tight ticks relative to notional.
+    "ES=F": 0.00015, "NQ=F": 0.00015, "GC=F": 0.00020, "CL=F": 0.00025,
+    # Liquid sector ETFs: a touch wider.
+    "XLK": 0.00030, "XLF": 0.00030, "XLE": 0.00035, "XLV": 0.00035,
+}
+
 
 @dataclass
 class Trade:
@@ -204,6 +219,7 @@ class WalkForwardEngine:
         slippage_pct: float = 0.0005,  # 0.05% slippage (5 bps)
         spread_pct: float = 0.0010,  # 0.10% average bid/ask spread
         commission: float = 1.0,  # $1 per trade estimate
+        instrument_friction: Optional[dict] = None,
     ):
         from quant_signals import QuantConsensus
 
@@ -216,7 +232,19 @@ class WalkForwardEngine:
         self.SLIPPAGE_PCT = slippage_pct
         self.SPREAD_PCT = spread_pct
         self.COMMISSION_USD = commission
+        self.instrument_friction = (
+            INSTRUMENT_ONE_WAY_FRICTION if instrument_friction is None else instrument_friction
+        )
         self.consensus = QuantConsensus()
+
+    def _one_way_friction(self, symbol: str) -> float:
+        """One-way friction (slippage + half-spread) for a symbol.
+
+        Uses realistic per-instrument microstructure for known liquid names and a
+        conservative slippage+half-spread fallback for everything else."""
+        return self.instrument_friction.get(
+            symbol.upper(), self.SLIPPAGE_PCT + (self.SPREAD_PCT / 2.0)
+        )
 
     async def run(self, symbol: str) -> list[WalkForwardResult]:
         result_tuple = await load_ohlcv_from_db(self.db_path, symbol)
@@ -276,7 +304,7 @@ class WalkForwardEngine:
 
                 # Entry at next bar Close (conservative proxy for Next Open)
                 entry_raw = float(test_closes[i + 1])
-                friction = self.SLIPPAGE_PCT + (self.SPREAD_PCT / 2.0)
+                friction = self._one_way_friction(symbol)
                 entry = entry_raw * (1 + friction) if side == "LONG" else entry_raw * (1 - friction)
 
                 size_usd = max(10.0, min(consensus["position_usd"], equity * 0.10))
@@ -289,7 +317,7 @@ class WalkForwardEngine:
                 for j in range(i + 2, min(i + 61, len(test_closes))):
                     bar_high = float(test_highs[j])
                     bar_low = float(test_lows[j])
-                    friction = self.SLIPPAGE_PCT + (self.SPREAD_PCT / 2.0)
+                    friction = self._one_way_friction(symbol)
 
                     if side == "LONG":
                         # Check stop via intra-bar LOW (more realistic than only close)

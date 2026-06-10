@@ -283,6 +283,25 @@ def test_backtest_engine_runs_on_synthetic_db(tmp_path):
         assert stats["max_drawdown"] <= 0.0
 
 
+def test_per_instrument_friction_is_realistic_for_liquid_etfs():
+    """Liquid ETFs must use tight microstructure costs, while unknown symbols keep
+    the conservative slippage+half-spread fallback."""
+    from backtest_engine import WalkForwardEngine
+
+    engine = WalkForwardEngine(db_path=":memory:")
+    # Mega-liquid names get tight per-instrument friction.
+    assert engine._one_way_friction("SPY") <= 0.0003
+    assert engine._one_way_friction("qqq") <= 0.0003  # case-insensitive
+    # Unknown symbol falls back to conservative default (slippage + half-spread).
+    fallback = engine.SLIPPAGE_PCT + engine.SPREAD_PCT / 2.0
+    assert engine._one_way_friction("ZZZZ") == fallback
+    assert engine._one_way_friction("SPY") < fallback
+
+    # Explicit override is honoured.
+    custom = WalkForwardEngine(db_path=":memory:", instrument_friction={"SPY": 0.001})
+    assert custom._one_way_friction("SPY") == 0.001
+
+
 def test_loader_selects_densest_timeframe_and_excludes_junk(tmp_path):
     """Regression: the loader must not mix timeframes. It should auto-select the
     densest timeframe and exclude sparse synthetic rows (e.g. 1970-epoch 1h junk)."""
