@@ -391,6 +391,47 @@ async def test_restore_positions_from_db_populates_positions(paper_brain):
     assert pos.stop_loss == 140.0
 
 
+@pytest.mark.asyncio
+async def test_restore_positions_assigns_db_id_for_exit_reconciliation(paper_brain):
+    """Test: restored positions must carry db_id so exits update the correct DB row.
+
+    Regression: without db_id assignment, restored positions kept db_id=0. Their exits
+    updated nothing (WHERE rowid=0), leaving OPEN rows to accumulate and become
+    ORPHANED on subsequent restarts.
+    """
+    paper_brain.positions = []
+
+    recent_ts = datetime.now(timezone.utc).isoformat()
+    open_trade_row = (
+        123,          # id (this must become pos.db_id)
+        recent_ts,
+        "MSFT",
+        300.0,
+        290.0,
+        330.0,
+        50,
+        1.5,
+        "bull_flag",
+        "TRENDING",
+        "ibkr",
+        "TEST456",
+        "paper",
+        "LONG",
+    )
+
+    mock_cursor = MagicMock()
+    mock_cursor.fetchall.return_value = [open_trade_row]
+    paper_brain.db_conn = MagicMock()
+    paper_brain.db_conn.cursor.return_value = mock_cursor
+
+    await paper_brain._restore_positions_from_db()
+
+    assert len(paper_brain.positions) == 1
+    pos = paper_brain.positions[0]
+    # Critical: db_id must match the DB rowid so exit updates close THIS row
+    assert pos.db_id == 123
+
+
 # ===========================================================================
 # Reconciliation: orphan adoption
 # ===========================================================================

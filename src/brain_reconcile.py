@@ -164,6 +164,10 @@ class BrokerReconciler:
                         regime_at_entry=regime or "UNKNOWN",
                         r_r_ratio=float(rr) if rr else 2.0,
                     )
+                    # Carry the DB row id so a later exit closes THIS row (WHERE rowid=db_id).
+                    # Without this, restored positions kept db_id=0, their exits updated
+                    # nothing, and the OPEN row leaked -> duplicate -> ORPHANED on next restart.
+                    pos.db_id = int(tid)
                     self.positions.append(pos)
                     restored += 1
 
