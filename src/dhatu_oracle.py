@@ -1016,7 +1016,7 @@ class DhatuOracle:
                 conn.execute("PRAGMA busy_timeout = 60000;")
                 conn.execute(
                     "INSERT OR REPLACE INTO system_state (key, value, updated_at) VALUES (?, ?, ?)",
-                    ("oracle_state", json.dumps(state_data), datetime.now(timezone.utc)),
+                    ("oracle_state", json.dumps(state_data), datetime.now(timezone.utc).isoformat()),
                 )
                 conn.execute(
                     "INSERT INTO dhatu_readings "
