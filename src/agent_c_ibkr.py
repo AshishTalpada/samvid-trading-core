@@ -115,6 +115,11 @@ class IBKRConnection:
         self._recovered_orders: set[int] = set()
         self._background_tasks: set[asyncio.Task] = set()  # Prevent GC of pending tasks
         self._intent_id_by_order_id: dict[str, str] = {}
+        self._order_role_by_id: dict[str, str] = {}
+        self._fill_economics_by_order_id: dict[str, dict[str, Any]] = {}
+        self._latest_fill_by_symbol: dict[str, dict[str, Any]] = {}
+        self._seen_execution_ids: set[str] = set()
+        self._seen_commission_ids: set[str] = set()
         self._last_persisted_intent_id: str | None = None
 
     def generate_exec_token(self, symbol: str) -> str:
@@ -384,13 +389,18 @@ class IBKRConnection:
             "CREATE TABLE IF NOT EXISTS persistent_orders ("
             "orderId INTEGER PRIMARY KEY, symbol TEXT, status TEXT, "
             "filled REAL, remaining REAL, last_update TEXT, "
-            "parent_id INTEGER DEFAULT 0, intent_id TEXT)"
+            "parent_id INTEGER DEFAULT 0, intent_id TEXT, "
+            "order_role TEXT DEFAULT 'UNKNOWN')"
         )
         columns = {row[1] for row in conn.execute("PRAGMA table_info(persistent_orders)")}
         if "parent_id" not in columns:
             conn.execute("ALTER TABLE persistent_orders ADD COLUMN parent_id INTEGER DEFAULT 0")
         if "intent_id" not in columns:
             conn.execute("ALTER TABLE persistent_orders ADD COLUMN intent_id TEXT")
+        if "order_role" not in columns:
+            conn.execute(
+                "ALTER TABLE persistent_orders ADD COLUMN order_role TEXT DEFAULT 'UNKNOWN'"
+            )
 
     def _persist_order_status_snapshot(self, trade: Any, symbol: str, status: str) -> None:
         """Write broker status and intent lineage for crash-safe order recovery."""
@@ -406,10 +416,13 @@ class IBKRConnection:
                 intent_id = self._intent_id_by_order_id.get(
                     str(order_id)
                 ) or self._intent_id_by_order_id.get(str(parent_id))
+                order_role = getattr(self, "_order_role_by_id", {}).get(
+                    str(order_id), "UNKNOWN"
+                )
                 conn.execute(
                     "INSERT OR REPLACE INTO persistent_orders "
                     "(orderId, symbol, status, filled, remaining, last_update, "
-                    "parent_id, intent_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                    "parent_id, intent_id, order_role) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
                     (
                         order_id,
                         symbol,
@@ -419,6 +432,7 @@ class IBKRConnection:
                         time.time_ns(),
                         parent_id,
                         intent_id,
+                        order_role,
                     ),
                 )
                 conn.commit()
@@ -503,19 +517,22 @@ class IBKRConnection:
                     (position for position in brain.positions if position.symbol == symbol),
                     None,
                 )
-                if matching_position:
-                    matching_position.meta.pop("exit_triggered", None)
-                    brain._exit_last_attempt.pop(symbol, None)
-
-            action = str(getattr(trade.order, "action", "")).upper()
-            is_exit_order = bool(
-                matching_position
-                and (
-                    (matching_position.qty > 0 and action == "SELL")
-                    or (matching_position.qty < 0 and action == "BUY")
-                )
-            )
+            order_role = getattr(self, "_order_role_by_id", {}).get(str(order_id), "")
+            is_exit_order = bool(matching_position and order_role == "EXIT")
             if is_exit_order and brain:
+                matching_position.meta.pop("exit_triggered", None)
+                brain._exit_last_attempt.pop(symbol, None)
+                filled = float(getattr(trade.orderStatus, "filled", 0) or 0)
+                if filled > 0:
+                    logger.warning(
+                        "IBKR EXIT PARTIAL [%s]: order #%s ended as %s after filling %.4f. "
+                        "Deferring final state to broker reconciliation.",
+                        symbol,
+                        order_id,
+                        status,
+                        filled,
+                    )
+                    return
                 current_fails = brain._exit_failure_count.get(symbol, 0)
                 brain._exit_failure_count[symbol] = current_fails + 1
                 logger.error(
@@ -569,9 +586,43 @@ class IBKRConnection:
         symbol = trade.contract.symbol
         side = fill.execution.side
         qty = fill.execution.shares
-        price = fill.execution.avgPrice
+        price = float(
+            getattr(fill.execution, "price", 0.0)
+            or getattr(fill.execution, "avgPrice", 0.0)
+            or 0.0
+        )
         order_id = str(trade.order.orderId)
         parent_id = str(trade.order.parentId)
+        execution_id = str(getattr(fill.execution, "execId", "") or "")
+
+        if execution_id and execution_id in getattr(self, "_seen_execution_ids", set()):
+            return
+        if not hasattr(self, "_seen_execution_ids"):
+            self._seen_execution_ids = set()
+        if execution_id:
+            self._seen_execution_ids.add(execution_id)
+
+        if not hasattr(self, "_fill_economics_by_order_id"):
+            self._fill_economics_by_order_id = {}
+        economics = self._fill_economics_by_order_id.setdefault(
+            order_id,
+            {"quantity": 0.0, "notional": 0.0, "avg_price": 0.0, "commission": 0.0},
+        )
+        economics["quantity"] += float(qty)
+        economics["notional"] += float(qty) * float(price)
+        if economics["quantity"] > 0:
+            economics["avg_price"] = economics["notional"] / economics["quantity"]
+        economics.update(
+            {
+                "symbol": symbol,
+                "side": side,
+                "order_id": order_id,
+                "timestamp": time.time(),
+            }
+        )
+        if not hasattr(self, "_latest_fill_by_symbol"):
+            self._latest_fill_by_symbol = {}
+        self._latest_fill_by_symbol[symbol] = economics
 
         logger.info(
             f" IBKR EXECUTION: {symbol} {side} {qty} @ ${price:.2f} "
@@ -613,13 +664,15 @@ class IBKRConnection:
                     is_short_entry = side == "SLD" and p.qty < 0
 
                     if is_long_entry or is_short_entry:
-                        old_price = p.entry_price
-                        p.entry_price = float(price)
-                        # Capture actual slippage
-                        p.slippage_cost = abs(p.entry_price - old_price) * abs(p.qty)
+                        intended_entry = float(
+                            p.meta.setdefault("intended_entry_price", p.entry_price)
+                        )
+                        p.entry_price = float(economics["avg_price"])
+                        p.slippage_cost = abs(p.entry_price - intended_entry) * abs(p.qty)
                         logger.warning(
                             f" MIRROR ALIGN [{symbol}]: Entry price updated to "
-                            f"actual fill ${price:.2f} (Slippage: ${p.slippage_cost:.2f})"
+                            f"actual VWAP ${p.entry_price:.2f} "
+                            f"(Slippage: ${p.slippage_cost:.2f})"
                         )
                     else:
                         # This is likely an exit (Stop Loss or Take Profit)
@@ -635,6 +688,25 @@ class IBKRConnection:
         comm = report.commission
         order_id = str(trade.order.orderId)
         parent_id = str(trade.order.parentId)
+        commission_id = str(
+            getattr(report, "execId", "") or getattr(fill.execution, "execId", "") or ""
+        )
+        if commission_id and commission_id in getattr(self, "_seen_commission_ids", set()):
+            return
+        if not hasattr(self, "_seen_commission_ids"):
+            self._seen_commission_ids = set()
+        if commission_id:
+            self._seen_commission_ids.add(commission_id)
+        if not hasattr(self, "_fill_economics_by_order_id"):
+            self._fill_economics_by_order_id = {}
+        economics = self._fill_economics_by_order_id.setdefault(
+            order_id,
+            {"quantity": 0.0, "notional": 0.0, "avg_price": 0.0, "commission": 0.0},
+        )
+        economics["commission"] += float(comm)
+        latest_fill = getattr(self, "_latest_fill_by_symbol", {}).get(symbol)
+        if latest_fill and latest_fill.get("order_id") == order_id:
+            latest_fill["commission"] = economics["commission"]
 
         logger.info(
             f" IBKR COMMISSION: {symbol} | ${comm:.2f} {report.currency} "
@@ -710,7 +782,8 @@ class IBKRConnection:
                 self._ensure_persistent_orders_schema(conn)
                 cursor = conn.cursor()
                 cursor.execute(
-                    "SELECT orderId, symbol, status, parent_id, intent_id, last_update "
+                    "SELECT orderId, symbol, status, parent_id, intent_id, last_update, "
+                    "order_role "
                     "FROM persistent_orders "
                     "WHERE status NOT IN ("
                     "'Filled', 'Cancelled', 'Inactive', 'ApiCancelled', "
@@ -729,7 +802,7 @@ class IBKRConnection:
             broker_order_ids = {t.order.orderId for t in open_trades}
 
             missing_from_broker = []
-            for oid, sym, status, parent_id, intent_id, last_update in orphans:
+            for oid, sym, status, parent_id, intent_id, last_update, order_role in orphans:
                 if oid in broker_order_ids:
                     logger.warning(
                         f" RECOVERY: Found live orphan {oid} for {sym}. Re-binding to tracking."
@@ -746,6 +819,8 @@ class IBKRConnection:
                             oid,
                             sym,
                         )
+                    if order_role and str(order_role).upper() != "UNKNOWN":
+                        self._order_role_by_id[str(oid)] = str(order_role).upper()
                 else:
                     age_sec = self._order_snapshot_age_seconds(last_update)
                     active_status = status in {
@@ -1242,6 +1317,7 @@ class IBKRConnection:
         Institutional Single Order Routing.
         """
         exec_token = kwargs.get("exec_token", "")
+        order_role = str(kwargs.get("order_role", "ENTRY") or "ENTRY").upper()
         if not self._verify_exec_token(symbol, exec_token):
             logger.critical(
                 f"UNAUTHORIZED EXECUTION ATTEMPT for '{symbol}'! "
@@ -1411,6 +1487,9 @@ class IBKRConnection:
                         o.account = acc
 
                     trade = self.ib.placeOrder(contract, o)
+                    if not hasattr(self, "_order_role_by_id"):
+                        self._order_role_by_id = {}
+                    self._order_role_by_id[str(trade.order.orderId)] = order_role
                     intent_id = getattr(self, "_last_persisted_intent_id", None)
                     if intent_id:
                         self._intent_id_by_order_id[str(trade.order.orderId)] = intent_id

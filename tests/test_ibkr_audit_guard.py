@@ -153,6 +153,7 @@ def test_cancelled_exit_releases_position_latch_and_updates_active_strikes() -> 
     conn = IBKRConnection.__new__(IBKRConnection)
     conn._execution_audit = MagicMock()
     conn._intent_id_by_order_id = {}
+    conn._order_role_by_id = {"123": "EXIT"}
     position = SimpleNamespace(symbol="SPY", qty=2, meta={"exit_triggered": True})
     conn.brain = SimpleNamespace(
         positions=[position],
@@ -180,6 +181,73 @@ def test_cancelled_exit_releases_position_latch_and_updates_active_strikes() -> 
     assert conn.brain._exit_failure_count["SPY"] == 1
 
 
+def test_cancelled_entry_child_does_not_count_as_exit_failure() -> None:
+    conn = IBKRConnection.__new__(IBKRConnection)
+    conn._execution_audit = MagicMock()
+    conn._intent_id_by_order_id = {}
+    conn._order_role_by_id = {"124": "ENTRY"}
+    position = SimpleNamespace(symbol="SPY", qty=2, meta={"exit_triggered": True})
+    conn.brain = SimpleNamespace(
+        positions=[position],
+        _exit_last_attempt={"SPY": datetime.now()},
+        _exit_failure_count={},
+    )
+    trade = SimpleNamespace(
+        contract=SimpleNamespace(symbol="SPY"),
+        order=SimpleNamespace(
+            orderId=124,
+            parentId=123,
+            action="SELL",
+            orderType="STP",
+            totalQuantity=2,
+        ),
+        orderStatus=SimpleNamespace(status="Cancelled", filled=0, remaining=2),
+        log=[],
+    )
+
+    conn._on_order_status(trade)
+
+    assert position.meta["exit_triggered"] is True
+    assert "SPY" in conn.brain._exit_last_attempt
+    assert conn.brain._exit_failure_count == {}
+
+
+def test_execution_callbacks_build_idempotent_fill_economics() -> None:
+    conn = IBKRConnection.__new__(IBKRConnection)
+    conn._execution_audit = MagicMock()
+    conn._intent_id_by_order_id = {}
+    conn._fill_economics_by_order_id = {}
+    conn._seen_execution_ids = set()
+    conn._seen_commission_ids = set()
+    conn.brain = None
+    trade = SimpleNamespace(
+        contract=SimpleNamespace(symbol="SPY"),
+        order=SimpleNamespace(orderId=125, parentId=0),
+    )
+    first_fill = SimpleNamespace(
+        execution=SimpleNamespace(
+            execId="exec-1", side="SLD", shares=1, price=500.0, avgPrice=500.0
+        )
+    )
+    second_fill = SimpleNamespace(
+        execution=SimpleNamespace(
+            execId="exec-2", side="SLD", shares=1, price=502.5, avgPrice=501.25
+        )
+    )
+    report = SimpleNamespace(execId="exec-1", commission=0.75, currency="USD")
+
+    conn._on_exec_details(trade, first_fill)
+    conn._on_exec_details(trade, first_fill)
+    conn._on_exec_details(trade, second_fill)
+    conn._on_commission_report(trade, first_fill, report)
+    conn._on_commission_report(trade, first_fill, report)
+
+    economics = conn._fill_economics_by_order_id["125"]
+    assert economics["quantity"] == pytest.approx(2)
+    assert economics["avg_price"] == pytest.approx(501.25)
+    assert economics["commission"] == pytest.approx(0.75)
+
+
 def test_persistent_order_schema_upgrades_legacy_cache() -> None:
     conn = sqlite3.connect(":memory:")
     conn.execute(
@@ -191,13 +259,14 @@ def test_persistent_order_schema_upgrades_legacy_cache() -> None:
     IBKRConnection._ensure_persistent_orders_schema(conn)
 
     columns = {row[1] for row in conn.execute("PRAGMA table_info(persistent_orders)")}
-    assert {"parent_id", "intent_id"} <= columns
+    assert {"parent_id", "intent_id", "order_role"} <= columns
 
 
 def test_terminal_status_snapshot_retains_lineage(tmp_path, monkeypatch) -> None:
     monkeypatch.chdir(tmp_path)
     conn = IBKRConnection.__new__(IBKRConnection)
     conn._intent_id_by_order_id = {"123": "intent-123"}
+    conn._order_role_by_id = {"123": "EXIT"}
     trade = SimpleNamespace(
         order=SimpleNamespace(orderId=123, parentId=0),
         orderStatus=SimpleNamespace(status="Filled", filled=2, remaining=0),
@@ -207,9 +276,10 @@ def test_terminal_status_snapshot_retains_lineage(tmp_path, monkeypatch) -> None
 
     db = sqlite3.connect(tmp_path / "data" / "trading.db")
     row = db.execute(
-        "SELECT status, filled, remaining, intent_id FROM persistent_orders WHERE orderId = 123"
+        "SELECT status, filled, remaining, intent_id, order_role "
+        "FROM persistent_orders WHERE orderId = 123"
     ).fetchone()
-    assert row == ("Filled", 2.0, 0.0, "intent-123")
+    assert row == ("Filled", 2.0, 0.0, "intent-123", "EXIT")
 
 
 @pytest.mark.asyncio
@@ -221,9 +291,9 @@ async def test_recovery_restores_durable_intent_lineage(tmp_path, monkeypatch) -
     IBKRConnection._ensure_persistent_orders_schema(db)
     db.execute(
         "INSERT INTO persistent_orders "
-        "(orderId, symbol, status, filled, remaining, last_update, parent_id, intent_id) "
-        "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-        (123, "SPY", "Submitted", 0, 2, "now", 0, "intent-123"),
+        "(orderId, symbol, status, filled, remaining, last_update, parent_id, intent_id, "
+        "order_role) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        (123, "SPY", "Submitted", 0, 2, "now", 0, "intent-123", "EXIT"),
     )
     db.commit()
     db.close()
@@ -236,11 +306,13 @@ async def test_recovery_restores_durable_intent_lineage(tmp_path, monkeypatch) -
         )
     )
     conn._intent_id_by_order_id = {}
+    conn._order_role_by_id = {}
     conn._recovered_orders = set()
 
     await conn.recover_orphaned_orders()
 
     assert conn._intent_id_by_order_id == {"123": "intent-123"}
+    assert conn._order_role_by_id == {"123": "EXIT"}
     assert conn._recovered_orders == {123}
 
 

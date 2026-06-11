@@ -578,6 +578,119 @@ class TestBrokerExitRealization:
     """Regression tests for IBKR exit accounting safety."""
 
     @pytest.mark.asyncio
+    async def test_fill_confirmation_returns_broker_economics(self, paper_brain):
+        trade = SimpleNamespace(
+            order=SimpleNamespace(orderId=12345),
+            orderStatus=SimpleNamespace(
+                status="Filled",
+                filled=10,
+                remaining=0,
+                avgFillPrice=101.25,
+            ),
+        )
+        paper_brain.ibkr_client.trades.return_value = [trade]
+        paper_brain.ibkr_conn._fill_economics_by_order_id = {
+            "12345": {
+                "quantity": 10.0,
+                "notional": 1012.5,
+                "avg_price": 101.25,
+                "commission": 0.85,
+            }
+        }
+
+        result = await paper_brain._confirm_ibkr_order_filled(12345, "AAPL")
+
+        assert result == {
+            "price": pytest.approx(101.25),
+            "quantity": pytest.approx(10.0),
+            "commission": pytest.approx(0.85),
+        }
+
+    @pytest.mark.asyncio
+    async def test_live_ibkr_exit_uses_broker_fill_price(self, paper_brain):
+        paper_brain.mode = "ibkr_paper"
+        paper_brain.ibkr_conn.is_connected.return_value = True
+        paper_brain._broker_is_connected = MagicMock(return_value=True)
+        paper_brain._is_market_open = MagicMock(return_value=True)
+        paper_brain._place_ibkr_order = AsyncMock(return_value=12345)
+        paper_brain._confirm_ibkr_order_filled = AsyncMock(
+            return_value={"price": 101.25, "quantity": 10.0, "commission": 0.85}
+        )
+        paper_brain._log_trade_exit = AsyncMock()
+        pos = _make_position(
+            symbol="AAPL",
+            qty=10,
+            entry=100.0,
+            commission=0.50,
+            entry_time=datetime.now(timezone.utc) - timedelta(minutes=20),
+        )
+        paper_brain.positions = [pos]
+
+        with patch("telegram_alerts.send_telegram_alert", new_callable=AsyncMock):
+            await paper_brain._process_exit(pos, "EXIT_P3", 101.0)
+
+        paper_brain._place_ibkr_order.assert_awaited_once()
+        assert paper_brain._place_ibkr_order.await_args.kwargs["order_role"] == "EXIT"
+        exit_args = paper_brain._log_trade_exit.await_args.args
+        assert exit_args[2] == pytest.approx(101.25)
+        assert paper_brain._log_trade_exit.await_args.kwargs[
+            "realized_net_pnl"
+        ] == pytest.approx(11.15)
+
+    @pytest.mark.asyncio
+    async def test_broker_native_exit_finalizes_from_execution_evidence(self, paper_brain):
+        db_id = _insert_open_trade(paper_brain.db_conn, "AAPL")
+        entry_time = datetime.now(timezone.utc) - timedelta(minutes=20)
+        pos = _make_position(
+            symbol="AAPL",
+            qty=10,
+            entry=100.0,
+            stop=98.0,
+            commission=0.50,
+            db_id=db_id,
+            entry_time=entry_time,
+        )
+        paper_brain.ibkr_conn._latest_fill_by_symbol = {
+            "AAPL": {
+                "symbol": "AAPL",
+                "side": "SLD",
+                "quantity": 10.0,
+                "avg_price": 101.25,
+                "commission": 0.85,
+                "timestamp": datetime.now(timezone.utc).timestamp(),
+            }
+        }
+
+        finalized = await paper_brain._finalize_broker_flat_position(pos)
+
+        assert finalized is True
+        row = paper_brain.db_conn.execute(
+            "SELECT exit_price, outcome, pnl_dollars, net_pnl FROM trades WHERE rowid=?",
+            (db_id,),
+        ).fetchone()
+        assert row[0] == pytest.approx(101.25)
+        assert row[1] == "WIN"
+        assert row[2] == pytest.approx(12.5)
+        assert row[3] == pytest.approx(11.15)
+
+    @pytest.mark.asyncio
+    async def test_broker_flat_without_fill_requires_reconciliation(self, paper_brain):
+        db_id = _insert_open_trade(paper_brain.db_conn, "AAPL")
+        pos = _make_position(symbol="AAPL", qty=10, db_id=db_id)
+        paper_brain.ibkr_conn._latest_fill_by_symbol = {}
+
+        finalized = await paper_brain._finalize_broker_flat_position(pos)
+
+        assert finalized is False
+        outcome, exit_price, pnl = paper_brain.db_conn.execute(
+            "SELECT outcome, exit_price, pnl_dollars FROM trades WHERE rowid=?",
+            (db_id,),
+        ).fetchone()
+        assert outcome == "RECONCILIATION_REQUIRED"
+        assert exit_price is None
+        assert pnl is None
+
+    @pytest.mark.asyncio
     async def test_ibkr_exit_not_realized_until_order_fill_confirmed(self, paper_brain):
         """Accepted broker order ids are not enough; memory changes only after fill proof."""
         paper_brain.mode = "ibkr_paper"

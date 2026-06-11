@@ -110,6 +110,68 @@ class PositionMonitor:
                 return None, "unavailable"
         return None, "unavailable"
 
+    async def _finalize_broker_flat_position(self, pos: Position) -> bool:
+        """Finalize a broker-native exit from execution evidence, never a quote estimate."""
+        fill = getattr(self.ibkr_conn, "_latest_fill_by_symbol", {}).get(pos.symbol, {})
+        expected_side = "SLD" if pos.qty > 0 else "BOT"
+        entry_ts = _safe_entry_time(pos.entry_time).timestamp()
+        fill_ts = float(fill.get("timestamp", 0.0) or 0.0)
+        fill_qty = float(fill.get("quantity", 0.0) or 0.0)
+        fill_price = float(fill.get("avg_price", 0.0) or 0.0)
+        evidence_matches = (
+            str(fill.get("side", "")).upper() == expected_side
+            and fill_ts >= entry_ts
+            and fill_price > 0
+            and abs(fill_qty - abs(pos.qty)) <= 0.1
+        )
+        if not evidence_matches:
+            reason = "broker flat without complete matching execution evidence"
+            logger.error(
+                "IBKR FLAT REQUIRES RECONCILIATION [%s]: %s; fill=%s",
+                pos.symbol,
+                reason,
+                fill or "none",
+            )
+            if self.db_conn and getattr(pos, "db_id", 0):
+                self.db_conn.execute(
+                    "UPDATE trades SET outcome='RECONCILIATION_REQUIRED', "
+                    "notes=COALESCE(notes || ' | ', '') || ? WHERE rowid=?",
+                    (reason, pos.db_id),
+                )
+                self.db_conn.commit()
+            return False
+
+        gross_pnl = (fill_price - pos.entry_price) * pos.qty
+        commission = float(getattr(pos, "commission_cost", 0.0) or 0.0) + float(
+            fill.get("commission", 0.0) or 0.0
+        )
+        net_pnl = gross_pnl - commission
+        risk_per_share = abs(pos.entry_price - pos.initial_stop)
+        direction_sign = 1 if pos.qty > 0 else -1
+        r_multiple = (
+            ((fill_price - pos.entry_price) / risk_per_share) * direction_sign
+            if risk_per_share > 0
+            else 0.0
+        )
+        await self._log_trade_exit(
+            pos,
+            "BROKER_PROTECTIVE_FILL",
+            fill_price,
+            gross_pnl,
+            r_multiple,
+            realized_net_pnl=net_pnl,
+        )
+        self.session_pnl += net_pnl
+        self._exit_failure_count[pos.symbol] = 0
+        logger.warning(
+            "IBKR BROKER-NATIVE EXIT FINALIZED [%s]: qty=%.4f price=%.4f net_pnl=%.2f",
+            pos.symbol,
+            fill_qty,
+            fill_price,
+            net_pnl,
+        )
+        return True
+
     async def _state_positioned(self) -> None:
         """Monitor active positions using 7-Level Exit Intelligence Engine."""
         self._sanitize_positions()  # Ensure memory is objects, not dicts
@@ -183,12 +245,14 @@ class PositionMonitor:
 
                 pos.meta["broker_flat"] = broker_qty is not None and abs(broker_qty) < 0.1
                 if pos.account_type == "ibkr" and pos.meta["broker_flat"]:
-                    logger.warning(
-                        " MIRROR SYNC: %s memory error (%s) corrected to Broker Reality (0).",
-                        pos.symbol,
-                        pos.qty,
-                    )
-                    self._mark_trade_liquidated(pos.symbol, pos.account_type)
+                    if pos.meta.get("exit_triggered"):
+                        logger.debug(
+                            "IBKR EXIT SETTLEMENT [%s]: broker is flat while the exit resolver "
+                            "is finalizing fill economics; deferring mirror cleanup.",
+                            pos.symbol,
+                        )
+                        continue
+                    await self._finalize_broker_flat_position(pos)
                     async with self._state_lock:
                         if pos in self.positions:
                             self.positions.remove(pos)
@@ -496,12 +560,12 @@ class PositionMonitor:
         order_id: int | str,
         symbol: str,
         timeout_seconds: float = 4.0,
-    ) -> bool:
-        """Confirm an IBKR order filled before mutating realized position state."""
+    ) -> dict[str, float] | None:
+        """Return authoritative IBKR fill economics before realizing local state."""
         try:
             target_order_id = int(order_id)
         except (TypeError, ValueError):
-            return False
+            return None
 
         deadline = time.monotonic() + timeout_seconds
         last_status = "UNKNOWN"
@@ -514,7 +578,27 @@ class PositionMonitor:
                     filled = float(getattr(trade.orderStatus, "filled", 0.0) or 0.0)
                     remaining = float(getattr(trade.orderStatus, "remaining", 0.0) or 0.0)
                     if last_status == "Filled" or (filled > 0 and remaining <= 0):
-                        return True
+                        cached = getattr(
+                            self.ibkr_conn, "_fill_economics_by_order_id", {}
+                        ).get(str(target_order_id), {})
+                        avg_price = float(
+                            getattr(trade.orderStatus, "avgFillPrice", 0.0) or 0.0
+                        )
+                        if avg_price <= 0:
+                            avg_price = float(cached.get("avg_price", 0.0) or 0.0)
+                        if avg_price <= 0:
+                            logger.warning(
+                                "IBKR EXIT FILLED WITHOUT PRICE [%s]: order #%s. "
+                                "Deferring realization until reconciliation has execution data.",
+                                symbol,
+                                target_order_id,
+                            )
+                            return None
+                        return {
+                            "price": avg_price,
+                            "quantity": float(cached.get("quantity", 0.0) or filled),
+                            "commission": float(cached.get("commission", 0.0) or 0.0),
+                        }
                     if last_status in {"Cancelled", "Inactive"}:
                         logger.warning(
                             "IBKR EXIT NOT FILLED [%s]: order #%s ended as %s.",
@@ -522,7 +606,7 @@ class PositionMonitor:
                             target_order_id,
                             last_status,
                         )
-                        return False
+                        return None
             except Exception as exc:
                 logger.debug("IBKR fill confirmation skipped for %s #%s: %s", symbol, target_order_id, exc)
             await asyncio.sleep(0.25)
@@ -534,7 +618,7 @@ class PositionMonitor:
             target_order_id,
             last_status,
         )
-        return False
+        return None
 
     async def _process_exit(self, pos: Position, exit_type: str, exit_price: float) -> None:
         """Standardized Exit Resolver (Pillar 5 Upgrade)."""
@@ -702,12 +786,14 @@ class PositionMonitor:
                     urg_level = (
                         "EMERGENCY" if "VETO" in exit_type or "FLATTEN" in exit_type else "HIGH"
                     )
+                    requested_exit_price = exit_price
                     order_result = await self._place_ibkr_order(
                         pos.symbol,
                         direction,
                         exit_shares,
                         urgency=urg_level,
                         limit_price=exit_price,
+                        order_role="EXIT",
                     )
                     if order_result in [None, "SHIELDED"]:
                         logger.info(
@@ -715,8 +801,21 @@ class PositionMonitor:
                             "Retaining position in memory."
                         )
                         return
-                    if not await self._confirm_ibkr_order_filled(order_result, symbol):
+                    fill_economics = await self._confirm_ibkr_order_filled(order_result, symbol)
+                    if not fill_economics:
                         return
+                    exit_price = fill_economics["price"]
+                    filled_quantity = int(round(fill_economics["quantity"]))
+                    if filled_quantity != exit_shares:
+                        logger.error(
+                            "IBKR EXIT QUANTITY MISMATCH [%s]: requested=%s filled=%s. "
+                            "Deferring local realization to reconciliation.",
+                            symbol,
+                            exit_shares,
+                            filled_quantity,
+                        )
+                        return
+                    broker_exit_commission = fill_economics["commission"]
 
                 elif pos.account_type == "mt5" and self.mt5_conn:
                     logger.warning(f"EXECUTING MT5 EXIT FOR {pos.symbol} (Ticket: {pos.trade_id})")
@@ -769,7 +868,11 @@ class PositionMonitor:
                         f"max-R invariant breach on {pos.symbol}: {raw_r_multiple:.2f}R"
                     )
 
-            intended_price = getattr(pos, "target", exit_price)
+            intended_price = (
+                requested_exit_price
+                if pos.account_type == "ibkr" and self.mode != "paper"
+                else getattr(pos, "target", exit_price)
+            )
             slippage_pct = abs(exit_price - intended_price) / max(intended_price, 0.01)
             is_dirty = slippage_pct > 0.005  # 50bps threshold
             if is_dirty:
@@ -779,12 +882,19 @@ class PositionMonitor:
                 )
             ledger_overrides = [label for label in ("DIRTY_FILL" if is_dirty else "", r_invariant_override) if label]
 
-            commission_cost = max(2.0, exit_shares * 0.005)
-            vol_multiplier = 1.0 + (exit_shares / 2000.0)
-            slippage_penalty = exit_price * 0.0005 * vol_multiplier
-            adjusted_exit_price = (
-                exit_price - slippage_penalty if slice_qty > 0 else exit_price + slippage_penalty
-            )
+            is_live_ibkr_fill = pos.account_type == "ibkr" and self.mode != "paper"
+            if is_live_ibkr_fill:
+                commission_cost = float(broker_exit_commission)
+                adjusted_exit_price = exit_price
+            else:
+                commission_cost = max(2.0, exit_shares * 0.005)
+                vol_multiplier = 1.0 + (exit_shares / 2000.0)
+                slippage_penalty = exit_price * 0.0005 * vol_multiplier
+                adjusted_exit_price = (
+                    exit_price - slippage_penalty
+                    if slice_qty > 0
+                    else exit_price + slippage_penalty
+                )
 
             from decimal import Decimal
 
@@ -792,12 +902,13 @@ class PositionMonitor:
             d_entry = Decimal(str(pos.entry_price))
             d_qty = Decimal(str(slice_qty))
             d_comm = Decimal(str(commission_cost))
-            d_slip = Decimal(str(pos.slippage_cost))
+            d_slip = Decimal("0") if is_live_ibkr_fill else Decimal(str(pos.slippage_cost))
             d_total_qty = Decimal(str(abs(pos.qty) or 1))
 
             realized_gross_pnl = float((d_exit - d_entry) * d_qty)
             realized_net_pnl = float(
                 Decimal(str(realized_gross_pnl))
+                - Decimal(str(pos.commission_cost))
                 - d_comm
                 - (d_slip * (Decimal(str(exit_shares)) / d_total_qty))
             )
