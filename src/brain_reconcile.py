@@ -307,7 +307,23 @@ class BrokerReconciler:
                     )
                     if p in self.positions:
                         self.positions.remove(p)
-                    self._mark_trade_liquidated(p.symbol, broker)
+                    # Realize true exit economics from broker execution evidence first
+                    # (bracket stop/target fills). A bare LIQUIDATED row with NULL PnL
+                    # blinds the win-rate gates, drawdown ladder and learning loops.
+                    finalized = False
+                    if broker == "ibkr" and hasattr(self, "_finalize_broker_flat_position"):
+                        try:
+                            finalized = await self._finalize_broker_flat_position(
+                                p, mark_unresolved=False
+                            )
+                        except Exception as fin_err:
+                            logger.debug(
+                                "SYNC PURGE: broker-native finalization failed for %s: %s",
+                                p.symbol,
+                                fin_err,
+                            )
+                    if not finalized:
+                        self._mark_trade_liquidated(p.symbol, broker, pos=p)
                     continue
 
                 if p.symbol in reality and abs(p.qty - broker_qty) > 0.00001:
@@ -664,16 +680,67 @@ class BrokerReconciler:
         except Exception as e:
             logger.error("Failed to adopt orphan %s on %s: %s", symbol, broker, e)
 
-    def _mark_trade_liquidated(self, symbol: str, broker: str) -> None:
-        """Update DB to reflect that a trade is no longer open."""
+    def _mark_trade_liquidated(self, symbol: str, broker: str, pos=None) -> None:
+        """Close an OPEN trade row for a broker-flat position, preserving economics.
+
+        Callers should first try _finalize_broker_flat_position (true execution
+        evidence). This fallback estimates the exit from live quotes when a position
+        snapshot is available; with no snapshot or no live price it marks the row
+        RECONCILIATION_REQUIRED instead of silently erasing PnL. A bare 'LIQUIDATED'
+        with NULL economics starves the win-rate gates and learning loops.
+        """
         try:
-            if self.db_conn:
-                self.db_conn.execute(
-                    "UPDATE trades SET outcome = 'LIQUIDATED' WHERE instrument = ? "
-                    "AND broker = ? AND outcome = 'OPEN'",
-                    (symbol, broker),
+            if not self.db_conn:
+                return
+
+            qty = float(getattr(pos, "qty", 0.0) or 0.0) if pos is not None else 0.0
+            entry_price = (
+                float(getattr(pos, "entry_price", 0.0) or 0.0) if pos is not None else 0.0
+            )
+
+            exit_price = 0.0
+            if abs(qty) >= 0.1 and entry_price > 0:
+                try:
+                    bid = float((getattr(self, "last_tick_bids", {}) or {}).get(symbol, 0.0) or 0.0)
+                    ask = float((getattr(self, "last_tick_asks", {}) or {}).get(symbol, 0.0) or 0.0)
+                    if bid > 0 and ask > 0:
+                        exit_price = (bid + ask) / 2.0
+                    else:
+                        exit_price = float(
+                            (getattr(self, "last_tick_prices", {}) or {}).get(symbol, 0.0) or 0.0
+                        )
+                except Exception:
+                    exit_price = 0.0
+
+            if exit_price > 0:
+                # Signed qty (LONG +, SHORT -) makes this directional for both sides.
+                gross_pnl = (exit_price - entry_price) * qty
+                commission = float(getattr(pos, "commission_cost", 0.0) or 0.0)
+                slippage = float(getattr(pos, "slippage_cost", 0.0) or 0.0)
+                net_pnl = gross_pnl - commission - slippage
+                if net_pnl > 0:
+                    outcome = "WIN"
+                elif net_pnl < 0:
+                    outcome = "LOSS"
+                else:
+                    outcome = "BREAKEVEN"
+                note = "LIQUIDATED: broker flat; exit estimated from live quotes"
+                params = (outcome, exit_price, gross_pnl, net_pnl, note, symbol, broker)
+            else:
+                outcome = "RECONCILIATION_REQUIRED"
+                note = (
+                    "RECONCILIATION_REQUIRED: broker flat but no execution evidence "
+                    "or live price; PnL not synthesized"
                 )
-                self.db_conn.commit()
+                params = (outcome, None, None, None, note, symbol, broker)
+
+            self.db_conn.execute(
+                "UPDATE trades SET outcome = ?, exit_price = ?, pnl_dollars = ?, "
+                "net_pnl = ?, notes = COALESCE(notes || ' | ', '') || ? "
+                "WHERE instrument = ? AND broker = ? AND outcome = 'OPEN'",
+                params,
+            )
+            self.db_conn.commit()
         except Exception as e:
             logger.debug("DB mark_liquidated failed for %s on %s: %s", symbol, broker, e)
 

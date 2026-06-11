@@ -110,8 +110,14 @@ class PositionMonitor:
                 return None, "unavailable"
         return None, "unavailable"
 
-    async def _finalize_broker_flat_position(self, pos: Position) -> bool:
-        """Finalize a broker-native exit from execution evidence, never a quote estimate."""
+    async def _finalize_broker_flat_position(
+        self, pos: Position, mark_unresolved: bool = True
+    ) -> bool:
+        """Finalize a broker-native exit from execution evidence, never a quote estimate.
+
+        mark_unresolved=False lets callers with their own fallback (e.g. SYNC PURGE's
+        quote-estimated close) keep the row OPEN instead of forcing manual review here.
+        """
         fill = getattr(self.ibkr_conn, "_latest_fill_by_symbol", {}).get(pos.symbol, {})
         expected_side = "SLD" if pos.qty > 0 else "BOT"
         entry_ts = _safe_entry_time(pos.entry_time).timestamp()
@@ -132,7 +138,7 @@ class PositionMonitor:
                 reason,
                 fill or "none",
             )
-            if self.db_conn and getattr(pos, "db_id", 0):
+            if mark_unresolved and self.db_conn and getattr(pos, "db_id", 0):
                 self.db_conn.execute(
                     "UPDATE trades SET outcome='RECONCILIATION_REQUIRED', "
                     "notes=COALESCE(notes || ' | ', '') || ? WHERE rowid=?",
@@ -733,7 +739,7 @@ class PositionMonitor:
                 logger.warning(f" SKIPPING EXIT for {symbol}: Position size is already 0.")
                 if pos in self.positions:
                     self.positions.remove(pos)
-                self._mark_trade_liquidated(symbol, pos.account_type)
+                self._mark_trade_liquidated(symbol, pos.account_type, pos=pos)
                 return
 
             # Check if we already have an active order for this symbol at the broker.

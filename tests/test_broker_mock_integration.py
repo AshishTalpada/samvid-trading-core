@@ -505,6 +505,109 @@ async def test_reconcile_refreshes_stale_ibkr_position_cache(paper_brain):
 
 
 @pytest.mark.asyncio
+async def test_sync_purge_realizes_pnl_from_execution_evidence(paper_brain):
+    """Broker-flat purge must realize true PnL from bracket fill evidence.
+
+    Regression: SYNC PURGE wrote bare LIQUIDATED rows with NULL exit_price/PnL,
+    blinding win-rate gates, the drawdown ladder and all learning loops.
+    """
+    pos = Position(
+        symbol="AAPL",
+        qty=100,
+        entry_price=150.0,
+        stop_loss=140.0,
+        take_profit=165.0,
+        account_type="ibkr",
+        entry_time=datetime(2024, 1, 1, tzinfo=timezone.utc),
+    )
+    pos.initial_stop = 140.0
+    pos.db_id = 55
+    paper_brain.positions = [pos]
+    paper_brain.start_time = datetime(2024, 1, 1, tzinfo=timezone.utc)
+    paper_brain._broker_is_connected = lambda conn: conn.is_connected()
+    paper_brain.ibkr_conn.is_connected.return_value = True
+    paper_brain.ibkr_conn._positions_cache = {}
+    paper_brain._last_ibkr_reconcile_poll_ts = 0.0
+    paper_brain._ibkr_reconcile_poll_interval_sec = 30.0
+    paper_brain.ibkr_conn.ib.positions.return_value = []  # broker is flat
+
+    # Authoritative execution evidence: the bracket stop leg sold 100 @ $160.
+    paper_brain.ibkr_conn._latest_fill_by_symbol = {
+        "AAPL": {
+            "side": "SLD",
+            "timestamp": time.time(),
+            "quantity": 100.0,
+            "avg_price": 160.0,
+            "commission": 1.0,
+        }
+    }
+    paper_brain._log_trade_exit = AsyncMock()
+    paper_brain._mark_trade_liquidated = MagicMock()
+
+    await paper_brain._reconcile_broker_positions()
+
+    assert paper_brain.positions == []
+    paper_brain._log_trade_exit.assert_awaited_once()
+    args, kwargs = paper_brain._log_trade_exit.call_args
+    assert args[1] == "BROKER_PROTECTIVE_FILL"
+    assert args[2] == 160.0                          # true fill price
+    assert args[3] == pytest.approx(1000.0)          # gross PnL
+    assert kwargs["realized_net_pnl"] == pytest.approx(999.0)
+    # Evidence path used -> no bare-LIQUIDATED fallback
+    paper_brain._mark_trade_liquidated.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_sync_purge_estimates_economics_without_fill_evidence(paper_brain):
+    """Without execution evidence the purge estimates the exit from live quotes."""
+    pos = Position(
+        symbol="MSFT",
+        qty=50,
+        entry_price=300.0,
+        stop_loss=290.0,
+        take_profit=330.0,
+        account_type="ibkr",
+        entry_time=datetime(2024, 1, 1, tzinfo=timezone.utc),
+    )
+    pos.db_id = 77
+    paper_brain.positions = [pos]
+    paper_brain.start_time = datetime(2024, 1, 1, tzinfo=timezone.utc)
+    paper_brain._broker_is_connected = lambda conn: conn.is_connected()
+    paper_brain.ibkr_conn.is_connected.return_value = True
+    paper_brain.ibkr_conn._positions_cache = {}
+    paper_brain._last_ibkr_reconcile_poll_ts = 0.0
+    paper_brain._ibkr_reconcile_poll_interval_sec = 30.0
+    paper_brain.ibkr_conn.ib.positions.return_value = []
+    paper_brain.ibkr_conn._latest_fill_by_symbol = {}  # no evidence
+
+    paper_brain.last_tick_bids = {"MSFT": 309.0}
+    paper_brain.last_tick_asks = {"MSFT": 311.0}
+    paper_brain.last_tick_prices = {"MSFT": 310.0}
+
+    mock_cursor = MagicMock()
+    mock_cursor.fetchall.return_value = []
+    paper_brain.db_conn = MagicMock()
+    paper_brain.db_conn.cursor.return_value = mock_cursor
+
+    await paper_brain._reconcile_broker_positions()
+
+    assert paper_brain.positions == []
+    # The OPEN row must be closed with estimated economics, not NULL PnL.
+    update_calls = [
+        c for c in paper_brain.db_conn.execute.call_args_list
+        if "UPDATE trades" in str(c.args[0])
+    ]
+    assert update_calls, "expected an UPDATE trades call with estimated economics"
+    params = update_calls[-1].args[1]
+    assert params[0] == "WIN"                       # outcome from estimated net PnL
+    assert params[1] == pytest.approx(310.0)        # bid/ask midpoint exit
+    assert params[2] == pytest.approx(500.0)        # gross PnL
+    assert params[3] == pytest.approx(500.0)        # net PnL
+    assert "LIQUIDATED" in params[4]
+    assert params[5:] == ("MSFT", "ibkr")
+
+
+@pytest.mark.asyncio
 async def test_reconcile_defers_drift_alert_when_ibkr_reality_is_unavailable(paper_brain):
     """Disconnected IBKR memory is unknown, not proof of a broker mismatch."""
     paper_brain.positions = [
