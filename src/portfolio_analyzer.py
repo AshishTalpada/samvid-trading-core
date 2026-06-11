@@ -19,7 +19,7 @@ from __future__ import annotations
 import logging
 from collections import defaultdict
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 
 import numpy as np
@@ -57,7 +57,7 @@ class LivePortfolioAnalyzer:
         self._trades: list[ClosedTrade] = []
         self._equity_curve: list[float] = [starting_capital]
         self._by_symbol: dict[str, list[ClosedTrade]] = defaultdict(list)
-        self._session_start: datetime = datetime.utcnow()
+        self._session_start: datetime = datetime.now(timezone.utc)
 
     def record_close(
         self,
@@ -73,7 +73,7 @@ class LivePortfolioAnalyzer:
         task_id: Optional[str] = None,
     ) -> None:
         """Record a completed trade. Call this every time a position is closed."""
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         entry_ts = ts_entry or now
         exit_ts = ts_exit or now
 
@@ -174,7 +174,7 @@ class LivePortfolioAnalyzer:
 
     def summary(self) -> dict:
         """Full session summary — expose on dashboard endpoint."""
-        session_hours = (datetime.utcnow() - self._session_start).total_seconds() / 3600
+        session_hours = (datetime.now(timezone.utc) - self._session_start).total_seconds() / 3600
         return {
             "session_hours": round(session_hours, 2),
             "trades": self.n_trades,

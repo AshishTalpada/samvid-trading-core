@@ -10,7 +10,7 @@ class AlphaReportGenerator:
     def generate(
         self, week_pnl: float, trades: int, win_rate: float, sharpe: float, new_modules: list[str]
     ) -> str:
-        now = datetime.datetime.utcnow()
+        now = datetime.datetime.now(datetime.timezone.utc)
         week_str = now.strftime("Week of %Y-%m-%d")
         lines = [
             f"# Sovereign Alpha Report — {week_str}",

@@ -141,7 +141,7 @@ class DataProvider:
             use_fallback = True
             if df_qdb is not None and not df_qdb.empty:
                 qdb_max_ts = pd.to_datetime(df_qdb["timestamp"], utc=True).max()
-                now_utc = pd.Timestamp.utcnow()
+                now_utc = pd.Timestamp.now("UTC")
                 qdb_staleness = (now_utc - qdb_max_ts).total_seconds()
                 market_open = self._is_market_open()
                 staleness_limit = (
@@ -209,7 +209,7 @@ class DataProvider:
             # Staleness check (normalised to UTC on both sides)
             try:
                 latest_bar_ts = pd.to_datetime(df_frame["timestamp"], utc=True).max()
-                now_utc = pd.Timestamp.utcnow()
+                now_utc = pd.Timestamp.now("UTC")
                 staleness = (now_utc - latest_bar_ts).total_seconds()
 
                 market_open = self._is_market_open()
