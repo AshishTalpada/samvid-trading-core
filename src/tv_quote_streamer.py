@@ -14,6 +14,7 @@ import logging
 import os
 import time
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any
 
 import websockets
@@ -112,10 +113,21 @@ class TVQuoteStreamer:
         self._candle_pulse_sec = max(
             0.25, float(os.getenv("SOVEREIGN_TV_QUOTES_CANDLE_PULSE_SEC", "1.0"))
         )
+        try:
+            self._observation_interval_sec = max(
+                60.0,
+                float(os.getenv("SOVEREIGN_TV_PRICE_OBSERVATION_INTERVAL_SEC", "300")),
+            )
+        except ValueError:
+            self._observation_interval_sec = 300.0
+        self._observation_learning_enabled = (
+            os.getenv("SOVEREIGN_MARKET_OBSERVATION_LEARNING", "1") == "1"
+        )
         self.dropped_ticks = 0
         self.quotes_seen = 0
         self._symbol_by_tv: dict[str, str] = {}
         self._last_payload_by_symbol: dict[str, dict[str, Any]] = {}
+        self._observation_anchor_by_symbol: dict[str, tuple[float, float]] = {}
 
     @property
     def connected(self) -> bool:
@@ -305,6 +317,61 @@ class TVQuoteStreamer:
                         self.dropped_ticks,
                         exc,
                     )
+            await self._maybe_publish_market_observation(quote)
+
+    async def _maybe_publish_market_observation(self, quote: TVQuote) -> None:
+        """Publish bounded price-drift samples even when broker execution is unavailable."""
+        if not self.bus or not self._observation_learning_enabled or quote.price <= 0:
+            return
+
+        now = time.monotonic()
+        anchor = self._observation_anchor_by_symbol.get(quote.symbol)
+        if anchor is None:
+            self._observation_anchor_by_symbol[quote.symbol] = (now, quote.price)
+            return
+
+        anchor_time, anchor_price = anchor
+        elapsed_sec = now - anchor_time
+        if elapsed_sec < self._observation_interval_sec or anchor_price <= 0:
+            return
+
+        move_pct = ((quote.price - anchor_price) / anchor_price) * 100.0
+        if move_pct > 0.05:
+            direction = "UP"
+        elif move_pct < -0.05:
+            direction = "DOWN"
+        else:
+            direction = "FLAT"
+
+        try:
+            await self.bus.publish(
+                "market.observation",
+                {
+                    "observed_at": datetime.now(timezone.utc).isoformat(),
+                    "symbol": quote.symbol,
+                    "event_type": f"PRICE_DRIFT_{direction}",
+                    "pattern": "REALTIME_PRICE_DRIFT",
+                    "confidence": min(100.0, abs(move_pct) * 100.0),
+                    "price": quote.price,
+                    "regime": "UNKNOWN",
+                    "dhatu_state": "UNKNOWN",
+                    "source": "tv_quote_streamer",
+                    "metadata": {
+                        "anchor_price": anchor_price,
+                        "move_pct": move_pct,
+                        "window_sec": elapsed_sec,
+                        "bid": quote.bid,
+                        "ask": quote.ask,
+                    },
+                },
+            )
+            self._observation_anchor_by_symbol[quote.symbol] = (now, quote.price)
+        except Exception as exc:
+            logger.debug(
+                "TVQuoteStreamer: market observation publish skipped for %s: %s",
+                quote.symbol,
+                exc,
+            )
 
     async def _maybe_publish_candle_pulse(self) -> None:
         if not self.bus or not self._pending_pulse_symbols:

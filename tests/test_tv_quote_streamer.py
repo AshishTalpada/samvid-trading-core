@@ -80,6 +80,52 @@ async def test_publish_quote_emits_tick_and_candle_pulse() -> None:
     assert tick_payload["source"] == "TradingView_WS"
 
 
+@pytest.mark.asyncio
+async def test_price_observation_learning_runs_without_broker() -> None:
+    class FakeBus:
+        def __init__(self) -> None:
+            self.events = []
+
+        async def publish(self, topic, payload) -> None:
+            self.events.append((topic, payload))
+
+    bus = FakeBus()
+    streamer = TVQuoteStreamer(bus=bus)
+    streamer._observation_interval_sec = 300.0
+    first = streamer._quote_from_message(
+        {
+            "m": "qsd",
+            "p": [
+                streamer.session_id,
+                {"n": "NASDAQ:NVDA", "v": {"lp": 900.0, "bid": 899.9, "ask": 900.1}},
+            ],
+        }
+    )
+    second = streamer._quote_from_message(
+        {
+            "m": "qsd",
+            "p": [
+                streamer.session_id,
+                {"n": "NASDAQ:NVDA", "v": {"lp": 904.5, "bid": 904.4, "ask": 904.6}},
+            ],
+        }
+    )
+
+    assert first is not None
+    assert second is not None
+    with pytest.MonkeyPatch.context() as monkeypatch:
+        monotonic_values = iter([100.0, 401.0])
+        monkeypatch.setattr(time, "monotonic", lambda: next(monotonic_values))
+        await streamer._maybe_publish_market_observation(first)
+        await streamer._maybe_publish_market_observation(second)
+
+    observations = [payload for topic, payload in bus.events if topic == "market.observation"]
+    assert len(observations) == 1
+    assert observations[0]["event_type"] == "PRICE_DRIFT_UP"
+    assert observations[0]["source"] == "tv_quote_streamer"
+    assert observations[0]["metadata"]["move_pct"] == pytest.approx(0.5)
+
+
 def test_health_status_pauses_cleanly_after_hours(monkeypatch: pytest.MonkeyPatch) -> None:
     streamer = TVQuoteStreamer()
     streamer.is_running = True
