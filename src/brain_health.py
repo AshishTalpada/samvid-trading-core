@@ -24,9 +24,9 @@ class HealthChecker:
         last_reason = str(getattr(self, "_last_health_failure_reason", ""))
         last_log = float(getattr(self, "_last_health_failure_notice_ts", 0.0) or 0.0)
         try:
-            interval = float(os.getenv("SOVEREIGN_HEALTH_FAILURE_LOG_INTERVAL_SEC", "300"))
+            interval = float(os.getenv("SOVEREIGN_HEALTH_FAILURE_LOG_INTERVAL_SEC", "1800"))
         except ValueError:
-            interval = 300.0
+            interval = 1800.0
 
         message = "EXECUTION HEALTH CHECK BLOCKED: %s. Remaining in STANDBY."
         if reason != last_reason or now - last_log >= max(30.0, interval):
