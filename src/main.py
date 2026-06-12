@@ -842,6 +842,20 @@ class TradingSystem:
                 self._ensure_runtime_telemetry_schema(cursor)
                 self.db_conn.commit()
                 cursor.close()
+                try:
+                    from execution_evidence import repair_trade_ledger_from_execution_audit
+
+                    repaired = repair_trade_ledger_from_execution_audit(self.db_conn)
+                    if repaired:
+                        logger.warning(
+                            "Execution audit repaired %d reconciliation-required trade row(s).",
+                            len(repaired),
+                        )
+                except Exception as audit_repair_error:
+                    logger.error(
+                        "Execution-audit ledger repair skipped: %s",
+                        audit_repair_error,
+                    )
                 logger.info(f"Database tables verified: {', '.join(tables)}")
 
                 return True
