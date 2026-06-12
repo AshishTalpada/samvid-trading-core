@@ -35,7 +35,14 @@ class SharedEmbeddingEngine:
                 TextEmbedding = fastembed.TextEmbedding
 
                 model_name = Vault.get("EMBEDDING_MODEL", "BAAI/bge-small-en-v1.5")
-                self._model = TextEmbedding(model_name)
+                try:
+                    self._model = TextEmbedding(model_name, local_files_only=True)
+                except Exception:
+                    logger.info(
+                        "SharedEmbeddingEngine: %s is not cached; allowing one network fetch.",
+                        model_name,
+                    )
+                    self._model = TextEmbedding(model_name)
                 logger.info(f"✓ SharedEmbeddingEngine: {model_name} loaded into memory.")
             except Exception as e:
                 if not self._fallback_logged:
