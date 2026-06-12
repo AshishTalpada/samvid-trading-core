@@ -1466,9 +1466,16 @@ class TradingCoordinator:
 
                     from system_types import Position
 
+                    broker_name = self.brain.active_broker.lower()
+                    broker_confirmed_costs = (
+                        broker_name == "ibkr" and getattr(self.brain, "mode", "paper") != "paper"
+                    )
+                    estimated_entry_commission = max(2.0, shares * 0.005)
+                    estimated_entry_slippage = shares * pattern.entry * 0.0005
+                    signed_shares = shares if is_long else -shares
                     pos = Position(
                         symbol=symbol,
-                        qty=(shares if is_long else -shares),
+                        qty=signed_shares,
                         entry_price=pattern.entry,
                         entry_time=datetime.now(timezone.utc),
                         pattern=pattern.name,
@@ -1479,12 +1486,16 @@ class TradingCoordinator:
                         take_profit=pattern.target,
                         trade_id=str(order_id),
                         task_id=task.id if task else "N/A",
-                        account_type=self.brain.active_broker.lower(),
+                        account_type=broker_name,
                         catalyst_score=(all_votes[0].get("confidence", 0.5) if all_votes else 0.5)
                         * 100,
                         regime_at_entry=self.brain.current_regime,
-                        commission_cost=max(2.0, shares * 0.005),
-                        slippage_cost=shares * pattern.entry * 0.0005,
+                        commission_cost=0.0
+                        if broker_confirmed_costs
+                        else estimated_entry_commission,
+                        slippage_cost=0.0
+                        if broker_confirmed_costs
+                        else estimated_entry_slippage,
                     )
                     pos.meta.update(
                         {
@@ -1494,6 +1505,10 @@ class TradingCoordinator:
                             "order_id": str(order_id),
                             "paper_exploration": bool(decision.get("paper_exploration")),
                             "decision_reason": str(decision.get("reason", ""))[:500],
+                            "entry_qty_signed": signed_shares,
+                            "intended_entry_price": pattern.entry,
+                            "estimated_entry_commission": estimated_entry_commission,
+                            "estimated_entry_slippage": estimated_entry_slippage,
                         }
                     )
                     async with self.brain._state_lock:

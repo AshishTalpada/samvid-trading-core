@@ -248,6 +248,84 @@ def test_execution_callbacks_build_idempotent_fill_economics() -> None:
     assert economics["commission"] == pytest.approx(0.75)
 
 
+def test_entry_fill_tracks_only_adverse_slippage() -> None:
+    conn = IBKRConnection.__new__(IBKRConnection)
+    conn._execution_audit = MagicMock()
+    conn._intent_id_by_order_id = {}
+    conn._fill_economics_by_order_id = {}
+    conn._seen_execution_ids = set()
+    conn._queue_position_cost_snapshot = MagicMock()
+    position = SimpleNamespace(
+        symbol="SPY",
+        trade_id="125",
+        qty=10,
+        entry_price=100.0,
+        slippage_cost=5.0,
+        meta={},
+    )
+    conn.brain = SimpleNamespace(positions=[position])
+    trade = SimpleNamespace(
+        contract=SimpleNamespace(symbol="SPY"),
+        order=SimpleNamespace(orderId=125, parentId=0),
+    )
+    favorable_fill = SimpleNamespace(
+        execution=SimpleNamespace(
+            execId="entry-1", side="BOT", shares=10, price=99.5, avgPrice=99.5
+        )
+    )
+
+    conn._on_exec_details(trade, favorable_fill)
+
+    assert position.entry_price == pytest.approx(99.5)
+    assert position.slippage_cost == 0.0
+    assert position.meta["entry_price_improvement"] == pytest.approx(5.0)
+    assert position.meta["entry_qty_signed"] == 10
+    conn._queue_position_cost_snapshot.assert_called_once_with(position)
+
+
+def test_commission_callback_keeps_entry_and_exit_costs_separate() -> None:
+    conn = IBKRConnection.__new__(IBKRConnection)
+    conn._execution_audit = MagicMock()
+    conn._intent_id_by_order_id = {}
+    conn._fill_economics_by_order_id = {}
+    conn._seen_commission_ids = set()
+    conn._latest_fill_by_symbol = {}
+    conn._queue_position_cost_snapshot = MagicMock()
+    position = SimpleNamespace(
+        symbol="SPY",
+        trade_id="125",
+        qty=10,
+        commission_cost=0.0,
+        meta={},
+    )
+    conn.brain = SimpleNamespace(positions=[position])
+    entry_trade = SimpleNamespace(
+        contract=SimpleNamespace(symbol="SPY"),
+        order=SimpleNamespace(orderId=125, parentId=0),
+    )
+    exit_trade = SimpleNamespace(
+        contract=SimpleNamespace(symbol="SPY"),
+        order=SimpleNamespace(orderId=126, parentId=125),
+    )
+    entry_fill = SimpleNamespace(execution=SimpleNamespace(execId="entry-1", side="BOT", shares=10))
+    exit_fill = SimpleNamespace(execution=SimpleNamespace(execId="exit-1", side="SLD", shares=10))
+
+    conn._on_commission_report(
+        entry_trade,
+        entry_fill,
+        SimpleNamespace(execId="entry-1", commission=1.25, currency="USD"),
+    )
+    conn._on_commission_report(
+        exit_trade,
+        exit_fill,
+        SimpleNamespace(execId="exit-1", commission=1.75, currency="USD"),
+    )
+
+    assert position.commission_cost == pytest.approx(1.25)
+    assert conn._fill_economics_by_order_id["126"]["commission"] == pytest.approx(1.75)
+    conn._queue_position_cost_snapshot.assert_called_once_with(position)
+
+
 def test_persistent_order_schema_upgrades_legacy_cache() -> None:
     conn = sqlite3.connect(":memory:")
     conn.execute(

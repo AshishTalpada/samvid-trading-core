@@ -383,6 +383,47 @@ class IBKRConnection:
         self._account_summary[item.tag] = item.value
 
     @staticmethod
+    def _persist_position_cost_snapshot(position: Any) -> None:
+        """Persist broker-confirmed entry economics for the exact trade row."""
+        db_id = int(getattr(position, "db_id", 0) or 0)
+        if db_id <= 0:
+            return
+        try:
+            conn = sqlite3.connect(os.path.join("data", "trading.db"), timeout=60.0)
+            try:
+                conn.execute("PRAGMA journal_mode=WAL;")
+                conn.execute("PRAGMA busy_timeout = 60000;")
+                conn.execute(
+                    "UPDATE trades SET entry_price=?, shares=?, commission=?, slippage=? "
+                    "WHERE rowid=? AND outcome='OPEN'",
+                    (
+                        float(position.entry_price),
+                        abs(float(position.meta.get("entry_qty_signed", position.qty) or 0.0)),
+                        float(position.commission_cost or 0.0),
+                        float(position.slippage_cost or 0.0),
+                        db_id,
+                    ),
+                )
+                conn.commit()
+            finally:
+                conn.close()
+        except Exception as exc:
+            logger.error(
+                "IBKR: Failed to persist broker-confirmed entry economics for %s: %s",
+                getattr(position, "symbol", "UNKNOWN"),
+                exc,
+            )
+
+    def _queue_position_cost_snapshot(self, position: Any) -> None:
+        import threading as _threading
+
+        _threading.Thread(
+            target=self._persist_position_cost_snapshot,
+            args=(position,),
+            daemon=True,
+        ).start()
+
+    @staticmethod
     def _ensure_persistent_orders_schema(conn: sqlite3.Connection) -> None:
         """Create or upgrade the restart-recovery cache without dropping live state."""
         conn.execute(
@@ -667,12 +708,29 @@ class IBKRConnection:
                         intended_entry = float(
                             p.meta.setdefault("intended_entry_price", p.entry_price)
                         )
+                        entry_qty_signed = float(
+                            p.meta.setdefault("entry_qty_signed", p.qty)
+                        )
                         p.entry_price = float(economics["avg_price"])
-                        p.slippage_cost = abs(p.entry_price - intended_entry) * abs(p.qty)
-                        logger.warning(
-                            f" MIRROR ALIGN [{symbol}]: Entry price updated to "
-                            f"actual VWAP ${p.entry_price:.2f} "
-                            f"(Slippage: ${p.slippage_cost:.2f})"
+                        if entry_qty_signed > 0:
+                            adverse_per_share = max(p.entry_price - intended_entry, 0.0)
+                            improvement_per_share = max(intended_entry - p.entry_price, 0.0)
+                        else:
+                            adverse_per_share = max(intended_entry - p.entry_price, 0.0)
+                            improvement_per_share = max(p.entry_price - intended_entry, 0.0)
+                        p.slippage_cost = adverse_per_share * abs(entry_qty_signed)
+                        p.meta["entry_fill_vwap"] = p.entry_price
+                        p.meta["entry_price_improvement"] = improvement_per_share * abs(
+                            entry_qty_signed
+                        )
+                        self._queue_position_cost_snapshot(p)
+                        logger.info(
+                            "MIRROR ALIGN [%s]: entry VWAP=$%.4f adverse_slippage=$%.2f "
+                            "price_improvement=$%.2f",
+                            symbol,
+                            p.entry_price,
+                            p.slippage_cost,
+                            p.meta["entry_price_improvement"],
                         )
                     else:
                         # This is likely an exit (Stop Loss or Take Profit)
@@ -734,10 +792,17 @@ class IBKRConnection:
                     or f"ADOPTED-{order_id}" in p.trade_id
                     or f"ADOPTED-{parent_id}" in p.trade_id
                 ):
-                    p.commission_cost += float(comm)
-                    logger.debug(
-                        f" COST ALIGN [{symbol}]: Accumulated commission: ${p.commission_cost:.2f}"
+                    is_entry_commission = str(p.trade_id) == order_id or f"ADOPTED-{order_id}" in str(
+                        p.trade_id
                     )
+                    if is_entry_commission:
+                        p.commission_cost += float(comm)
+                        self._queue_position_cost_snapshot(p)
+                        logger.debug(
+                            "COST ALIGN [%s]: entry commission accumulated: $%.2f",
+                            symbol,
+                            p.commission_cost,
+                        )
                     break
 
     async def ensure_connection(self) -> bool:
@@ -1195,6 +1260,9 @@ class IBKRConnection:
                     p_entry = LimitOrder(direction, shares, lmt)
                     p_entry.orderId = self.ib.client.getReqId()
                     p_entry.transmit = False
+                    p_entry.overridePercentageConstraints = True
+                    p_entry.tif = order_tif
+                    p_entry.outsideRth = extended_hours
 
                     sl_buff = 0.02
                     sl_lmt = (
@@ -1203,21 +1271,38 @@ class IBKRConnection:
                         else self.round_to_tick(sl * (1 + sl_buff))
                     )
                     sl_o = StopLimitOrder(opp_direction, shares, sl_lmt, sl)
+                    sl_o.orderId = self.ib.client.getReqId()
                     sl_o.parentId = p_entry.orderId
                     sl_o.transmit = False
+                    sl_o.overridePercentageConstraints = True
+                    sl_o.tif = order_tif
+                    sl_o.outsideRth = extended_hours
 
                     tp_o = LimitOrder(opp_direction, shares, tp)
+                    tp_o.orderId = self.ib.client.getReqId()
                     tp_o.parentId = p_entry.orderId
                     tp_o.transmit = True  # Finalizes bracket
+                    tp_o.overridePercentageConstraints = True
+                    tp_o.tif = order_tif
+                    tp_o.outsideRth = extended_hours
 
                     # Set account target
-                    for o in [p_entry, sl_o, tp_o]:
+                    order_legs = (
+                        (p_entry, "ENTRY"),
+                        (sl_o, "PROTECTIVE_EXIT"),
+                        (tp_o, "PROTECTIVE_EXIT"),
+                    )
+                    intent_id = getattr(self, "_last_persisted_intent_id", None)
+                    for o, order_role in order_legs:
                         if acc:
                             o.account = acc
+                        self._order_role_by_id[str(o.orderId)] = order_role
+                        if intent_id:
+                            self._intent_id_by_order_id[str(o.orderId)] = intent_id
                         trade = self.ib.placeOrder(contract, o)
-                        intent_id = getattr(self, "_last_persisted_intent_id", None)
                         if intent_id:
                             self._intent_id_by_order_id[str(trade.order.orderId)] = intent_id
+                        self._order_role_by_id[str(trade.order.orderId)] = order_role
                         if i == 0:
                             ids.append(trade.order.orderId)
 
