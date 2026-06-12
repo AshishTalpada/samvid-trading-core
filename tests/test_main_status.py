@@ -162,6 +162,29 @@ def test_write_pid_reclaims_dead_stale_lock(tmp_path, monkeypatch) -> None:
     assert pid_file.read_text(encoding="utf-8") == str(os.getpid())
 
 
+def test_shutdown_request_accepts_current_pid(tmp_path, monkeypatch) -> None:
+    system = _system()
+    request_path = tmp_path / "shutdown.request"
+    request_path.write_text(str(os.getpid()), encoding="utf-8")
+    system._shutdown_request_path = request_path
+
+    assert system._consume_shutdown_request() is True
+    assert not request_path.exists()
+
+
+def test_shutdown_request_discards_stale_pid(tmp_path, caplog) -> None:
+    system = _system()
+    request_path = tmp_path / "shutdown.request"
+    request_path.write_text(str(os.getpid() + 1), encoding="utf-8")
+    system._shutdown_request_path = request_path
+
+    with caplog.at_level(logging.WARNING):
+        assert system._consume_shutdown_request() is False
+
+    assert not request_path.exists()
+    assert "Discarded stale shutdown request" in caplog.text
+
+
 @pytest.mark.asyncio
 async def test_ibkr_runtime_rebind_updates_dms_brain_and_reconciles() -> None:
     system = _system()

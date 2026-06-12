@@ -353,6 +353,7 @@ class TradingSystem:
         self._shutdown_in_progress = False
         self._shutdown_complete = False
         self._hft_pulse_queue: Any = None
+        self._shutdown_request_path = Path("data/shutdown.request")
 
         self._last_tick_time = time.monotonic()
         self._last_data_starvation_alert = 0.0
@@ -612,6 +613,13 @@ class TradingSystem:
         # Set it before launching any supervised task; otherwise startup races
         # cause critical services to stand down as if shutdown had begun.
         self.is_running = True
+
+        # Windows cannot reliably deliver SIGINT to a detached Python process.
+        # A PID-bound local request lets operator tooling enter the same audited
+        # shutdown path used by an interactive Ctrl+C.
+        self.background_tasks["shutdown_request_listener"] = asyncio.create_task(
+            self._run_shutdown_request_listener(), name="shutdown_request_listener"
+        )
 
         # Start the worker task after parallel init
         self._start_supervised_task("hft_pulse_worker", self._run_hft_pulse_worker)
@@ -2501,6 +2509,50 @@ class TradingSystem:
 
         task = asyncio.create_task(supervisor())
         self.background_tasks[name] = task
+
+    def _consume_shutdown_request(self) -> bool:
+        """Consume a local shutdown request only when it targets this process."""
+        request_path = getattr(self, "_shutdown_request_path", Path("data/shutdown.request"))
+        try:
+            requested_pid = request_path.read_text(encoding="utf-8").strip()
+        except FileNotFoundError:
+            return False
+        except OSError as exc:
+            logger.warning("Shutdown request could not be read: %s", exc)
+            return False
+
+        try:
+            request_path.unlink(missing_ok=True)
+        except OSError as exc:
+            logger.warning("Shutdown request could not be consumed: %s", exc)
+            return False
+
+        current_pid = str(os.getpid())
+        if requested_pid != current_pid:
+            logger.warning(
+                "Discarded stale shutdown request for PID %s; current PID is %s.",
+                requested_pid or "<empty>",
+                current_pid,
+            )
+            return False
+        return True
+
+    async def _run_shutdown_request_listener(self) -> None:
+        """Translate a validated local request into the normal shutdown sequence."""
+        while self.is_running and not self._shutdown_event.is_set():
+            if self._consume_shutdown_request():
+                logger.info(
+                    "Local shutdown request accepted for PID %s; beginning graceful shutdown.",
+                    os.getpid(),
+                )
+                self._shutdown_task = asyncio.create_task(
+                    self.shutdown(), name="local_request_shutdown"
+                )
+                return
+            try:
+                await asyncio.wait_for(self._shutdown_event.wait(), timeout=0.5)
+            except TimeoutError:
+                continue
 
     async def shutdown(self) -> None:
         """Graceful shutdown sequence: Step-by-Step Institutional Guard."""
