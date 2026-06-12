@@ -3055,6 +3055,11 @@ class TradingSystem:
                 if not self.is_running or self._shutdown_in_progress:
                     break
 
+                # The external watchdog can exit shortly after a rapid graceful
+                # restart if it is still completing the prior session. Revalidate
+                # ownership continuously so the engine cannot remain unguarded.
+                await self._verify_watchdog()
+
                 # Check Ingestion Health (Delta since last HFT tick)
                 drift = time.monotonic() - self._last_tick_time
 

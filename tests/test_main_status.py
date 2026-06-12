@@ -194,6 +194,27 @@ def test_ibkr_operator_gate_logging_is_throttled() -> None:
     assert system._ibkr_operator_gate_log_due("IBKR 99999", now=1001.0) is True
 
 
+@pytest.mark.asyncio
+async def test_aegis_periodically_revalidates_external_watchdog() -> None:
+    system = _system()
+    system.is_running = True
+    system._shutdown_in_progress = False
+    system._shutdown_event = SimpleNamespace(is_set=lambda: False)
+    system._last_tick_time = 0.0
+    system._should_alert_hft_starvation = lambda _drift: False
+    system.mt5_client = None
+
+    async def verify_once() -> None:
+        system.is_running = False
+
+    system._verify_watchdog = AsyncMock(side_effect=verify_once)
+
+    with patch("main.asyncio.sleep", new=AsyncMock(return_value=None)):
+        await system._run_aegis_watchdog()
+
+    system._verify_watchdog.assert_awaited_once()
+
+
 def test_write_pid_reclaims_dead_stale_lock(tmp_path, monkeypatch) -> None:
     import psutil
 
