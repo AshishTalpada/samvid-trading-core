@@ -1269,6 +1269,20 @@ class TradingSystem:
                     "connected": False,
                 }
 
+                broker_connect_error = ""
+
+                def capture_connect_error(
+                    _request_id: int,
+                    error_code: int,
+                    error_text: str,
+                    _contract: Any = None,
+                ) -> None:
+                    nonlocal broker_connect_error
+                    if int(error_code) == 10141:
+                        broker_connect_error = f"IBKR {error_code}: {error_text}"
+
+                client.errorEvent += capture_connect_error
+
                 for client_id_offset in range(client_id_attempts):
                     current_id = base_client_id + client_id_offset
                     for host in hosts_to_try:
@@ -1320,15 +1334,38 @@ class TradingSystem:
                                     )
                                     break
                             except Exception as e:
-                                self._ibkr_last_probe_summary["last_error"] = (
-                                    f"{host}:{port} clientId={current_id}: {type(e).__name__}: {e}"
+                                # ib_insync reports broker-side handshake rejection through
+                                # errorEvent while connectAsync itself raises TimeoutError.
+                                await asyncio.sleep(0)
+                                failure_detail = broker_connect_error or (
+                                    f"{type(e).__name__}: {e}"
                                 )
+                                self._ibkr_last_probe_summary["last_error"] = (
+                                    f"{host}:{port} clientId={current_id}: {failure_detail}"
+                                )
+                                if broker_connect_error:
+                                    self._ibkr_last_probe_summary["operator_action_required"] = True
+                                    logger.error(
+                                        "IBKR API blocked by broker acknowledgement: %s. "
+                                        "Accept the paper-trading API disclaimer in TWS; "
+                                        "automatic reattachment will continue.",
+                                        broker_connect_error,
+                                    )
+                                    try:
+                                        client.disconnect()
+                                    except Exception as disconnect_error:
+                                        logger.debug(
+                                            "IBKR blocked-client cleanup skipped: %s",
+                                            disconnect_error,
+                                        )
+                                    return False
                                 logger.debug(f"Probe failed for {host}:{port}: {e}")
                                 try:
                                     client.disconnect()
                                 except Exception as e:
                                     logger.debug("Main: error disconnecting IBKR client during retry: %s", e)
                                 self.ibkr_client = client = IB()
+                                client.errorEvent += capture_connect_error
                                 continue
                         if connected:
                             break
@@ -1346,6 +1383,7 @@ class TradingSystem:
                     )
                     return False
                 accounts = client.managedAccounts()
+                client.errorEvent -= capture_connect_error
                 logger.info(f"✓ IBKR connected - Accounts: {accounts}")
                 if accounts:
                     client.wrapper.accounts = accounts
@@ -1473,6 +1511,18 @@ class TradingSystem:
             f"last={last_error}"
         )
 
+    def _ibkr_operator_action_message(self) -> str | None:
+        """Return a concise operator action for a known broker-side API gate."""
+        summary = getattr(self, "_ibkr_last_probe_summary", {}) or {}
+        last_error = str(summary.get("last_error") or "")
+        if summary.get("operator_action_required") and "10141" in last_error:
+            return (
+                "[EXECUTION ACTION REQUIRED] TWS rejected API access because the paper-trading "
+                "disclaimer has not been accepted. Open TWS, accept the paper-trading API "
+                "disclaimer, and leave TWS running. Samvid will reconnect automatically."
+            )
+        return None
+
     async def _run_ibkr_reconnect_loop(self) -> None:
         """Keep the owned IBKR API session attached when TWS starts late or restarts."""
         def _interval(name: str, default: float) -> float:
@@ -1553,6 +1603,17 @@ class TradingSystem:
                 )
                 await asyncio.sleep(base_delay)
                 continue
+
+            operator_action = self._ibkr_operator_action_message()
+            if operator_action and operator_action != getattr(
+                self, "_last_ibkr_operator_action", None
+            ):
+                self._last_ibkr_operator_action = operator_action
+                await self.send_telegram_notification(operator_action)
+                await self._persist_runtime_health_snapshot(
+                    event_type="broker_operator_action_required",
+                    message=operator_action,
+                )
 
             retry_delay = min(delay, critical_delay) if self._has_exposed_ibkr_positions() else delay
             logger.warning(

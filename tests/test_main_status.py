@@ -145,6 +145,30 @@ def test_ibkr_probe_diagnostic_text_includes_socket_context(monkeypatch) -> None
     assert "TimeoutError" in text
 
 
+def test_ibkr_operator_action_explains_paper_disclaimer() -> None:
+    system = _system()
+    system._ibkr_last_probe_summary = {
+        "last_error": "127.0.0.1:7497 clientId=500: IBKR 10141: disclaimer required",
+        "operator_action_required": True,
+    }
+
+    message = system._ibkr_operator_action_message()
+
+    assert message is not None
+    assert "accept the paper-trading API disclaimer" in message
+    assert "reconnect automatically" in message
+
+
+def test_ibkr_operator_action_ignores_generic_timeout() -> None:
+    system = _system()
+    system._ibkr_last_probe_summary = {
+        "last_error": "127.0.0.1:7497 clientId=500: TimeoutError",
+        "operator_action_required": False,
+    }
+
+    assert system._ibkr_operator_action_message() is None
+
+
 def test_write_pid_reclaims_dead_stale_lock(tmp_path, monkeypatch) -> None:
     import psutil
 
