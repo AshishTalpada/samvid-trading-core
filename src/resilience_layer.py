@@ -3,7 +3,7 @@ import logging
 import time
 from collections import deque
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Callable, Dict, List, Optional
 
 import numpy as np
@@ -22,7 +22,7 @@ class FailedOrder:
     attempt: int = 0
     max_attempts: int = 3
     reason: str = ""
-    ts_first_fail: datetime = field(default_factory=datetime.utcnow)
+    ts_first_fail: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     task_id: str = ""
 
 
