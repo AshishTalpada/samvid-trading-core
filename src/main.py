@@ -92,10 +92,22 @@ class SovereignFormatter(logging.Formatter):
         self._secrets = secrets or []
         import re
 
-        # Escape secrets to prevent regex injection
-        escaped_secrets = [re.escape(s) for s in self._secrets if len(s) > 3]
-        if escaped_secrets:
-            self._pattern = re.compile("|".join(escaped_secrets))
+        patterns = []
+        for secret in sorted(
+            (str(value) for value in self._secrets if len(str(value)) > 3),
+            key=len,
+            reverse=True,
+        ):
+            escaped = re.escape(secret)
+            if secret.isalnum() and len(secret) < 12:
+                # Short passwords and account labels can also occur inside normal
+                # words (for example, "quest" inside "request"). Redact them
+                # only as standalone values while keeping long tokens exhaustive.
+                patterns.append(rf"(?<![A-Za-z0-9]){escaped}(?![A-Za-z0-9])")
+            else:
+                patterns.append(escaped)
+        if patterns:
+            self._pattern = re.compile("|".join(patterns))
         else:
             self._pattern = None
 

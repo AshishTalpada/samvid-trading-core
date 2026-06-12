@@ -6,13 +6,27 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from main import TradingSystem
+from main import SovereignFormatter, TradingSystem
 
 
 def _system() -> TradingSystem:
     system = TradingSystem.__new__(TradingSystem)
     system.background_tasks = {}
     return system
+
+
+def test_formatter_does_not_redact_short_secret_inside_normal_word() -> None:
+    formatter = SovereignFormatter("%(message)s", secrets=["quest"])
+    record = logging.LogRecord("test", logging.INFO, "", 0, "request accepted", (), None)
+
+    assert formatter.format(record) == "request accepted"
+
+
+def test_formatter_redacts_short_secret_as_standalone_value() -> None:
+    formatter = SovereignFormatter("%(message)s", secrets=["quest"])
+    record = logging.LogRecord("test", logging.INFO, "", 0, "password=quest", (), None)
+
+    assert formatter.format(record) == "password=[REDACTED]"
 
 
 def test_startup_status_probes_contain_broker_failures() -> None:
