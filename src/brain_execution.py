@@ -511,11 +511,26 @@ class ExecutionMixin:
                                 "avg_r": float(row[4] or 0.0),
                                 "updated_from": "brain._log_trade_exit",
                             }
+                            now = datetime.now(timezone.utc)
+                            payload = json.dumps(summary)
                             cursor.execute(
-                                "INSERT OR REPLACE INTO performance_summary (key, value, updated_at) "
-                                "VALUES (?, ?, ?)",
-                                ("latest", json.dumps(summary), datetime.now(timezone.utc).isoformat()),
+                                "UPDATE performance_summary SET value=?, updated_at=? "
+                                "WHERE key='latest'",
+                                (payload, now.isoformat()),
                             )
+                            if cursor.rowcount == 0:
+                                if "date" in summary_cols:
+                                    cursor.execute(
+                                        "INSERT INTO performance_summary "
+                                        "(date, key, value, updated_at) VALUES (?, ?, ?, ?)",
+                                        (now.date().isoformat(), "latest", payload, now.isoformat()),
+                                    )
+                                else:
+                                    cursor.execute(
+                                        "INSERT INTO performance_summary "
+                                        "(key, value, updated_at) VALUES (?, ?, ?)",
+                                        ("latest", payload, now.isoformat()),
+                                    )
                         self.db_conn.commit()
                     except Exception as e:
                         logger.debug("Could not log trade exit: %s", e)

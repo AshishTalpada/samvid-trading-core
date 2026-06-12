@@ -369,10 +369,24 @@ def repair_trade_ledger_from_execution_audit(
                     "avg_r": float(aggregate[4] or 0.0),
                     "updated_from": "execution_audit_reconciliation",
                 }
+                now = datetime.now(timezone.utc)
+                payload = json.dumps(summary)
                 conn.execute(
-                    "INSERT OR REPLACE INTO performance_summary (key, value, updated_at) "
-                    "VALUES ('latest', ?, ?)",
-                    (json.dumps(summary), datetime.now(timezone.utc).isoformat()),
+                    "UPDATE performance_summary SET value=?, updated_at=? WHERE key='latest'",
+                    (payload, now.isoformat()),
                 )
+                if conn.execute("SELECT changes()").fetchone()[0] == 0:
+                    if "date" in summary_columns:
+                        conn.execute(
+                            "INSERT INTO performance_summary (date, key, value, updated_at) "
+                            "VALUES (?, 'latest', ?, ?)",
+                            (now.date().isoformat(), payload, now.isoformat()),
+                        )
+                    else:
+                        conn.execute(
+                            "INSERT INTO performance_summary (key, value, updated_at) "
+                            "VALUES ('latest', ?, ?)",
+                            (payload, now.isoformat()),
+                        )
         conn.commit()
     return repairs

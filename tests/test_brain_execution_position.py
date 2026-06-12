@@ -478,18 +478,33 @@ class TestLogTradeExitNetPnl:
 
         await paper_brain._log_trade_exit(pos, "TARGET_HIT", 103.0, 30.0, 1.5)
 
-        # performance_summary is created lazily inside _log_trade_exit
-        try:
-            row = conn.execute(
-                "SELECT value FROM performance_summary WHERE key='latest'"
-            ).fetchone()
-            assert row is not None, "performance_summary row not found"
-            summary = json.loads(row[0])
-            assert "closed_count" in summary
-            assert summary["closed_count"] >= 1
-        except sqlite3.OperationalError:
-            # Table may not exist if DB schema differs; not fatal for net_pnl tests
-            pass
+        row = conn.execute(
+            "SELECT value FROM performance_summary WHERE key='latest'"
+        ).fetchone()
+        assert row is not None, "performance_summary row not found"
+        summary = json.loads(row[0])
+        assert "closed_count" in summary
+        assert summary["closed_count"] >= 1
+
+    @pytest.mark.asyncio
+    async def test_performance_summary_supports_legacy_required_date(self, paper_brain):
+        conn = paper_brain.db_conn
+        conn.execute("DROP TABLE IF EXISTS performance_summary")
+        conn.execute(
+            "CREATE TABLE performance_summary (id INTEGER PRIMARY KEY, date TEXT NOT NULL, "
+            "key TEXT, value TEXT, updated_at TEXT)"
+        )
+        db_id = _insert_open_trade(conn, "DIA")
+        pos = _make_position(symbol="DIA", db_id=db_id)
+
+        await paper_brain._log_trade_exit(pos, "TARGET_HIT", 101.0, 10.0, 0.5)
+
+        row = conn.execute(
+            "SELECT date, value FROM performance_summary WHERE key='latest'"
+        ).fetchone()
+        assert row is not None
+        assert row[0] == datetime.now(timezone.utc).date().isoformat()
+        assert json.loads(row[1])["closed_count"] >= 1
 
     @pytest.mark.asyncio
     async def test_large_commission_forces_loss_outcome(self, paper_brain):

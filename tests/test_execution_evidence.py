@@ -234,6 +234,10 @@ def test_execution_audit_repairs_complete_reconciliation_row(tmp_path) -> None:
         "outcome TEXT, pnl_dollars REAL, net_pnl REAL, r_multiple REAL, hold_hours REAL, "
         "commission REAL, slippage REAL, notes TEXT)"
     )
+    conn.execute(
+        "CREATE TABLE performance_summary (id INTEGER PRIMARY KEY, date TEXT NOT NULL, "
+        "key TEXT, value TEXT, updated_at TEXT)"
+    )
     trade_time = datetime.fromtimestamp(intent["timestamp_ns"] / 1e9, timezone.utc) + timedelta(
         seconds=1
     )
@@ -254,6 +258,11 @@ def test_execution_audit_repairs_complete_reconciliation_row(tmp_path) -> None:
     assert row[0:3] == pytest.approx((99.5, 101.0, 10.0))
     assert row[3] == "WIN"
     assert row[4:] == pytest.approx((15.0, 12.5, 1.0, 0.0))
+    summary_row = conn.execute(
+        "SELECT date, value FROM performance_summary WHERE key='latest'"
+    ).fetchone()
+    assert summary_row is not None
+    assert json.loads(summary_row[1])["closed_count"] == 1
     assert repair_trade_ledger_from_execution_audit(conn, path) == []
     conn.close()
 
