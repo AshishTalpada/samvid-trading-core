@@ -300,13 +300,20 @@ class NativeSLM:
         proc.stdin.write(payload)
         proc.stdin.flush()
 
+    @staticmethod
+    def _close_popen_pipes(proc: subprocess.Popen[bytes]) -> None:
+        for stream in (proc.stdin, proc.stdout, proc.stderr):
+            if stream is not None and not stream.closed:
+                stream.close()
+
     async def _kill_worker(self, reason: str) -> None:
         proc = self._worker
         self._worker = None
-        if proc is None or not self._worker_alive(proc):
+        if proc is None:
             return
-        logger.warning("Native SLM: killing worker pid=%s (%s).", proc.pid, reason)
-        proc.kill()
+        if self._worker_alive(proc):
+            logger.warning("Native SLM: killing worker pid=%s (%s).", proc.pid, reason)
+            proc.kill()
         try:
             if isinstance(proc, subprocess.Popen):
                 await asyncio.wait_for(asyncio.to_thread(proc.wait), timeout=5.0)
@@ -314,6 +321,9 @@ class NativeSLM:
                 await asyncio.wait_for(proc.wait(), timeout=5.0)
         except asyncio.TimeoutError:
             logger.warning("Native SLM: worker pid=%s did not exit after kill.", proc.pid)
+        finally:
+            if isinstance(proc, subprocess.Popen):
+                self._close_popen_pipes(proc)
 
     def _vote_from_text(self, output_text: str, context: Dict[str, Any], elapsed: float) -> dict:
         text = output_text.strip().upper()
