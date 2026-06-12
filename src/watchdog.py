@@ -146,6 +146,28 @@ def get_dynamic_memory_threshold() -> float:
 TASK_HEARTBEAT_FILE = "data/task_heartbeats.json"
 
 
+def _is_live_main_process(pid: int) -> bool:
+    """Return True only when pid belongs to the active Samvid main process."""
+    try:
+        import psutil
+
+        process = psutil.Process(pid)
+        cmdline = " ".join(process.cmdline()).replace("\\", "/").lower()
+        return process.is_running() and "src/main.py" in cmdline
+    except Exception:
+        return False
+
+
+def _active_main_pid(pid_path: str = "data/main.pid") -> int | None:
+    """Resolve the validated main PID currently owning the singleton file."""
+    try:
+        raw = Path(pid_path).read_text(encoding="utf-8").strip()
+        pid = int(raw)
+    except (FileNotFoundError, OSError, ValueError):
+        return None
+    return pid if _is_live_main_process(pid) else None
+
+
 def _remove_pid_file(path: str, expected_pid: str | None = None) -> None:
     """Remove a stale PID file, optionally only if it still contains expected_pid."""
     try:
@@ -189,10 +211,17 @@ def check_heartbeat(watchdog_start_time: datetime) -> bool:
                 return True
 
             if status_row and status_row[0] == "stopped":
-                if last_hb >= watchdog_start_time:
+                replacement_pid = _active_main_pid()
+                if replacement_pid is not None:
+                    logger.info(
+                        "Watchdog: Ignoring stopped state because replacement main PID %s is active.",
+                        replacement_pid,
+                    )
+                elif last_hb >= watchdog_start_time:
                     logger.info("Watchdog: Main engine stopped gracefully. Terminating watchdog.")
                     sys.exit(0)
-                logger.info("Watchdog: Ignoring stale stopped state from prior session.")
+                else:
+                    logger.info("Watchdog: Ignoring stale stopped state from prior session.")
 
             # Ignore legacy heartbeat from prior sessions during initial phase
             if last_hb < watchdog_start_time:

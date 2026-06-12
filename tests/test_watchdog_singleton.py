@@ -1,3 +1,5 @@
+import sqlite3
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import watchdog
@@ -50,6 +52,27 @@ def test_run_watchdog_exits_when_singleton_claim_fails(monkeypatch) -> None:
     monkeypatch.setattr(watchdog, "_write_watchdog_pid", lambda: False)
 
     assert watchdog.run_watchdog() is None
+
+
+def test_stopped_state_does_not_retire_watchdog_for_replacement_main(
+    tmp_path, monkeypatch
+) -> None:
+    db_path = tmp_path / "trading.db"
+    heartbeat = datetime.now(timezone.utc)
+    with sqlite3.connect(db_path) as conn:
+        conn.execute("CREATE TABLE system_state (key TEXT PRIMARY KEY, value TEXT)")
+        conn.executemany(
+            "INSERT INTO system_state (key, value) VALUES (?, ?)",
+            [
+                ("system_status", "stopped"),
+                ("last_heartbeat", heartbeat.isoformat()),
+            ],
+        )
+
+    monkeypatch.setattr(watchdog, "DB_PATH", str(db_path))
+    monkeypatch.setattr(watchdog, "_active_main_pid", lambda: 321)
+
+    assert watchdog.check_heartbeat(heartbeat - timedelta(minutes=1)) is True
 
 
 def _proc(pid, ppid, cmdline=""):
