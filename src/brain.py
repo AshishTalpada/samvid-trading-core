@@ -983,6 +983,7 @@ class TradingBrain(BrokerReconciler, HealthChecker, DataProvider, AccountingMixi
                             f"{pause_msg} Consecutive losses="
                             f"{getattr(self.loss_tracker, 'consecutive_losses', '?')}. "
                             f"Reason={reason}.",
+                            interval_sec=1800.0,
                         )
 
                     if self.emergency_halted:
@@ -1790,7 +1791,7 @@ class TradingBrain(BrokerReconciler, HealthChecker, DataProvider, AccountingMixi
                 pause_until = getattr(self.loss_tracker, "pause_until", None)
                 self._log_circuit_breaker_throttled(
                     "scan_recovery_mode",
-                    logging.WARNING,
+                    logging.INFO,
                     "SCAN BLOCKED: recovery mode is active; new entries disabled. "
                     "Existing positions remain under exit monitoring. "
                     f"losses={getattr(self.loss_tracker, 'consecutive_losses', '?')} "

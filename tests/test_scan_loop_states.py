@@ -115,6 +115,34 @@ def test_after_hours_oracle_freeze_uses_info_throttle(minimal_brain) -> None:
     )
 
 
+def test_recovery_mode_throttle_preserves_warning_without_flooding(minimal_brain) -> None:
+    brain = minimal_brain
+
+    with patch("brain.time.monotonic", side_effect=[1800.0, 1801.0, 3600.0]):
+        with patch("brain.logger.log") as log:
+            brain._log_circuit_breaker_throttled(
+                "loss_streak",
+                logging.WARNING,
+                "recovery active",
+                interval_sec=1800.0,
+            )
+            brain._log_circuit_breaker_throttled(
+                "loss_streak",
+                logging.WARNING,
+                "recovery active",
+                interval_sec=1800.0,
+            )
+            brain._log_circuit_breaker_throttled(
+                "loss_streak",
+                logging.WARNING,
+                "recovery active",
+                interval_sec=1800.0,
+            )
+
+    assert log.call_count == 2
+    log.assert_any_call(logging.WARNING, "recovery active")
+
+
 @pytest.mark.asyncio
 async def test_drawdown_circuit_breaker_halts(minimal_brain) -> None:
     """When drawdown exceeds limit, is_trading_allowed returns False."""
