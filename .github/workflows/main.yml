@@ -31,6 +31,7 @@ jobs:
         uses: astral-sh/setup-uv@v8.2.0
         with:
           enable-cache: true
+          cache-suffix: python-lint
 
       - name: Install Python dependencies
         run: uv sync --locked
@@ -99,6 +100,7 @@ jobs:
         uses: astral-sh/setup-uv@v8.2.0
         with:
           enable-cache: true
+          cache-suffix: full-stack
 
       - name: Install Python dependencies
         run: uv sync --locked
