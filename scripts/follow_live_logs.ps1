@@ -9,7 +9,9 @@ $ErrorActionPreference = "Stop"
 $ProjectRoot = (Resolve-Path $ProjectRoot).Path
 $MainLog = Join-Path $ProjectRoot "logs\trading_system.log"
 $WatchdogLog = Join-Path $ProjectRoot "logs\watchdog.log"
-$Python = Join-Path $ProjectRoot "venv\Scripts\python.exe"
+$UvPython = Join-Path $ProjectRoot ".venv\Scripts\python.exe"
+$LegacyPython = Join-Path $ProjectRoot "venv\Scripts\python.exe"
+$Python = if (Test-Path $UvPython) { $UvPython } else { $LegacyPython }
 
 function Test-MainProcess {
     $escaped = [regex]::Escape($ProjectRoot)
