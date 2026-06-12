@@ -5,6 +5,7 @@ services:
   questdb:
     image: questdb/questdb:9.3.3
     container_name: trading_questdb
+    restart: unless-stopped
     ports:
       - "9000:9000"   # REST / web console
       - "9009:9009"   # InfluxDB line protocol (ILP) — data pipeline + ticks
