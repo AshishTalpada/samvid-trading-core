@@ -1291,7 +1291,9 @@ class TradingSystem:
                 ) -> None:
                     nonlocal broker_connect_error
                     if int(error_code) == 10141:
-                        broker_connect_error = f"IBKR {error_code}: {error_text}"
+                        broker_connect_error = (
+                            f"IBKR {error_code}: {error_text.rstrip(' .')}"
+                        )
 
                 client.errorEvent += capture_connect_error
 
@@ -1529,7 +1531,7 @@ class TradingSystem:
         last_error = str(summary.get("last_error") or "")
         if summary.get("operator_action_required") and "10141" in last_error:
             return (
-                "[EXECUTION ACTION REQUIRED] TWS rejected API access because the paper-trading "
+                "[EXECUTION] ACTION REQUIRED: TWS rejected API access because the paper-trading "
                 "disclaimer has not been accepted. Open TWS, accept the paper-trading API "
                 "disclaimer, and leave TWS running. Samvid will reconnect automatically."
             )

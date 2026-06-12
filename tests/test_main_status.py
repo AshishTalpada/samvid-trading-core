@@ -169,6 +169,7 @@ def test_ibkr_operator_action_explains_paper_disclaimer() -> None:
     message = system._ibkr_operator_action_message()
 
     assert message is not None
+    assert message.startswith("[EXECUTION] ACTION REQUIRED:")
     assert "accept the paper-trading API disclaimer" in message
     assert "reconnect automatically" in message
 
