@@ -490,6 +490,13 @@ class EvolutionManager:
                 logger.debug("AgentC: error closing DB connection: %s", e)
             self.conn = None
 
+    def __del__(self) -> None:
+        """Safety net: release the sqlite handle if close() was never called."""
+        try:
+            self.close()
+        except Exception:
+            pass
+
     async def run_evolution_cycle(self) -> None:
         """Continuous background task to refine system parameters."""
         logger.info("Evolution: Recursive Feedback loop active (1-hour pulse).")

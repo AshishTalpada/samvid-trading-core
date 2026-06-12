@@ -149,6 +149,7 @@ def apply_migrations(
     db_url = f"sqlite:///{db_path.as_posix()}"
     logger.info("Running migrations: %s → %s", migrations_dir, db_path)
 
+    backend = None
     try:
         backend = yoyo.get_backend(db_url)
         migrations = yoyo.read_migrations(str(migrations_dir))
@@ -191,6 +192,12 @@ def apply_migrations(
     except Exception as exc:
         logger.error("Migration failed: %s", exc, exc_info=True)
         raise
+    finally:
+        if backend is not None:
+            try:
+                backend.connection.close()
+            except Exception as close_err:
+                logger.debug("Migration backend close skipped: %s", close_err)
 
 
 def rollback_migrations(
@@ -209,16 +216,19 @@ def rollback_migrations(
     db_url = f"sqlite:///{db_path.as_posix()}"
 
     backend = yoyo.get_backend(db_url)
-    migrations = yoyo.read_migrations(str(migrations_dir))
+    try:
+        migrations = yoyo.read_migrations(str(migrations_dir))
 
-    with backend.lock():
-        applied = backend.to_rollback(migrations)
-        if not applied:
-            logger.info("Nothing to roll back.")
-            return
-        logger.warning("Rolling back %d migration(s).", len(applied))
-        backend.rollback_migrations(applied)
-        logger.info("Rollback complete.")
+        with backend.lock():
+            applied = backend.to_rollback(migrations)
+            if not applied:
+                logger.info("Nothing to roll back.")
+                return
+            logger.warning("Rolling back %d migration(s).", len(applied))
+            backend.rollback_migrations(applied)
+            logger.info("Rollback complete.")
+    finally:
+        backend.connection.close()
 
 
 def list_migrations(
@@ -237,12 +247,15 @@ def list_migrations(
     db_url = f"sqlite:///{db_path.as_posix()}"
 
     backend = yoyo.get_backend(db_url)
-    migrations = yoyo.read_migrations(str(migrations_dir))
+    try:
+        migrations = yoyo.read_migrations(str(migrations_dir))
 
-    pending_ids = {m.id for m in backend.to_apply(migrations)}
-    for m in migrations:
-        status = "PENDING" if m.id in pending_ids else "APPLIED "
-        print(f"  [{status}] {m.id}")
+        pending_ids = {m.id for m in backend.to_apply(migrations)}
+        for m in migrations:
+            status = "PENDING" if m.id in pending_ids else "APPLIED "
+            print(f"  [{status}] {m.id}")
+    finally:
+        backend.connection.close()
 
 
 # ---------------------------------------------------------------------------

@@ -222,10 +222,15 @@ def paper_brain():
         p.start()
 
     brain = _build_paper_brain()
-    yield brain
-
-    for p in reversed(patchers):
-        p.stop()
+    try:
+        yield brain
+    finally:
+        if getattr(brain, "evolution_manager", None):
+            brain.evolution_manager.close()
+        if getattr(brain, "db_conn", None):
+            brain.db_conn.close()
+        for p in reversed(patchers):
+            p.stop()
 
 
 # ===========================================================================

@@ -39,6 +39,7 @@ import sqlite3
 import subprocess
 import time
 from collections.abc import Callable, Coroutine
+from contextlib import closing
 from datetime import datetime, timezone
 from logging.handlers import RotatingFileHandler
 from typing import TYPE_CHECKING, Any
@@ -2735,6 +2736,15 @@ class TradingSystem:
 
             # 8. FINAL DB CLOSURE
             logger.info("[SHUTDOWN STEP 8/9] Finalizing Persistence...")
+            if (
+                self.trading_brain
+                and getattr(self.trading_brain, "evolution_manager", None)
+            ):
+                try:
+                    self.trading_brain.evolution_manager.close()
+                    logger.info("✓ Evolution engine connection terminated.")
+                except Exception as e:
+                    logger.error(f"Shutdown: Evolution DB closure error: {e}")
             if self.db_conn:
                 try:
                     self.db_conn.close()
@@ -3066,7 +3076,7 @@ class TradingSystem:
                             logger.error("Sentinel: Trainer script missing: %s", script_path)
                             return False
 
-                        with sqlite3.connect(self.db_path, timeout=60.0) as conn:
+                        with closing(sqlite3.connect(self.db_path, timeout=60.0)) as conn:
                             conn.execute("PRAGMA journal_mode=WAL;")
                             conn.execute("PRAGMA busy_timeout=60000;")
                             conn.execute("VACUUM")

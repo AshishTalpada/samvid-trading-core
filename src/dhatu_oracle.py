@@ -972,9 +972,10 @@ class DhatuOracle:
     def _init_db(self) -> None:
         """Ensure the system_state table exists."""
         import sqlite3
+        from contextlib import closing
 
         try:
-            with sqlite3.connect(self._db_path, timeout=60.0) as conn:
+            with closing(sqlite3.connect(self._db_path, timeout=60.0)) as conn, conn:
                 conn.execute("PRAGMA journal_mode=WAL;")
                 conn.execute("PRAGMA busy_timeout = 60000;")
                 conn.execute("""
@@ -1011,7 +1012,9 @@ class DhatuOracle:
                 "confidence": state.confidence,
                 "generated_at": state.generated_at.isoformat(),
             }
-            with sqlite3.connect(self._db_path, timeout=60.0) as conn:
+            from contextlib import closing
+
+            with closing(sqlite3.connect(self._db_path, timeout=60.0)) as conn, conn:
                 conn.execute("PRAGMA journal_mode=WAL;")
                 conn.execute("PRAGMA busy_timeout = 60000;")
                 conn.execute(
@@ -1038,9 +1041,10 @@ class DhatuOracle:
     def _load_persisted_state(self) -> None:
         """Load last OracleState from database."""
         import sqlite3
+        from contextlib import closing
 
         try:
-            with sqlite3.connect(self._db_path, timeout=60.0) as conn:
+            with closing(sqlite3.connect(self._db_path, timeout=60.0)) as conn, conn:
                 conn.execute("PRAGMA journal_mode=WAL;")
                 conn.execute("PRAGMA busy_timeout = 60000;")
                 cursor = conn.execute("SELECT value FROM system_state WHERE key = 'oracle_state'")

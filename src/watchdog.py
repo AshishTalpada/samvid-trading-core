@@ -5,6 +5,7 @@ import sqlite3
 import subprocess
 import sys
 import time
+from contextlib import closing
 from datetime import datetime, timezone
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
@@ -168,7 +169,7 @@ def check_heartbeat(watchdog_start_time: datetime) -> bool:
         return True
 
     try:
-        with sqlite3.connect(DB_PATH, timeout=60.0) as conn:
+        with closing(sqlite3.connect(DB_PATH, timeout=60.0)) as conn:
             conn.execute("PRAGMA busy_timeout=60000;")
             cursor = conn.cursor()
 

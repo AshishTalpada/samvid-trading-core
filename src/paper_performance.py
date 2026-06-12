@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import sqlite3
+from contextlib import closing
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterable
@@ -58,7 +59,7 @@ def _table_columns(conn: sqlite3.Connection, table: str) -> set[str]:
 
 def load_performance_baseline(db_path: str | Path = "data/trading.db") -> dict[str, Any] | None:
     """Load the persisted post-repair measurement boundary, if one exists."""
-    with sqlite3.connect(str(db_path), timeout=60.0) as conn:
+    with closing(sqlite3.connect(str(db_path), timeout=60.0)) as conn:
         try:
             row = conn.execute(
                 "SELECT value FROM system_state WHERE key=?",
@@ -84,7 +85,7 @@ def establish_performance_baseline(
     """Persist the next trade ID as a clean evidence boundary."""
     if not reason.strip():
         raise ValueError("paper performance baseline requires a reason")
-    with sqlite3.connect(str(db_path), timeout=60.0) as conn:
+    with closing(sqlite3.connect(str(db_path), timeout=60.0)) as conn, conn:
         conn.execute(
             """
             CREATE TABLE IF NOT EXISTS system_state (
@@ -125,7 +126,7 @@ def build_paper_performance(
     baseline = load_performance_baseline(db_path) if min_trade_id is None else None
     resolved_min_trade_id = int(baseline["min_trade_id"]) if baseline else int(min_trade_id or 0)
     placeholders = ",".join("?" for _ in trading_modes)
-    with sqlite3.connect(str(db_path), timeout=60.0) as conn:
+    with closing(sqlite3.connect(str(db_path), timeout=60.0)) as conn:
         columns = _table_columns(conn, "trades")
         timestamp_select = "timestamp" if "timestamp" in columns else "NULL"
         query = f"""

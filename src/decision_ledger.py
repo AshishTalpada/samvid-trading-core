@@ -21,6 +21,7 @@ import logging
 import sqlite3
 import threading
 import time
+from contextlib import closing
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -83,7 +84,7 @@ class DecisionLedger:
     def _init_db(self) -> None:
         """Create the ledger table if it doesn't exist."""
         self._db_path.parent.mkdir(parents=True, exist_ok=True)
-        with sqlite3.connect(str(self._db_path), timeout=60.0) as conn:
+        with closing(sqlite3.connect(str(self._db_path), timeout=60.0)) as conn, conn:
             conn.execute("PRAGMA journal_mode=WAL;")
             conn.execute("PRAGMA busy_timeout=60000;")
             conn.execute("""
@@ -121,7 +122,7 @@ class DecisionLedger:
     def _write(self, entry: LedgerEntry) -> None:
         """Synchronous write — called by the background worker thread."""
         try:
-            with sqlite3.connect(str(self._db_path), timeout=60.0) as conn:
+            with closing(sqlite3.connect(str(self._db_path), timeout=60.0)) as conn, conn:
                 conn.execute("PRAGMA journal_mode=WAL;")
                 conn.execute("PRAGMA busy_timeout=60000;")
                 conn.execute(
@@ -236,7 +237,7 @@ class DecisionLedger:
     def recent(self, n: int = 50) -> list[dict[str, Any]]:
         """Return the last N ledger entries for the dashboard."""
         try:
-            with sqlite3.connect(str(self._db_path), timeout=60.0) as conn:
+            with closing(sqlite3.connect(str(self._db_path), timeout=60.0)) as conn:
                 conn.execute("PRAGMA busy_timeout=60000;")
                 conn.row_factory = sqlite3.Row
                 rows = conn.execute(
@@ -256,7 +257,7 @@ class DecisionLedger:
     def summary_stats(self) -> dict[str, Any]:
         """Aggregate stats for the dashboard — total wins, losses, avg R."""
         try:
-            with sqlite3.connect(str(self._db_path), timeout=60.0) as conn:
+            with closing(sqlite3.connect(str(self._db_path), timeout=60.0)) as conn:
                 conn.execute("PRAGMA busy_timeout=60000;")
                 row = conn.execute("""
                     SELECT
