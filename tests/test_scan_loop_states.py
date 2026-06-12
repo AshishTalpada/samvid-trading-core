@@ -143,6 +143,22 @@ def test_recovery_mode_throttle_preserves_warning_without_flooding(minimal_brain
     log.assert_any_call(logging.WARNING, "recovery active")
 
 
+def test_candle_batch_pulse_logging_is_rate_limited(minimal_brain) -> None:
+    brain = minimal_brain
+
+    with (
+        patch("brain.time.monotonic", side_effect=[100.0, 101.0, 160.0]),
+        patch("brain.logger.info") as info,
+        patch("brain.logger.debug") as debug,
+    ):
+        brain._log_candle_batch_pulse(12, "TradingView_WS")
+        brain._log_candle_batch_pulse(15, "TradingView_WS")
+        brain._log_candle_batch_pulse(10, "TradingView_WS")
+
+    assert info.call_count == 2
+    assert debug.call_count == 1
+
+
 @pytest.mark.asyncio
 async def test_drawdown_circuit_breaker_halts(minimal_brain) -> None:
     """When drawdown exceeds limit, is_trading_allowed returns False."""

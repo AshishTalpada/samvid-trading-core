@@ -1341,8 +1341,9 @@ class TradingBrain(BrokerReconciler, HealthChecker, DataProvider, AccountingMixi
 
                     elif label == "candle.batch":
                         # Pulse the state machine that new data is available
-                        count = payload.get("count", 0)
-                        logger.info(f" BUS → candle.batch: {count} symbols Pulse Detected.")
+                        count = int(payload.get("count", 0) or 0)
+                        source = str(payload.get("source", "unknown"))
+                        self._log_candle_batch_pulse(count, source)
                         if self._is_oracle_entry_frozen():
                             logger.debug(
                                 "BUS → candle.batch: scan wake suppressed during oracle freeze "
@@ -1577,6 +1578,25 @@ class TradingBrain(BrokerReconciler, HealthChecker, DataProvider, AccountingMixi
             logger.info(detail)
         else:
             logger.debug(detail)
+
+    def _log_candle_batch_pulse(self, count: int, source: str) -> None:
+        """Keep high-frequency data pulses visible without turning logs into tick storage."""
+        try:
+            interval_sec = max(
+                10.0,
+                float(os.getenv("SOVEREIGN_CANDLE_PULSE_LOG_INTERVAL_SEC", "60")),
+            )
+        except ValueError:
+            interval_sec = 60.0
+
+        now = time.monotonic()
+        last_log = getattr(self, "_last_candle_batch_notice_ts", None)
+        message = "BUS -> candle.batch: %s symbols received from %s."
+        if last_log is None or now - float(last_log) >= interval_sec:
+            logger.info(message, count, source)
+            self._last_candle_batch_notice_ts = now
+        else:
+            logger.debug(message, count, source)
 
     async def _publish_market_observation(
         self,
