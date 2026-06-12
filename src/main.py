@@ -1359,12 +1359,18 @@ class TradingSystem:
                                 )
                                 if broker_connect_error:
                                     self._ibkr_last_probe_summary["operator_action_required"] = True
-                                    logger.error(
-                                        "IBKR API blocked by broker acknowledgement: %s. "
-                                        "Accept the paper-trading API disclaimer in TWS; "
-                                        "automatic reattachment will continue.",
-                                        broker_connect_error,
-                                    )
+                                    if self._ibkr_operator_gate_log_due(broker_connect_error):
+                                        logger.error(
+                                            "IBKR API blocked by broker acknowledgement: %s. "
+                                            "Accept the paper-trading API disclaimer in TWS; "
+                                            "automatic reattachment will continue.",
+                                            broker_connect_error,
+                                        )
+                                    else:
+                                        logger.debug(
+                                            "IBKR API acknowledgement still pending: %s",
+                                            broker_connect_error,
+                                        )
                                     try:
                                         client.disconnect()
                                     except Exception as disconnect_error:
@@ -1537,6 +1543,23 @@ class TradingSystem:
             )
         return None
 
+    def _ibkr_operator_gate_log_due(
+        self,
+        error_text: str,
+        *,
+        now: float | None = None,
+        repeat_after_sec: float = 900.0,
+    ) -> bool:
+        """Throttle repeated broker acknowledgement errors without hiding changes."""
+        current_time = time.monotonic() if now is None else float(now)
+        previous_error = getattr(self, "_last_ibkr_operator_gate_error", None)
+        previous_time = float(getattr(self, "_last_ibkr_operator_gate_log_time", 0.0))
+        due = previous_error != error_text or current_time - previous_time >= repeat_after_sec
+        if due:
+            self._last_ibkr_operator_gate_error = error_text
+            self._last_ibkr_operator_gate_log_time = current_time
+        return due
+
     async def _run_ibkr_reconnect_loop(self) -> None:
         """Keep the owned IBKR API session attached when TWS starts late or restarts."""
         def _interval(name: str, default: float) -> float:
@@ -1630,11 +1653,18 @@ class TradingSystem:
                 )
 
             retry_delay = min(delay, critical_delay) if self._has_exposed_ibkr_positions() else delay
-            logger.warning(
-                "IBKR RECOVERY: attachment failed; retrying in %.0fs%s.",
-                retry_delay,
-                " because IBKR positions are exposed" if retry_delay < delay else "",
-            )
+            if operator_action:
+                logger.info(
+                    "IBKR RECOVERY: waiting for the required TWS acknowledgement; "
+                    "rechecking in %.0fs.",
+                    retry_delay,
+                )
+            else:
+                logger.warning(
+                    "IBKR RECOVERY: attachment failed; retrying in %.0fs%s.",
+                    retry_delay,
+                    " because IBKR positions are exposed" if retry_delay < delay else "",
+                )
             await asyncio.sleep(retry_delay)
             delay = min(delay * 2.0, max_delay)
 

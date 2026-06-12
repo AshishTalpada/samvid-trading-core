@@ -185,6 +185,15 @@ def test_ibkr_operator_action_ignores_generic_timeout() -> None:
     assert system._ibkr_operator_action_message() is None
 
 
+def test_ibkr_operator_gate_logging_is_throttled() -> None:
+    system = _system()
+
+    assert system._ibkr_operator_gate_log_due("IBKR 10141", now=100.0) is True
+    assert system._ibkr_operator_gate_log_due("IBKR 10141", now=200.0) is False
+    assert system._ibkr_operator_gate_log_due("IBKR 10141", now=1000.0) is True
+    assert system._ibkr_operator_gate_log_due("IBKR 99999", now=1001.0) is True
+
+
 def test_write_pid_reclaims_dead_stale_lock(tmp_path, monkeypatch) -> None:
     import psutil
 
