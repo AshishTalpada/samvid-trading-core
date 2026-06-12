@@ -115,11 +115,19 @@ class PositionMonitor:
     ) -> bool:
         """Finalize a broker-native exit from execution evidence, never a quote estimate.
 
-        mark_unresolved=False lets callers with their own fallback (e.g. SYNC PURGE's
-        quote-estimated close) keep the row OPEN instead of forcing manual review here.
+        mark_unresolved=False lets reconciliation defer the manual-review state until
+        its broker-flat grace period expires.
         """
         fill = getattr(self.ibkr_conn, "_latest_fill_by_symbol", {}).get(pos.symbol, {})
-        expected_side = "SLD" if pos.qty > 0 else "BOT"
+        entry_qty = float(pos.meta.get("entry_qty_signed", 0.0) or 0.0)
+        if abs(entry_qty) < 0.1:
+            remaining = float(getattr(pos, "shares_remaining", 0.0) or 0.0)
+            direction = str(pos.meta.get("entry_direction", "")).upper()
+            if remaining >= 0.1 and direction in {"LONG", "SHORT"}:
+                entry_qty = remaining if direction == "LONG" else -remaining
+            elif abs(pos.qty) >= 0.1:
+                entry_qty = float(pos.qty)
+        expected_side = "SLD" if entry_qty > 0 else "BOT"
         entry_ts = _safe_entry_time(pos.entry_time).timestamp()
         fill_ts = float(fill.get("timestamp", 0.0) or 0.0)
         fill_qty = float(fill.get("quantity", 0.0) or 0.0)
@@ -128,7 +136,8 @@ class PositionMonitor:
             str(fill.get("side", "")).upper() == expected_side
             and fill_ts >= entry_ts
             and fill_price > 0
-            and abs(fill_qty - abs(pos.qty)) <= 0.1
+            and abs(entry_qty) >= 0.1
+            and abs(fill_qty - abs(entry_qty)) <= 0.1
         )
         if not evidence_matches:
             reason = "broker flat without complete matching execution evidence"
@@ -147,13 +156,13 @@ class PositionMonitor:
                 self.db_conn.commit()
             return False
 
-        gross_pnl = (fill_price - pos.entry_price) * pos.qty
+        gross_pnl = (fill_price - pos.entry_price) * entry_qty
         commission = float(getattr(pos, "commission_cost", 0.0) or 0.0) + float(
             fill.get("commission", 0.0) or 0.0
         )
         net_pnl = gross_pnl - commission
         risk_per_share = abs(pos.entry_price - pos.initial_stop)
-        direction_sign = 1 if pos.qty > 0 else -1
+        direction_sign = 1 if entry_qty > 0 else -1
         r_multiple = (
             ((fill_price - pos.entry_price) / risk_per_share) * direction_sign
             if risk_per_share > 0

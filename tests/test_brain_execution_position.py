@@ -691,6 +691,41 @@ class TestBrokerExitRealization:
         assert pnl is None
 
     @pytest.mark.asyncio
+    async def test_broker_native_exit_uses_stable_entry_quantity_after_broker_flat_sync(
+        self, paper_brain
+    ):
+        db_id = _insert_open_trade(paper_brain.db_conn, "AAPL")
+        pos = _make_position(
+            symbol="AAPL",
+            qty=10,
+            entry=100.0,
+            stop=98.0,
+            commission=0.50,
+            db_id=db_id,
+            entry_time=datetime.now(timezone.utc) - timedelta(minutes=20),
+        )
+        pos.meta["entry_qty_signed"] = 10
+        pos.qty = 0
+        paper_brain.ibkr_conn._latest_fill_by_symbol = {
+            "AAPL": {
+                "side": "SLD",
+                "quantity": 10.0,
+                "avg_price": 101.25,
+                "commission": 0.85,
+                "timestamp": datetime.now(timezone.utc).timestamp(),
+            }
+        }
+
+        finalized = await paper_brain._finalize_broker_flat_position(pos)
+
+        assert finalized is True
+        row = paper_brain.db_conn.execute(
+            "SELECT outcome, pnl_dollars, net_pnl FROM trades WHERE rowid=?",
+            (db_id,),
+        ).fetchone()
+        assert row == pytest.approx(("WIN", 12.5, 11.15))
+
+    @pytest.mark.asyncio
     async def test_ibkr_exit_not_realized_until_order_fill_confirmed(self, paper_brain):
         """Accepted broker order ids are not enough; memory changes only after fill proof."""
         paper_brain.mode = "ibkr_paper"

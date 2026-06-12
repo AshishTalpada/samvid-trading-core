@@ -558,8 +558,8 @@ async def test_sync_purge_realizes_pnl_from_execution_evidence(paper_brain):
 
 
 @pytest.mark.asyncio
-async def test_sync_purge_estimates_economics_without_fill_evidence(paper_brain):
-    """Without execution evidence the purge estimates the exit from live quotes."""
+async def test_sync_purge_requires_reconciliation_without_fill_evidence(paper_brain):
+    """Broker-flat state must not synthesize execution economics from a later quote."""
     pos = Position(
         symbol="MSFT",
         qty=50,
@@ -592,19 +592,15 @@ async def test_sync_purge_estimates_economics_without_fill_evidence(paper_brain)
     await paper_brain._reconcile_broker_positions()
 
     assert paper_brain.positions == []
-    # The OPEN row must be closed with estimated economics, not NULL PnL.
+    # The OPEN row is preserved for manual reconciliation with NULL economics.
     update_calls = [
         c for c in paper_brain.db_conn.execute.call_args_list
         if "UPDATE trades" in str(c.args[0])
     ]
-    assert update_calls, "expected an UPDATE trades call with estimated economics"
+    assert update_calls, "expected a reconciliation-required UPDATE"
     params = update_calls[-1].args[1]
-    assert params[0] == "WIN"                       # outcome from estimated net PnL
-    assert params[1] == pytest.approx(310.0)        # bid/ask midpoint exit
-    assert params[2] == pytest.approx(500.0)        # gross PnL
-    assert params[3] == pytest.approx(500.0)        # net PnL
-    assert "LIQUIDATED" in params[4]
-    assert params[5:] == ("MSFT", "ibkr")
+    assert "RECONCILIATION_REQUIRED" in params[0]
+    assert params[1] == 77
 
 
 @pytest.mark.asyncio

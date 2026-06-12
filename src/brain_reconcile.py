@@ -294,6 +294,28 @@ class BrokerReconciler:
                 _p_entry = _safe_entry_time(p.entry_time)
                 age_seconds = (now_ts - _p_entry).total_seconds()
 
+                # A broker-confirmed flat position with matching execution evidence can be
+                # finalized immediately. Keep the original signed quantity intact until this
+                # check runs; zeroing it first destroys the direction and quantity evidence.
+                if (
+                    broker == "ibkr"
+                    and abs(broker_qty) < 0.1
+                    and uptime > 60
+                    and age_seconds > 60
+                    and hasattr(self, "_finalize_broker_flat_position")
+                ):
+                    try:
+                        if await self._finalize_broker_flat_position(p, mark_unresolved=False):
+                            if p in self.positions:
+                                self.positions.remove(p)
+                            continue
+                    except Exception as fin_err:
+                        logger.debug(
+                            "SYNC FINALIZE: broker-native finalization failed for %s: %s",
+                            p.symbol,
+                            fin_err,
+                        )
+
                 # Purge threshold: 60s uptime if symbol is completely absent from broker,
                 # or 300s if it's present but shows qty=0 (could be a brief fill delay).
                 symbol_absent_from_broker = p.symbol not in (ibkr_reality if broker == "ibkr" else mt5_reality)
@@ -326,7 +348,11 @@ class BrokerReconciler:
                         self._mark_trade_liquidated(p.symbol, broker, pos=p)
                     continue
 
-                if p.symbol in reality and abs(p.qty - broker_qty) > 0.00001:
+                if (
+                    p.symbol in reality
+                    and abs(broker_qty) >= 0.1
+                    and abs(p.qty - broker_qty) > 0.00001
+                ):
                     if age_seconds > 60:
                         p.qty = float(broker_qty)
                         self._update_trade_volume(p.symbol, broker, p.qty)
@@ -683,63 +709,35 @@ class BrokerReconciler:
     def _mark_trade_liquidated(self, symbol: str, broker: str, pos=None) -> None:
         """Close an OPEN trade row for a broker-flat position, preserving economics.
 
-        Callers should first try _finalize_broker_flat_position (true execution
-        evidence). This fallback estimates the exit from live quotes when a position
-        snapshot is available; with no snapshot or no live price it marks the row
-        RECONCILIATION_REQUIRED instead of silently erasing PnL. A bare 'LIQUIDATED'
-        with NULL economics starves the win-rate gates and learning loops.
+        Broker-flat state proves quantity, not execution price. Without matching broker
+        execution evidence, preserve the row for reconciliation instead of synthesizing
+        PnL from a quote that may have arrived before or after the actual fill.
         """
         try:
             if not self.db_conn:
                 return
 
-            qty = float(getattr(pos, "qty", 0.0) or 0.0) if pos is not None else 0.0
-            entry_price = (
-                float(getattr(pos, "entry_price", 0.0) or 0.0) if pos is not None else 0.0
+            note = (
+                "RECONCILIATION_REQUIRED: broker flat without matching execution evidence; "
+                "PnL not synthesized from quotes"
             )
-
-            exit_price = 0.0
-            if abs(qty) >= 0.1 and entry_price > 0:
-                try:
-                    bid = float((getattr(self, "last_tick_bids", {}) or {}).get(symbol, 0.0) or 0.0)
-                    ask = float((getattr(self, "last_tick_asks", {}) or {}).get(symbol, 0.0) or 0.0)
-                    if bid > 0 and ask > 0:
-                        exit_price = (bid + ask) / 2.0
-                    else:
-                        exit_price = float(
-                            (getattr(self, "last_tick_prices", {}) or {}).get(symbol, 0.0) or 0.0
-                        )
-                except Exception:
-                    exit_price = 0.0
-
-            if exit_price > 0:
-                # Signed qty (LONG +, SHORT -) makes this directional for both sides.
-                gross_pnl = (exit_price - entry_price) * qty
-                commission = float(getattr(pos, "commission_cost", 0.0) or 0.0)
-                slippage = float(getattr(pos, "slippage_cost", 0.0) or 0.0)
-                net_pnl = gross_pnl - commission - slippage
-                if net_pnl > 0:
-                    outcome = "WIN"
-                elif net_pnl < 0:
-                    outcome = "LOSS"
-                else:
-                    outcome = "BREAKEVEN"
-                note = "LIQUIDATED: broker flat; exit estimated from live quotes"
-                params = (outcome, exit_price, gross_pnl, net_pnl, note, symbol, broker)
-            else:
-                outcome = "RECONCILIATION_REQUIRED"
-                note = (
-                    "RECONCILIATION_REQUIRED: broker flat but no execution evidence "
-                    "or live price; PnL not synthesized"
+            db_id = int(getattr(pos, "db_id", 0) or 0) if pos is not None else 0
+            if db_id > 0:
+                self.db_conn.execute(
+                    "UPDATE trades SET outcome='RECONCILIATION_REQUIRED', exit_price=NULL, "
+                    "pnl_dollars=NULL, net_pnl=NULL, "
+                    "notes=COALESCE(notes || ' | ', '') || ? "
+                    "WHERE rowid=? AND outcome='OPEN'",
+                    (note, db_id),
                 )
-                params = (outcome, None, None, None, note, symbol, broker)
-
-            self.db_conn.execute(
-                "UPDATE trades SET outcome = ?, exit_price = ?, pnl_dollars = ?, "
-                "net_pnl = ?, notes = COALESCE(notes || ' | ', '') || ? "
-                "WHERE instrument = ? AND broker = ? AND outcome = 'OPEN'",
-                params,
-            )
+            else:
+                self.db_conn.execute(
+                    "UPDATE trades SET outcome='RECONCILIATION_REQUIRED', exit_price=NULL, "
+                    "pnl_dollars=NULL, net_pnl=NULL, "
+                    "notes=COALESCE(notes || ' | ', '') || ? "
+                    "WHERE instrument=? AND broker=? AND outcome='OPEN'",
+                    (note, symbol, broker),
+                )
             self.db_conn.commit()
         except Exception as e:
             logger.debug("DB mark_liquidated failed for %s on %s: %s", symbol, broker, e)
