@@ -2389,8 +2389,13 @@ class TradingSystem:
             message="Runtime loop entered",
         )
 
-        # Enhancement: Startup Health Banner (printed 10s after boot)
-        await asyncio.sleep(10)
+        # Print the startup health banner after 10s, but do not make shutdown
+        # wait for a fixed timer to expire.
+        try:
+            await asyncio.wait_for(self._shutdown_event.wait(), timeout=10.0)
+            return
+        except TimeoutError:
+            pass
         try:
             ibkr_ok = bool(self.ibkr_client and self.ibkr_client.isConnected())
             mt5_ok = False
@@ -2472,7 +2477,11 @@ class TradingSystem:
                             "session. Bus Saturation detected."
                         )
 
-                await asyncio.sleep(60)  # Pulse every 60 seconds
+                try:
+                    await asyncio.wait_for(self._shutdown_event.wait(), timeout=60.0)
+                    break
+                except TimeoutError:
+                    pass  # Pulse every 60 seconds
 
                 # Checkpoint every 5 minutes (300s) to protect against local crashes
                 if not hasattr(self, "_last_freeze_time"):

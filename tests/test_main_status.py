@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import os
 from logging.handlers import RotatingFileHandler
@@ -315,6 +316,18 @@ async def test_ibkr_reconnect_loop_recovers_offline_execution() -> None:
     system._bind_ibkr_runtime.assert_awaited_once()
     assert system._ibkr_outage_active is False
     assert system.send_telegram_notification.await_count == 2
+
+
+@pytest.mark.asyncio
+async def test_run_forever_exits_immediately_when_shutdown_requested() -> None:
+    system = _system()
+    system._shutdown_event = asyncio.Event()
+    system._shutdown_event.set()
+    system._persist_runtime_health_snapshot = AsyncMock()
+
+    await system._run_forever()
+
+    system._persist_runtime_health_snapshot.assert_awaited_once()
 
 
 @pytest.mark.asyncio
