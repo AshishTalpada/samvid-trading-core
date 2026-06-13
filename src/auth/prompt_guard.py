@@ -4,13 +4,13 @@ import re
 logger = logging.getLogger(__name__)
 
 INJECTION_PATTERNS = [
-    r"ignore (all |previous )?instructions",
-    r"you are now",
-    r"act as (a |an )?",
-    r"disregard (your |all )?",
-    r"forget (everything|your training)",
-    r"new persona",
-    r"system prompt",
+    r"(?:^|[\n.!?]\s*)ignore (all |previous )?instructions\b",
+    r"(?:^|[\n.!?]\s*)you are now\b",
+    r"(?:^|[\n.!?]\s*)act as (a |an )?\b",
+    r"(?:^|[\n.!?]\s*)disregard (your |all )?\b",
+    r"(?:^|[\n.!?]\s*)forget (everything|your training)\b",
+    r"(?:^|[\n.!?]\s*)new persona\b",
+    r"(?:reveal|print|show|repeat) (the )?system prompt\b",
     r"<\|.*?\|>",
     r"\[INST\]",
 ]
@@ -30,7 +30,7 @@ class PromptGuard:
     def is_safe(self, text: str) -> bool:
         for pat in self._patterns:
             if pat.search(text):
-                logger.error(f"[PROMPT GUARD] Injection detected: '{pat.pattern}' in input.")
+                logger.warning("[PROMPT GUARD] Adversarial instruction blocked: %s", pat.pattern)
                 return False
         return True
 
