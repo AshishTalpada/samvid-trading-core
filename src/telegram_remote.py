@@ -1,5 +1,7 @@
 import asyncio
+import html
 import logging
+import math
 import time
 from datetime import datetime
 
@@ -38,6 +40,9 @@ class TelegramRemote:
         self.open_pnl = 0.0
         self.positions_count = 0
         self.vram_status = "STABLE"
+        self.session_realized_pnl = 0.0
+        self.last_exit: dict[str, object] | None = None
+        self._observed_open_symbols: set[str] = set()
 
     async def start(self):
         """Start the remote listener loop."""
@@ -58,6 +63,7 @@ class TelegramRemote:
 
         # Subscribe to bus to maintain an internal "Status Snapshot" for zero-latency replies
         self.bus.on("oracle.state", self._update_dhatu)
+        self.bus.on("trade.entry", self._update_trade_entry)
         self.bus.on("trade.exit", self._update_stats)
         self.bus.on("notification.telegram", self._handle_broadcast)
 
@@ -85,9 +91,49 @@ class TelegramRemote:
         self.snapshot_time = TimeSync.now().timestamp()
 
     async def _update_stats(self, payload):
-        # We'll rely on the Brain to provide full stats for /status,
-        # but we track the last exit for immediate feedback.
-        pass
+        """Track authoritative trade exits for immediate remote status replies."""
+        if not isinstance(payload, dict):
+            return
+        try:
+            pnl = float(payload.get("pnl", 0.0) or 0.0)
+        except (TypeError, ValueError):
+            return
+        if not math.isfinite(pnl):
+            return
+
+        symbol = str(payload.get("symbol") or "UNKNOWN").strip().upper()
+        try:
+            shares_remaining = float(payload.get("shares_remaining", 0.0) or 0.0)
+        except (TypeError, ValueError):
+            shares_remaining = 0.0
+        if shares_remaining <= 0.0:
+            self._observed_open_symbols.discard(symbol)
+        self.positions_count = len(self._observed_open_symbols)
+        self.session_realized_pnl += pnl
+        self.last_exit = {
+            "symbol": symbol,
+            "pnl": pnl,
+            "exit_type": str(payload.get("exit_type") or "UNKNOWN"),
+            "r_multiple": payload.get("r_multiple"),
+        }
+
+        from time_sync import TimeSync
+
+        self.snapshot_time = TimeSync.now().timestamp()
+
+    async def _update_trade_entry(self, payload):
+        """Track symbols observed opening during this process lifetime."""
+        if not isinstance(payload, dict):
+            return
+        symbol = str(payload.get("symbol") or "").strip().upper()
+        if not symbol:
+            return
+        self._observed_open_symbols.add(symbol)
+        self.positions_count = len(self._observed_open_symbols)
+
+        from time_sync import TimeSync
+
+        self.snapshot_time = TimeSync.now().timestamp()
 
     async def _poll_loop(self):
         """Main polling loop for Telegram updates."""
@@ -226,12 +272,21 @@ class TelegramRemote:
         now = TimeSync.now().timestamp()
         age = now - self.snapshot_time if self.snapshot_time > 0 else 999
         stale_warning = "  STALE" if age > 30 else ""
+        last_exit_line = "Last Exit: none observed this run"
+        if self.last_exit:
+            symbol = html.escape(str(self.last_exit["symbol"]))
+            exit_type = html.escape(str(self.last_exit["exit_type"]))
+            pnl = float(self.last_exit["pnl"])
+            last_exit_line = f"Last Exit: <code>{symbol}</code> {exit_type} ${pnl:+.2f}"
 
         msg = (
             " <b>Sovereign Status</b>\n"
             f"───────────────────\n"
             f"Regime: `{self.current_regime}`\n"
             f"Dhatu: `{self.current_dhatu}`\n"
+            f"Observed Open Positions: {self.positions_count}\n"
+            f"Session Realized PnL: <code>${self.session_realized_pnl:+.2f}</code>\n"
+            f"{last_exit_line}\n"
             f"Data Age: {int(age)}s{stale_warning}\n"
             f"Time: {datetime.now().strftime('%H:%M:%S')}\n"
             f"───────────────────\n"
