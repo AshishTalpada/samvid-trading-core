@@ -17,6 +17,35 @@ from enum import Enum
 import pytz
 
 logger = logging.getLogger(__name__)
+_alert_tasks: set[asyncio.Task[None]] = set()
+
+
+def _schedule_operator_alert(message: str) -> bool:
+    """Schedule a critical alert on the active loop and retain it until completion."""
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        logger.warning("Critical alert skipped because no event loop is running: %s", message)
+        return False
+
+    from telegram_alerts import send_telegram_alert
+
+    task = loop.create_task(send_telegram_alert(message), name="drawdown_red_alert")
+    _alert_tasks.add(task)
+
+    def _finalize(completed: asyncio.Task[None]) -> None:
+        _alert_tasks.discard(completed)
+        if completed.cancelled():
+            return
+        try:
+            error = completed.exception()
+        except asyncio.CancelledError:
+            return
+        if error is not None:
+            logger.error("Could not send RED drawdown Telegram alert: %s", error)
+
+    task.add_done_callback(_finalize)
+    return True
 
 
 class DrawdownLevel(Enum):
@@ -104,24 +133,13 @@ class DrawdownLadder:
                 TradingStateManager.halt(f"Drawdown Ladder [{self.account_type}] reached RED-ZONE.")
                 # Page the operator immediately — RED is a critical capital preservation event
                 try:
-                    import asyncio as _asyncio
-
-                    from telegram_alerts import send_telegram_alert as _tg
                     msg = (
                         f"[SOVEREIGN ALERT] DRAWDOWN RED-ZONE [{self.account_type.upper()}]\n"
                         f"Peak: ${self.peak_equity:,.2f} → Current: ${self.current_equity:,.2f}\n"
                         f"DD: {((self.peak_equity - self.current_equity) / max(self.peak_equity, 1)):.2%}\n"
                         f"Trading HALTED. Manual review required."
                     )
-                    try:
-                        loop = _asyncio.get_event_loop()
-                        if loop.is_running():
-                            _asyncio.run_coroutine_threadsafe(_tg(msg), loop)
-                        else:
-                            logger.warning("Drawdown RED alert skipped (no running loop): %s", msg)
-                    except RuntimeError:
-                        # No event loop available at all (e.g. called from sync startup validation).
-                        logger.warning("Drawdown RED alert queued (no running loop): %s", msg)
+                    _schedule_operator_alert(msg)
                 except Exception as _tg_exc:
                     logger.error("Could not send RED drawdown Telegram alert: %s", _tg_exc)
             elif self.level in (DrawdownLevel.YELLOW, DrawdownLevel.ORANGE):

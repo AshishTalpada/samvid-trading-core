@@ -578,6 +578,21 @@ class TestDrawdownLadder:
         ladder.level = DrawdownLevel.CIRCUIT_BREAKER
         assert ladder.is_trading_allowed() is False
 
+    @pytest.mark.asyncio
+    async def test_red_zone_alert_completes_on_running_loop(self):
+        alert = AsyncMock()
+        with (
+            patch("telegram_alerts.send_telegram_alert", alert),
+            patch("trading_state.TradingStateManager") as state_manager,
+        ):
+            ladder = DrawdownLadder(account_type="ibkr", peak_equity=10_000.0)
+            level = ladder.update(7_400.0)
+            await asyncio.sleep(0)
+
+        assert level == DrawdownLevel.RED
+        state_manager.halt.assert_called_once()
+        alert.assert_awaited_once()
+
 
 # ============================================================================
 # ── brain_state.py — ConsecutiveLossTracker ──────────────────────────────────
