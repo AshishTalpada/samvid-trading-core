@@ -1,4 +1,4 @@
-use sha2::{Sha256, Digest};
+use sha2::{Digest, Sha256};
 use std::fs::OpenOptions;
 use std::io::Write;
 
@@ -22,20 +22,27 @@ impl ColdWallet {
         if amount < 10000.0 {
             return false; // Below threshold
         }
-        
+
         // 1. Verify multi-sig requirement (Stubbed cryptographic check)
         let mut hasher = Sha256::new();
         hasher.update(amount.to_be_bytes());
         let digest = hasher.finalize();
-        
+
         if signature.len() < 64 {
             println!("[SECURITY] Rejected: Invalid Signature Length for Cold Transfer.");
             return false;
         }
 
         // 2. Air-gapped File Ledger Append
-        if let Ok(mut file) = OpenOptions::new().append(true).create(true).open(&self.offline_vault_path) {
-            let record = format!("TRANSFER: {} to {} | HASH: {:x}\n", amount, self.public_key, digest);
+        if let Ok(mut file) = OpenOptions::new()
+            .append(true)
+            .create(true)
+            .open(&self.offline_vault_path)
+        {
+            let record = format!(
+                "TRANSFER: {} to {} | HASH: {:x}\n",
+                amount, self.public_key, digest
+            );
             if file.write_all(record.as_bytes()).is_ok() {
                 self.balance += amount;
                 println!("[COLD_WALLET] Successfully synced {} to Vault.", amount);

@@ -6,6 +6,12 @@ pub struct HardwareEnclave {
     pub is_locked: bool,
 }
 
+impl Default for HardwareEnclave {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl HardwareEnclave {
     pub fn new() -> Self {
         Self { is_locked: true }

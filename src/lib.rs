@@ -4,30 +4,30 @@
 
 use pyo3::prelude::*;
 
-pub mod ibkr_streamer;
-pub mod network_core;
 pub mod arbitrage;
-pub mod micro_arb;
 pub mod dark_pool;
+pub mod ibkr_streamer;
 pub mod lob_analyzer;
+pub mod micro_arb;
+pub mod network_core;
 pub mod order_signer;
-pub mod security_core;
 pub mod resilience_core;
+pub mod security_core;
 
 #[path = "brain/prediction_buffer.rs"]
 pub mod prediction_buffer;
 
 #[path = "network/consensus.rs"]
 pub mod consensus;
+#[path = "execution/decision_engine.rs"]
+pub mod decision_engine;
+pub mod network_layer;
 #[path = "execution/signed_bus.rs"]
 pub mod signed_bus;
 #[path = "execution/slicer.rs"]
 pub mod slicer;
 #[path = "execution/universal_bridge.rs"]
 pub mod universal_bridge;
-#[path = "execution/decision_engine.rs"]
-pub mod decision_engine;
-pub mod network_layer;
 
 #[path = "feeds/nasdaq.rs"]
 pub mod nasdaq;

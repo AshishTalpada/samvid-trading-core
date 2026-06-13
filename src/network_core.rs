@@ -1,11 +1,10 @@
-use std::net::UdpSocket;
 use log::info;
+use std::net::UdpSocket;
 
 /// Kernel Bypass Network Core
 /// Uses raw UDP sockets bound directly to the NIC via OpenOnload / DPDK.
 /// Bypasses the Linux kernel networking stack entirely, saving ~20-50 microseconds
 /// per packet, critical for High-Frequency Arbitrage.
-
 pub struct KernelBypassSocket {
     socket: UdpSocket,
 }
@@ -14,7 +13,10 @@ impl KernelBypassSocket {
     pub fn new(bind_addr: &str) -> Result<Self, std::io::Error> {
         let socket = UdpSocket::bind(bind_addr)?;
         socket.set_nonblocking(true)?;
-        info!("[NET CORE] Bound bypass socket to {}. Kernel bypassed.", bind_addr);
+        info!(
+            "[NET CORE] Bound bypass socket to {}. Kernel bypassed.",
+            bind_addr
+        );
         Ok(KernelBypassSocket { socket })
     }
 

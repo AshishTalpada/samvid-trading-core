@@ -16,6 +16,12 @@ pub struct LobAnalyzer {
     pub executions_at_level: HashMap<i64, Vec<f64>>, // Price (scaled) -> Vec of executed sizes
 }
 
+impl Default for LobAnalyzer {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl LobAnalyzer {
     pub fn new() -> Self {
         LobAnalyzer {
@@ -32,8 +38,8 @@ impl LobAnalyzer {
     /// Analyze if a level has repeating identical small executions (Iceberg signature).
     pub fn detect_iceberg(&mut self, price: f64, executed_size: f64) -> bool {
         let price_level = (price * 10000.0) as i64; // Scale to int for hashing
-        
-        let execs = self.executions_at_level.entry(price_level).or_insert(Vec::new());
+
+        let execs = self.executions_at_level.entry(price_level).or_default();
         execs.push(executed_size);
 
         // Keep last 10 executions
@@ -45,7 +51,10 @@ impl LobAnalyzer {
         // it is highly likely an iceberg reloading.
         if execs.len() >= 4 {
             let last_size = execs.last().unwrap();
-            let matches = execs.iter().filter(|&s| (s - last_size).abs() < 0.001).count();
+            let matches = execs
+                .iter()
+                .filter(|&s| (s - last_size).abs() < 0.001)
+                .count();
             if matches >= 4 {
                 return true; // Iceberg detected
             }

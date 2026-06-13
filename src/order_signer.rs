@@ -1,12 +1,11 @@
-use ed25519_dalek::{SigningKey, Signer, Signature};
-use rand::rngs::OsRng;
+use ed25519_dalek::{Signature, Signer, SigningKey};
 use log::info;
+use rand::rngs::OsRng;
 
 /// Air-Gapped Order Signer (Zero-Trust)
 /// Sovereign requires cryptographic signatures for every FIX message
 /// sent to institutional brokers. This module mimics an external HSM
 /// (Hardware Security Module) that signs the order blob.
-
 pub struct HardwareSigner {
     signing_key: SigningKey,
 }
@@ -23,5 +22,11 @@ impl HardwareSigner {
         let signature = self.signing_key.sign(order_blob);
         info!("[SIGNER] Order cryptographically signed.");
         signature
+    }
+}
+
+impl Default for HardwareSigner {
+    fn default() -> Self {
+        Self::new()
     }
 }

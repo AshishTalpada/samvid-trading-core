@@ -1,5 +1,8 @@
 use libp2p::{
-    gossipsub::{Behaviour as Gossipsub, ConfigBuilder as GossipsubConfigBuilder, MessageAuthenticity, IdentTopic as Topic},
+    gossipsub::{
+        Behaviour as Gossipsub, ConfigBuilder as GossipsubConfigBuilder, IdentTopic as Topic,
+        MessageAuthenticity,
+    },
     identity, PeerId,
 };
 use std::collections::hash_map::DefaultHasher;
@@ -12,6 +15,12 @@ use std::time::Duration;
 pub struct SovereignSwarm {
     pub local_peer_id: PeerId,
     pub topic: Topic,
+}
+
+impl Default for SovereignSwarm {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl SovereignSwarm {
@@ -48,8 +57,9 @@ impl SovereignSwarm {
             .expect("Valid GossipSub config");
 
         // Bind the behavior
-        let mut gossipsub = Gossipsub::new(MessageAuthenticity::Signed(local_key), gossipsub_config)
-            .expect("Correct configuration");
+        let mut gossipsub =
+            Gossipsub::new(MessageAuthenticity::Signed(local_key), gossipsub_config)
+                .expect("Correct configuration");
 
         gossipsub.subscribe(&self.topic).unwrap();
         gossipsub

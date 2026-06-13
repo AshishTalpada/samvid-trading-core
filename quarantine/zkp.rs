@@ -1,5 +1,5 @@
-use sha2::{Sha256, Digest};
 use rand::{thread_rng, Rng};
+use sha2::{Digest, Sha256};
 
 /// Deep Dive into a pseudo-Bulletproof Zero Knowledge construct.
 /// In production, this binds to Bellman or Arkworks.
@@ -10,12 +10,12 @@ pub struct ZkProofState {
 }
 
 impl ZkProofState {
-    /// Generates a Zero Knowledge Proof that a trade's expected profit 
+    /// Generates a Zero Knowledge Proof that a trade's expected profit
     /// meets a threshold, WITHOUT revealing the underlying strategy weights.
     pub fn generate_profit_proof(_strategy_weights: &[f64], secret_alpha: f64) -> Self {
         let mut rng = thread_rng();
         let blinding_factor: u64 = rng.gen();
-        
+
         // 1. Commit to the strategy using a blinding factor
         let mut hasher = Sha256::new();
         hasher.update(secret_alpha.to_be_bytes());

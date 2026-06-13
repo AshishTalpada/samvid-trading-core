@@ -1,6 +1,6 @@
 // =========================================================================
 // DEPRECATION WARNING: Phase 2 De-bloat
-// Custom cryptography (especially toy PQC implementations) should not be 
+// Custom cryptography (especially toy PQC implementations) should not be
 // used in production systems. This is now disabled by default.
 // Use standard TLS/AES for data-in-transit or data-at-rest.
 // =========================================================================
@@ -14,8 +14,8 @@ use rand::{thread_rng, Rng};
 
 // Parameters for a toy-Kyber implementation
 const N: usize = 256; // Polynomial degree
-const Q: i32 = 3329;  // Prime modulus
-const K: usize = 2;   // Module dimension
+const Q: i32 = 3329; // Prime modulus
+const K: usize = 2; // Module dimension
 
 #[derive(Clone)]
 pub struct Poly {
@@ -60,7 +60,9 @@ impl Poly {
         // Reduction by Q
         for i in 0..N {
             let mut val = (temp[i] % (Q as i64)) as i32;
-            if val < 0 { val += Q; }
+            if val < 0 {
+                val += Q;
+            }
             result.coeffs[i] = val;
         }
 
@@ -78,7 +80,7 @@ pub struct KyberState {
 impl KyberState {
     pub fn new() -> Self {
         let mut rng = thread_rng();
-        
+
         // 1. Generate random matrix A
         let mut a = vec![vec![Poly::new(); K]; K];
         for i in 0..K {
@@ -121,19 +123,21 @@ impl KyberState {
     /// Encrypts a binary payload (e.g., serialized neural weights) into a quantum-resistant ciphertext.
     pub fn encrypt_historical_data(&self, data: &[u8]) -> (Vec<Poly>, Poly) {
         let mut rng = thread_rng();
-        
+
         // Ephemeral secret r and errors e1, e2
         let mut r = vec![Poly::new(); K];
         let mut e1 = vec![Poly::new(); K];
         let mut e2 = Poly::new();
-        
+
         for i in 0..K {
             for c in 0..N {
                 r[i].coeffs[c] = rng.gen_range(-2..=2);
                 e1[i].coeffs[c] = rng.gen_range(-2..=2);
             }
         }
-        for c in 0..N { e2.coeffs[c] = rng.gen_range(-2..=2); }
+        for c in 0..N {
+            e2.coeffs[c] = rng.gen_range(-2..=2);
+        }
 
         // u = A^T * r + e1
         let mut u = vec![Poly::new(); K];
@@ -150,7 +154,7 @@ impl KyberState {
         for i in 0..K {
             v_sum = v_sum.add(&self.public_t[i].mul(&r[i]));
         }
-        
+
         let mut v = v_sum.add(&e2);
 
         // Encode the message bits into the polynomial
@@ -158,7 +162,9 @@ impl KyberState {
         let mut bit_idx = 0;
         for &byte in data {
             for bit in 0..8 {
-                if bit_idx >= N { break; }
+                if bit_idx >= N {
+                    break;
+                }
                 let bit_val = (byte >> bit) & 1;
                 if bit_val == 1 {
                     v.coeffs[bit_idx] = (v.coeffs[bit_idx] + q_half) % Q;
