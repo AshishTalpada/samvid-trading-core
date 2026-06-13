@@ -184,6 +184,12 @@ class TradingBrain(BrokerReconciler, HealthChecker, DataProvider, AccountingMixi
             logger.warning(f"Safe publish failed for topic '{topic}': {exc}", exc_info=True)
             return False
 
+    @staticmethod
+    def _learning_db_path() -> str:
+        """Resolve the Agent D store without forcing tests to touch production state."""
+        configured = os.environ.get("SOVEREIGN_LEARNING_DB_PATH", "").strip()
+        return configured or "data/trading.db"
+
     def __init__(
         self,
         db_conn: Optional["sqlite3.Connection"] = None,
@@ -340,7 +346,7 @@ class TradingBrain(BrokerReconciler, HealthChecker, DataProvider, AccountingMixi
         self.recursive_evolution = LiveRecursiveEvolution(atlas=self.sovereign_atlas)
 
         # 4. Live Learning Engine — Agent D persistent matrix, subscribed to trade.exit
-        _db_path = "data/trading.db"
+        _db_path = self._learning_db_path()
         self.db_path = _db_path  # Needed by session_restorer.restore_peak_equity
         self.live_learner = LiveLearningEngine(
             db_path=_db_path, bus=bus, evolution_engine=self.recursive_evolution, dms=self.dms

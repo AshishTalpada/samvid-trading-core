@@ -10,6 +10,13 @@ except ImportError:
     from brain import DrawdownLevel, TradingBrain, TradingState  # type: ignore
 
 
+def test_learning_database_path_honors_isolated_environment(monkeypatch, tmp_path) -> None:
+    isolated = tmp_path / "learning.db"
+    monkeypatch.setenv("SOVEREIGN_LEARNING_DB_PATH", str(isolated))
+
+    assert TradingBrain._learning_db_path() == str(isolated)
+
+
 @pytest.fixture
 def brain(mock_db_conn):
     """Create a TradingBrain with mocked external dependencies."""

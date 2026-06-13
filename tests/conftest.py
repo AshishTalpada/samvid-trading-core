@@ -17,6 +17,9 @@ def pytest_configure(config):
     test_log = Path(__file__).resolve().parent.parent / "tmp" / "pytest_trading_system.log"
     test_log.parent.mkdir(parents=True, exist_ok=True)
     os.environ.setdefault("SOVEREIGN_LOG_FILE", str(test_log))
+    learning_db = test_log.parent / f"pytest_learning_{os.getpid()}.db"
+    config._samvid_learning_db = learning_db
+    os.environ["SOVEREIGN_LEARNING_DB_PATH"] = str(learning_db)
 
     test_secrets = {
         "SESSION_SECRET": "TEST_SESSION_SECRET_UNSECURE_MOCK_FOR_TESTS_ONLY",
@@ -51,6 +54,10 @@ def pytest_runtest_teardown(item, nextitem):
 def pytest_sessionfinish(session, exitstatus):
     """Close any remaining fallback event loop at final shutdown."""
     _close_idle_event_loop()
+    learning_db = getattr(session.config, "_samvid_learning_db", None)
+    if learning_db is not None:
+        for suffix in ("", "-wal", "-shm"):
+            Path(f"{learning_db}{suffix}").unlink(missing_ok=True)
 
 
 # -- Samvid v1.0-beta-beta-beta: Cognitive Path Alignment --
