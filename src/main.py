@@ -493,7 +493,9 @@ class TradingSystem:
                         current_raw = (rf.read() or "").strip()
                     if current_raw == existing_raw:
                         os.remove(pid_file)
-                        logger.info("Removed stale PID lock %s containing %r.", pid_file, existing_raw)
+                        logger.info(
+                            "Removed stale PID lock %s containing %r.", pid_file, existing_raw
+                        )
                     else:
                         logger.info(
                             "PID lock %s changed from %r to %r during startup; "
@@ -553,6 +555,65 @@ class TradingSystem:
                 logger.info("Removed own main PID file during shutdown.")
         except Exception as exc:
             logger.debug("Main PID cleanup skipped: %s", exc)
+
+    def _ensure_own_pid_file(self) -> bool:
+        """Restore a deleted singleton file without stealing it from another live engine."""
+        if os.environ.get("SOVEREIGN_SKIP_PID_CHECK", "0") == "1":
+            return True
+        pid_file = Path("data/main.pid")
+        own_pid = os.getpid()
+        try:
+            owner_raw = pid_file.read_text(encoding="utf-8").strip()
+            owner_pid = int(owner_raw)
+        except FileNotFoundError:
+            owner_pid = 0
+            owner_raw = ""
+        except (OSError, ValueError):
+            owner_pid = 0
+            owner_raw = ""
+
+        if owner_pid == own_pid:
+            return True
+        if owner_pid:
+            try:
+                import psutil
+
+                if psutil.pid_exists(owner_pid):
+                    process = psutil.Process(owner_pid)
+                    cmdline = " ".join(process.cmdline()).replace("\\", "/").lower()
+                    if "src/main.py" in cmdline:
+                        logger.critical(
+                            "Main PID ownership belongs to another live engine PID %s; "
+                            "current PID %s will not steal it.",
+                            owner_pid,
+                            own_pid,
+                        )
+                        return False
+            except Exception as exc:
+                logger.warning("Main PID owner verification failed: %s", exc)
+                return False
+            try:
+                if pid_file.read_text(encoding="utf-8").strip() == owner_raw:
+                    pid_file.unlink()
+            except FileNotFoundError:
+                pass
+            except OSError as exc:
+                logger.warning("Main PID stale-lock cleanup failed: %s", exc)
+                return False
+
+        try:
+            pid_file.parent.mkdir(parents=True, exist_ok=True)
+            fd = os.open(pid_file, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+            with os.fdopen(fd, "w") as handle:
+                handle.write(str(own_pid))
+            logger.warning("Restored missing main PID ownership for live PID %s.", own_pid)
+            return True
+        except FileExistsError:
+            logger.critical("Main PID ownership restore lost a concurrent claim race.")
+            return False
+        except OSError as exc:
+            logger.error("Main PID ownership restore failed: %s", exc)
+            return False
 
     async def async_init(self) -> None:
         """PILLAR 6: Progressive Orchestration (9.99 Upgrade)
@@ -709,7 +770,9 @@ class TradingSystem:
         _api_port = int(_api_port_raw) if _api_port_raw else 8000
         original_port = _api_port
         while is_port_in_use(_api_port) and _api_port < original_port + 10:
-            logger.info(f"API Server: Port {_api_port} in use (fallback). Trying {_api_port + 1}...")
+            logger.info(
+                f"API Server: Port {_api_port} in use (fallback). Trying {_api_port + 1}..."
+            )
             _api_port += 1
 
         self.api_server = APIServer(
@@ -815,10 +878,10 @@ class TradingSystem:
                 self.db_conn = await asyncio.to_thread(_sync_init)
                 self.db_conn.row_factory = sqlite3.Row
 
-
                 # Apply any pending yoyo migrations first (idempotent)
                 try:
                     from database.migrate import apply_migrations
+
                     apply_migrations(db_path=self.db_path)
                 except Exception as _mig_err:
                     logger.warning("Migration runner error (non-fatal): %s", _mig_err)
@@ -1300,9 +1363,7 @@ class TradingSystem:
                 ) -> None:
                     nonlocal broker_connect_error
                     if int(error_code) == 10141:
-                        broker_connect_error = (
-                            f"IBKR {error_code}: {error_text.rstrip(' .')}"
-                        )
+                        broker_connect_error = f"IBKR {error_code}: {error_text.rstrip(' .')}"
 
                 client.errorEvent += capture_connect_error
 
@@ -1393,7 +1454,9 @@ class TradingSystem:
                                 try:
                                     client.disconnect()
                                 except Exception as e:
-                                    logger.debug("Main: error disconnecting IBKR client during retry: %s", e)
+                                    logger.debug(
+                                        "Main: error disconnecting IBKR client during retry: %s", e
+                                    )
                                 self.ibkr_client = client = IB()
                                 client.errorEvent += capture_connect_error
                                 continue
@@ -1600,6 +1663,7 @@ class TradingSystem:
 
     async def _run_ibkr_reconnect_loop(self) -> None:
         """Keep the owned IBKR API session attached when TWS starts late or restarts."""
+
         def _interval(name: str, default: float) -> float:
             try:
                 return float(os.environ.get(name, str(default)))
@@ -2187,6 +2251,7 @@ class TradingSystem:
         try:
             from metrics import start_metrics_server
             from vault import Vault as _VaultM
+
             _metrics_port = int(_VaultM.get("METRICS_PORT", "9090") or "9090")
             start_metrics_server(port=_metrics_port)
             logger.info("Prometheus metrics server started on port %d", _metrics_port)
@@ -2974,10 +3039,7 @@ class TradingSystem:
 
             # 8. FINAL DB CLOSURE
             logger.info("[SHUTDOWN STEP 8/9] Finalizing Persistence...")
-            if (
-                self.trading_brain
-                and getattr(self.trading_brain, "evolution_manager", None)
-            ):
+            if self.trading_brain and getattr(self.trading_brain, "evolution_manager", None):
                 try:
                     self.trading_brain.evolution_manager.close()
                     logger.info("✓ Evolution engine connection terminated.")
@@ -3013,6 +3075,10 @@ class TradingSystem:
         """Sovereign Guard: Ensures the watchdog process is active and pulsing."""
         if os.environ.get("SOVEREIGN_SKIP_PID_CHECK", "0") == "1":
             logger.info("Smoke-test mode detected - skipping watchdog verification/autostart.")
+            return
+
+        if not self._ensure_own_pid_file():
+            logger.critical("Watchdog verification aborted because main PID ownership is unsafe.")
             return
 
         try:
@@ -3180,9 +3246,7 @@ class TradingSystem:
                 await self.connect_mt5()
                 return
 
-            logger.error(
-                "Watchdog: required MT5 failure persisted. Initiating resource flush."
-            )
+            logger.error("Watchdog: required MT5 failure persisted. Initiating resource flush.")
             self._recalibration_in_progress = True
             try:
                 if hasattr(self, "mind_system") and self.mind_system:
@@ -3305,7 +3369,9 @@ class TradingSystem:
                                     try:
                                         os.remove(os.path.join(logs_dir, f))
                                     except Exception as e:
-                                        logger.debug("Main: sentinel could not remove .tmp file: %s", e)
+                                        logger.debug(
+                                            "Main: sentinel could not remove .tmp file: %s", e
+                                        )
                             logger.debug("Sentinel: Logs directory sterilized of .tmp artifacts.")
                     except Exception as e:
                         logger.debug(f"Sentinel: MiroFish cleanup failed: {e}")

@@ -324,8 +324,7 @@ def check_task_liveness(watchdog_start_time: datetime) -> dict:
                 )
                 logger.log(
                     level,
-                    "LIVE-LOCK DETECTED: Task '%s' has not pulsed in %.0fs "
-                    "(threshold: %ss). %s",
+                    "LIVE-LOCK DETECTED: Task '%s' has not pulsed in %.0fs (threshold: %ss). %s",
                     task_name,
                     age,
                     LIVENESS_TIMEOUT,
@@ -440,6 +439,46 @@ def _write_watchdog_pid() -> bool:
         return False
 
 
+def _maintain_watchdog_pid_claim(pid_path: str = "data/watchdog.pid") -> bool:
+    """Keep only the helper named by the singleton file alive."""
+    own_pid = os.getpid()
+    try:
+        owner_raw = Path(pid_path).read_text(encoding="utf-8").strip()
+        owner_pid = int(owner_raw)
+    except FileNotFoundError:
+        owner_pid = 0
+        owner_raw = ""
+    except (OSError, ValueError):
+        owner_pid = 0
+        owner_raw = ""
+
+    if owner_pid == own_pid:
+        return True
+    if owner_pid and _is_live_watchdog_process(owner_pid):
+        logger.warning(
+            "Watchdog PID ownership transferred to live PID %s; exiting duplicate PID %s.",
+            owner_pid,
+            own_pid,
+        )
+        return False
+
+    if owner_raw:
+        _remove_pid_file(pid_path, owner_raw)
+    try:
+        os.makedirs(str(Path(pid_path).parent), exist_ok=True)
+        fd = os.open(pid_path, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+        with os.fdopen(fd, "w") as handle:
+            handle.write(str(own_pid))
+        logger.warning("Watchdog PID %s reclaimed missing/stale singleton ownership.", own_pid)
+        return True
+    except FileExistsError:
+        logger.warning("Watchdog PID %s lost singleton reclaim race; exiting.", own_pid)
+        return False
+    except OSError as exc:
+        logger.error("Watchdog PID ownership check failed: %s", exc)
+        return False
+
+
 def run_watchdog():
     if not _write_watchdog_pid():
         return
@@ -456,6 +495,8 @@ def run_watchdog():
 
     while True:
         try:
+            if not _maintain_watchdog_pid_claim():
+                return
             uptime = time.time() - monitored_engine_start_ts
             if uptime < 90:
                 logger.info(f"Watchdog startup grace period: {90 - uptime:.0f}s remaining...")
