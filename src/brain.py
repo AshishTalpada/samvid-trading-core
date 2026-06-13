@@ -853,7 +853,7 @@ class TradingBrain(BrokerReconciler, HealthChecker, DataProvider, AccountingMixi
 
         # Update mission board context
         await self.mission_manager.update_mission(
-            "Generate Unlimited Cash",
+            "Operate Risk-Controlled Paper Trading",
             [
                 "Audit IBKR Latency",
                 "Verify QuestDB Consistency",
@@ -877,7 +877,7 @@ class TradingBrain(BrokerReconciler, HealthChecker, DataProvider, AccountingMixi
         # Background task for periodic freezing (Safety gate)
         self._freezer_task = asyncio.create_task(self._run_periodic_freeze())
 
-        logger.info("TradingBrain: All Matrix background minds launched (Absolute 100% Logic).")
+        logger.info("TradingBrain: Background analysis components launched.")
 
     async def run(self) -> None:
         """Entry point for supervisor — blocks until tasks are finished."""
