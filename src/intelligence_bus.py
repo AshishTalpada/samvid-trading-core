@@ -70,8 +70,8 @@ class SharedIntelligenceBus:
         self._subscribers: dict[str, list[asyncio.PriorityQueue]] = {}
         # topic → list of async callbacks (spawned as tasks on publish)
         self._callbacks: dict[str, list[Callable]] = {}
-        # id(handler) -> (Queue, Task) to prevent task-bombing
-        self._callback_workers: dict[int, tuple[Any, asyncio.Task]] = {}
+        # Stable handler key -> (Queue, Task) to prevent task-bombing.
+        self._callback_workers: dict[Any, tuple[Any, asyncio.Task]] = {}
         self._relay_queues: list[asyncio.PriorityQueue] = []
         self._publish_count: int = 0
         self._tie_breaker: int = 0  # Tie-breaker for PriorityQueue comparison
@@ -137,11 +137,33 @@ class SharedIntelligenceBus:
 
     # Subscribe via Callback (push model)
 
+    @staticmethod
+    def _handler_key(handler: Callable) -> Any:
+        """Return a stable key across repeated bound-method attribute access."""
+        owner = getattr(handler, "__self__", None)
+        function = getattr(handler, "__func__", None)
+        if owner is not None and function is not None:
+            return (id(owner), function)
+        try:
+            hash(handler)
+        except TypeError:
+            return id(handler)
+        return handler
+
     def on(self, topic: str, handler: Callable) -> None:
         """
         Register a callback for a topic.
         Uses weak references to prevent memory leaks from old/restarted agents.
         """
+        for existing_ref in self._callbacks.get(topic, []):
+            existing = (
+                existing_ref()
+                if isinstance(existing_ref, (weakref.WeakMethod, weakref.ReferenceType))
+                else existing_ref
+            )
+            if existing == handler:
+                return
+
         # Determine if we should use WeakMethod (for instance methods) or ref (for functions)
         import inspect
 
@@ -159,11 +181,12 @@ class SharedIntelligenceBus:
 
         self._callbacks.setdefault(topic, []).append(ref)
 
-        h_id = id(handler)
-        if h_id not in self._callback_workers:
+        handler_key = self._handler_key(handler)
+        worker_entry = self._callback_workers.get(handler_key)
+        if worker_entry is None or worker_entry[1].done():
             q = self.PriorityQueueWrapper(maxsize=100)
             worker = asyncio.create_task(self._handler_worker(ref, q))
-            self._callback_workers[h_id] = (q, worker)
+            self._callback_workers[handler_key] = (q, worker)
 
             def _cleanup_worker(task: asyncio.Task):
                 # ONLY cancel the task — this is thread-safe (sets a flag).
@@ -210,15 +233,15 @@ class SharedIntelligenceBus:
         for hid in dead_workers:
             self._callback_workers.pop(hid, None)
         if dead_workers:
-            logger.debug(
-                f"BUS: Pruned {len(dead_workers)} dead callback worker(s)"
-            )
+            logger.debug(f"BUS: Pruned {len(dead_workers)} dead callback worker(s)")
 
     async def _handler_worker(self, handler_ref: Any, q: asyncio.PriorityQueue) -> None:
         """Dedicated worker for a callback handler to prevent task-bombing."""
         while True:
+            acquired = False
             try:
                 payload = await q.get()
+                acquired = True
 
                 handler = (
                     handler_ref()
@@ -228,11 +251,9 @@ class SharedIntelligenceBus:
 
                 if handler is None:
                     logger.debug("BUS: Handler collected by GC. Terminating worker.")
-                    q.task_done()
                     break
 
                 await handler(payload)
-                q.task_done()
             except asyncio.CancelledError:
                 break
             except Exception as e:
@@ -241,24 +262,39 @@ class SharedIntelligenceBus:
                 h_name = getattr(handler_ref, "__name__", "unknown_handler")
                 logger.error(f"BUS: handler {h_name} raised error: {e}")
                 await asyncio.sleep(0.1)  # Cool down
+            finally:
+                if acquired:
+                    q.task_done()
 
     def off(self, topic: str, handler: Callable) -> None:
         """Remove an async callback."""
         if topic not in self._callbacks:
             return
-        # _callbacks stores weak references, not raw handlers.
-        # We must find and remove the weak ref that points to handler.
-        refs = self._callbacks[topic]
-        to_remove = None
-        for r in refs:
-            pointed = r() if isinstance(r, (weakref.WeakMethod, weakref.ReferenceType)) else r
-            if pointed is handler:
-                to_remove = r
-                break
-        if to_remove is not None:
-            refs.remove(to_remove)
-        if not refs:
+        remaining = []
+        for ref in self._callbacks[topic]:
+            pointed = ref() if isinstance(ref, (weakref.WeakMethod, weakref.ReferenceType)) else ref
+            if pointed != handler:
+                remaining.append(ref)
+        if remaining:
+            self._callbacks[topic] = remaining
+        else:
             del self._callbacks[topic]
+
+        still_registered = False
+        for refs in self._callbacks.values():
+            for ref in refs:
+                pointed = (
+                    ref() if isinstance(ref, (weakref.WeakMethod, weakref.ReferenceType)) else ref
+                )
+                if pointed == handler:
+                    still_registered = True
+                    break
+            if still_registered:
+                break
+        if not still_registered:
+            worker_entry = self._callback_workers.pop(self._handler_key(handler), None)
+            if worker_entry is not None:
+                worker_entry[1].cancel()
 
     # Publish
 
@@ -275,26 +311,32 @@ class SharedIntelligenceBus:
                 try:
                     q.put_nowait(p_item)
                 except (asyncio.QueueFull, Exception) as e:
-                    logger.debug("IntelligenceBus: subscriber queue full or error for topic %s: %s", topic, e)
+                    logger.debug(
+                        "IntelligenceBus: subscriber queue full or error for topic %s: %s", topic, e
+                    )
 
         # 2. Push to wildcard relay queues
         for q in list(self._relay_queues):
             try:
                 q.put_nowait(r_item)
             except (asyncio.QueueFull, Exception) as e:
-                logger.debug("IntelligenceBus: relay queue full or error for topic %s: %s", topic, e)
+                logger.debug(
+                    "IntelligenceBus: relay queue full or error for topic %s: %s", topic, e
+                )
 
         # 3. Push to callback workers
         for ref in self._callbacks.get(topic, []):
             handler = ref() if isinstance(ref, (weakref.WeakMethod, weakref.ReferenceType)) else ref
             if handler:
-                h_id = id(handler)
-                if h_id in self._callback_workers:
-                    q, _ = self._callback_workers[h_id]
+                handler_key = self._handler_key(handler)
+                if handler_key in self._callback_workers:
+                    q, _ = self._callback_workers[handler_key]
                     try:
                         q.put_nowait(p_item)
                     except asyncio.QueueFull as e:
-                        logger.debug("IntelligenceBus: callback worker queue full for topic %s: %s", topic, e)
+                        logger.debug(
+                            "IntelligenceBus: callback worker queue full for topic %s: %s", topic, e
+                        )
 
     async def publish(self, topic: str, payload: Any = None) -> None:
         self._publish_count += 1
