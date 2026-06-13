@@ -1,7 +1,10 @@
+use chrono::Utc;
 use std::error::Error;
+use std::io::{Error as IoError, ErrorKind};
 use std::time::{SystemTime, UNIX_EPOCH};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpStream;
+use tokio::time::{timeout, Duration};
 
 /// Deep Dive: Universal FIX Protocol Bridge
 /// Connects to Institutional Brokers (IBKR, CME, LMAX) over raw TCP using FIX 4.4 / 5.0
@@ -11,6 +14,7 @@ pub struct FixBridge {
     pub sender_comp_id: String,
     pub target_comp_id: String,
     pub msg_seq_num: u64,
+    stream: Option<TcpStream>,
 }
 
 impl FixBridge {
@@ -21,17 +25,13 @@ impl FixBridge {
             sender_comp_id: sender.to_string(),
             target_comp_id: target.to_string(),
             msg_seq_num: 1,
+            stream: None,
         }
     }
 
     /// Constructs a standard FIX header and calculates the checksum
     fn construct_message(&mut self, msg_type: &str, body: &str) -> String {
-        let now = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_millis();
-        // Time format: YYYYMMDD-HH:MM:SS.mmm (simplified for stub)
-        let sending_time = format!("{}", now);
+        let sending_time = Utc::now().format("%Y%m%d-%H:%M:%S%.3f");
 
         let header = format!(
             "35={}\x0149={}\x0156={}\x0134={}\x0152={}\x01",
@@ -65,14 +65,28 @@ impl FixBridge {
         let logon_body = "98=0\x01108=30\x01";
         let msg = self.construct_message("A", logon_body);
 
-        println!("[FIX_BRIDGE] Sending Logon: {}", msg.replace("\x01", "|"));
         stream.write_all(msg.as_bytes()).await?;
 
-        let mut buffer = [0; 1024];
-        let n = stream.read(&mut buffer).await?;
+        let mut buffer = [0; 4096];
+        let n = timeout(Duration::from_secs(10), stream.read(&mut buffer)).await??;
+        if n == 0 {
+            return Err(
+                IoError::new(ErrorKind::UnexpectedEof, "FIX peer closed during logon").into(),
+            );
+        }
         let response = String::from_utf8_lossy(&buffer[..n]);
-        println!("[FIX_BRIDGE] Received: {}", response.replace("\x01", "|"));
+        if !response.contains("\x0135=A\x01") {
+            return Err(IoError::new(
+                ErrorKind::PermissionDenied,
+                format!(
+                    "FIX logon rejected or malformed: {}",
+                    response.replace('\x01', "|")
+                ),
+            )
+            .into());
+        }
 
+        self.stream = Some(stream);
         Ok(())
     }
 
@@ -84,6 +98,25 @@ impl FixBridge {
         qty: f64,
         price: f64,
     ) -> Result<(), Box<dyn Error>> {
+        let side_code = match side.trim().to_ascii_uppercase().as_str() {
+            "BUY" | "1" => "1",
+            "SELL" | "2" => "2",
+            _ => {
+                return Err(
+                    IoError::new(ErrorKind::InvalidInput, "side must be BUY or SELL").into(),
+                )
+            }
+        };
+        if symbol.is_empty()
+            || symbol.bytes().any(|byte| byte == b'=' || byte == 0x01)
+            || !qty.is_finite()
+            || qty <= 0.0
+            || !price.is_finite()
+            || price <= 0.0
+        {
+            return Err(IoError::new(ErrorKind::InvalidInput, "invalid FIX order fields").into());
+        }
+
         // 11=ClOrdID, 21=HandlInst(1=Auto), 55=Symbol, 54=Side(1=Buy,2=Sell), 60=TransactTime, 38=Qty, 40=OrdType(2=Limit), 44=Price
         let cl_ord_id = format!(
             "SOV-{}",
@@ -96,21 +129,76 @@ impl FixBridge {
             "11={}\x0121=1\x0155={}\x0154={}\x0160={}\x0138={}\x0140=2\x0144={}\x01",
             cl_ord_id,
             symbol,
-            side,
-            SystemTime::now()
-                .duration_since(UNIX_EPOCH)
-                .unwrap()
-                .as_millis(),
+            side_code,
+            Utc::now().format("%Y%m%d-%H:%M:%S%.3f"),
             qty,
             price
         );
 
         let msg = self.construct_message("D", &body);
-        println!(
-            "[FIX_BRIDGE] Submitting Order: {}",
-            msg.replace("\x01", "|")
-        );
-        // In reality, we'd write this to the TcpStream
+        let stream = self.stream.as_mut().ok_or_else(|| {
+            IoError::new(
+                ErrorKind::NotConnected,
+                "FIX order blocked because session is not logged on",
+            )
+        })?;
+        stream.write_all(msg.as_bytes()).await?;
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn constructed_message_has_valid_body_length_and_checksum() {
+        let mut bridge = FixBridge::new("localhost", 9876, "SENDER", "TARGET");
+        let message = bridge.construct_message("0", "112=ping\x01");
+        let fields: Vec<&str> = message.split('\x01').collect();
+        let body_length: usize = fields[1].strip_prefix("9=").unwrap().parse().unwrap();
+        let body_start = message.find("35=").unwrap();
+        let checksum_start = message.rfind("10=").unwrap();
+
+        assert_eq!(body_length, checksum_start - body_start);
+        let expected_checksum: u32 = message.as_bytes()[..checksum_start]
+            .iter()
+            .map(|byte| *byte as u32)
+            .sum::<u32>()
+            % 256;
+        assert_eq!(
+            fields[fields.len() - 2],
+            format!("10={expected_checksum:03}")
+        );
+    }
+
+    #[tokio::test]
+    async fn order_fails_closed_without_logged_on_session() {
+        let mut bridge = FixBridge::new("localhost", 9876, "SENDER", "TARGET");
+
+        let error = bridge
+            .send_order("SPY", "BUY", 1.0, 100.0)
+            .await
+            .unwrap_err();
+
+        assert_eq!(
+            error.downcast_ref::<IoError>().unwrap().kind(),
+            ErrorKind::NotConnected
+        );
+    }
+
+    #[tokio::test]
+    async fn invalid_order_is_rejected_before_transport() {
+        let mut bridge = FixBridge::new("localhost", 9876, "SENDER", "TARGET");
+
+        assert!(bridge.send_order("SPY", "HOLD", 1.0, 100.0).await.is_err());
+        assert!(bridge
+            .send_order("SPY", "BUY", f64::NAN, 100.0)
+            .await
+            .is_err());
+        assert!(bridge
+            .send_order("BAD\x01SYMBOL", "BUY", 1.0, 100.0)
+            .await
+            .is_err());
     }
 }
