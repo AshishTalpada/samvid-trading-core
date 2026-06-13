@@ -34,12 +34,12 @@ class MindGhost:
         self.backoff_base = 2.0
         # Track when next probe is allowed per service (exponential backoff)
         self._probe_next_allowed: dict[str, float] = {}
-        self._probe_backoff_sec: dict[str, float] = {"IBKR": 30.0, "MT5": 60.0}
+        self._probe_base_backoff_sec: dict[str, float] = {"IBKR": 30.0, "MT5": 60.0}
         self._next_api_loss_alert = 0.0
         self._heartbeat_registry_path = Path("data/task_heartbeats.json")
         self._heartbeat_registry_max_age = 90.0
         self._registry_recovery_logged = False
-        self._next_reset_suppressed_log = 0.0
+        self._reset_suppressed_services: set[str] = set()
 
         # Enhancement: Store task references to allow clean cancellation on shutdown.
         # Dropping these references causes 'Task was destroyed but it is pending!'
@@ -153,12 +153,7 @@ class MindGhost:
                             if not await asyncio.to_thread(self._probe_port, port):
                                 fail_count = self.ghost_mirror.get(f"{service}_probe_fail", 0) + 1
                                 self.ghost_mirror[f"{service}_probe_fail"] = fail_count
-                                backoff = min(
-                                    self._probe_backoff_sec.get(service, 60.0)
-                                    * (2 ** (fail_count - 1)),
-                                    480.0,
-                                )
-                                self._probe_backoff_sec[service] = backoff
+                                backoff = self._probe_backoff_delay(service, fail_count)
                                 self._probe_next_allowed[service] = current_time + backoff
                                 logger.warning(
                                     f"MindGhost: Socket Probe FAILED for {service}:{port} "
@@ -170,10 +165,8 @@ class MindGhost:
                                 if self.ghost_mirror.get(f"{service}_probe_fail", 0) > 0:
                                     logger.info(f"MindGhost: {service} probe RECOVERED.")
                                 self.ghost_mirror[f"{service}_probe_fail"] = 0
-                                self._probe_backoff_sec[service] = (
-                                    30.0 if service == "IBKR" else 60.0
-                                )
                                 self._probe_next_allowed[service] = 0
+                                self._reset_suppressed_services.discard(service)
 
                 await asyncio.sleep(0.5)  # Sub-second frequency
             except Exception as e:
@@ -186,13 +179,14 @@ class MindGhost:
 
         auto_restart = Vault.get("IBKR_AUTO_RESTART", "0").strip() == "1"
         if service_name == "IBKR" and not auto_restart:
-            now = time.monotonic()
-            if now >= self._next_reset_suppressed_log:
-                logger.warning(
+            if service_name not in self._reset_suppressed_services:
+                logger.info(
                     "MindGhost: IBKR reset suppressed because IBKR_AUTO_RESTART is disabled."
                 )
-                self._next_reset_suppressed_log = now + 300.0
+                self._reset_suppressed_services.add(service_name)
             return
+
+        self._reset_suppressed_services.discard(service_name)
 
         retry_count = self.retry_counts.get(service_name, 0)
         backoff_delay = self.backoff_base**retry_count
@@ -302,6 +296,12 @@ class MindGhost:
         except Exception as e:
             logger.debug(f"MindGhost: Probe error on port {port}: {e}")
             return False
+
+    def _probe_backoff_delay(self, service: str, fail_count: int) -> float:
+        """Return a capped exponential delay without compounding prior delays."""
+        base = self._probe_base_backoff_sec.get(service, 60.0)
+        exponent = max(0, int(fail_count) - 1)
+        return min(base * (2**exponent), 480.0)
 
 
 # ── LOCAL-ONLY MODULE CONSTANTS ─────────────────────────────────────────
