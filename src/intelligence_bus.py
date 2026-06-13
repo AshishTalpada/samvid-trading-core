@@ -90,6 +90,7 @@ class SharedIntelligenceBus:
             "market.observation": 10,  # Shadow learning from watched market behavior
             "candle.batch": 12,  # 1m/5m/1h closures
             "oracle.state": 15,  # Routine updates
+            "observation.learning": 20,  # Matured shadow evidence, no execution authority
             "calibration.update": 20,  # Slow learning
             "macro.impact": 20,  # 15m synthesis
         }

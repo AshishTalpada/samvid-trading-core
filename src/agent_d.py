@@ -27,8 +27,9 @@ import logging
 import math
 import statistics
 import time
+from bisect import bisect_left
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict
 
@@ -1309,6 +1310,14 @@ class LiveLearningEngine:
         self._latest_alpha_health: dict[str, dict[str, Any]] = {}
         self._ensure_table()
         self._load_history()
+        backfill = self._backfill_market_observations()
+        if backfill["updated"]:
+            _lld_logger.info(
+                "LiveLearningEngine: observation backfill updated=%s resolved=%s expired=%s",
+                backfill["updated"],
+                backfill["resolved"],
+                backfill["expired"],
+            )
 
     def _ensure_table(self) -> None:
         """Create the agent_d_trades table if it doesn't exist."""
@@ -1321,6 +1330,35 @@ class LiveLearningEngine:
                 """
                 CREATE INDEX IF NOT EXISTS idx_agent_d_observations_symbol_time
                 ON agent_d_market_observations(symbol, observed_at)
+                """
+            )
+            observation_columns = {
+                row[1]
+                for row in conn.execute(
+                    "PRAGMA table_info(agent_d_market_observations)"
+                ).fetchall()
+            }
+            observation_migrations = {
+                "forward_status": "TEXT DEFAULT 'PENDING'",
+                "forward_return_5m": "REAL",
+                "forward_return_15m": "REAL",
+                "forward_return_60m": "REAL",
+                "metadata_json": "TEXT",
+            }
+            for column, declaration in observation_migrations.items():
+                if column not in observation_columns:
+                    _lld_logger.info(
+                        "LiveLearningEngine: adding observation column %s",
+                        column,
+                    )
+                    conn.execute(
+                        f"ALTER TABLE agent_d_market_observations "
+                        f"ADD COLUMN {column} {declaration}"
+                    )
+            conn.execute(
+                """
+                CREATE INDEX IF NOT EXISTS idx_agent_d_observations_forward_status
+                ON agent_d_market_observations(forward_status, symbol)
                 """
             )
 
@@ -1510,19 +1548,234 @@ class LiveLearningEngine:
             if conn is not None:
                 conn.close()
 
+    @staticmethod
+    def _observation_epoch(value: Any) -> float | None:
+        """Parse an observation timestamp into UTC epoch seconds."""
+        if isinstance(value, datetime):
+            parsed = value
+        else:
+            text = str(value or "").strip()
+            if not text:
+                return None
+            try:
+                parsed = datetime.fromisoformat(text.replace("Z", "+00:00"))
+            except ValueError:
+                return None
+        if parsed.tzinfo is None:
+            parsed = parsed.replace(tzinfo=timezone.utc)
+        return parsed.timestamp()
+
+    @staticmethod
+    def _forward_return_pct(base_price: float, current_price: float) -> float:
+        return ((current_price - base_price) / base_price) * 100.0
+
+    def _resolve_market_observations(
+        self,
+        symbol: str,
+        current_price: float,
+        observed_at: Any,
+    ) -> dict[str, int]:
+        """Validate the latest sample and mature recoverable observations for its symbol."""
+        as_of_epoch = self._observation_epoch(observed_at)
+        if not symbol or current_price <= 0 or as_of_epoch is None:
+            return {"updated": 0, "resolved": 0, "expired": 0}
+        return self._backfill_market_observations(symbol=symbol)
+
+    def _backfill_market_observations(self, *, symbol: str | None = None) -> dict[str, int]:
+        """Pair observations with the nearest later sample inside each horizon tolerance."""
+        conn = None
+        updated = 0
+        resolved = 0
+        expired = 0
+        try:
+            conn = self._connect()
+            conn.row_factory = _sqlite3.Row
+            where_clause = "WHERE symbol = ?" if symbol else ""
+            params = (symbol.upper(),) if symbol else ()
+            rows = conn.execute(
+                f"""
+                SELECT id, observed_at, price, forward_status,
+                       forward_return_5m, forward_return_15m, forward_return_60m,
+                       symbol
+                FROM agent_d_market_observations
+                {where_clause}
+                ORDER BY symbol, observed_at, id
+                """,
+                params,
+            ).fetchall()
+
+            grouped: dict[str, list[dict[str, Any]]] = {}
+            for row in rows:
+                epoch = self._observation_epoch(row["observed_at"])
+                price = float(row["price"] or 0.0)
+                if epoch is None or price <= 0:
+                    continue
+                grouped.setdefault(str(row["symbol"]).upper(), []).append(
+                    {"row": row, "epoch": epoch, "price": price}
+                )
+
+            windows = {
+                "5m": (300.0, 480.0),
+                "15m": (900.0, 1200.0),
+                "60m": (3600.0, 4200.0),
+            }
+            for samples in grouped.values():
+                samples.sort(key=lambda sample: (sample["epoch"], int(sample["row"]["id"])))
+                epochs = [float(sample["epoch"]) for sample in samples]
+                latest_epoch = epochs[-1]
+                for index, sample in enumerate(samples):
+                    row = sample["row"]
+                    if str(row["forward_status"] or "PENDING") in {"RESOLVED", "EXPIRED"}:
+                        continue
+                    base_epoch = float(sample["epoch"])
+                    base_price = float(sample["price"])
+                    values = {
+                        "5m": row["forward_return_5m"],
+                        "15m": row["forward_return_15m"],
+                        "60m": row["forward_return_60m"],
+                    }
+                    for horizon, (minimum_age, maximum_age) in windows.items():
+                        if values[horizon] is not None:
+                            continue
+                        target_epoch = base_epoch + minimum_age
+                        future_index = bisect_left(epochs, target_epoch, lo=index + 1)
+                        if future_index >= len(samples):
+                            continue
+                        future = samples[future_index]
+                        if float(future["epoch"]) - base_epoch <= maximum_age:
+                            values[horizon] = self._forward_return_pct(
+                                base_price,
+                                float(future["price"]),
+                            )
+
+                    completed = all(values[horizon] is not None for horizon in windows)
+                    has_partial = any(values[horizon] is not None for horizon in windows)
+                    if completed:
+                        status = "RESOLVED"
+                    elif latest_epoch - base_epoch > windows["60m"][1]:
+                        status = "EXPIRED"
+                    elif has_partial:
+                        status = "PARTIAL"
+                    else:
+                        status = "PENDING"
+
+                    changed = status != str(row["forward_status"] or "PENDING") or any(
+                        values[horizon] != row[f"forward_return_{horizon}"]
+                        for horizon in windows
+                    )
+                    if not changed:
+                        continue
+                    conn.execute(
+                        """
+                        UPDATE agent_d_market_observations
+                        SET forward_status = ?, forward_return_5m = ?,
+                            forward_return_15m = ?, forward_return_60m = ?
+                        WHERE id = ?
+                        """,
+                        (
+                            status,
+                            values["5m"],
+                            values["15m"],
+                            values["60m"],
+                            int(row["id"]),
+                        ),
+                    )
+                    updated += 1
+                    resolved += int(status == "RESOLVED")
+                    expired += int(status == "EXPIRED")
+            conn.commit()
+        except Exception as exc:
+            _lld_logger.warning("LiveLearningEngine: observation backfill failed: %s", exc)
+        finally:
+            if conn is not None:
+                conn.close()
+        return {"updated": updated, "resolved": resolved, "expired": expired}
+
+    def observation_edge_summary(
+        self,
+        *,
+        min_samples: int = 5,
+        limit: int = 20,
+    ) -> list[dict[str, Any]]:
+        """Return measured shadow edges without granting them execution authority."""
+        conn = None
+        try:
+            conn = self._connect()
+            rows = conn.execute(
+                """
+                SELECT event_type, COALESCE(pattern, 'UNKNOWN'), COALESCE(regime, 'UNKNOWN'),
+                       COUNT(*), AVG(forward_return_5m), AVG(forward_return_15m),
+                       AVG(forward_return_60m)
+                FROM agent_d_market_observations
+                WHERE forward_status = 'RESOLVED'
+                GROUP BY event_type, pattern, regime
+                HAVING COUNT(*) >= ?
+                ORDER BY COUNT(*) DESC
+                LIMIT ?
+                """,
+                (max(1, int(min_samples)), max(1, int(limit))),
+            ).fetchall()
+            return [
+                {
+                    "event_type": row[0],
+                    "pattern": row[1],
+                    "regime": row[2],
+                    "samples": int(row[3]),
+                    "avg_return_5m_pct": float(row[4] or 0.0),
+                    "avg_return_15m_pct": float(row[5] or 0.0),
+                    "avg_return_60m_pct": float(row[6] or 0.0),
+                    "shadow_only": True,
+                }
+                for row in rows
+            ]
+        except Exception as exc:
+            _lld_logger.warning("LiveLearningEngine: observation edge summary failed: %s", exc)
+            return []
+        finally:
+            if conn is not None:
+                conn.close()
+
     async def _handle_market_observation(self, payload: dict[str, Any]) -> None:
         """Persist non-execution market evidence for future forward-return learning."""
-        symbol = str(payload.get("symbol") or "").upper()
-        event_type = str(payload.get("event_type") or "UNKNOWN")
+        observation = dict(payload)
+        observation["observed_at"] = (
+            observation.get("observed_at")
+            or observation.get("timestamp")
+            or datetime.now(timezone.utc).isoformat()
+        )
+        symbol = str(observation.get("symbol") or "").upper()
+        event_type = str(observation.get("event_type") or "UNKNOWN")
         if not symbol:
             return
-        await _asyncio.to_thread(self._persist_market_observation, payload)
+        await _asyncio.to_thread(self._persist_market_observation, observation)
+        try:
+            current_price = float(observation.get("price", 0.0) or 0.0)
+        except (TypeError, ValueError):
+            current_price = 0.0
+        resolution = await _asyncio.to_thread(
+            self._resolve_market_observations,
+            symbol,
+            current_price,
+            observation["observed_at"],
+        )
+        if self.bus is not None and resolution["resolved"]:
+            edges = await _asyncio.to_thread(self.observation_edge_summary)
+            await self.bus.publish(
+                "observation.learning",
+                {
+                    "symbol": symbol,
+                    "resolved": resolution["resolved"],
+                    "expired": resolution["expired"],
+                    "edges": edges,
+                    "execution_authority": False,
+                },
+            )
         _lld_logger.debug(
             "Agent D curiosity: observed %s for %s (%s, confidence=%.1f).",
             event_type,
             symbol,
-            payload.get("pattern", "UNKNOWN"),
-            float(payload.get("confidence", 0.0) or 0.0),
+            observation.get("pattern", "UNKNOWN"),
+            float(observation.get("confidence", 0.0) or 0.0),
         )
 
     @staticmethod
