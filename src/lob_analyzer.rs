@@ -64,7 +64,67 @@ impl LobAnalyzer {
 }
 
 pub fn analyze_iceberg_orders(lob_data: &[u8]) -> bool {
-    // Stub for C FFI wrapper entry point.
-    // In production, this parses binary ITCH protocol and calls the LobAnalyzer.
-    lob_data.len() > 1000
+    const HEADER: &[u8; 5] = b"SLOB\x01";
+    const RECORD_SIZE: usize = std::mem::size_of::<f64>() * 2;
+    let Some(payload) = lob_data.strip_prefix(HEADER) else {
+        return false;
+    };
+    if payload.is_empty() || !payload.len().is_multiple_of(RECORD_SIZE) {
+        return false;
+    }
+
+    let mut analyzer = LobAnalyzer::new();
+    for record in payload.chunks_exact(RECORD_SIZE) {
+        let price = f64::from_le_bytes(record[..8].try_into().unwrap());
+        let executed_size = f64::from_le_bytes(record[8..].try_into().unwrap());
+        if !price.is_finite() || price <= 0.0 || !executed_size.is_finite() || executed_size <= 0.0
+        {
+            return false;
+        }
+        if analyzer.detect_iceberg(price, executed_size) {
+            return true;
+        }
+    }
+    false
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn execution_bytes(executions: &[(f64, f64)]) -> Vec<u8> {
+        let mut payload = b"SLOB\x01".to_vec();
+        payload.extend(
+            executions.iter().flat_map(|(price, size)| {
+                price.to_le_bytes().into_iter().chain(size.to_le_bytes())
+            }),
+        );
+        payload
+    }
+
+    #[test]
+    fn repeated_same_size_at_same_price_detects_iceberg() {
+        let data = execution_bytes(&[
+            (100.25, 50.0),
+            (100.25, 50.0),
+            (100.25, 50.0),
+            (100.25, 50.0),
+        ]);
+
+        assert!(analyze_iceberg_orders(&data));
+    }
+
+    #[test]
+    fn arbitrary_large_payload_does_not_trigger() {
+        assert!(!analyze_iceberg_orders(&vec![1_u8; 1_024]));
+    }
+
+    #[test]
+    fn malformed_or_non_finite_records_fail_closed() {
+        assert!(!analyze_iceberg_orders(&[0_u8; 15]));
+        assert!(!analyze_iceberg_orders(&execution_bytes(&[(
+            f64::NAN,
+            10.0
+        )])));
+    }
 }
