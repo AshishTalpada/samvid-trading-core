@@ -7,10 +7,9 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import math
 import time
 from datetime import datetime, timezone
-
-from config import STARTING_CAPITAL_CAD
 
 logger = logging.getLogger(__name__)
 
@@ -18,46 +17,159 @@ logger = logging.getLogger(__name__)
 class AccountingMixin:
     """Mixin: account value, daily P&L, drawdown updates."""
 
+    def _record_account_value(
+        self,
+        account_type: str,
+        value: float,
+        *,
+        source: str,
+        authoritative: bool,
+        observed_at: float,
+    ) -> float:
+        """Store an account observation together with its provenance."""
+        if not hasattr(self, "_account_value_meta"):
+            self._account_value_meta = {}
+        self._last_account_value[account_type] = value
+        self._last_account_value[f"{account_type}_timestamp"] = observed_at
+        self._last_account_value["timestamp"] = observed_at
+        self._account_value_meta[account_type] = {
+            "source": source,
+            "authoritative": authoritative,
+            "observed_at": observed_at,
+        }
+        return value
+
+    def _account_value_metadata(self, account_type: str) -> dict[str, object]:
+        """Return provenance for the most recent account observation."""
+        metadata = getattr(self, "_account_value_meta", {}).get(account_type, {})
+        return {
+            "source": metadata.get("source", "unavailable"),
+            "authoritative": bool(metadata.get("authoritative", False)),
+            "observed_at": float(metadata.get("observed_at", 0.0) or 0.0),
+        }
+
+    @staticmethod
+    def _positive_finite(value: object) -> float | None:
+        """Parse a broker numeric field without letting one malformed row poison the batch."""
+        try:
+            parsed = float(value)
+        except (TypeError, ValueError):
+            return None
+        return parsed if math.isfinite(parsed) and parsed > 0 else None
+
     async def _get_account_value(self, account_type: str, force_fresh: bool = False) -> float:
-        """Get account equity value."""
+        """Get account equity without presenting configured fallbacks as broker truth."""
         now = time.time()
-        if not force_fresh and (now - self._last_account_value["timestamp"]) < 60.0:
+        cache_timestamp = float(
+            self._last_account_value.get(
+                f"{account_type}_timestamp", self._last_account_value.get("timestamp", 0.0)
+            )
+            or 0.0
+        )
+        if not force_fresh and (now - cache_timestamp) < 60.0:
             cached = self._last_account_value.get(account_type, 0.0)
-            if cached > 0:
+            if math.isfinite(float(cached)) and cached > 0:
                 return cached
 
         try:
-            val = STARTING_CAPITAL_CAD
             if account_type == "ibkr" and self.ibkr_client:
                 if hasattr(self.ibkr_client, "isConnected") and self.ibkr_client.isConnected():
-                    # Priority: Use NetLiquidation to avoid currency confusion
                     acc_vals = self.ibkr_client.accountValues()
-                    fallback_val = (
-                        self.ibkr_drawdown.peak_equity
-                        if hasattr(self, "ibkr_drawdown") and self.ibkr_drawdown.peak_equity > 0
-                        else STARTING_CAPITAL_CAD
+                    net_liquidation = [x for x in acc_vals if x.tag == "NetLiquidation"]
+                    base_values = [x for x in net_liquidation if x.currency == "BASE"]
+                    candidates = base_values or net_liquidation
+                    liquidations = [
+                        parsed
+                        for x in candidates
+                        if (parsed := self._positive_finite(x.value)) is not None
+                    ]
+                    if liquidations:
+                        return self._record_account_value(
+                            account_type,
+                            max(liquidations),
+                            source="ibkr_net_liquidation",
+                            authoritative=True,
+                            observed_at=now,
+                        )
+                    logger.warning(
+                        "IBKR account is connected but NetLiquidation is unavailable; "
+                        "blocking fresh equity-dependent decisions."
                     )
-                    liq_vals = [float(x.value) for x in acc_vals if x.tag == "NetLiquidation"]
-                    val = max(liq_vals) if liq_vals else fallback_val
+                return self._record_account_value(
+                    account_type,
+                    0.0,
+                    source="ibkr_unavailable",
+                    authoritative=False,
+                    observed_at=now,
+                )
             elif account_type == "mt5":
                 import MetaTrader5 as mt5
 
                 def _sync_mt5_account():
                     if not mt5.initialize():
-                        return STARTING_CAPITAL_CAD
+                        return 0.0
                     info = mt5.account_info()
-                    return info.equity if info else STARTING_CAPITAL_CAD
+                    return float(info.equity) if info else 0.0
 
-                val = await asyncio.to_thread(_sync_mt5_account)
+                value = await asyncio.to_thread(_sync_mt5_account)
+                authoritative = math.isfinite(value) and value > 0
+                return self._record_account_value(
+                    account_type,
+                    value if authoritative else 0.0,
+                    source="mt5_account_equity" if authoritative else "mt5_unavailable",
+                    authoritative=authoritative,
+                    observed_at=now,
+                )
 
-            # Update cache
-            self._last_account_value[account_type] = val
-            self._last_account_value["timestamp"] = now
-            return val
+            return self._record_account_value(
+                account_type,
+                0.0,
+                source=f"{account_type}_unavailable",
+                authoritative=False,
+                observed_at=now,
+            )
 
         except Exception as e:
             logger.warning("Account check failed (non-fatal): %s", e)
-            return self._last_account_value.get(account_type, STARTING_CAPITAL_CAD)
+            return self._record_account_value(
+                account_type,
+                0.0,
+                source=f"{account_type}_error",
+                authoritative=False,
+                observed_at=now,
+            )
+
+    async def _get_realized_daily_pnl(self, account_type: str) -> float:
+        """Return today's closed, cost-aware PnL for one broker."""
+
+        def _sync_realized_daily_pnl() -> float:
+            cursor = None
+            try:
+                if self.db_conn:
+                    cursor = self.db_conn.cursor()
+                    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+                    cursor.execute(
+                        "SELECT COALESCE(SUM("
+                        "CASE WHEN net_pnl IS NOT NULL AND "
+                        "(net_pnl != 0 OR COALESCE(pnl_dollars, 0) = 0) "
+                        "THEN net_pnl ELSE COALESCE(pnl_dollars, 0) END), 0) "
+                        "FROM trades WHERE timestamp LIKE ? AND LOWER(broker) = LOWER(?) "
+                        "AND outcome IN ('WIN', 'LOSS', 'BREAKEVEN')",
+                        (f"{today}%", account_type),
+                    )
+                    result = cursor.fetchone()
+                    if result and result[0] is not None:
+                        value = float(result[0])
+                        return value if math.isfinite(value) else 0.0
+                return 0.0
+            except Exception as exc:
+                logger.warning("Realized daily PnL query failed: %s", exc)
+                return 0.0
+            finally:
+                if cursor is not None:
+                    cursor.close()
+
+        return await asyncio.to_thread(_sync_realized_daily_pnl)
 
     async def _get_daily_pnl(self, account_type: str) -> float:
         """Get today's P&L: closed trades from DB + unrealized from open positions.
@@ -67,29 +179,7 @@ class AccountingMixin:
         and self.last_tick_prices without any cross-thread data races.
         """
 
-        def _sync_daily_pnl() -> float:
-            cursor = None
-            try:
-                if self.db_conn:
-                    cursor = self.db_conn.cursor()
-                    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-                    cursor.execute(
-                        "SELECT COALESCE(SUM(pnl_dollars), 0) FROM trades "
-                        "WHERE timestamp LIKE ? AND broker = ?",
-                        (f"{today}%", account_type),
-                    )
-                    result = cursor.fetchone()
-                    if result and result[0] is not None:
-                        return float(result[0])
-                return 0.0
-            except Exception:
-                return 0.0
-            finally:
-                if cursor is not None:
-                    cursor.close()
-
-        # Step 1 - closed PnL from DB (blocking call, must run in thread).
-        closed_pnl: float = await asyncio.to_thread(_sync_daily_pnl)
+        closed_pnl = await self._get_realized_daily_pnl(account_type)
 
         # Step 2 - unrealized PnL from open positions (event-loop safe reads).
         unrealized_pnl: float = 0.0
@@ -113,7 +203,10 @@ class AccountingMixin:
     async def _update_drawdowns(self) -> None:
         """Update drawdown ladders from current account values."""
         ibkr_equity = await self._get_account_value("ibkr")
-        self.ibkr_drawdown.update(ibkr_equity)
+        ibkr_metadata = self._account_value_metadata("ibkr")
+        ibkr_authoritative = bool(ibkr_metadata["authoritative"]) and ibkr_equity > 0
+        if ibkr_authoritative:
+            self.ibkr_drawdown.update(ibkr_equity)
         if self.db_conn:
             cursor = None
             try:
@@ -122,11 +215,15 @@ class AccountingMixin:
                     "INSERT OR REPLACE INTO system_state (key, value) VALUES (?, ?)",
                     ("last_heartbeat", time.time_ns()),
                 )
-                # Persist peak_equity so restore_peak_equity() can read it on restart
-                cursor.execute(
-                    "INSERT OR REPLACE INTO system_state (key, value) VALUES (?, ?)",
-                    ("peak_equity", str(self.ibkr_drawdown.peak_equity)),
-                )
+                if ibkr_authoritative:
+                    cursor.execute(
+                        "INSERT OR REPLACE INTO system_state (key, value) VALUES (?, ?)",
+                        ("peak_equity", str(self.ibkr_drawdown.peak_equity)),
+                    )
+                    cursor.execute(
+                        "INSERT OR REPLACE INTO system_state (key, value) VALUES (?, ?)",
+                        ("peak_equity_source", str(ibkr_metadata["source"])),
+                    )
                 self.db_conn.commit()
             finally:
                 if cursor is not None:
@@ -151,4 +248,6 @@ class AccountingMixin:
                 _freeze_task.add_done_callback(self._background_tasks.discard)
 
         mt5_equity = await self._get_account_value("mt5")
-        self.prop_drawdown.update(mt5_equity)
+        mt5_metadata = self._account_value_metadata("mt5")
+        if bool(mt5_metadata["authoritative"]) and mt5_equity > 0:
+            self.prop_drawdown.update(mt5_equity)

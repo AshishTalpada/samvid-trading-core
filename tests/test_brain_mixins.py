@@ -113,6 +113,7 @@ def accounting_obj(mem_db):
             self.ibkr_client = None
             self.ibkr_drawdown = DrawdownLadder(account_type="ibkr", peak_equity=10_000.0)
             self._last_account_value = {"ibkr": 0.0, "mt5": 0.0, "timestamp": 0.0}
+            self._account_value_meta = {}
             # Extra attrs required by _update_drawdowns
             self.prop_drawdown = DrawdownLadder(account_type="prop", peak_equity=10_000.0)
             self.positions = []
@@ -202,22 +203,23 @@ class TestAccountingMixin:
         assert result == 0.0, f"Expected 0.0 got {result}"
 
     # ------------------------------------------------------------------
-    # test_daily_pnl_sums_pnl_dollars_for_today
+    # test_daily_pnl_sums_net_pnl_for_today
     # ------------------------------------------------------------------
-    def test_daily_pnl_sums_pnl_dollars_for_today(self, accounting_obj, today_ts, mem_db):
-        """_get_daily_pnl sums pnl_dollars for all of today's trades."""
+    def test_daily_pnl_sums_net_pnl_for_today(self, accounting_obj, today_ts, mem_db):
+        """_get_daily_pnl uses cost-aware net PnL for today's closed trades."""
         mem_db.executemany(
-            "INSERT INTO trades (timestamp, outcome, pnl_dollars, broker) VALUES (?,?,?,?)",
+            "INSERT INTO trades (timestamp, outcome, pnl_dollars, net_pnl, broker) "
+            "VALUES (?,?,?,?,?)",
             [
-                (today_ts, "WIN",  50.0,  "ibkr"),
-                (today_ts, "LOSS", -20.0, "ibkr"),
-                (today_ts, "WIN",  30.0,  "ibkr"),
+                (today_ts, "WIN", 50.0, 48.0, "ibkr"),
+                (today_ts, "LOSS", -20.0, -22.0, "ibkr"),
+                (today_ts, "WIN", 30.0, 28.0, "ibkr"),
             ],
         )
         mem_db.commit()
 
         result = asyncio.run(accounting_obj._get_daily_pnl("ibkr"))
-        assert abs(result - 60.0) < 1e-6, f"Expected 60.0 got {result}"
+        assert abs(result - 54.0) < 1e-6, f"Expected 54.0 got {result}"
 
     # ------------------------------------------------------------------
     # test_daily_pnl_ignores_open_trades (pnl_dollars=NULL for OPEN rows)
@@ -269,17 +271,46 @@ class TestAccountingMixin:
         assert result == 0.0
 
     # ------------------------------------------------------------------
-    # test_account_value_returns_float_fallback_when_ibkr_disconnected
+    # test_account_value_fails_closed_when_ibkr_disconnected
     # ------------------------------------------------------------------
     def test_account_value_returns_float_when_ibkr_disconnected(self, accounting_obj):
         """
-        _get_account_value returns a positive float (STARTING_CAPITAL_CAD fallback)
-        when the IBKR client is not connected.
+        An unavailable broker must not present configured capital as live equity.
         """
         accounting_obj.ibkr_client = None
         result = asyncio.run(accounting_obj._get_account_value("ibkr"))
         assert isinstance(result, float)
-        assert result > 0, f"Expected positive float, got {result}"
+        assert result == 0.0
+        assert accounting_obj._account_value_metadata("ibkr")["authoritative"] is False
+
+    def test_account_value_does_not_recycle_peak_when_broker_cache_is_cold(
+        self, accounting_obj
+    ):
+        account_value = MagicMock(tag="NetLiquidation", currency="USD", value="bad")
+        accounting_obj.ibkr_client = MagicMock()
+        accounting_obj.ibkr_client.isConnected.return_value = True
+        accounting_obj.ibkr_client.accountValues.return_value = [account_value]
+
+        result = asyncio.run(accounting_obj._get_account_value("ibkr", force_fresh=True))
+
+        assert result == 0.0
+        assert accounting_obj.ibkr_drawdown.peak_equity == 10_000.0
+        assert accounting_obj._account_value_metadata("ibkr")["authoritative"] is False
+
+    def test_account_value_prefers_base_currency_net_liquidation(self, accounting_obj):
+        accounting_obj.ibkr_client = MagicMock()
+        accounting_obj.ibkr_client.isConnected.return_value = True
+        accounting_obj.ibkr_client.accountValues.return_value = [
+            MagicMock(tag="NetLiquidation", currency="USD", value="700000"),
+            MagicMock(tag="NetLiquidation", currency="BASE", value="950000"),
+        ]
+
+        result = asyncio.run(accounting_obj._get_account_value("ibkr", force_fresh=True))
+
+        assert result == 950_000.0
+        metadata = accounting_obj._account_value_metadata("ibkr")
+        assert metadata["source"] == "ibkr_net_liquidation"
+        assert metadata["authoritative"] is True
 
     # ------------------------------------------------------------------
     # test_account_value_uses_cache_within_60s

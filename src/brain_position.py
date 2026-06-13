@@ -500,6 +500,7 @@ class PositionMonitor:
         logger.debug(f"MindBridge: Fetching account health for {account_type}...")
         equity = await self._get_account_value(account_type)
         daily_pnl = await self._get_daily_pnl(account_type)
+        equity_metadata = self._account_value_metadata(account_type)
 
         unrealized_pnl = 0.0
         if account_type == "ibkr" and self.ibkr_client and self.ibkr_client.isConnected():
@@ -515,6 +516,9 @@ class PositionMonitor:
             "peak_equity": self.ibkr_drawdown.peak_equity
             if account_type == "ibkr"
             else self.prop_drawdown.peak_equity,
+            "equity_source": equity_metadata["source"],
+            "equity_authoritative": equity_metadata["authoritative"],
+            "equity_observed_at": equity_metadata["observed_at"],
             "status": "OK" if not self.emergency_halted else "HALTED",
         }
 

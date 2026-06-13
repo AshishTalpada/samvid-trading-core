@@ -447,7 +447,14 @@ class TradingBrain(BrokerReconciler, HealthChecker, DataProvider, AccountingMixi
 
         # Legacy aliases for backward compatibility (Fixes TraderMind Error)
         self.mind_bridge = self.bridge
-        self._last_account_value = {"ibkr": 0.0, "mt5": 0.0, "timestamp": 0.0}
+        self._last_account_value = {
+            "ibkr": 0.0,
+            "mt5": 0.0,
+            "ibkr_timestamp": 0.0,
+            "mt5_timestamp": 0.0,
+            "timestamp": 0.0,
+        }
+        self._account_value_meta: dict[str, dict[str, object]] = {}
 
         # This MUST be done before agents start or they will fail to find these tools.
         self.bridge.register_tool("get_account_status", self._tool_get_account_status)
