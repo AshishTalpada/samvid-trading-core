@@ -52,10 +52,10 @@ class QuestDBAdapter:
         self._retry_delay: float = 5.0
 
         # We fence QuestDB's blocking I/O into a private pool to prevent engine starvation.
-        self._executor = concurrent.futures.ThreadPoolExecutor(
-            max_workers=10, thread_name_prefix="QuestDB_IO"
+        self._executor: concurrent.futures.ThreadPoolExecutor | None = (
+            concurrent.futures.ThreadPoolExecutor(max_workers=10, thread_name_prefix="QuestDB_IO")
         )
-        self._pg_pool: pool.SimpleConnectionPool | None = None
+        self._pg_pool: pool.ThreadedConnectionPool | None = None
 
     async def start(self) -> None:
         """Start the background worker for async logging."""
@@ -63,6 +63,10 @@ class QuestDBAdapter:
             return
         if self._started:
             return
+        if self._executor is None:
+            self._executor = concurrent.futures.ThreadPoolExecutor(
+                max_workers=10, thread_name_prefix="QuestDB_IO"
+            )
         # Fast startup probe: if ILP is unreachable, switch to Simulation mode.
         await self._connect()
         if self._sock is None:
@@ -80,10 +84,9 @@ class QuestDBAdapter:
 
     async def _worker(self) -> None:
         """Background worker to drain the queue and send to QuestDB."""
+        batch: list[str] = []
         while self.enabled:
             try:
-                # Batch processing
-                batch = []
                 import time as _time
 
                 if self.is_simulated and _time.monotonic() > getattr(
@@ -96,17 +99,19 @@ class QuestDBAdapter:
                     else:
                         self._next_reconnect_attempt = _time.monotonic() + 60.0
 
-                # Batch processing
-                batch = []
+                if self.is_simulated and self._sock is None:
+                    await asyncio.sleep(1.0)
+                    continue
 
                 # We NO LONGER wait forever at queue.get().
                 # We use a timeout so the reconnection logic at the top of the loop can trigger
                 # even when the system is quiet (no trades/signals).
                 try:
-                    msg = await asyncio.wait_for(self._queue.get(), timeout=10.0)
-                    batch.append(msg)
-                    while len(batch) < 5000 and not self._queue.empty():
-                        batch.append(self._queue.get_nowait())
+                    if not batch:
+                        msg = await asyncio.wait_for(self._queue.get(), timeout=10.0)
+                        batch.append(msg)
+                        while len(batch) < 5000 and not self._queue.empty():
+                            batch.append(self._queue.get_nowait())
                 except asyncio.TimeoutError:
                     # Timeout reached — loop restarts to allow reconnection/simulated check
                     continue
@@ -121,6 +126,10 @@ class QuestDBAdapter:
                         loop = asyncio.get_running_loop()
                         await loop.run_in_executor(self._executor, sock.sendall, payload.encode())
 
+                        for _ in batch:
+                            self._queue.task_done()
+                        batch.clear()
+
                         # Reset backoff on success
                         if self._retry_count > 0:
                             logger.info("QuestDB: Reconnected successfully.")
@@ -128,6 +137,7 @@ class QuestDBAdapter:
                             self._retry_delay = 5.0
                     except (OSError, ConnectionRefusedError) as e:
                         logger.debug(f"QuestDB send failed: {e}")
+                        self.is_active = False
                         self._sock = None
                         raise  # Re-raise to trigger the existing backoff logic
                 else:
@@ -145,11 +155,13 @@ class QuestDBAdapter:
                         )
                     self._retry_count += 1
 
-                for _ in range(len(batch)):
+            except asyncio.CancelledError:
+                for _ in batch:
                     self._queue.task_done()
-
+                raise
             except (OSError, ConnectionRefusedError):
                 self._sock = None
+                self.is_active = False
                 if self._retry_count == 0:
                     logger.warning("QuestDB: Connection lost — entering backoff retry.")
                 self._retry_count += 1
@@ -166,29 +178,38 @@ class QuestDBAdapter:
                 await asyncio.sleep(self._retry_delay)
             except Exception as e:
                 logger.error(f"QuestDB worker error: {e}")
+                for _ in batch:
+                    self._queue.task_done()
+                batch.clear()
                 await asyncio.sleep(1)
 
     async def _connect(self) -> None:
+        candidate: socket.socket | None = None
         try:
-            self._sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            sock = self._sock
-            if sock is not None:
-                sock.settimeout(self._connect_timeout_sec)
-                loop = asyncio.get_running_loop()
-                await loop.run_in_executor(self._executor, sock.connect, (self.host, self.ilp_port))
-                sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
-                self.is_active = True
+            if self._executor is None:
+                return
+            candidate = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            candidate.settimeout(self._connect_timeout_sec)
+            loop = asyncio.get_running_loop()
+            await loop.run_in_executor(
+                self._executor, candidate.connect, (self.host, self.ilp_port)
+            )
+            candidate.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+            self._sock = candidate
+            self.is_active = True
 
-                # Initialize PG Pool if possible
-                if HAS_PSYCOPG2 and self._pg_pool is None:
-                    try:
-                        conn_str = f"host={self.host} port={self.pg_port} user={self.user} password={self.password} dbname=qdb connect_timeout=3"
-                        self._pg_pool = pool.SimpleConnectionPool(2, 10, conn_str)
-                        logger.debug("QuestDB: PG Connection Pool online.")
-                    except Exception as e:
-                        logger.warning(f"QuestDB: PG Pool failed: {e}")
+            # Queries run in a multi-thread executor, so the pool must be thread-safe.
+            if HAS_PSYCOPG2 and self._pg_pool is None:
+                try:
+                    conn_str = f"host={self.host} port={self.pg_port} user={self.user} password={self.password} dbname=qdb connect_timeout=3"
+                    self._pg_pool = pool.ThreadedConnectionPool(2, 10, conn_str)
+                    logger.debug("QuestDB: PG Connection Pool online.")
+                except Exception as e:
+                    logger.warning(f"QuestDB: PG Pool failed: {e}")
         except Exception as e:
             logger.debug(f"QuestDB: Could not connect to {self.host}:{self.ilp_port}: {e}")
+            if candidate is not None:
+                candidate.close()
             self._sock = None
             self.is_active = False
 
@@ -529,6 +550,18 @@ class QuestDBAdapter:
             except asyncio.CancelledError as e:
                 logger.debug("QuestDB: worker task cancelled during stop: %s", e)
             self._worker_task = None
+
+        dropped = 0
+        while not self._queue.empty():
+            try:
+                self._queue.get_nowait()
+            except asyncio.QueueEmpty:
+                break
+            else:
+                self._queue.task_done()
+                dropped += 1
+        if dropped:
+            logger.info("QuestDB: discarded %d buffered record(s) during shutdown.", dropped)
 
         # 2. Close ILP Socket
         sock = self._sock
