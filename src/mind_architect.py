@@ -31,6 +31,7 @@ class MindArchitect:
         self.tracker = DiagnosticTracker()  # NEW Core
         self.healing_attempts: dict[str, dict] = {}  # Persistent circuit breaker
         self.sovereign = get_sovereign_logic()  # ACCESS TO 500 ABILITIES
+        self._tasks: set[asyncio.Task] = set()
 
         # Register Healing Tools with the Bridge
         self.bridge.register_tool("heal_code", self._tool_heal_code)
@@ -63,10 +64,24 @@ class MindArchitect:
 
     async def start(self) -> None:
         """Launch the Healing Mind process."""
+        if self.is_running:
+            return
         self.is_running = True
         logger.info("MindArchitect (Agent G): Healing process active.")
-        asyncio.create_task(self._monitor_heartbeat())
-        asyncio.create_task(self._process_dialogue())
+        for coroutine in (self._monitor_heartbeat(), self._process_dialogue()):
+            task = asyncio.create_task(coroutine)
+            self._tasks.add(task)
+            task.add_done_callback(self._tasks.discard)
+
+    async def stop(self) -> None:
+        """Stop diagnostic workers without leaving orphaned tasks."""
+        self.is_running = False
+        tasks = [task for task in self._tasks if not task.done()]
+        for task in tasks:
+            task.cancel()
+        if tasks:
+            await asyncio.gather(*tasks, return_exceptions=True)
+        self._tasks.clear()
 
     async def _monitor_heartbeat(self) -> None:
         """Continuous self-diagnostic pulse (Inspired by Claude-Code's PreflightChecks)."""

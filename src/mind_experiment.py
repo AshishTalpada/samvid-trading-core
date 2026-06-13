@@ -35,6 +35,7 @@ class MindExperiment:
         self.mutation_rate = 0.15
         self.population: Any = []
         self.generation = 1
+        self._tasks: set[asyncio.Task] = set()
 
         # Register Experimenting Tools
         self.bridge.register_tool("run_shadow_test", self._tool_run_shadow_test)
@@ -43,10 +44,24 @@ class MindExperiment:
 
     async def start(self) -> None:
         """Launch the Experiment Mind."""
+        if self.is_running:
+            return
         self.is_running = True
         logger.info("MindExperiment (Agent E): A/B Gating and Evolution engine active.")
         logger.info("MindExperiment: Evolutionary simulation environment online.")
-        asyncio.create_task(self._monitor_shadow_tests())
+        task = asyncio.create_task(self._monitor_shadow_tests())
+        self._tasks.add(task)
+        task.add_done_callback(self._tasks.discard)
+
+    async def stop(self) -> None:
+        """Stop experiment monitors and wait for cancellation."""
+        self.is_running = False
+        tasks = [task for task in self._tasks if not task.done()]
+        for task in tasks:
+            task.cancel()
+        if tasks:
+            await asyncio.gather(*tasks, return_exceptions=True)
+        self._tasks.clear()
 
     async def _monitor_shadow_tests(self) -> None:
         """Continuously audits live shadow tests for performance."""

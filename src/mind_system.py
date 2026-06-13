@@ -79,6 +79,10 @@ class MindSystem:
         self.is_running = True
         logger.info("MindSystem (Agent I): Service-level 'Scent' control active.")
 
+    async def stop(self) -> None:
+        """Mark the service-control component stopped."""
+        self.is_running = False
+
     async def _tool_find_executable(self, name: str) -> dict[str, Any]:
         """
         Sovereign 'Scent' Tool: Autonomously locates executables via
