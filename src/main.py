@@ -1182,7 +1182,9 @@ class TradingSystem:
             self._ibkr_lock = asyncio.Lock()
 
         async with self._ibkr_lock:
-            logger.info("Connecting to IBKR (Serialized Matrix Probing)...")
+            recovery_probe = bool(getattr(self, "_ibkr_outage_active", False))
+            probe_logger = logger.debug if recovery_probe else logger.info
+            probe_logger("Connecting to IBKR (Serialized Matrix Probing)...")
             try:
                 from ib_insync import IB, IBC
 
@@ -1200,10 +1202,10 @@ class TradingSystem:
                 auto_launch_ibkr = Vault.get("IBKR_AUTO_LAUNCH", "0").strip() == "1"
                 ibc_path = os.environ.get("IBC_PATH") or Vault.get("IBC_PATH")
                 if await self._is_ibkr_process_active():
-                    logger.info("✓ IBKR software active (Bypassing IBC).")
+                    probe_logger("✓ IBKR software active (Bypassing IBC).")
                     ibc_path = None
                 elif not auto_launch_ibkr:
-                    logger.info(
+                    probe_logger(
                         "IBKR auto-launch disabled. Will connect to an existing TWS/Gateway only."
                     )
                     ibc_path = None
@@ -1311,7 +1313,8 @@ class TradingSystem:
                             elapsed = time.monotonic() - probe_started
                             remaining = probe_budget - elapsed
                             if remaining <= 0:
-                                logger.warning(
+                                budget_logger = logger.debug if recovery_probe else logger.warning
+                                budget_logger(
                                     "IBKR probe budget exhausted after %.1fs "
                                     "(hosts=%s ports=%s client_ids=%s).",
                                     elapsed,
@@ -1325,7 +1328,7 @@ class TradingSystem:
                                 return False
                             try:
                                 attempt_timeout = max(1.0, min(probe_timeout, remaining))
-                                logger.info(
+                                probe_logger(
                                     "Sovereign Probe: %s:%s (ID: %s, timeout=%.1fs)...",
                                     host,
                                     port,
@@ -1400,7 +1403,8 @@ class TradingSystem:
                         break
 
                 if not connected:
-                    logger.warning(
+                    probe_failure_logger = logger.debug if recovery_probe else logger.warning
+                    probe_failure_logger(
                         "IBKR probe failed: hosts=%s ports=%s client_ids=%s-%s last_error=%s",
                         ",".join(hosts_to_try),
                         ",".join(str(p) for p in ports_to_try),
@@ -1567,6 +1571,33 @@ class TradingSystem:
             self._last_ibkr_operator_gate_log_time = current_time
         return due
 
+    def _ibkr_recovery_log_due(
+        self,
+        event_key: str,
+        detail: str = "",
+        *,
+        now: float | None = None,
+        repeat_after_sec: float = 900.0,
+    ) -> bool:
+        """Throttle unchanged recovery status while reporting new failure details immediately."""
+        current_time = time.monotonic() if now is None else float(now)
+        cache = getattr(self, "_ibkr_recovery_log_cache", None)
+        if not isinstance(cache, dict):
+            cache = {}
+            self._ibkr_recovery_log_cache = cache
+        previous_detail, previous_time = cache.get(event_key, (None, 0.0))
+        due = previous_detail != detail or current_time - float(previous_time) >= repeat_after_sec
+        if due:
+            cache[event_key] = (detail, current_time)
+        return due
+
+    def _clear_ibkr_recovery_log_state(self) -> None:
+        """Make a future independent outage visible immediately after a recovery."""
+        self._ibkr_recovery_log_cache = {}
+        self._last_ibkr_operator_action = None
+        self._last_ibkr_operator_gate_error = None
+        self._last_ibkr_operator_gate_log_time = 0.0
+
     async def _run_ibkr_reconnect_loop(self) -> None:
         """Keep the owned IBKR API session attached when TWS starts late or restarts."""
         def _interval(name: str, default: float) -> float:
@@ -1604,6 +1635,7 @@ class TradingSystem:
                     await self._bind_ibkr_runtime()
                     self._ibkr_outage_active = False
                     delay = base_delay
+                    self._clear_ibkr_recovery_log_state()
                     logger.info("IBKR RECOVERY: execution session restored and reconciled.")
                     await self.send_telegram_notification(
                         "[EXECUTION] IBKR API session recovered. "
@@ -1636,6 +1668,7 @@ class TradingSystem:
                 await self._bind_ibkr_runtime()
                 self._ibkr_outage_active = False
                 delay = base_delay
+                self._clear_ibkr_recovery_log_state()
                 logger.info("IBKR RECOVERY: automatic reattachment succeeded.")
                 await self.send_telegram_notification(
                     "[EXECUTION] IBKR API session recovered. "
@@ -1659,18 +1692,36 @@ class TradingSystem:
                     message=operator_action,
                 )
 
-            retry_delay = min(delay, critical_delay) if self._has_exposed_ibkr_positions() else delay
+            exposed_positions = self._has_exposed_ibkr_positions()
+            retry_delay = min(delay, critical_delay) if exposed_positions else delay
+            recovery_detail = str(
+                (getattr(self, "_ibkr_last_probe_summary", {}) or {}).get("last_error")
+                or operator_action
+                or "connection unavailable"
+            )
             if operator_action:
-                logger.info(
+                operator_log_due = self._ibkr_recovery_log_due(
+                    "operator_wait",
+                    recovery_detail,
+                    repeat_after_sec=900.0,
+                )
+                operator_logger = logger.info if operator_log_due else logger.debug
+                operator_logger(
                     "IBKR RECOVERY: waiting for the required TWS acknowledgement; "
                     "rechecking in %.0fs.",
                     retry_delay,
                 )
             else:
-                logger.warning(
+                retry_log_due = self._ibkr_recovery_log_due(
+                    "retry_exposed" if exposed_positions else "retry",
+                    recovery_detail,
+                    repeat_after_sec=60.0 if exposed_positions else 900.0,
+                )
+                retry_logger = logger.warning if retry_log_due else logger.debug
+                retry_logger(
                     "IBKR RECOVERY: attachment failed; retrying in %.0fs%s.",
                     retry_delay,
-                    " because IBKR positions are exposed" if retry_delay < delay else "",
+                    " because IBKR positions are exposed" if exposed_positions else "",
                 )
             await asyncio.sleep(retry_delay)
             delay = min(delay * 2.0, max_delay)

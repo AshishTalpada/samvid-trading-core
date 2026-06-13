@@ -212,6 +212,29 @@ def test_ibkr_operator_gate_logging_is_throttled() -> None:
     assert system._ibkr_operator_gate_log_due("IBKR 99999", now=1001.0) is True
 
 
+def test_ibkr_recovery_logging_reports_changes_and_throttles_repeats() -> None:
+    system = _system()
+
+    assert system._ibkr_recovery_log_due("retry", "timeout", now=100.0) is True
+    assert system._ibkr_recovery_log_due("retry", "timeout", now=200.0) is False
+    assert system._ibkr_recovery_log_due("retry", "refused", now=201.0) is True
+    assert system._ibkr_recovery_log_due("retry", "refused", now=1101.0) is True
+
+
+def test_ibkr_recovery_log_state_resets_after_connection_returns() -> None:
+    system = _system()
+    system._last_ibkr_operator_action = "action"
+    system._last_ibkr_operator_gate_error = "error"
+    system._last_ibkr_operator_gate_log_time = 50.0
+    assert system._ibkr_recovery_log_due("retry", "timeout", now=100.0) is True
+
+    system._clear_ibkr_recovery_log_state()
+
+    assert system._ibkr_recovery_log_due("retry", "timeout", now=101.0) is True
+    assert system._last_ibkr_operator_action is None
+    assert system._last_ibkr_operator_gate_error is None
+
+
 @pytest.mark.asyncio
 async def test_aegis_periodically_revalidates_external_watchdog() -> None:
     system = _system()
