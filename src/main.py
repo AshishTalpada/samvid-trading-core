@@ -274,6 +274,13 @@ class TradingSystem:
         return self.mode in ("ibkr_paper", "live")
 
     @property
+    def requires_mt5_connection(self) -> bool:
+        """Return True only when MT5 is explicitly required for execution."""
+        configured = os.environ.get("SOVEREIGN_MT5_REQUIRED", "0") == "1"
+        brain = getattr(self, "trading_brain", None)
+        return configured or getattr(brain, "active_broker", None) == "MT5"
+
+    @property
     def is_paper_only(self) -> bool:
         """Return True when the system is running pure local simulation only."""
         return self.mode == "paper"
@@ -3075,43 +3082,69 @@ class TradingSystem:
                         )
                         self._last_data_starvation_alert = now_mono
 
-                if hasattr(self, "mt5_client") and self.mt5_client:
-                    try:
-                        info = await asyncio.to_thread(self.mt5_client.terminal_info)
-                        if info is None or not info.connected:
-                            self._mt5_failure_count += 1
-                            logger.warning(
-                                f"Watchdog: MT5 Terminal Heartbeat LOST "
-                                f"({self._mt5_failure_count}/3). "
-                                "Attempting Reconnect..."
-                            )
-                            if self._mt5_failure_count >= 3:
-                                logger.error(
-                                    "Watchdog: MT5 Persistent Failure detected. "
-                                    "Initiating Sovereign Resource Flush..."
-                                )
-                                self._recalibration_in_progress = True
-                                try:
-                                    if hasattr(self, "mind_system") and self.mind_system:
-                                        await self.mind_system._tool_sovereign_flush()
-                                        logger.info(
-                                            "Watchdog: Sovereign Recovery Complete. "
-                                            "Matrix state re-synchronized."
-                                        )
-                                        self._mt5_failure_count = 0  # Reset after flush
-                                finally:
-                                    self._recalibration_in_progress = False
-                            else:
-                                await self.connect_mt5()
-                        else:
-                            self._mt5_failure_count = 0  # Reset on success
-                    except Exception as e:
-                        logger.error(f"Watchdog: MT5 Heartbeat error: {e}")
+                await self._monitor_mt5_health()
 
             except Exception as e:
                 logger.error(f"Watchdog Error (Aegis): {e}")
 
             pass
+
+    async def _monitor_mt5_health(self) -> None:
+        """Recover MT5 without allowing an optional lane to destabilize execution."""
+        if not getattr(self, "mt5_client", None):
+            return
+
+        try:
+            info = await asyncio.to_thread(self.mt5_client.terminal_info)
+            if info is not None and info.connected:
+                self._mt5_failure_count = 0
+                return
+
+            if not self.requires_mt5_connection:
+                self._mt5_failure_count = 0
+                now = time.monotonic()
+                last_retry = float(getattr(self, "_last_optional_mt5_retry", 0.0) or 0.0)
+                try:
+                    retry_interval = max(
+                        300.0,
+                        float(os.environ.get("SOVEREIGN_MT5_OPTIONAL_RETRY_SEC", "900")),
+                    )
+                except ValueError:
+                    retry_interval = 900.0
+                if now - last_retry >= retry_interval:
+                    logger.info(
+                        "Optional MT5 session is offline; retrying without escalating "
+                        "or disturbing the active execution broker."
+                    )
+                    self._last_optional_mt5_retry = now
+                    await self.connect_mt5()
+                return
+
+            self._mt5_failure_count += 1
+            logger.warning(
+                "Watchdog: required MT5 heartbeat lost (%s/3). Attempting reconnect.",
+                self._mt5_failure_count,
+            )
+            if self._mt5_failure_count < 3:
+                await self.connect_mt5()
+                return
+
+            logger.error(
+                "Watchdog: required MT5 failure persisted. Initiating resource flush."
+            )
+            self._recalibration_in_progress = True
+            try:
+                if hasattr(self, "mind_system") and self.mind_system:
+                    await self.mind_system._tool_sovereign_flush()
+                    logger.info(
+                        "Watchdog: Sovereign Recovery Complete. Matrix state re-synchronized."
+                    )
+                self._mt5_failure_count = 0
+            finally:
+                self._recalibration_in_progress = False
+        except Exception as exc:
+            level = logging.ERROR if self.requires_mt5_connection else logging.INFO
+            logger.log(level, "Watchdog: MT5 heartbeat unavailable: %s", exc)
 
     def _hft_fast_lane_expected(self) -> bool:
         """Return True only when an HFT tick source should be producing pulses."""

@@ -136,6 +136,24 @@ def test_ibkr_probe_policy_accepts_operator_overrides(monkeypatch) -> None:
     assert system._ibkr_probe_timeout_sec() == 1.0
 
 
+def test_mt5_is_optional_for_ibkr_execution(monkeypatch) -> None:
+    monkeypatch.delenv("SOVEREIGN_MT5_REQUIRED", raising=False)
+    system = _system()
+    system.mode = "ibkr_paper"
+    system.trading_brain = SimpleNamespace(active_broker="IBKR")
+
+    assert system.requires_mt5_connection is False
+
+
+def test_mt5_can_be_explicitly_required(monkeypatch) -> None:
+    monkeypatch.setenv("SOVEREIGN_MT5_REQUIRED", "1")
+    system = _system()
+    system.mode = "ibkr_paper"
+    system.trading_brain = SimpleNamespace(active_broker="IBKR")
+
+    assert system.requires_mt5_connection is True
+
+
 def test_ibkr_probe_diagnostic_text_includes_socket_context(monkeypatch) -> None:
     monkeypatch.setenv("SOVEREIGN_IBKR_PROBE_HOSTS", "127.0.0.1")
     monkeypatch.setenv("SOVEREIGN_IBKR_PROBE_PORTS", "7497")
@@ -213,6 +231,45 @@ async def test_aegis_periodically_revalidates_external_watchdog() -> None:
         await system._run_aegis_watchdog()
 
     system._verify_watchdog.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_optional_mt5_failure_retries_without_resource_flush(monkeypatch) -> None:
+    monkeypatch.delenv("SOVEREIGN_MT5_REQUIRED", raising=False)
+    system = _system()
+    system.mode = "ibkr_paper"
+    system.trading_brain = SimpleNamespace(active_broker="IBKR")
+    system.mt5_client = SimpleNamespace(terminal_info=lambda: None)
+    system._mt5_failure_count = 2
+    system.connect_mt5 = AsyncMock(return_value=False)
+    system.mind_system = SimpleNamespace(_tool_sovereign_flush=AsyncMock())
+
+    with patch("main.time.monotonic", return_value=1000.0):
+        await system._monitor_mt5_health()
+
+    assert system._mt5_failure_count == 0
+    system.connect_mt5.assert_awaited_once()
+    system.mind_system._tool_sovereign_flush.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_required_mt5_failure_escalates_after_three_failures(monkeypatch) -> None:
+    monkeypatch.setenv("SOVEREIGN_MT5_REQUIRED", "1")
+    system = _system()
+    system.mode = "ibkr_paper"
+    system.trading_brain = SimpleNamespace(active_broker="IBKR")
+    system.mt5_client = SimpleNamespace(terminal_info=lambda: None)
+    system._mt5_failure_count = 2
+    system.connect_mt5 = AsyncMock(return_value=False)
+    system.mind_system = SimpleNamespace(_tool_sovereign_flush=AsyncMock())
+    system._recalibration_in_progress = False
+
+    await system._monitor_mt5_health()
+
+    system.connect_mt5.assert_not_awaited()
+    system.mind_system._tool_sovereign_flush.assert_awaited_once()
+    assert system._mt5_failure_count == 0
+    assert system._recalibration_in_progress is False
 
 
 def test_write_pid_reclaims_dead_stale_lock(tmp_path, monkeypatch) -> None:
