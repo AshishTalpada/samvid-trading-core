@@ -34,3 +34,13 @@ async def test_stop_balances_buffered_queue_accounting() -> None:
 
     assert adapter._queue.empty()
     await asyncio.wait_for(adapter._queue.join(), timeout=0.5)
+
+
+def test_repeated_connect_failures_enter_scheduled_simulated_mode() -> None:
+    adapter = QuestDBAdapter(enabled=True)
+
+    delays = [adapter._record_connection_failure(100.0) for _ in range(3)]
+
+    assert delays == [5.0, 10.0, 20.0]
+    assert adapter.is_simulated is True
+    assert adapter._next_reconnect_attempt == 400.0

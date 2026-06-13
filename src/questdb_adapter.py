@@ -153,7 +153,8 @@ class QuestDBAdapter:
                             f"QuestDB: Still unreachable after {self._retry_count} retries "
                             f"(next backoff: {self._retry_delay:.0f}s)"
                         )
-                    self._retry_count += 1
+                    retry_delay = self._record_connection_failure(_time.monotonic())
+                    await asyncio.sleep(retry_delay)
 
             except asyncio.CancelledError:
                 for _ in batch:
@@ -164,18 +165,8 @@ class QuestDBAdapter:
                 self.is_active = False
                 if self._retry_count == 0:
                     logger.warning("QuestDB: Connection lost — entering backoff retry.")
-                self._retry_count += 1
-
-                if self._retry_count >= 3 and not self.is_simulated:
-                    logger.warning(
-                        "QuestDB: Persistent connection failure. Switching to SIMULATED mode."
-                    )
-                    self.is_simulated = True
-                    self._next_reconnect_attempt = _time.monotonic() + 300.0  # Try again in 5 mins
-
-                # Exponential backoff capped at 120s
-                self._retry_delay = min(self._retry_delay * 2, 120.0)
-                await asyncio.sleep(self._retry_delay)
+                retry_delay = self._record_connection_failure(_time.monotonic())
+                await asyncio.sleep(retry_delay)
             except Exception as e:
                 logger.error(f"QuestDB worker error: {e}")
                 for _ in batch:
@@ -212,6 +203,18 @@ class QuestDBAdapter:
                 candidate.close()
             self._sock = None
             self.is_active = False
+
+    def _record_connection_failure(self, now: float) -> float:
+        """Advance shared retry state and return the delay before another attempt."""
+        self._retry_count += 1
+        if self._retry_count >= 3 and not self.is_simulated:
+            logger.warning("QuestDB: Persistent connection failure. Switching to SIMULATED mode.")
+            self.is_simulated = True
+            self._next_reconnect_attempt = now + 300.0
+
+        delay = self._retry_delay
+        self._retry_delay = min(self._retry_delay * 2, 120.0)
+        return delay
 
     def log_event(self, table: str, data: dict[str, Any]) -> None:
         """
