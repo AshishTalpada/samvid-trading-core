@@ -1,6 +1,7 @@
 import asyncio
 import json
 import logging
+import math
 import os
 import sqlite3
 import time
@@ -19,14 +20,15 @@ class MindEvolution:
     Inspired by Claude-Code's 'memory.ts' and 'learning.ts' logic.
     """
 
-    def __init__(self, bridge: MindBridge) -> None:
+    def __init__(self, bridge: MindBridge, db_path: str | None = None) -> None:
         self.bridge = bridge
         self.is_running = False
         self.peak_equity = 0.0
         self.drawdown_limit = 0.10  # 10% hard floor
         self.historical_memory: list[dict] = []
+        self._tasks: set[asyncio.Task] = set()
 
-        self.db_path = os.path.join(PROJECT_PATH, "data", "trading.db")
+        self.db_path = db_path or os.path.join(PROJECT_PATH, "data", "trading.db")
         os.makedirs(os.path.dirname(self.db_path), exist_ok=True)
 
         from time_sync import TimeSync
@@ -46,8 +48,12 @@ class MindEvolution:
             row = cursor.fetchone()
             conn.close()
             if row:
-                self.peak_equity = float(row[0])
-                logger.info(f"MindEvolution: Restored High Water Mark: ${self.peak_equity:.2f}")
+                restored_peak = float(row[0])
+                if math.isfinite(restored_peak) and restored_peak > 0:
+                    self.peak_equity = restored_peak
+                    logger.info(
+                        f"MindEvolution: Restored High Water Mark: ${self.peak_equity:.2f}"
+                    )
         except Exception as e:
             import sys
 
@@ -67,11 +73,28 @@ class MindEvolution:
 
     async def start(self) -> None:
         """Launch the Evolution Mind process."""
+        if self.is_running:
+            return
         self.is_running = True
         logger.info("MindEvolution: Strategic improvement layer active.")
-        asyncio.create_task(self._monitor_equity_peaks())
-        asyncio.create_task(self._process_strategic_dialogue())
-        asyncio.create_task(self._autonomous_heuristic_refinement())
+        for coroutine in (
+            self._monitor_equity_peaks(),
+            self._process_strategic_dialogue(),
+            self._autonomous_heuristic_refinement(),
+        ):
+            task = asyncio.create_task(coroutine)
+            self._tasks.add(task)
+            task.add_done_callback(self._tasks.discard)
+
+    async def stop(self) -> None:
+        """Stop all evolution workers and wait for cancellation."""
+        self.is_running = False
+        tasks = [task for task in self._tasks if not task.done()]
+        for task in tasks:
+            task.cancel()
+        if tasks:
+            await asyncio.gather(*tasks, return_exceptions=True)
+        self._tasks.clear()
 
     async def _autonomous_heuristic_refinement(self) -> None:
         """
@@ -80,23 +103,24 @@ class MindEvolution:
         """
         while self.is_running:
             try:
-                db_path = os.path.join(PROJECT_PATH, "data", "trading.db")
-                conn = sqlite3.connect(db_path, timeout=60)
-                conn.execute("PRAGMA journal_mode=WAL;")
-                conn.execute("PRAGMA busy_timeout = 60000;")
-                conn.cursor()
                 wisdom_path = os.path.join(PROJECT_PATH, "data/wisdom.json")
                 if os.path.exists(wisdom_path):
-                    with open(wisdom_path, "r") as f:
+                    with open(wisdom_path, encoding="utf-8") as f:
                         wisdom = json.load(f)
 
-                    # If entropy is high, force a threshold tightening
+                    # High entropy produces a reviewable proposal, never a live mutation.
                     if wisdom.get("entropy_state") == "HIGH ENTROPY":
                         logger.warning(
-                            " [Evolution]: High System Entropy detected. Tightening Catalysts."
+                            "MindEvolution: High entropy detected; generating a threshold proposal."
                         )
-                        await self._tool_evolve_strategy(
-                            "config_tightening", {"expected_profit_factor": 2.5}
+                        await self._tool_optimize_thresholds(
+                            "config_tightening",
+                            {
+                                "trades": wisdom.get("sample_size", 0),
+                                "win_rate": wisdom.get("win_rate", 0.0),
+                                "current_threshold": wisdom.get("entry_threshold", 0.85),
+                                "target_win_rate": 0.55,
+                            },
                         )
 
                 await asyncio.sleep(3600 * 4)  # Audit every 4 hours
@@ -111,7 +135,7 @@ class MindEvolution:
                 # 1. Fetch current equity from the database
                 current_equity = await self._fetch_current_equity()
 
-                if current_equity > self.peak_equity:
+                if current_equity is not None and current_equity > self.peak_equity:
                     old_peak = self.peak_equity
                     self.peak_equity = current_equity
 
@@ -144,41 +168,77 @@ class MindEvolution:
                 await asyncio.sleep(1)
 
     async def _tool_optimize_thresholds(self, strategy: str, data: dict) -> dict[str, Any]:
-        """Cognitive tool to refine entry/exit thresholds based on win rates."""
-        logger.info(f"MindEvolution: Optimizing thresholds for {strategy}...")
-        # Optimization logic
-        return {"status": "SUCCESS", "new_threshold": 0.85}
+        """Propose a bounded threshold adjustment only when evidence is sufficient."""
+        logger.info("MindEvolution: Evaluating threshold evidence for %s.", strategy)
+        try:
+            trades = int(data.get("trades", 0))
+            win_rate = float(data.get("win_rate", 0.0))
+            current = float(data.get("current_threshold", 0.85))
+            target = float(data.get("target_win_rate", 0.55))
+        except (TypeError, ValueError):
+            return {"status": "REJECTED", "reason": "invalid_numeric_evidence"}
+        if not all(math.isfinite(value) for value in (win_rate, current, target)):
+            return {"status": "REJECTED", "reason": "non_finite_evidence"}
+        if trades < 30:
+            return {
+                "status": "INSUFFICIENT_EVIDENCE",
+                "strategy": strategy,
+                "trades": trades,
+                "required_trades": 30,
+            }
+        if not 0.0 <= win_rate <= 1.0 or not 0.0 <= target <= 1.0:
+            return {"status": "REJECTED", "reason": "win_rate_out_of_range"}
+
+        adjustment = max(-0.05, min(0.05, (target - win_rate) * 0.20))
+        proposed = max(0.50, min(0.95, current + adjustment))
+        proposal = {
+            "status": "PROPOSED",
+            "strategy": strategy,
+            "current_threshold": current,
+            "proposed_threshold": proposed,
+            "sample_size": trades,
+            "observed_win_rate": win_rate,
+            "requires_shadow_validation": True,
+        }
+        self.historical_memory.append(
+            {"item": proposal, "source": "threshold_optimizer", "timestamp": time.time_ns()}
+        )
+        return proposal
 
     async def _tool_evolve_strategy(self, strategy_id: str, params: dict) -> dict[str, Any]:
-        """Master mutation tool. Permanently alters the organism's DNA (Config)."""
-        logger.warning(f"MindEvolution: EVOLVING strategy {strategy_id}...")
-
-        # Call Healer (Architect) to apply the genetic patch
-        mutation_result = await self.bridge.call_tool(
-            "heal", issue=f"Strategic Mutation: {strategy_id}", suggestion=json.dumps(params)
+        """Record a strategy proposal without mutating production code at runtime."""
+        proposal = {
+            "success": True,
+            "strategy_id": strategy_id,
+            "params": dict(params),
+            "status": "PENDING_SHADOW_VALIDATION",
+            "applied": False,
+            "timestamp": time.time_ns(),
+        }
+        self.historical_memory.append(
+            {"item": proposal, "source": "strategy_proposal", "timestamp": proposal["timestamp"]}
         )
-
-        if mutation_result.get("success"):
-            logger.info(f"MindEvolution: Strategy {strategy_id} EVOLVED successfully.")
-            return {"success": True, "mutation": "V9.0_SLIPPAGE_PROTECTION", "status": "LIVE"}
-
-        return {"success": False, "error": mutation_result.get("error", "Unknown mutation error")}
+        logger.info("MindEvolution: Strategy proposal queued for %s.", strategy_id)
+        return proposal
 
     async def _tool_report_peak(self) -> dict[str, Any]:
 
         return {"peak": self.peak_equity, "at_time": time.time_ns()}
 
-    async def _fetch_current_equity(self) -> float:
+    async def _fetch_current_equity(self) -> float | None:
         """
         Calculates 'Real' Equity with Conservative Sovereign Haircut.
         """
         try:
             result = await self.bridge.call_tool("get_account_status", account_type="ibkr")
-            if "error" in result:
-                return self.peak_equity
+            if "error" in result or not result.get("equity_authoritative", False):
+                logger.debug("MindEvolution: Skipping peak update without authoritative equity.")
+                return None
 
             equity = float(result.get("equity", 0.0))
             unrealized_pnl = float(result.get("unrealized_pnl", 0.0))
+            if not math.isfinite(equity) or equity <= 0 or not math.isfinite(unrealized_pnl):
+                return None
 
             net_liq = equity
             if unrealized_pnl > 0:
@@ -187,7 +247,7 @@ class MindEvolution:
             return net_liq
         except Exception as e:
             logger.error(f"MindEvolution: Error in real equity fetch: {e}")
-            return self.peak_equity
+            return None
 
     async def _persist_peak(self, peak: float) -> None:
         """Saves the high water mark to the SQLite state matrix."""
@@ -199,6 +259,10 @@ class MindEvolution:
                     "INSERT OR REPLACE INTO system_state (key, value) VALUES (?, ?)",
                     ("peak_equity", str(peak)),
                 )
+                conn.execute(
+                    "INSERT OR REPLACE INTO system_state (key, value) VALUES (?, ?)",
+                    ("peak_equity_source", "ibkr_net_liquidation_haircut"),
+                )
                 conn.commit()
                 conn.close()
             except Exception as e:
@@ -209,7 +273,16 @@ class MindEvolution:
     async def _tool_housekeeping(self) -> dict[str, Any]:
         """Performs background cleanup of stale dialogue and telemetry logs."""
         logger.info("MindEvolution: Performing background housekeeping...")
-        return {"status": "SUCCESS", "cleanup": "STALE_LOG_ROTATED"}
+        dialogue_before = len(self.bridge.dialogue_history)
+        telemetry_before = len(self.bridge.call_telemetry)
+        self.bridge.dialogue_history[:] = self.bridge.dialogue_history[-500:]
+        self.bridge.call_telemetry[:] = self.bridge.call_telemetry[-500:]
+        self.historical_memory[:] = self.historical_memory[-1000:]
+        return {
+            "status": "SUCCESS",
+            "dialogue_removed": max(0, dialogue_before - 500),
+            "telemetry_removed": max(0, telemetry_before - 500),
+        }
 
     async def _tool_update_knowledge(self, knowledge_item: str, source: str) -> dict[str, Any]:
         """Synchronizes session-level 'Learnings' across all minds via Team Context."""
@@ -218,4 +291,5 @@ class MindEvolution:
         self.historical_memory.append(
             {"item": knowledge_item, "source": source, "timestamp": time.time_ns()}
         )
+        self.historical_memory[:] = self.historical_memory[-1000:]
         return {"status": "SYNCED", "memory_depth": len(self.historical_memory)}

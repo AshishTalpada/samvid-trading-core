@@ -30,6 +30,9 @@ class MindMacros:
         "sovereign_flush",
         "get_account_status",
         "get_open_positions",
+        "evolve_strategy",
+        "report_peak",
+        "update_knowledge",
     }
 
     # These tools require a secondary 'justification' and 'DoubleHandshake' logic.
