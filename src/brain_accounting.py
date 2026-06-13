@@ -200,6 +200,19 @@ class AccountingMixin:
 
         return closed_pnl + unrealized_pnl
 
+    async def _restore_session_pnl_from_ledger(self) -> float:
+        """Rebuild restart-safe session PnL from today's authoritative closed ledger rows."""
+        active_broker = str(getattr(self, "active_broker", "IBKR")).upper()
+        account_type = "mt5" if active_broker == "MT5" else "ibkr"
+        realized_pnl = await self._get_realized_daily_pnl(account_type)
+        self.session_pnl = realized_pnl
+        logger.info(
+            "Session PnL restored from today's closed %s ledger rows: $%+.2f",
+            account_type.upper(),
+            realized_pnl,
+        )
+        return realized_pnl
+
     async def _update_drawdowns(self) -> None:
         """Update drawdown ladders from current account values."""
         ibkr_equity = await self._get_account_value("ibkr")

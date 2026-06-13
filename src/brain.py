@@ -415,10 +415,9 @@ class TradingBrain(BrokerReconciler, HealthChecker, DataProvider, AccountingMixi
         if capsule:
             self.current_regime = capsule.get("regime", "UNKNOWN")
             self.conviction_state = capsule.get("conviction_state", {})
-            self.session_pnl = capsule.get("session_pnl", 0.0)
             logger.info(
                 f"Brain: Cognitive Capsule inhaled. Regime: {self.current_regime} | "
-                f"PnL: ${self.session_pnl:.2f}"
+                "PnL will be rebuilt from today's closed-trade ledger."
             )
 
         self.conviction_state = {
@@ -813,6 +812,7 @@ class TradingBrain(BrokerReconciler, HealthChecker, DataProvider, AccountingMixi
         self.is_running = True
         logger.info(f"Trading Brain started in {self.mode} mode.")
         await self._initialize_ibkr_runtime()
+        await self._restore_session_pnl_from_ledger()
 
         from config import PANIC_LIQUIDATE
 
@@ -841,8 +841,6 @@ class TradingBrain(BrokerReconciler, HealthChecker, DataProvider, AccountingMixi
             # Restore thresholds, win rates, and cognitive mission board
             self._learned_win_rates = previous_state.get("win_rates", {})
             self.session_stats = previous_state.get("session_stats", self.session_stats)
-            if hasattr(self, "trading_brain"):
-                self.trading_brain.session_pnl = previous_state.get("session_pnl", 0.0)
             logger.info("TradingBrain: Quantum Thaw SUCCESS — System state restored.")
 
         await self.mind_architect.start()

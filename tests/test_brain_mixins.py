@@ -270,6 +270,24 @@ class TestAccountingMixin:
         result = asyncio.run(accounting_obj._get_daily_pnl("ibkr"))
         assert result == 0.0
 
+    def test_session_pnl_is_rebuilt_from_today_ledger(self, accounting_obj, today_ts, mem_db):
+        accounting_obj.active_broker = "IBKR"
+        accounting_obj.session_pnl = -999_999.0
+        mem_db.executemany(
+            "INSERT INTO trades (timestamp, outcome, pnl_dollars, net_pnl, broker) "
+            "VALUES (?,?,?,?,?)",
+            [
+                (today_ts, "WIN", 100.0, 98.0, "ibkr"),
+                (today_ts, "LOSS", -50.0, -52.0, "ibkr"),
+            ],
+        )
+        mem_db.commit()
+
+        restored = asyncio.run(accounting_obj._restore_session_pnl_from_ledger())
+
+        assert restored == 46.0
+        assert accounting_obj.session_pnl == 46.0
+
     # ------------------------------------------------------------------
     # test_account_value_fails_closed_when_ibkr_disconnected
     # ------------------------------------------------------------------

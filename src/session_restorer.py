@@ -21,8 +21,13 @@ class SessionRestorer:
     Allows for 'State Freezing' and 'Thawing' of the cognitive process.
     """
 
-    def __init__(self, path: str = os.path.join(PROJECT_PATH, ".session.bin")) -> None:
+    def __init__(
+        self,
+        path: str = os.path.join(PROJECT_PATH, ".session.bin"),
+        capsule_path: str = os.path.join(PROJECT_PATH, "data", "cognitive_capsule.json"),
+    ) -> None:
         self.path = path
+        self.capsule_path = capsule_path
         self.last_frozen: datetime | None = None
         self.state_hash: str | None = None
 
@@ -191,27 +196,63 @@ class SessionRestorer:
         """Persist the short-term market sentiment state for session continuity."""
 
         try:
-            capsule_path = "data/cognitive_capsule.json"
-            os.makedirs(os.path.dirname(capsule_path), exist_ok=True)
-            with open(capsule_path, "w") as f:
+            capsule_path = Path(self.capsule_path)
+            capsule_path.parent.mkdir(parents=True, exist_ok=True)
+            temp_path = capsule_path.with_name(
+                f"{capsule_path.name}.{os.getpid()}.{time.time_ns()}.tmp"
+            )
+            with open(temp_path, "w", encoding="utf-8") as f:
                 json.dump({"timestamp": time.time_ns(), "payload": state}, f, indent=4)
+                f.flush()
+                os.fsync(f.fileno())
+            os.replace(temp_path, capsule_path)
         except Exception as e:
             logger.error(f"SessionRestorer: Failed to save capsule: {e}")
 
-    def load_cognitive_capsule(self) -> Dict[str, Any]:
-        """Hydrates the brain with the vibe of the last session."""
+    @staticmethod
+    def _timestamp_seconds(raw_timestamp: object) -> float | None:
         try:
-            capsule_path = "data/cognitive_capsule.json"
+            timestamp = float(raw_timestamp)
+        except (TypeError, ValueError):
+            return None
+        if timestamp > 10_000_000_000_000_000:
+            timestamp /= 1_000_000_000
+        return timestamp
+
+    def load_cognitive_capsule(self, max_age_seconds: float | None = None) -> Dict[str, Any]:
+        """Load only a fresh, structurally valid cognitive capsule."""
+        try:
+            capsule_path = self.capsule_path
             if os.path.exists(capsule_path):
                 # Ensure file is not empty
                 if os.path.getsize(capsule_path) == 0:
                     logger.info("SessionRestorer: Cognitive capsule is empty. Starting fresh.")
                     return {}
 
-                with open(capsule_path, "r") as f:
+                with open(capsule_path, "r", encoding="utf-8") as f:
                     try:
                         data = json.load(f)
-                        return data.get("payload", {})
+                        timestamp = self._timestamp_seconds(data.get("timestamp"))
+                        payload = data.get("payload")
+                        if timestamp is None or not isinstance(payload, dict):
+                            logger.warning(
+                                "SessionRestorer: Cognitive capsule has invalid structure; ignored."
+                            )
+                            return {}
+                        configured_max_age = max_age_seconds
+                        if configured_max_age is None:
+                            configured_max_age = float(
+                                os.getenv("SOVEREIGN_CAPSULE_MAX_AGE_SEC", "86400")
+                            )
+                        age_seconds = time.time() - timestamp
+                        if age_seconds < -300 or age_seconds > max(0.0, configured_max_age):
+                            logger.info(
+                                "SessionRestorer: Cognitive capsule is outside the freshness "
+                                "window (age=%.1fs); starting fresh.",
+                                age_seconds,
+                            )
+                            return {}
+                        return payload
                     except json.JSONDecodeError:
                         logger.warning(
                             "SessionRestorer: Cognitive capsule corrupted. Clean slate initiated."
