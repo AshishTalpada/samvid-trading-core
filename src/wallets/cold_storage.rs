@@ -91,19 +91,22 @@ mod tests {
     use super::*;
     use ed25519_dalek::{Signer, SigningKey};
     use std::fs;
-    use std::time::{SystemTime, UNIX_EPOCH};
+    use std::sync::atomic::{AtomicU64, Ordering};
+
+    static NEXT_TEST_LEDGER: AtomicU64 = AtomicU64::new(0);
 
     fn test_wallet() -> (ColdWallet, SigningKey, String) {
         let signing_key = SigningKey::from_bytes(&[7_u8; 32]);
         let public_key = hex::encode(signing_key.verifying_key().as_bytes());
-        let unique = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_nanos();
+        let unique = NEXT_TEST_LEDGER.fetch_add(1, Ordering::Relaxed);
         let path = std::env::temp_dir()
-            .join(format!("samvid-cold-wallet-{unique}.ledger"))
+            .join(format!(
+                "samvid-cold-wallet-{}-{unique}.ledger",
+                std::process::id()
+            ))
             .to_string_lossy()
             .into_owned();
+        let _ = fs::remove_file(&path);
         (ColdWallet::new(&public_key, &path), signing_key, path)
     }
 
