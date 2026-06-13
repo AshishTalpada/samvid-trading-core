@@ -42,6 +42,7 @@ async def test_dhatu_persistence_recovery() -> None:
             "INSERT OR REPLACE INTO system_state (key, value, updated_at) VALUES (?, ?, ?)",
             ("oracle_state", json.dumps(state_data), datetime.now()),
         )
+    conn.close()
 
     try:
         # 2. Initializing DhatuOracle (should load from DB)
@@ -71,6 +72,7 @@ async def test_dhatu_persistence_recovery() -> None:
                 )
             else:
                 conn.execute("DELETE FROM system_state WHERE key = ?", ("oracle_state",))
+        conn.close()
 
 
 if __name__ == "__main__":

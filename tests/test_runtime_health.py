@@ -294,3 +294,4 @@ async def test_runtime_health_snapshot_persists_and_publishes_immediately() -> N
     )
     system.bus.publish.assert_awaited_once_with("system.health", snapshot)
     system._refresh_performance_summary.assert_called_once_with()
+    system.db_conn.close()

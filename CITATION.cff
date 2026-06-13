@@ -21,13 +21,15 @@ keywords:
   - rust
   - machine-learning
   - time-series
+  - institutional-trading
 license: MIT
 version: "1.0.0"
-date-released: "2025-01-01"
+date-released: "2026-06-01"
 abstract: >-
-  Samvid Trading Core is an open-source, multi-agent AI algorithmic trading
-  system supporting Interactive Brokers and MetaTrader 5. It features a
-  consensus-based quorum voting model with 11 specialized agents for pattern
-  recognition, sentiment analysis, macro regime detection, and institutional
-  risk management. Built with Python, Rust (PyO3), FastAPI, QuestDB, and
-  Numba JIT for production-grade automated trading research.
+  Samvid Trading Core is an open-source, production-grade, multi-agent AI
+  algorithmic trading system supporting Interactive Brokers (IBKR) and
+  MetaTrader 5 (MT5). It features a consensus-based quorum voting model with
+  11 specialized agents for pattern recognition, sentiment analysis, macro
+  regime detection, Bayesian belief tracking, and institutional risk management.
+  Built with Python, Rust (PyO3), FastAPI, QuestDB, and Numba JIT for
+  high-performance automated quantitative trading research and execution.

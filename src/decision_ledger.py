@@ -254,6 +254,18 @@ class DecisionLedger:
             logger.error(f"DecisionLedger: Read failed — {e}")
             return []
 
+    def close(self, timeout: float = 5.0) -> None:
+        """Gracefully stop the background worker thread."""
+        try:
+            self._queue.put(None)
+            self._worker.join(timeout=timeout)
+            if self._worker.is_alive():
+                logger.warning("DecisionLedger: Worker thread did not exit within timeout.")
+            else:
+                logger.info("DecisionLedger: Worker thread stopped gracefully.")
+        except Exception as e:
+            logger.error(f"DecisionLedger: Error during close: {e}")
+
     def summary_stats(self) -> dict[str, Any]:
         """Aggregate stats for the dashboard — total wins, losses, avg R."""
         try:

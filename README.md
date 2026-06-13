@@ -1,269 +1,389 @@
-# Samvid Trading Core
+<div align="center">
+
+<h1>⚡ Samvid Trading Core</h1>
+
+<p><strong>Open-source, production-grade AI multi-agent algorithmic trading system<br>
+for Interactive Brokers &amp; MetaTrader 5</strong></p>
 
 [![Main Build](https://github.com/AshishTalpada/samvid-trading-core/actions/workflows/main.yml/badge.svg)](https://github.com/AshishTalpada/samvid-trading-core/actions/workflows/main.yml)
-[![Quality](https://github.com/AshishTalpada/samvid-trading-core/actions/workflows/quality.yml/badge.svg)](https://github.com/AshishTalpada/samvid-trading-core/actions/workflows/quality.yml)
-![Python](https://img.shields.io/badge/Python-3.11%2B-blue)
-![IBKR Paper](https://img.shields.io/badge/IBKR-Paper%20Execution-green)
-![TradingView Quotes](https://img.shields.io/badge/TradingView-Realtime%20Quote%20Lane-orange)
-![Telegram Alerts](https://img.shields.io/badge/Telegram-Operator%20Alerts-2CA5E0)
-![License](https://img.shields.io/badge/License-MIT-black)
+[![Quality Gate](https://github.com/AshishTalpada/samvid-trading-core/actions/workflows/quality.yml/badge.svg)](https://github.com/AshishTalpada/samvid-trading-core/actions/workflows/quality.yml)
+[![Python 3.11+](https://img.shields.io/badge/Python-3.11%2B-3776AB?logo=python&logoColor=white)](https://www.python.org/)
+[![Rust](https://img.shields.io/badge/Rust-native%20layer-000000?logo=rust&logoColor=white)](https://www.rust-lang.org/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-REST%20API-009688?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![IBKR Paper](https://img.shields.io/badge/IBKR-Paper%20Execution-009900)](https://www.interactivebrokers.com/)
+[![MT5](https://img.shields.io/badge/MetaTrader5-FTMO%20Ready-blue)](https://www.metatrader5.com/)
+[![Telegram Alerts](https://img.shields.io/badge/Telegram-Live%20Alerts-2CA5E0?logo=telegram)](https://telegram.org/)
+[![QuestDB](https://img.shields.io/badge/QuestDB-Time%20Series-FF6B35)](https://questdb.io/)
 
-Samvid Trading Core is a backend-first AI trading system for Interactive Brokers paper execution, real-time market-data monitoring, automated trade routing, risk controls, broker reconciliation, learning loops, and Telegram operator alerts.
+<p>
+<a href="#-quick-start">Quick Start</a> •
+<a href="#-architecture">Architecture</a> •
+<a href="#-features">Features</a> •
+<a href="#-agents">Agents</a> •
+<a href="#-installation">Installation</a> •
+<a href="#-configuration">Configuration</a> •
+<a href="#-contributing">Contributing</a>
+</p>
 
-The system is built around one practical idea: a trading engine should not just find signals. It should prove that data is fresh, explain why an order was accepted or rejected, route broker-paper orders safely, monitor open positions, reconcile against broker truth, learn from exits, and notify the operator with useful context.
+</div>
 
-> This is trading research and engineering software, not financial advice. Use `TRADING_MODE=ibkr_paper` for broker-connected paper execution. Live trading requires independent validation, broker permissions, compliance review, and capital-risk controls.
+---
 
-## Search Keywords
+> **Samvid Trading Core** is a backend-first, consensus-driven algorithmic trading engine. It combines 11 specialized AI agents, an async pub/sub intelligence bus, multi-broker execution (IBKR + MT5), real-time data pipelines, institutional-grade risk management, and Telegram operator alerts — all in a single open-source Python + Rust stack.
 
-AI trading system, algorithmic trading bot, Interactive Brokers trading bot, IBKR paper trading bot, automated trading backend, TradingView quote streamer, Python quantitative trading platform, multi-agent trading AI, Telegram trading alerts, broker reconciliation engine, real-time market data pipeline, risk-managed trading system, paper trading automation, execution audit framework, post-trade learning engine.
+> ⚠️ **Disclaimer**: This is trading research and engineering software, not financial advice. Paper trading mode (`TRADING_MODE=ibkr_paper`) is the default. Live trading requires independent validation, broker permissions, and capital-risk controls you are solely responsible for.
 
-## What It Does
+---
 
-| System layer | What Samvid does |
-| --- | --- |
-| Market data | Combines OHLCV ingestion, TradingView quote streaming, broker snapshots, VIX/macro context, and news/oracle signals. |
-| Decision engine | Detects setups, evaluates regime, checks freshness, runs quorum logic, applies friction and risk gates, and records rejections. |
-| Execution | Routes accepted orders to IBKR paper mode, captures broker order IDs, stores order state, and blocks stale-data entries. |
-| Position management | Tracks open positions, partial exits, stop/target logic, exit method, net PnL, and R multiple. |
-| Reconciliation | Compares local state against IBKR broker state to catch stale, missing, orphaned, rejected, cancelled, or filled orders. |
-| Learning | Feeds `trade.exit` events into calibration, alpha-health, expectancy, strategy memory, and future gating. |
-| Operator UX | Sends Telegram startup, execution, rejection, exit, DMS, and runtime-health alerts with actionable details. |
-| Reliability | Uses watchdogs, runtime health snapshots, startup validation, restart audits, and CI checks to surface failures quickly. |
+## 📑 Table of Contents
 
-## Current Operating Modes
+- [Why Samvid Trading Core?](#-why-samvid-trading-core)
+- [Features](#-features)
+  - [Multi-Agent AI Consensus Engine](#-multi-agent-ai-consensus-engine)
+  - [Real-Time Data Pipeline](#-real-time-data-pipeline)
+  - [Institutional-Grade Risk Management](#-institutional-grade-risk-management)
+  - [Broker Integration](#-broker-integration)
+  - [Intelligence Bus](#-intelligence-bus)
+  - [Security](#-security)
+  - [Operator Experience](#-operator-experience)
+- [Architecture](#-architecture)
+- [Quick Start](#-quick-start)
+- [Running Tests](#-running-tests)
+- [Configuration](#-configuration)
+- [Tech Stack](#-tech-stack)
+- [Contributing](#-contributing)
+- [Roadmap](#-roadmap)
+- [License](#-license)
+- [Support the Project](#-support-the-project)
 
-| Mode | Broker connection | Orders sent | Intended use |
-| --- | --- | --- | --- |
-| `paper` | No IBKR broker connection | Internal simulated paper orders only | Safe local smoke tests |
-| `ibkr_paper` | IBKR TWS / Gateway paper account | Real paper-account orders | Primary operational mode |
-| `live` | IBKR live account when explicitly allowed | Real live orders | Disabled unless `ALLOW_FORCE_LIVE=1` |
+---
 
-Recommended broker-paper launch:
+## 🌟 Why Samvid Trading Core?
 
-```powershell
-$env:TRADING_MODE = "ibkr_paper"
-$env:ALLOW_FORCE_LIVE = "0"
-$env:SOVEREIGN_TV_QUOTES_ENABLED = "1"
-$env:SOVEREIGN_IBKR_HFT_ENABLED = "0"
-uv run python src/main.py
+Most open-source trading bots stop at "buy when RSI crosses 30." Samvid goes further:
+
+| What basic bots do | What Samvid does |
+|---|---|
+| Static indicators → market order | Pattern detection + regime + oracle + 11-agent quorum → friction-gated broker paper order |
+| Assumed data freshness | Explicitly proven fresh bars or realtime quote before every entry |
+| Fire-and-forget orders | IBKR order ID capture → broker state reconciliation → orphan detection |
+| No learning | `trade.exit` events feed calibration matrix, alpha-health, and expectancy |
+| Terminal logs only | Logs + runtime health + Telegram alerts + CI validation + audit reports |
+| Unknown restart behavior | Startup validation, PID singleton lock, watchdogs, restart audit tooling |
+| Flat risk | Drawdown ladder, consecutive-loss escalation, oracle freeze, cost-aware exit engine |
+
+---
+
+## ✨ Features
+
+### 🤖 Multi-Agent AI Consensus Engine
+- **11 specialized agents** (A through H + advisory) vote on every trade entry
+- Agent A: Chart pattern detection (Bull Flag, Cup & Handle, Head & Shoulders, Gap Fill, etc.)
+- Agent B: Bayesian belief tracking + Dhatu Oracle macro regime synthesis
+- Agent C (IBKR): F6 8-step position sizing chain + Black Swan Protocol circuit breaker
+- Agent C (MT5): FTMO compliance layer + prop firm trade management
+- Agent D: Live learning engine — expectancy, alpha-health, calibration matrix
+- Agent E: Correlation guard — sector exposure limits
+- Advisory: Contrarian, Chaos, Contagion Sentinel, Audit agents (non-blocking signals)
+
+### 📊 Real-Time Data Pipeline
+- TradingView WebSocket quote streamer (fast tick lane)
+- OHLCV multi-timeframe ingestion (1m / 5m / 15m / 1h)
+- OpenBB + yfinance provider with automatic fallback
+- VIX + macro context + news sentiment lane
+- QuestDB time-series adapter for high-throughput candle storage
+- After-hours compact backfill mode
+
+### 🛡️ Institutional-Grade Risk Management
+- **DrawdownLadder**: 4-level escalation (NORMAL → YELLOW → ORANGE → RED → CIRCUIT BREAKER)
+- **ConsecutiveLossTracker**: Graduated 5-level response (size reduction → reduce-only → paper lock → audit)
+- **MorningBudget**: Regime-aware daily trade and risk budget generator
+- **ExitIntelligence**: 6-priority exit engine (hard stop → trailing stop → target/partial → daily loss → VIX spike → belief collapse)
+- **RiskInvariants**: Tamper-proof constant checker — AI agents cannot override hard limits
+- **OrderThrottler**: Token-bucket rate limiter (30 orders / 60 seconds)
+- **VIXProtocol**: Volatility circuit breaker
+- **BlackSwanProtocol**: Halts new trade discovery on correlated crash events
+
+### 🔌 Broker Integration
+- **Interactive Brokers (IBKR)**: Paper + live execution via ib-insync, TWS/Gateway at `127.0.0.1:7497`
+- **MetaTrader 5**: FTMO prop firm compliant execution (2 trades/day hard cap)
+- Broker reconciliation: local state vs broker state comparison, stale/orphan/rejected order detection
+- Execution evidence: every order decision is stored with full context for audit
+
+### 🧠 Intelligence Bus
+- Priority pub/sub async event bus (`SharedIntelligenceBus`)
+- HMAC-SHA256 authenticated TCP relay for multi-process/multi-node architectures
+- Weak-reference subscriber cleanup to prevent memory leaks
+- Per-topic priority routing: `oracle.freeze` (P0) → `trade.exit` (P1) → `tick.hft` (P5) → `candle.batch` (P12)
+
+### 🔐 Security
+- OS Keyring vault (Windows Credential Manager) for all secrets
+- Log redaction — credentials never appear in log files
+- Adversarial news payload guard (PromptGuard)
+- Non-root Docker user + multi-stage Dockerfile
+- Atomic PID singleton lock (`O_EXCL`) prevents duplicate instances
+
+### 📡 Operator Experience
+- Telegram bot for startup, execution, rejection, exit, DMS, and health alerts
+- REST API server (FastAPI + uvicorn) on port 8000 with `/health/live` endpoint
+- Prometheus metrics on port 9090
+- Startup profiler (millisecond-level component timing)
+- Watchdog task that pings the operator if the system goes quiet
+
+---
+
+## 🏗️ Architecture
+
+```
+                      MARKET + CONTEXT INPUTS
+  ─────────────────────────────────────────────────────────────────
+  TradingView quotes │ OHLCV pipeline │ IBKR snapshots │ News/Macro
+          │                 │                │                │
+          └─────────────────┴────────────────┴────────────────┘
+                                    │
+                                    ▼
+                       SharedIntelligenceBus (async pub/sub)
+                        priority-routed, HMAC-authenticated
+                                    │
+                                    ▼
+                            TradingBrain
+                  ┌─────────────────────────────────┐
+                  │  Regime detection │ Scan loop   │
+                  │  DrawdownLadder   │ MorningBudget│
+                  │  OracleGate       │ QuantConsensus│
+                  └─────────────────────────────────┘
+                                    │
+                                    ▼
+                          TradingCoordinator
+               ┌──────────────────────────────────────┐
+               │ 11-Agent Quorum │ Freshness Proof     │
+               │ Risk Gates      │ Position Sizing (F6)│
+               │ Friction Veto   │ Execution Evidence  │
+               └──────────────────────────────────────┘
+                          │               │
+               ┌──────────┘               └──────────┐
+               ▼                                     ▼
+      IBKR Paper Order                       Decision rejection
+      (order ID captured)                  (evidence stored)
+               │                                     │
+               └──────────────┬──────────────────────┘
+                              ▼
+               SQLite evidence + QuestDB time-series
+                              │
+               ┌──────────────┴──────────────┐
+               ▼                             ▼
+       Telegram alerts          Post-trade learning
+                             (expectancy + calibration)
 ```
 
-This keeps IBKR focused on order execution while the TradingView quote streamer supplies the faster quote lane.
-
-## System Status Matrix
-
-| Component | Status | Why it matters |
-| --- | --- | --- |
-| IBKR paper execution | Supported | Routes broker-paper orders through TWS/Gateway and verifies broker state. |
-| TradingView quote lane | Supported | Provides fast quote updates for entry proof and market awareness. |
-| Telegram alerts | Supported | Keeps the operator informed without watching the terminal all day. |
-| Data pipeline | Supported | Maintains candles, macro context, news context, and market snapshots. |
-| Dhatu Oracle | Supported | Converts news/macro context into risk-state and freeze signals. |
-| Native SLM | Optional/fallback | Uses deterministic fallback if the native GGUF runtime is unavailable. |
-| QuestDB | Optional | High-throughput path when available; SQLite remains the durable local record. |
-| MT5 | Optional | Runtime-aware optional broker path when credentials exist. |
-| Live mode | Guarded | Blocked unless explicitly authorized with `ALLOW_FORCE_LIVE=1`. |
-
-## Architecture Flowchart
-
-```text
-                  MARKET + CONTEXT INPUTS
-  ----------------------------------------------------------------
-  TradingView quotes | OHLCV pipeline | IBKR snapshots | News/Macro
-            |              |               |              |
-            +--------------+---------------+--------------+
-                           |
-                           v
-                    Shared Event Bus
-                           |
-                           v
-                    TradingBrain
-        regime detection | scan loop | position monitor
-                           |
-                           v
-                   TradingCoordinator
-      freshness proof | risk gates | quorum | friction veto
-                           |
-              +------------+------------+
-              |                         |
-              v                         v
-        IBKR paper order          Decision rejection
-              |                         |
-              v                         v
-     Broker order id / status     Rejection evidence
-              |                         |
-              +------------+------------+
-                           |
-                           v
-              SQLite evidence + reconciliation
-                           |
-              +------------+------------+
-              |                         |
-              v                         v
-        Telegram alerts       Post-trade learning
-```
-
-## Data Pipeline
-
-```text
-Raw market sources
-  |
-  +-- TradingView quote streamer
-  |     -> tick/quote events
-  |     -> fast entry proof
-  |     -> candle.batch / hft-style bus updates
-  |
-  +-- OHLCV provider lane
-  |     -> 1m / 5m / 15m bars
-  |     -> continuity backfill
-  |     -> after-hours compact sync
-  |
-  +-- News and macro lane
-  |     -> Reuters/Finnhub/OpenBB-style context
-  |     -> VIX and market-regime context
-  |     -> Dhatu risk-state synthesis
-  |
-  +-- Broker state lane
-        -> IBKR account, positions, order status
-        -> reconciliation and orphan detection
-```
-
-## Automated Trade Lifecycle
-
-| Phase | What happens |
-| --- | --- |
-| Discovery | Brain scans the watchlist and receives candle/quote/news events. |
-| Setup detection | Pattern logic identifies a candidate entry with price, stop, target, and confidence. |
-| Data proof | Coordinator requires fresh bars or realtime quote proof before broker-paper execution. |
-| Risk and friction | System checks R:R, fees, spread/slippage assumptions, budget, loss locks, and oracle freeze. |
-| Quorum | Agent votes and risk gates decide whether the candidate can become an order. |
-| Execution | Accepted trades route to IBKR paper and return a broker order id. |
-| Notification | Telegram receives mode, broker, order id, method, pattern, qty, stop, target, confidence, and reason. |
-| Monitoring | Position monitor tracks open risk, partials, stop/target logic, and market state. |
-| Reconciliation | IBKR state is compared against local records to prevent unmanaged stale positions. |
-| Learning | Exit results update calibration, expectancy, alpha-health, and future decision quality. |
-
-## Learning Loop
-
-```text
-Trade exit
-   |
-   v
-Net PnL + R multiple + exit method + strategy metadata
-   |
-   v
-Agent D / live learning / calibration matrix
-   |
-   v
-Alpha health, pattern expectancy, regime/session memory
-   |
-   v
-Future risk gates and strategy promotion decisions
-```
-
-The system does not treat a trade as just a row in a database. It turns exits into feedback: which setup fired, what regime it happened in, how the exit resolved, whether the edge is warming up or decaying, and whether future trades should be allowed, reduced, or blocked.
-
-## Operator Alerts
-
-| Alert type | Trigger | Includes |
-| --- | --- | --- |
-| Startup | System online | Mode, IBKR, MT5, Dhatu, OpenBB, Native SLM, startup latency. |
-| Execution | Broker accepts order | Mode, broker, order id, side/method, pattern, setup class, prices, quantity, confidence. |
-| Rejection | Coordinator or broker veto | Symbol, reason, proposal id, and rejection context. |
-| Exit | Position closes | Strategy, pattern, exit method, price source, net PnL, R multiple, session PnL. |
-| Recovery lock | Loss streak or audit state | Why entries are disabled and when review/reset is expected. |
-| DMS | Dead Man Switch status | Execution online/offline state and emergency monitor state. |
-| Health | Runtime degraded | Broker connectivity, feed delay, fallback state, or stale heartbeat. |
-
-## Why This Is More Than a Toy Bot
-
-| Capability | Basic bot | Samvid Trading Core |
-| --- | --- | --- |
-| Entry logic | Buy/sell when indicator crosses | Pattern detection plus regime, oracle, quorum, freshness, and risk gates. |
-| Data freshness | Often assumed | Explicitly checked before broker-paper entries. |
-| Broker routing | Fire-and-forget order | IBKR paper execution with order id capture and reconciliation. |
-| Notifications | Generic fill messages | Context-rich Telegram alerts with method, pattern, order id, risk, and reason. |
-| Risk control | Static stop loss | Drawdown, loss-streak locks, oracle freeze, friction veto, and recovery/audit states. |
-| Learning | Manual review | Automated `trade.exit` feedback into expectancy and alpha-health logic. |
-| Observability | Terminal logs only | Logs, health snapshots, Telegram, audit summaries, and CI validation. |
-| Restart behavior | Unknown | Startup validation, watchdogs, PID guards, and restart audit tooling. |
-
-## Repository Map
+### Directory Map
 
 | Path | Purpose |
-| --- | --- |
-| `src/main.py` | Startup, mode safety, broker connections, watchdogs, metrics, notifications. |
-| `src/brain.py` | Main trading state machine, scan loop, oracle gate, and runtime coordination. |
-| `src/coordinator.py` | Entry quorum, risk gates, broker routing, execution alerts, rejection evidence. |
-| `src/agent_c_ibkr.py` | IBKR order placement, account sync, active order audit, reconciliation support. |
-| `src/brain_position.py` | Position monitoring, exit intelligence, final PnL accounting, exit alerts. |
-| `src/brain_reconcile.py` | Broker/database reconciliation and stale trade handling. |
-| `src/data_pipeline.py` | OHLCV, market data, news, macro, and fallback ingestion. |
-| `src/tv_quote_streamer.py` | TradingView realtime quote streaming. |
-| `src/telegram_alerts.py` | Telegram alert transport, sanitization, and rate limiting. |
-| `src/brain_health.py` | Runtime health and throttled execution status reports. |
-| `scripts/live_audit_loop.py` | Kill/restart audit runner and log summarizer. |
-| `scripts/signal_ic_diagnostic.py` | Per-signal information coefficient diagnostic for alpha-quality evidence. |
-| `tests/` | Risk, execution, startup, reconciliation, health, and integration coverage. |
+|---|---|
+| `src/main.py` | Entry point: mode safety, broker connections, watchdogs, metrics |
+| `src/brain.py` | Main orchestrator: state machine, scan loop, oracle gate |
+| `src/coordinator.py` | Entry quorum, risk gates, F6 sizing, broker routing |
+| `src/agent_a.py` | Pattern detection, regime classification, entropy scoring |
+| `src/agent_b.py` | Bayesian belief tracking, Dhatu Oracle integration |
+| `src/agent_c_ibkr.py` | IBKR execution, Black Swan, VIX protocol, position sizing |
+| `src/agent_c_mt5.py` | MT5 / FTMO compliance execution |
+| `src/agent_d.py` | Live learning, expectancy matrix, alpha-health |
+| `src/exit_intelligence.py` | 6-priority exit engine with cost-awareness |
+| `src/risk_invariants.py` | Tamper-proof risk constant checker |
+| `src/intelligence_bus.py` | Priority async pub/sub event bus |
+| `src/brain_state.py` | DrawdownLadder, ConsecutiveLossTracker, MorningBudget |
+| `src/data_pipeline.py` | OHLCV, macro, news, VIX ingestion |
+| `src/dhatu_oracle.py` | Macro regime synthesis engine |
+| `src/vault.py` | OS keyring secrets manager |
+| `src/api_server.py` | FastAPI REST API + Prometheus metrics |
+| `src/telegram_alerts.py` | Telegram operator alert transport |
+| `migrations/` | Versioned SQLite schema migrations with rollback |
+| `scripts/` | Preflight, startup validation, audit, diagnostic tools |
+| `tests/` | 94-file test suite: risk, execution, health, integration |
 
-## Verification
+---
 
-Run the same checks used before pushing:
+## 🚀 Quick Start
+
+### Prerequisites
+
+- Python 3.11 or 3.12
+- [uv](https://github.com/astral-sh/uv) package manager
+- Interactive Brokers TWS or IB Gateway (for `ibkr_paper` mode)
+- Telegram bot token (optional, for alerts)
+
+### 1. Clone
 
 ```bash
-uv run ruff check src/ tests/ scripts/ --output-format=github
-uv run python -m compileall -q src tests scripts
-uv run python -m pytest tests -q
+git clone https://github.com/AshishTalpada/samvid-trading-core.git
+cd samvid-trading-core
 ```
 
-Run startup validation:
+### 2. Install
+
+```bash
+pip install uv
+uv sync --locked
+```
+
+### 3. Configure secrets
+
+```bash
+# Store credentials in the OS keyring vault
+python src/vault.py set IBKR_ACCOUNT_ID "your_account_id"
+python src/vault.py set TELEGRAM_BOT_TOKEN "your_bot_token"
+python src/vault.py set TELEGRAM_CHAT_ID "your_chat_id"
+```
+
+Or copy `.env.example` to `.env` and fill in the values (development only).
+
+### 4. Run preflight validation
 
 ```bash
 uv run python scripts/startup_validation.py
 ```
 
-Run a short restart audit:
+### 5. Launch in paper mode (no broker required)
 
 ```bash
-uv run python scripts/live_audit_loop.py --cycles 1 --duration 35
+uv run python src/main.py
 ```
 
-Run the alpha-evidence diagnostic before trusting a signal family:
+### 6. Launch with IBKR paper execution
+
+```powershell
+$env:TRADING_MODE = "ibkr_paper"
+uv run python src/main.py
+```
+
+> Make sure TWS / IB Gateway is running and listening on port `7497` before launching.
+
+---
+
+## 🧪 Running Tests
 
 ```bash
-uv run python scripts/signal_ic_diagnostic.py --symbols SPY,QQQ,IWM --horizon 10 --stride 5 --lookback 200
+# Full test suite
+uv run python -m pytest tests/ -q --tb=short
+
+# With coverage report
+uv run python -m pytest tests/ --cov=src --cov-report=term-missing
+
+# Key test modules
+uv run python -m pytest tests/test_risk_invariants.py tests/test_dms.py -v
+
+# Lint check
+uv run ruff check src/ tests/ scripts/
+
+# Compile check (syntax only, no imports)
+uv run python -m compileall -q src/ tests/ scripts/
+
+# Import cycle detection
+uv run python scripts/detect_cycles.py
 ```
 
-This measures whether each QuantConsensus sub-signal predicts forward returns before stops, fills, commissions, or trade simulation. Treat weak or statistically insignificant IC as a research blocker, not as proof that more execution speed will fix the edge.
+---
 
-## Environment Variables
+## ⚙️ Configuration
 
-| Variable | Purpose |
-| --- | --- |
-| `TRADING_MODE` | `paper`, `ibkr_paper`, or `live`. |
-| `ALLOW_FORCE_LIVE` | Must be `1` before live mode can run. |
-| `SOVEREIGN_TV_QUOTES_ENABLED` | Enables the TradingView quote lane. |
-| `SOVEREIGN_IBKR_HFT_ENABLED` | Enables IBKR as tick fallback, usually off when TV quotes are active. |
-| `SOVEREIGN_ENTRY_DATA_PROOF_MAX_AGE_SEC` | Max age for entry freshness proof. |
-| `SOVEREIGN_PAPER_EXPLORATION` | Allows tiny broker-paper learning orders on high-quality near misses. |
-| `TELEGRAM_BOT_TOKEN` | Telegram bot token. |
-| `TELEGRAM_CHAT_ID` | Telegram destination chat id. |
-| `IB_HOST` | IBKR host, usually `127.0.0.1`. |
-| `IB_PORT` | IBKR paper port, usually `7497`. |
+### Trading Modes
 
-## Honest Production Position
+| Mode | Broker | Orders | Use Case |
+|---|---|---|---|
+| `paper` | None | Internal simulation | Safe local smoke tests |
+| `ibkr_paper` | IBKR TWS/Gateway paper account | Real paper orders | Primary operational mode |
+| `live` | IBKR live account | Real live orders | Requires `ALLOW_FORCE_LIVE=1` |
 
-Samvid Trading Core is a serious solo trading-system backend with broker-paper execution, automated risk gating, reconciliation, observability, and post-trade learning. It is stronger than a simple retail bot because it treats execution, logs, state, failures, and learning as first-class parts of the system.
+### Key Environment Variables
 
-It is not yet a hedge-fund production platform. To move closer to that level, it needs longer live-market IBKR paper soak tests, verified positive expectancy after costs, stronger feed redundancy, richer external monitoring, and repeated reconciliation reports showing no unexplained broker drift.
+| Variable | Default | Purpose |
+|---|---|---|
+| `TRADING_MODE` | `ibkr_paper` | Trading mode selector |
+| `ALLOW_FORCE_LIVE` | `0` | Must be `1` to enable live mode |
+| `SOVEREIGN_SKIP_PID_CHECK` | `0` | Set to `1` in tests to bypass singleton lock |
+| `TELEGRAM_BOT_TOKEN` | — | Telegram bot token (store in vault) |
+| `TELEGRAM_CHAT_ID` | — | Telegram destination chat ID |
+| `QUESTDB_ENABLED` | auto-detect | Enable QuestDB time-series adapter |
+| `TOTAL_CAPITAL` | `500.0` | Starting capital for position sizing |
+| `IBKR_MAX_TRADES_PER_DAY` | `20` | IBKR daily trade cap |
 
-## License
+Full variable reference: see [`src/config.py`](src/config.py) and [`.env.example`](.env.example).
 
-MIT License.
+---
 
-Copyright (c) 2026 Ashishkumar Talpada.
+## 📦 Tech Stack
 
-## Disclaimer
+| Layer | Technology |
+|---|---|
+| Core language | Python 3.11 / 3.12 |
+| Native performance | Rust (PyO3), C extensions (Cython), CUDA kernels |
+| Math / signals | NumPy, Polars, SciPy, Numba JIT |
+| ML / learning | HMMlearn, ChromaDB (vector memory), fastembed |
+| Broker APIs | ib-insync (IBKR), MetaTrader5 (Windows) |
+| Market data | OpenBB, yfinance, TradingView WebSocket |
+| Web API | FastAPI + uvicorn |
+| Time-series DB | QuestDB (high-throughput) + SQLite (durable record) |
+| Database ORM | yoyo-migrations (versioned schema) |
+| Secrets | OS keyring (Windows Credential Manager) |
+| Alerts | Telegram Bot API |
+| Observability | Prometheus metrics, structured logging, runtime health snapshots |
+| CI/CD | GitHub Actions (lint + test + Rust + Node frontend) |
+| Containerization | Docker (multi-stage, non-root) + Docker Compose |
+| Package manager | uv (fast, reproducible, locked) |
 
-Trading can lose money quickly. You are responsible for broker permissions, exchange rules, taxes, compliance, strategy validation, risk controls, and all decisions made with this software.
+---
+
+## 🤝 Contributing
+
+Contributions are welcome! Please read [`CONTRIBUTING.md`](CONTRIBUTING.md) first.
+
+1. Fork the repository
+2. Create a feature branch: `git checkout -b feat/your-feature`
+3. Make your changes and add tests
+4. Run the quality gate: `uv run ruff check src/ && uv run python -m pytest tests/ -q`
+5. Submit a pull request — use the [PR template](.github/PULL_REQUEST_TEMPLATE.md)
+
+See [`GOVERNANCE.md`](GOVERNANCE.md) for the project roadmap and decision-making process.
+
+---
+
+## 📈 Roadmap
+
+- [ ] Verified positive expectancy after costs across 90-day paper soak
+- [ ] WebSocket-based live dashboard (frontend/)
+- [ ] More pattern detectors (VWAP reclaim, opening range breakout)
+- [ ] Backtesting engine integration with walk-forward validation
+- [ ] Multi-account portfolio manager
+- [ ] Options chain scanner (option_agent.py)
+- [ ] PostgreSQL migration path (away from SQLite for high-frequency writes)
+
+---
+
+## 📜 License
+
+MIT License — see [`LICENSE`](LICENSE) for details.
+
+Copyright © 2026 Ashishkumar Talpada
+
+---
+
+## ⭐ Support the Project
+
+If Samvid Trading Core is useful to you, please consider:
+- ⭐ **Starring this repository** — it helps others find it
+- 🐛 **Reporting bugs** via [GitHub Issues](https://github.com/AshishTalpada/samvid-trading-core/issues)
+- 💡 **Suggesting features** or submitting PRs
+- 📣 **Sharing it** with your quant/trading developer community
+
+---
+
+## 📚 Related Projects & Keywords
+
+**Algorithmic trading** • **trading bot** • **automated trading system** • **Interactive Brokers bot** • **IBKR Python** • **MetaTrader 5 Python** • **FTMO trading bot** • **quantitative finance** • **quant trading** • **multi-agent trading AI** • **AI trading system** • **machine learning trading** • **backtesting framework** • **Python trading bot** • **open source trading bot** • **stock trading bot** • **forex trading bot** • **risk management system** • **position sizing** • **paper trading** • **live trading** • **real-time market data** • **FastAPI trading** • **Rust trading** • **QuestDB** • **Telegram trading alerts** • **consensus trading** • **Bayesian trading** • **regime detection** • **pattern recognition trading**
+
+---
+
+<div align="center">
+<sub>Built with ❤️ for the open-source quant community</sub>
+</div>

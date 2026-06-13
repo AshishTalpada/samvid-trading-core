@@ -23,6 +23,7 @@ def _make_ohlcv_db(path, rows_by_symbol: dict[str, int]) -> None:
                 for i in range(count)
             ]
             conn.executemany("INSERT INTO ohlcv VALUES (?,?,?,?,?,?,?)", rows)
+    conn.close()
 
 
 def test_phase1_data_coverage_counts_every_symbol(tmp_path) -> None:

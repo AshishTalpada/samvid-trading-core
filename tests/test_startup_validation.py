@@ -43,6 +43,7 @@ def test_startup_validation_warns_when_paper_baseline_is_missing(tmp_path) -> No
     path = tmp_path / "trading.db"
     with sqlite3.connect(path) as conn:
         conn.execute("CREATE TABLE system_state (key TEXT PRIMARY KEY, value TEXT)")
+    conn.close()
 
     assert validate_paper_performance_baseline(str(path)) == [
         "Paper performance baseline is not established"
@@ -57,5 +58,6 @@ def test_startup_validation_accepts_valid_paper_baseline(tmp_path) -> None:
             "INSERT INTO system_state VALUES (?, ?)",
             ("paper_performance_baseline", '{"min_trade_id": 42, "reason": "test"}'),
         )
+    conn.close()
 
     assert validate_paper_performance_baseline(str(path)) == []

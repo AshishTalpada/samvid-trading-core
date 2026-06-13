@@ -21,6 +21,7 @@ def _build_db(path) -> None:
             )
             """
         )
+    conn.close()
 
 
 def _build_timestamped_db(path) -> None:
@@ -40,6 +41,7 @@ def _build_timestamped_db(path) -> None:
             )
             """
         )
+    conn.close()
 
 
 def test_paper_performance_measures_net_quality_and_cost_drag(tmp_path) -> None:
@@ -54,6 +56,7 @@ def test_paper_performance_measures_net_quality_and_cost_drag(tmp_path) -> None:
                 (3, "live", "WIN", 500.0, 500.0, 0.0, 0.0, 5.0),
             ],
         )
+    conn.close()
 
     report = build_paper_performance(path, starting_equity=100.0)
     metrics = report["metrics"]
@@ -87,6 +90,7 @@ def test_paper_performance_reports_encrypted_optional_field_coverage(tmp_path) -
             "INSERT INTO trades VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
             (1, "ibkr_paper", "WIN", "ciphertext", 10.0, 1.0, 0.5, "ciphertext"),
         )
+    conn.close()
 
     metrics = build_paper_performance(path)["metrics"]
 
@@ -107,6 +111,7 @@ def test_paper_performance_can_start_from_clean_trade_id_baseline(tmp_path) -> N
                 (2, "ibkr_paper", "WIN", 10.0, 10.0, 0.0, 0.0, 1.0),
             ],
         )
+    conn.close()
 
     report = build_paper_performance(path, min_trade_id=2)
 
@@ -129,12 +134,14 @@ def test_paper_performance_uses_stored_baseline_by_default(tmp_path) -> None:
                 (2, "ibkr_paper", "WIN", 10.0, 10.0, 0.0, 0.0, 1.0),
             ],
         )
+    conn.close()
     baseline = establish_performance_baseline(path, reason="test baseline")
     with sqlite3.connect(path) as conn:
         conn.execute(
             "INSERT INTO trades VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
             (3, "ibkr_paper", "WIN", 20.0, 20.0, 0.0, 0.0, 2.0),
         )
+    conn.close()
 
     report = build_paper_performance(path)
 
@@ -156,6 +163,7 @@ def test_paper_performance_reports_timestamp_calendar_span(tmp_path) -> None:
                 (2, "2026-01-31T14:30:00+00:00", "ibkr_paper", "LOSS", -5, -5, 0, 0, -1),
             ],
         )
+    conn.close()
 
     report = build_paper_performance(path)
 

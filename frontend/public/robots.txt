@@ -1,0 +1,8 @@
+# robots.txt for Samvid Trading Core Dashboard
+# For more information, visit https://www.robotstxt.org/
+
+User-agent: *
+Allow: /
+
+# Sitemap location (replace with your actual hosted domain if applicable)
+Sitemap: https://github.com/AshishTalpada/samvid-trading-core/sitemap.xml

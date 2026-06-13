@@ -152,7 +152,8 @@ def check_execution_audit_chain(path: Path | None = None) -> PreflightResult:
 def _migration_ids_from_db(db_path: Path) -> set[str]:
     if not db_path.exists():
         return set()
-    with sqlite3.connect(db_path) as conn:
+    conn = sqlite3.connect(db_path)
+    try:
         tables = {
             row[0]
             for row in conn.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()
@@ -167,7 +168,9 @@ def _migration_ids_from_db(db_path: Path) -> set[str]:
                 row[0]
                 for row in conn.execute("SELECT id FROM _yoyo_migration").fetchall()
             }
-    return set()
+        return set()
+    finally:
+        conn.close()
 
 
 def check_migrations_current(

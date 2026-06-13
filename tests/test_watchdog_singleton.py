@@ -68,6 +68,7 @@ def test_stopped_state_does_not_retire_watchdog_for_replacement_main(
                 ("last_heartbeat", heartbeat.isoformat()),
             ],
         )
+    conn.close()
 
     monkeypatch.setattr(watchdog, "DB_PATH", str(db_path))
     monkeypatch.setattr(watchdog, "_active_main_pid", lambda: 321)

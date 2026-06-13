@@ -2,6 +2,13 @@
 name = "sovereign_core"
 version = "0.1.0"
 edition = "2021"
+description = "High-performance Rust native layer for Samvid Trading Core — an AI multi-agent algorithmic trading system for Interactive Brokers & MetaTrader 5"
+keywords = ["algorithmic-trading", "trading-bot", "quantitative-finance", "rust-trading", "high-frequency", "interactive-brokers", "metatrader5", "ai-agents", "risk-management", "pyo3"]
+repository = "https://github.com/AshishTalpada/samvid-trading-core"
+homepage = "https://github.com/AshishTalpada/samvid-trading-core#readme"
+license = "MIT"
+authors = ["Ashish Talpada <AshishTalpada>"]
+categories = ["finance", "algorithms", "science"]
 
 [lib]
 name = "sovereign_core"

@@ -1,0 +1,45 @@
+# Jekyll configuration for GitHub Pages SEO
+title: "Samvid Trading Core"
+description: "Open-source, production-grade AI multi-agent algorithmic trading system for Interactive Brokers & MetaTrader 5 with consensus-based execution, institutional risk management, and real-time market data pipelines."
+url: "https://ashishtalpada.github.io"
+baseurl: "/samvid-trading-core"
+author:
+  name: "Ashish Talpada"
+  email: ""
+
+# Theme and plugins
+theme: jekyll-theme-cayman
+plugins:
+  - jekyll-seo-tag
+  - jekyll-sitemap
+  - jekyll-feed
+
+# SEO settings
+twitter:
+  username: AshishTalpada
+  card: summary_large_image
+
+# Social preview
+image: "/docs/images/social_preview.png"
+
+# Navigation
+header_pages:
+  - docs/index.md
+  - docs/architecture.md
+  - docs/ops_guide.md
+
+# Exclude from processing
+exclude:
+  - venv/
+  - .venv/
+  - node_modules/
+  - frontend/node_modules/
+  - data/
+  - logs/
+  - outputs/
+  - scripts/
+  - tests/
+  - tmp/
+  - quarantine/
+  - build/
+  - dist/

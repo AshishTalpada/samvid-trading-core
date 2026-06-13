@@ -1,7 +1,26 @@
 {
-  "name": "dhatu-dashboard",
+  "name": "samvid-trading-dashboard",
   "private": true,
   "version": "0.1.0",
+  "description": "Real-time trading dashboard for Samvid Trading Core — a multi-agent AI algorithmic trading system for Interactive Brokers & MetaTrader 5",
+  "keywords": [
+    "algorithmic-trading",
+    "trading-dashboard",
+    "quantitative-finance",
+    "interactive-brokers",
+    "metatrader5",
+    "real-time-trading",
+    "react-dashboard",
+    "trading-bot-ui"
+  ],
+  "homepage": "https://github.com/AshishTalpada/samvid-trading-core#readme",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/AshishTalpada/samvid-trading-core.git",
+    "directory": "frontend"
+  },
+  "license": "MIT",
+  "author": "Ashish Talpada <AshishTalpada>",
   "type": "module",
   "scripts": {
     "dev": "vite",
