@@ -1912,6 +1912,36 @@ class TradingBrain(BrokerReconciler, HealthChecker, DataProvider, AccountingMixi
                     logger.warning("Scan [%s]: BLACK SWAN FREEZE active — scanning suspended.", symbol)
                     return None
 
+                # DRAWDOWN PREDICTOR EARLY WARNING
+                try:
+                    from drawdown_predictor import DrawdownPredictor
+                    predictor = DrawdownPredictor()
+                    # Map dd_pct to Markov state: <5% = 0, <15% = 1, else = 2
+                    if dd_pct < 0.05:
+                        current_state = 0
+                    elif dd_pct < 0.15:
+                        current_state = 1
+                    else:
+                        current_state = 2
+                    expected_recovery = predictor.predict_duration(current_state, target_state=0)
+                    if expected_recovery > 0 and current_state > 0:
+                        logger.info(
+                            "Scan [%s]: Drawdown predictor estimates %.1f trades to recover from state %d (dd_pct=%.1f%%).",
+                            symbol,
+                            expected_recovery,
+                            current_state,
+                            dd_pct * 100,
+                        )
+                        # If deep drawdown and recovery expectation is high, gate aggressive patterns
+                        if current_state >= 2 and expected_recovery > 10:
+                            logger.warning(
+                                "Scan [%s]: Deep drawdown recovery expected in %.1f trades — raising pattern confidence threshold.",
+                                symbol,
+                                expected_recovery,
+                            )
+                except Exception as dp_err:
+                    logger.debug("Scan [%s]: Drawdown predictor error: %s", symbol, dp_err)
+
                 last_vet = self._vetting_cooldowns.get(symbol)
                 if last_vet:
                     if last_vet.tzinfo is None:
@@ -2087,6 +2117,50 @@ class TradingBrain(BrokerReconciler, HealthChecker, DataProvider, AccountingMixi
                                 f" — CHOPPY regime blocks HFT/SCALP patterns."
                             )
                             return None
+
+                        # SENTIMENT OVERLAY: Veto or dampen confidence on extreme sentiment
+                        try:
+                            from sentiment_agent import aggregate_sentiment
+                            import sqlite3
+                            db_path = getattr(self, "db_path", "data/trading.db")
+                            news_headlines = []
+                            try:
+                                conn = sqlite3.connect(str(db_path))
+                                cur = conn.cursor()
+                                cur.execute(
+                                    "SELECT headline FROM news_headlines WHERE symbol=? AND datetime(timestamp) > datetime('now', '-1 hour') ORDER BY timestamp DESC LIMIT 10",
+                                    (symbol,),
+                                )
+                                news_headlines = [row[0] for row in cur.fetchall() if row[0]]
+                                conn.close()
+                            except Exception:
+                                pass
+                            if news_headlines:
+                                sentiment = aggregate_sentiment(news_headlines, asset_class="equities")
+                                mean_sentiment = sentiment.get("mean", 0.0)
+                                signal = sentiment.get("signal", "NEUTRAL")
+                                if signal in ("BULLISH", "BEARISH") and abs(mean_sentiment) > 0.5:
+                                    # Extreme sentiment: dampen confidence
+                                    dampen_factor = max(0.5, 1.0 - abs(mean_sentiment) * 0.3)
+                                    old_conf = float(best.confidence)
+                                    best.confidence = old_conf * dampen_factor
+                                    logger.info(
+                                        f"Scan [{symbol}]: Sentiment overlay {signal} (mean={mean_sentiment:.2f}) "
+                                        f"dampened {best.name} confidence {old_conf:.1f}% -> {best.confidence:.1f}%"
+                                    )
+                                    if best.confidence < 0.55:
+                                        async with stats_lock:
+                                            stats["detected"] += 1
+                                            stats["rejected"] += 1
+                                        self._log_scan_veto(
+                                            symbol,
+                                            f"{best.name}",
+                                            f"SENTIMENT_VETO: {signal} sentiment too extreme (mean={mean_sentiment:.2f})",
+                                            confidence=float(best.confidence),
+                                        )
+                                        return None
+                        except Exception as se:
+                            logger.debug(f"Scan [{symbol}]: Sentiment overlay error: {se}")
 
                         async with stats_lock:
                             stats["detected"] += 1

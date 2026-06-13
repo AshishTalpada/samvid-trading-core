@@ -1381,6 +1381,39 @@ class TradingCoordinator:
                             bt_exc,
                         )
 
+                # PSYCHOLOGY SAFETY GATE (Stress Veto)
+                try:
+                    from stress_veto import get_stress_veto
+                    stress_veto = get_stress_veto()
+                    analysis = stress_veto.analyze_stress()
+                    if analysis.stress_detected and analysis.recommendation == "LOCKOUT":
+                        if task:
+                            task.set_phase("STRESS_VETO", analysis.stress_type)
+                            task.finalize("VETOED")
+                        logger.warning(
+                            "Coordinator [%s] STRESS_VETO: %s blocked — %s (severity: %.2f). Cooldown: %d min.",
+                            proposal_id,
+                            symbol,
+                            analysis.reason,
+                            analysis.severity,
+                            analysis.cooldown_minutes,
+                        )
+                        LEDGER.record_veto(
+                            symbol=symbol,
+                            reason=f"STRESS_VETO: {analysis.stress_type} — {analysis.reason}",
+                        )
+                        return False
+                    if analysis.stress_detected:
+                        logger.info(
+                            "Coordinator [%s] STRESS_WARNING: %s — %s (severity: %.2f)",
+                            proposal_id,
+                            symbol,
+                            analysis.reason,
+                            analysis.severity,
+                        )
+                except Exception as sv_exc:
+                    logger.debug("Coordinator [%s] stress veto error for %s: %s", proposal_id, symbol, sv_exc)
+
                 if task:
                     task.log(
                         f"EXECUTION_START: Routing {shares} shares to {self.brain.active_broker}."

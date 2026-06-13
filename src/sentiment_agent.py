@@ -51,8 +51,10 @@ def score_text(text: str, asset_class: str = "equities") -> float:
     Applies an asset-class-specific sensitivity multiplier.
     """
     text_lower = text.lower()
-    bull_hits = sum(1 for kw in BULLISH_KEYWORDS if kw in text_lower)
-    bear_hits = sum(1 for kw in BEARISH_KEYWORDS if kw in text_lower)
+    # Use whole-word matching to avoid false positives (e.g. 'ath' in 'today')
+    words = set(text_lower.split())
+    bull_hits = sum(1 for kw in BULLISH_KEYWORDS if kw in words)
+    bear_hits = sum(1 for kw in BEARISH_KEYWORDS if kw in words)
 
     total = bull_hits + bear_hits
     if total == 0:
