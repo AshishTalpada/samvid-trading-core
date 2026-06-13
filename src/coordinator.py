@@ -18,6 +18,7 @@ if TYPE_CHECKING:
     from mind_bridge import MindBridge
 
 from agent_a import agent_a_validate_trade
+from backtest_validator import BacktestValidator
 from decision_ledger import LEDGER
 from execution.slippage import SlippageModel
 from telegram_alerts import send_telegram_alert
@@ -1336,6 +1337,49 @@ class TradingCoordinator:
                     )
                     LEDGER.record_veto(symbol=symbol, reason=f"ENTRY_DATA_VETO: {data_block_reason}")
                     return False
+
+                # BACKTEST VALIDATION GATE (Phase 1 Edge Check)
+                backtest_enabled = str(os.environ.get("SOVEREIGN_BACKTEST_GATE", "1")).strip() in ("1", "true", "yes")
+                if backtest_enabled and pattern:
+                    try:
+                        validator = getattr(self, "_backtest_validator", None)
+                        if validator is None:
+                            db_path = getattr(self.brain, "db_path", "data/trading.db")
+                            self._backtest_validator = BacktestValidator(db_path=str(db_path))
+                            validator = self._backtest_validator
+                        bt_result = asyncio.get_event_loop().run_until_complete(
+                            validator.validate_pattern(symbol, pattern)
+                        )
+                        if not bt_result.passed:
+                            blockers = ", ".join(bt_result.blockers)
+                            if task:
+                                task.set_phase("BACKTEST_VETO", blockers)
+                                task.finalize("VETOED")
+                            logger.warning(
+                                "Coordinator [%s] BACKTEST_VETO: %s blocked - %s.",
+                                proposal_id,
+                                symbol,
+                                blockers,
+                            )
+                            LEDGER.record_veto(
+                                symbol=symbol,
+                                reason=f"BACKTEST_VETO: {blockers}",
+                            )
+                            return False
+                        logger.info(
+                            "Coordinator [%s] BACKTEST_OK: %s passed historical validation (PF=%.2f WR=%.1f).",
+                            proposal_id,
+                            symbol,
+                            bt_result.profit_factor,
+                            bt_result.win_rate * 100,
+                        )
+                    except Exception as bt_exc:
+                        logger.debug(
+                            "Coordinator [%s] backtest gate error for %s: %s",
+                            proposal_id,
+                            symbol,
+                            bt_exc,
+                        )
 
                 if task:
                     task.log(

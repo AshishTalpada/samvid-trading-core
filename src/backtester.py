@@ -233,16 +233,180 @@ def run_walk_forward(
     return bt.run(df)
 
 
+def load_ohlcv_from_db(db_path: str, symbol: str) -> pl.DataFrame | None:
+    """Load real OHLCV bars for *symbol* from a SQLite database."""
+    import sqlite3
+
+    from pathlib import Path
+
+    if not Path(db_path).exists():
+        logger.warning("Backtester: DB %s not found", db_path)
+        return None
+    conn = sqlite3.connect(db_path, timeout=60.0)
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name='ohlcv'"
+        )
+        if not cursor.fetchone():
+            logger.warning("Backtester: 'ohlcv' table missing in %s", db_path)
+            return None
+        cursor.execute(
+            "SELECT timestamp, open, high, low, close, volume FROM ohlcv "
+            "WHERE symbol=? ORDER BY timestamp ASC",
+            (symbol,),
+        )
+        rows = cursor.fetchall()
+        if not rows:
+            logger.warning("Backtester: no OHLCV rows for %s", symbol)
+            return None
+        return pl.DataFrame(
+            {
+                "timestamp": [r[0] for r in rows],
+                "open": [float(r[1]) for r in rows],
+                "high": [float(r[2]) for r in rows],
+                "low": [float(r[3]) for r in rows],
+                "close": [float(r[4]) for r in rows],
+                "volume": [int(r[5]) for r in rows],
+            }
+        )
+    finally:
+        conn.close()
+
+
+def run_with_real_data(
+    db_path: str,
+    symbol: str,
+    window_size: int = 100,
+    step_size: int = 20,
+) -> dict | None:
+    """Run the PatternDetector walk-forward backtest on real DB data."""
+    df = load_ohlcv_from_db(db_path, symbol)
+    if df is None:
+        return None
+    bt = WalkForwardBacktester(window_size=window_size, step_size=step_size)
+    return bt.run(df)
+
+
+def simulate_trade_with_sizing(
+    df: pl.DataFrame,
+    signal_idx: int,
+    entry: float,
+    stop: float,
+    target: float,
+    direction: str = "long",
+    equity: float = 500.0,
+    risk_pct: float = 0.01,
+    max_bars: int = 50,
+) -> dict:
+    """
+    Simulate a trade with realistic PositionSizer sizing.
+    Returns the same dict as simulate_trade() plus 'shares' and 'notional'.
+    """
+    from position_sizer import PositionSizer
+
+    risk = abs(entry - stop)
+    if risk <= 0:
+        return {
+            "outcome": "invalid",
+            "r_multiple": 0.0,
+            "bars_held": 0,
+            "shares": 0,
+            "notional": 0.0,
+        }
+
+    shares = PositionSizer.size_trade(
+        equity=equity,
+        risk_pct=risk_pct,
+        entry=entry,
+        stop=stop,
+    )
+    notional = shares * entry
+
+    for offset in range(1, min(max_bars + 1, len(df) - signal_idx)):
+        bar_idx = signal_idx + offset
+        row_high = df["high"][bar_idx]
+        row_low = df["low"][bar_idx]
+
+        if direction == "long":
+            if row_low <= stop:
+                r = (stop - entry) / risk
+                return {
+                    "outcome": "loss",
+                    "r_multiple": round(r, 3),
+                    "bars_held": offset,
+                    "shares": shares,
+                    "notional": round(notional, 2),
+                }
+            if row_high >= target:
+                r = (target - entry) / risk
+                return {
+                    "outcome": "win",
+                    "r_multiple": round(r, 3),
+                    "bars_held": offset,
+                    "shares": shares,
+                    "notional": round(notional, 2),
+                }
+        else:  # short
+            if row_high >= stop:
+                r = (entry - stop) / risk
+                return {
+                    "outcome": "loss",
+                    "r_multiple": round(-r, 3),
+                    "bars_held": offset,
+                    "shares": shares,
+                    "notional": round(notional, 2),
+                }
+            if row_low <= target:
+                r = (entry - target) / risk
+                return {
+                    "outcome": "win",
+                    "r_multiple": round(r, 3),
+                    "bars_held": offset,
+                    "shares": shares,
+                    "notional": round(notional, 2),
+                }
+
+    # Expired
+    last_close = df["close"][signal_idx + min(max_bars, len(df) - signal_idx - 1)]
+    if direction == "long":
+        r = (last_close - entry) / risk
+    else:
+        r = (entry - last_close) / risk
+    return {
+        "outcome": "timeout",
+        "r_multiple": round(r, 3),
+        "bars_held": max_bars,
+        "shares": shares,
+        "notional": round(notional, 2),
+    }
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Sovereign Walk-Forward Backtester")
     parser.add_argument("--bars", type=int, default=500, help="Number of synthetic bars")
     parser.add_argument("--window", type=int, default=100, help="Detection window size")
     parser.add_argument("--step", type=int, default=20, help="Step size between windows")
     parser.add_argument("--seed", type=int, default=42, help="Random seed")
+    parser.add_argument("--db", type=str, default="", help="SQLite DB path for real data")
+    parser.add_argument("--symbol", type=str, default="SPY", help="Symbol when using --db")
     args = parser.parse_args()
 
-    print(f"Running walk-forward backtest: {args.bars} bars, window={args.window}, step={args.step}")
-    results = run_walk_forward(args.bars, args.window, args.step, args.seed)
+    if args.db:
+        print(
+            f"Running walk-forward backtest on REAL data: {args.symbol} "
+            f"from {args.db} (window={args.window}, step={args.step})"
+        )
+        results = run_with_real_data(args.db, args.symbol, args.window, args.step)
+        if results is None:
+            print("No data available. Aborting.")
+            raise SystemExit(1)
+    else:
+        print(
+            f"Running walk-forward backtest: {args.bars} bars, "
+            f"window={args.window}, step={args.step}"
+        )
+        results = run_walk_forward(args.bars, args.window, args.step, args.seed)
 
     print("\n=== BACKTEST RESULTS ===")
     print(f"  Total signals detected : {results['total_signals']}")
