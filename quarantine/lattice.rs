@@ -8,10 +8,8 @@
 
 use rand::{thread_rng, Rng};
 
-/// Deep Dive: Post-Quantum Lattice Cryptography (Module Learning With Errors / Kyber-style)
-/// This module ensures that all stored Alpha weights and historical trades are
-/// encrypted against future Quantum Computer attacks (Shor's Algorithm).
-
+// Experimental post-quantum lattice cryptography (module learning with errors).
+// This toy implementation is compiled only for research and must not protect production data.
 // Parameters for a toy-Kyber implementation
 const N: usize = 256; // Polynomial degree
 const Q: i32 = 3329; // Prime modulus
@@ -20,6 +18,12 @@ const K: usize = 2; // Module dimension
 #[derive(Clone)]
 pub struct Poly {
     pub coeffs: [i32; N],
+}
+
+impl Default for Poly {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl Poly {
@@ -58,12 +62,12 @@ impl Poly {
         }
 
         // Reduction by Q
-        for i in 0..N {
-            let mut val = (temp[i] % (Q as i64)) as i32;
+        for (coefficient, raw) in result.coeffs.iter_mut().zip(temp.iter()) {
+            let mut val = (raw % (Q as i64)) as i32;
             if val < 0 {
                 val += Q;
             }
-            result.coeffs[i] = val;
+            *coefficient = val;
         }
 
         result
@@ -77,16 +81,22 @@ pub struct KyberState {
     pub public_t: Vec<Poly>,
 }
 
+impl Default for KyberState {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl KyberState {
     pub fn new() -> Self {
         let mut rng = thread_rng();
 
         // 1. Generate random matrix A
         let mut a = vec![vec![Poly::new(); K]; K];
-        for i in 0..K {
-            for j in 0..K {
-                for c in 0..N {
-                    a[i][j].coeffs[c] = rng.gen_range(0..Q);
+        for row in &mut a {
+            for poly in row {
+                for coefficient in &mut poly.coeffs {
+                    *coefficient = rng.gen_range(0..Q);
                 }
             }
         }
@@ -95,21 +105,23 @@ impl KyberState {
         // In real Kyber, these are sampled from a Centered Binomial Distribution
         let mut s = vec![Poly::new(); K];
         let mut e = vec![Poly::new(); K];
-        for i in 0..K {
-            for c in 0..N {
-                s[i].coeffs[c] = rng.gen_range(-2..=2);
-                e[i].coeffs[c] = rng.gen_range(-2..=2);
+        for (secret, error) in s.iter_mut().zip(e.iter_mut()) {
+            for (secret_coefficient, error_coefficient) in
+                secret.coeffs.iter_mut().zip(error.coeffs.iter_mut())
+            {
+                *secret_coefficient = rng.gen_range(-2..=2);
+                *error_coefficient = rng.gen_range(-2..=2);
             }
         }
 
         // 3. Compute public key t = A * s + e
         let mut t = vec![Poly::new(); K];
-        for i in 0..K {
+        for (target, (row, error)) in t.iter_mut().zip(a.iter().zip(e.iter())) {
             let mut row_sum = Poly::new();
-            for j in 0..K {
-                row_sum = row_sum.add(&a[i][j].mul(&s[j]));
+            for (matrix_poly, secret) in row.iter().zip(s.iter()) {
+                row_sum = row_sum.add(&matrix_poly.mul(secret));
             }
-            t[i] = row_sum.add(&e[i]);
+            *target = row_sum.add(error);
         }
 
         KyberState {
@@ -129,30 +141,32 @@ impl KyberState {
         let mut e1 = vec![Poly::new(); K];
         let mut e2 = Poly::new();
 
-        for i in 0..K {
-            for c in 0..N {
-                r[i].coeffs[c] = rng.gen_range(-2..=2);
-                e1[i].coeffs[c] = rng.gen_range(-2..=2);
+        for (ephemeral, error) in r.iter_mut().zip(e1.iter_mut()) {
+            for (ephemeral_coefficient, error_coefficient) in
+                ephemeral.coeffs.iter_mut().zip(error.coeffs.iter_mut())
+            {
+                *ephemeral_coefficient = rng.gen_range(-2..=2);
+                *error_coefficient = rng.gen_range(-2..=2);
             }
         }
-        for c in 0..N {
-            e2.coeffs[c] = rng.gen_range(-2..=2);
+        for coefficient in &mut e2.coeffs {
+            *coefficient = rng.gen_range(-2..=2);
         }
 
         // u = A^T * r + e1
         let mut u = vec![Poly::new(); K];
-        for i in 0..K {
+        for (i, (target, error)) in u.iter_mut().zip(e1.iter()).enumerate() {
             let mut col_sum = Poly::new();
-            for j in 0..K {
-                col_sum = col_sum.add(&self.public_matrix_a[j][i].mul(&r[j]));
+            for (row, ephemeral) in self.public_matrix_a.iter().zip(r.iter()) {
+                col_sum = col_sum.add(&row[i].mul(ephemeral));
             }
-            u[i] = col_sum.add(&e1[i]);
+            *target = col_sum.add(error);
         }
 
         // v = t^T * r + e2 + m * (Q/2)
         let mut v_sum = Poly::new();
-        for i in 0..K {
-            v_sum = v_sum.add(&self.public_t[i].mul(&r[i]));
+        for (public, ephemeral) in self.public_t.iter().zip(r.iter()) {
+            v_sum = v_sum.add(&public.mul(ephemeral));
         }
 
         let mut v = v_sum.add(&e2);

@@ -16,6 +16,12 @@ pub struct QuantumSafeChannel {
     secret_key: SecretKey,
 }
 
+impl Default for QuantumSafeChannel {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl QuantumSafeChannel {
     pub fn new() -> Self {
         let (pk, sk) = kyber1024::keypair();
