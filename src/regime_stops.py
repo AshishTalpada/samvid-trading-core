@@ -161,6 +161,38 @@ class RegimeStopEngine:
             stop_price = entry_price + stop_distance
             break_even = entry_price - (stop_distance * 0.5)
 
+        # MARKET-MAKER STOP-HUNT AVOIDANCE
+        # If we have enough price history, nudge the stop away from known cluster levels
+        try:
+            from mm_simulator import MarketMakerSimulator
+            mm = MarketMakerSimulator()
+            # Build a simple price history around entry for cluster detection
+            # Use entry ± 3*stop_distance as a proxy recent range
+            prices = [
+                entry_price - 3 * stop_distance + (i * 0.05)
+                for i in range(int(6 * stop_distance / 0.05))
+            ]
+            safe_stop = mm.safe_stop_level(
+                entry=entry_price,
+                side="long" if position_type == "LONG" else "short",
+                prices=prices,
+                buffer_pct=0.003,
+            )
+            # Only adjust if the MM-safe level is further from entry (more protective)
+            if position_type == "LONG":
+                if safe_stop < stop_price:
+                    stop_price = safe_stop
+                    stop_type = f"{stop_type}_MM_SAFE"
+                    rationale += " | MM-safe stop pushed below cluster level."
+            else:
+                if safe_stop > stop_price:
+                    stop_price = safe_stop
+                    stop_type = f"{stop_type}_MM_SAFE"
+                    rationale += " | MM-safe stop pushed above cluster level."
+        except Exception as mm_err:
+            import logging
+            logging.getLogger(__name__).debug("MM stop adjustment skipped: %s", mm_err)
+
         self.last_stop = {  # type: ignore
             "entry": entry_price,
             "stop": stop_price,
