@@ -323,6 +323,36 @@ class TradingBrain(BrokerReconciler, HealthChecker, DataProvider, AccountingMixi
         except Exception as _aa_err:
             logger.warning(f"AuditAgent init skipped: {_aa_err}")
             self.audit_agent = None
+        try:
+            from discovery_engine import AlphaDiscoveryEngine
+            self.alpha_discovery = AlphaDiscoveryEngine(population_size=30)
+        except Exception as _ade_err:
+            logger.warning(f"AlphaDiscoveryEngine init skipped: {_ade_err}")
+            self.alpha_discovery = None
+        try:
+            from fractal_agent import FractalAgent
+            self.fractal_agent = FractalAgent()
+        except Exception as _fa_err:
+            logger.warning(f"FractalAgent init skipped: {_fa_err}")
+            self.fractal_agent = None
+        try:
+            from correlation_monitor import CorrelationBreakdownMonitor
+            self.correlation_monitor = CorrelationBreakdownMonitor(window=20, contagion_threshold=0.80)
+        except Exception as _cm_err:
+            logger.warning(f"CorrelationBreakdownMonitor init skipped: {_cm_err}")
+            self.correlation_monitor = None
+        try:
+            from flow_agent import CapitalFlowAgent
+            self.flow_agent = CapitalFlowAgent()
+        except Exception as _flow_err:
+            logger.warning(f"CapitalFlowAgent init skipped: {_flow_err}")
+            self.flow_agent = None
+        try:
+            from regime_agent import BayesianRegimeAgent
+            self.bayesian_regime = BayesianRegimeAgent()
+        except Exception as _br_err:
+            logger.warning(f"BayesianRegimeAgent init skipped: {_br_err}")
+            self.bayesian_regime = None
 
         self.ibkr_conn = IBKRConnection(ibkr_client)
         self.ibkr_conn.brain = self
@@ -2106,6 +2136,54 @@ class TradingBrain(BrokerReconciler, HealthChecker, DataProvider, AccountingMixi
                                     )
                         except Exception as chaos_err:
                             logger.debug("Scan [%s]: ChaosAgent error: %s", symbol, chaos_err)
+
+                        # FRACTAL AGENT: Trend quality gate — skip choppy markets
+                        _fractal_skip = False
+                        try:
+                            if self.fractal_agent:
+                                _fa_result = self.fractal_agent.analyze_trend(close_prices)
+                                _fd = _fa_result.get("fractal_dimension", 1.5)
+                                if _fa_result.get("market_state") == "CHOPPY_MEAN_REVERTING":
+                                    logger.info(
+                                        "Scan [%s]: FractalAgent choppy market (FD=%.2f). Skipping patterns.",
+                                        symbol, _fd,
+                                    )
+                                    _fractal_skip = True
+                        except Exception as _fractal_err:
+                            logger.debug("Scan [%s]: FractalAgent error: %s", symbol, _fractal_err)
+
+                        if _fractal_skip:
+                            return None
+
+                        # BAYESIAN REGIME AGENT: secondary regime confirmation
+                        try:
+                            if self.bayesian_regime and len(close_prices) >= 20:
+                                _recent_rets = list(np.diff(close_prices[-21:]) / (np.array(close_prices[-21:-1]) + 1e-9))
+                                _recent_vol = float(np.std(_recent_rets)) + 1e-9
+                                _bayes_regime = self.bayesian_regime.update_beliefs(_recent_rets, _recent_vol)
+                                logger.debug("Scan [%s]: BayesianRegime=%s", symbol, _bayes_regime)
+                        except Exception as _br_err:
+                            logger.debug("Scan [%s]: BayesianRegimeAgent error: %s", symbol, _br_err)
+
+                        # CAPITAL FLOW AGENT: ingest ticker return for sector rotation tracking
+                        try:
+                            if self.flow_agent and len(close_prices) >= 2:
+                                _tick_ret = (close_prices[-1] - close_prices[-2]) / (close_prices[-2] + 1e-9)
+                                self.flow_agent.ingest(symbol, _tick_ret)
+                        except Exception as _flow_err:
+                            logger.debug("Scan [%s]: CapitalFlowAgent error: %s", symbol, _flow_err)
+
+                        # ALPHA DISCOVERY: evolve GA ensemble periodically
+                        try:
+                            if self.alpha_discovery and len(close_prices) >= 60:
+                                _ens_sig = self.alpha_discovery.ensemble_signal(close_prices)
+                                if _ens_sig is not None:
+                                    logger.debug(
+                                        "Scan [%s]: AlphaDiscovery ensemble signal=%.2f",
+                                        symbol, _ens_sig,
+                                    )
+                        except Exception as _disc_err:
+                            logger.debug("Scan [%s]: AlphaDiscovery error: %s", symbol, _disc_err)
 
                         # Offload CPU-heavy pattern detection to a thread pool
                         # to avoid blocking the event loop

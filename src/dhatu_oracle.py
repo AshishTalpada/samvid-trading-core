@@ -868,6 +868,7 @@ class DhatuOracle:
             "CIRCUIT",
         }
         self._last_flash_time = 0.0  # Throttler
+        self._flash_headline_times: dict[str, float] = {}
 
         self._forbidden_neural = [
             "IGNORE ALL",
@@ -926,8 +927,15 @@ class DhatuOracle:
                 is_negated = any(neg + k in h_up for k in found_k for neg in negators)
 
                 now = time.time()
+                headline_key = " ".join(h_up.split())
+                last_seen = self._flash_headline_times.get(headline_key)
+                is_duplicate = last_seen is not None and now - last_seen < 86400
+                self._flash_headline_times[headline_key] = now
+                if len(self._flash_headline_times) > 512:
+                    oldest = min(self._flash_headline_times, key=self._flash_headline_times.get)
+                    self._flash_headline_times.pop(oldest, None)
                 # 5-minute cooldown between flashes to prevent LLM/Budget burnout
-                if not is_negated and (now - self._last_flash_time > 300):
+                if not is_negated and not is_duplicate and (now - self._last_flash_time > 300):
                     logger.warning(f" DHATU FLASH TRIGGER: critical news detected: '{h}'")
                     self._last_flash_time = now
                     self._flash_event.set()
@@ -1004,41 +1012,55 @@ class DhatuOracle:
     def _persist_state(self, state: OracleState) -> None:
         """Save current OracleState to database."""
         import sqlite3
+        from contextlib import closing
 
-        try:
-            state_data = {
-                "dhatu_state": state.dhatu_state,
-                "action_protocol": state.action_protocol,
-                "risk_modifier": state.risk_modifier,
-                "causation_summary": state.causation_summary,
-                "confidence": state.confidence,
-                "generated_at": state.generated_at.isoformat(),
-            }
-            from contextlib import closing
-
-            with closing(sqlite3.connect(self._db_path, timeout=60.0)) as conn, conn:
-                conn.execute("PRAGMA journal_mode=WAL;")
-                conn.execute("PRAGMA busy_timeout = 60000;")
-                conn.execute(
-                    "INSERT OR REPLACE INTO system_state (key, value, updated_at) VALUES (?, ?, ?)",
-                    ("oracle_state", json.dumps(state_data), datetime.now(timezone.utc).isoformat()),
+        state_data = {
+            "dhatu_state": state.dhatu_state,
+            "action_protocol": state.action_protocol,
+            "risk_modifier": state.risk_modifier,
+            "causation_summary": state.causation_summary,
+            "confidence": state.confidence,
+            "generated_at": state.generated_at.isoformat(),
+        }
+        for attempt in range(1, 4):
+            try:
+                with closing(sqlite3.connect(self._db_path, timeout=10.0)) as conn, conn:
+                    conn.execute("PRAGMA busy_timeout = 10000;")
+                    conn.execute(
+                        "INSERT OR REPLACE INTO system_state (key, value, updated_at) VALUES (?, ?, ?)",
+                        (
+                            "oracle_state",
+                            json.dumps(state_data),
+                            datetime.now(timezone.utc).isoformat(),
+                        ),
+                    )
+                    conn.execute(
+                        "INSERT INTO dhatu_readings "
+                        "(timestamp, dhatu_state, base_modifier, freshness_score, "
+                        "final_modifier, instrument) VALUES (?, ?, ?, ?, ?, ?)",
+                        (
+                            datetime.now(timezone.utc).isoformat(),
+                            state.dhatu_state,
+                            float(state.risk_modifier),
+                            float(getattr(state, "confidence", 0.0) or 0.0),
+                            float(state.risk_modifier),
+                            "GLOBAL",
+                        ),
+                    )
+                logger.debug("DhatuOracle: State persisted to DB")
+                return
+            except sqlite3.OperationalError as exc:
+                if "locked" not in str(exc).lower() or attempt == 3:
+                    logger.error("DhatuOracle: Failed to persist state: %s", exc)
+                    return
+                logger.warning(
+                    "DhatuOracle: database busy on persist attempt %d/3; retrying",
+                    attempt,
                 )
-                conn.execute(
-                    "INSERT INTO dhatu_readings "
-                    "(timestamp, dhatu_state, base_modifier, freshness_score, "
-                    "final_modifier, instrument) VALUES (?, ?, ?, ?, ?, ?)",
-                    (
-                        datetime.now(timezone.utc).isoformat(),
-                        state.dhatu_state,
-                        float(state.risk_modifier),
-                        float(getattr(state, "confidence", 0.0) or 0.0),
-                        float(state.risk_modifier),
-                        "GLOBAL",
-                    ),
-                )
-            logger.debug("DhatuOracle: State persisted to DB")
-        except Exception as e:
-            logger.error(f"DhatuOracle: Failed to persist state: {e}")
+                time.sleep(0.25 * attempt)
+            except Exception as exc:
+                logger.error("DhatuOracle: Failed to persist state: %s", exc)
+                return
 
     def _load_persisted_state(self) -> None:
         """Load last OracleState from database."""

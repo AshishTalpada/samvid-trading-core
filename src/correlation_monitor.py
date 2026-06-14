@@ -54,4 +54,4 @@ class CorrelationBreakdownMonitor:
     def risk_multiplier(self) -> float:
         avg = self.avg_pairwise_correlation()
         # Returns 1.0 at normal corr, approaches 0.0 as corr->1.0 (kill sizing)
-        return max(0.1, 1.0 - avg)
+        return float(np.clip(1.0 - avg, 0.1, 1.0))

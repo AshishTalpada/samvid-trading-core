@@ -43,7 +43,7 @@ class OptionAgent:
             )
 
         # If dealers are short gamma, they must buy into rallies (positive feedback loop)
-        squeeze_risk = total_dealer_gamma < -1000000.0  # Arbitrary threshold for major short gamma
+        squeeze_risk = bool(total_dealer_gamma < -1_000_000.0)
 
         return {
             "total_dealer_gamma": total_dealer_gamma,
