@@ -52,6 +52,26 @@ class TradingCoordinator:
         self.exoskeleton = ApexExoskeleton(brain)
         self._semaphore: asyncio.Semaphore | None = None  # Lazy-init to bind to running loop
         self.slippage_model = SlippageModel()
+        try:
+            from cognitive_diversity import CognitiveDiversityEnforcer
+            self._diversity_enforcer = CognitiveDiversityEnforcer()
+        except Exception:
+            self._diversity_enforcer = None
+        try:
+            from ensemble_distill import EnsembleDistiller
+            self._ensemble_distiller = EnsembleDistiller()
+        except Exception:
+            self._ensemble_distiller = None
+        try:
+            from reflexivity_scale import ReflexivityScale
+            self._reflexivity = ReflexivityScale(lookback=20)
+        except Exception:
+            self._reflexivity = None
+        try:
+            from game_theory import GameTheoryPositionSizer
+            self._game_theory_sizer = GameTheoryPositionSizer()
+        except Exception:
+            self._game_theory_sizer = None
 
     def _estimate_entry_friction_per_share(
         self,
@@ -1271,6 +1291,36 @@ class TradingCoordinator:
                             )
                 except Exception as audit_err:
                     logger.debug("Coordinator [%s]: AuditAgent error: %s", symbol, audit_err)
+
+                # COGNITIVE DIVERSITY: measure HHI of vote distribution
+                try:
+                    if self._diversity_enforcer and all_votes:
+                        _vote_counts: Dict[str, int] = {}
+                        for _v in all_votes:
+                            _vt = _v.get("vote", "ABSTAIN")
+                            _vote_counts[_vt] = _vote_counts.get(_vt, 0) + 1
+                        _div_report = self._diversity_enforcer.diversity_report(_vote_counts)
+                        if not _div_report["is_diverse"]:
+                            logger.warning(
+                                "Coordinator [%s]: Low vote diversity HHI=%.2f — herding risk",
+                                symbol, _div_report["hhi"],
+                            )
+                except Exception as _div_err:
+                    logger.debug("Coordinator [%s]: DiversityEnforcer error: %s", symbol, _div_err)
+
+                # ENSEMBLE DISTILLER: record model outputs for accuracy tracking
+                try:
+                    if self._ensemble_distiller and all_votes:
+                        _distilled = self._ensemble_distiller.distill(
+                            [{"model": v.get("agent", "?"), "vote": v.get("vote", "ABSTAIN"),
+                              "confidence": v.get("confidence", 0.5)} for v in all_votes]
+                        )
+                        logger.debug(
+                            "Coordinator [%s]: Ensemble distilled vote=%s conf=%.1f%%",
+                            symbol, _distilled["vote"], _distilled["confidence"] * 100,
+                        )
+                except Exception as _ens_err:
+                    logger.debug("Coordinator [%s]: EnsembleDistiller error: %s", symbol, _ens_err)
 
                 decision = await self.brain.decision_engine.evaluate(shared_context, all_votes)
                 # Implementation: decision_engine can return None on internal error; guard before .get() calls
