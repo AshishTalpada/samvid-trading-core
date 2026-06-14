@@ -36,7 +36,7 @@ class ProbabilityOfRuinCalculator:
             path_returns = np.random.choice(recent_returns, size=self.horizon, replace=True)
             capital = starting_capital
             for r in path_returns:
-                capital *= 1 + r
+                capital = max(0.0, capital * (1 + r))
                 if capital <= ruin_level:
                     ruin_count += 1
                     break

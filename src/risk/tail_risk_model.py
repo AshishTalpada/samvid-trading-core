@@ -24,6 +24,8 @@ class TailRiskModel:
             return 0.0, float(np.std(arr))
         mean_e = float(np.mean(exceedances))
         var_e = float(np.var(exceedances))
+        if mean_e <= 0:
+            return 0.0, float(np.std(arr))
         sigma = mean_e * (1 + var_e / mean_e**2) / 2
         xi = (var_e / mean_e**2 - 1) / 2
         return xi, sigma

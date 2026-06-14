@@ -49,7 +49,7 @@ class TrapDetector:
         Returns:
             Spoof risk probability (0.0 to 1.0).
         """
-        if current_top_size <= 0:
+        if current_top_size <= 0 or current_price <= 0:
             return 0.0
 
         # Look for cancellations on the same side, at similar prices, that were very large and short-lived

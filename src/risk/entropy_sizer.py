@@ -23,9 +23,12 @@ class EntropySizer:
         if not probabilities:
             return 0.0
 
-        p = np.array(probabilities)
+        p = np.array(probabilities, dtype=float)
+        total = np.sum(p)
+        if total <= 0:
+            return 0.0
         # Normalize and clip to avoid log(0)
-        p = p / np.sum(p)
+        p = p / total
         p = np.clip(p, 1e-9, 1 - 1e-9)
 
         # Shannon entropy

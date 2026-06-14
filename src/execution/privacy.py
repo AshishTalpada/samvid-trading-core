@@ -35,7 +35,9 @@ class DifferentialPrivacyObfuscator:
         self.running_balance = 0
         for i in range(active_slices - 1):
             # Sample from Laplace distribution: mu = 0, scale = b
+            # Clamp u strictly inside (-0.5, 0.5) to prevent log(0) = -inf
             u = random.uniform(-0.5, 0.5)
+            u = max(-0.4999, min(0.4999, u))
             noise = -b * math.copysign(1.0, u) * math.log(1.0 - 2.0 * abs(u))
 
             # Apply noise and ensure realistic bounds

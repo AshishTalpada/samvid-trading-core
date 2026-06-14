@@ -1,7 +1,7 @@
 import hashlib
 import logging
 import threading
-from typing import List, Optional
+from typing import Any, List, Optional
 
 from chromadb import Documents, EmbeddingFunction, Embeddings
 
