@@ -674,6 +674,23 @@ class TradingBrain(BrokerReconciler, HealthChecker, DataProvider, AccountingMixi
             "kelly_fraction": consensus.get("kelly_fraction", 0),
         }
 
+    def _apply_macro_impact(self, payload: dict) -> bool:
+        """Apply a bounded macro overlay without compounding repeated pulses."""
+        status = str(payload.get("status", "ONLINE")).upper()
+        impact = str(payload.get("impact", "UNKNOWN")).upper()
+        if status == "UNAVAILABLE" or impact not in {"BEARISH", "BULLISH"}:
+            return False
+
+        current = float(self._oracle_risk_modifier)
+        if impact == "BEARISH":
+            updated = min(current, 0.8)
+        elif current >= 1.0:
+            updated = min(1.1, max(current, 1.05))
+        else:
+            updated = current
+        self._oracle_risk_modifier = updated
+        return updated != current
+
     async def get_ibkr_cushion(self) -> float:
         """Proxy to Agent C's margin probe via direct IBKR connection."""
         if self.ibkr_conn and hasattr(self.ibkr_conn, "get_margin_cushion"):
@@ -1387,10 +1404,7 @@ class TradingBrain(BrokerReconciler, HealthChecker, DataProvider, AccountingMixi
                                 "BUS → macro.impact ignored during oracle freeze: %s", impact
                             )
                             continue
-                        if impact == "BEARISH":
-                            self._oracle_risk_modifier *= 0.8
-                        elif impact == "BULLISH":
-                            self._oracle_risk_modifier = min(1.5, self._oracle_risk_modifier * 1.1)
+                        self._apply_macro_impact(payload)
                         logger.info(
                             f" BUS → macro.impact: {impact} | "
                             f"Adjusted Modifier: {self._oracle_risk_modifier:.2f}"

@@ -934,6 +934,8 @@ class DhatuOracle:
 
     async def _on_macro_received(self, data: dict) -> None:
         """Capture macro impact signals into the Oracle buffer."""
+        if str(data.get("status", "ONLINE")).upper() == "UNAVAILABLE":
+            return
         impact = data.get("impact", "NEUTRAL")
         reason = data.get("reason", "N/A")
         self._macro_buffer.append(f"[MACRO_IMPACT] {impact}: {reason}")
