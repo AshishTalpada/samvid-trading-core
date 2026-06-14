@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import math
 import os
 import random
 import sqlite3
@@ -1400,26 +1401,62 @@ class DataPipeline:
         Global Macro Impact Synthesis.
         Correlates Bond Yields, DXY, and Sector Weightings to detect Regime Shifts.
         """
-        impact = {"regime": "NEUTRAL", "vulnerability": "LOW", "signals": []}
+        impact: dict[str, Any] = {
+            "impact": "UNKNOWN",
+            "regime": "UNKNOWN",
+            "vulnerability": "UNKNOWN",
+            "signals": [],
+            "status": "UNAVAILABLE",
+            "source": "openbb",
+        }
         try:
             snapshot = await self.fetch_macro_snapshot()
-            vix = snapshot.get("vix", 15.0)
-            tnx = snapshot.get("treasury_10y", 4.0)
-            dxy = snapshot.get("dxy", 100.0)
+            if not snapshot:
+                return impact
+
+            metrics: dict[str, float] = {}
+            for key in ("vix", "treasury_10y", "dxy"):
+                try:
+                    value = float(snapshot[key])
+                except (KeyError, TypeError, ValueError):
+                    continue
+                if math.isfinite(value) and value > 0.0:
+                    metrics[key] = value
+
+            if not metrics:
+                return impact
+
+            impact.update(
+                {
+                    "impact": "NEUTRAL",
+                    "regime": "NEUTRAL",
+                    "vulnerability": "LOW",
+                    "status": "ONLINE" if len(metrics) == 3 else "DEGRADED",
+                    "metrics": metrics,
+                }
+            )
+            vix = metrics.get("vix")
+            tnx = metrics.get("treasury_10y")
+            dxy = metrics.get("dxy")
 
             # Regime Analysis
-            if vix > 25 or dxy > 105:
+            if (vix is not None and vix > 25) or (dxy is not None and dxy > 105):
                 impact["regime"] = "HEDGING"
+                impact["impact"] = "BEARISH"
                 impact["vulnerability"] = "HIGH"
                 impact["signals"].append("Risk-Off: Strong DXY/VIX")
-            elif tnx > 4.5:
+            elif tnx is not None and tnx > 4.5:
                 # High yield = Pressure on Equities
                 impact["regime"] = "STRESS"
+                impact["impact"] = "BEARISH"
+                impact["vulnerability"] = "MEDIUM"
                 impact["signals"].append("High 10Y Yield Pressure")
 
-            impact["impact"] = impact["regime"]  # Ensure compatibility with listeners
             logger.info(
-                f"Macro Impact Synthesized: {impact['regime']} (VIX: {vix:.1f}, 10Y: {tnx:.1f})"
+                "Macro Impact Synthesized: %s (metrics=%s, status=%s)",
+                impact["impact"],
+                metrics,
+                impact["status"],
             )
             return impact
         except Exception as e:
@@ -1443,21 +1480,36 @@ class DataPipeline:
                         "flow_bias": bias,
                         "symbol": symbol,
                         "intensity": 0.8,
-                        "detail": "Volume > 3x Avg",
+                        "detail": "15m volume >3x five-day mean; institutional origin unconfirmed",
+                        "source": "yfinance_15m_volume_proxy",
+                        "status": "OBSERVED_PROXY",
                     }
-            return {"flow_bias": "NEUTRAL", "symbol": symbol, "intensity": 0.0}
+            return {
+                "flow_bias": "NEUTRAL",
+                "symbol": symbol,
+                "intensity": 0.0,
+                "source": "yfinance_15m_volume_proxy",
+                "status": "NO_ANOMALY",
+            }
         except Exception as e:
             logger.debug(f"Flow calculation error for {symbol}: {e}")
-            return {"flow_bias": "UNKNOWN", "symbol": symbol, "intensity": 0.0}
+            return {
+                "flow_bias": "UNKNOWN",
+                "symbol": symbol,
+                "intensity": 0.0,
+                "source": "yfinance_15m_volume_proxy",
+                "status": "UNAVAILABLE",
+            }
 
     async def fetch_dark_pool_logic(self, symbol: str) -> str:
-        """Sovereign Dark Pool Tracker: Detects hidden institutional accumulation."""
-        # Simulated dark pool logic based on volume divergence
-        return "NEUTRAL_ACCUMULATION"
+        """Report that no authenticated dark-pool feed is configured."""
+        logger.debug("Dark-pool signal unavailable for %s: no authenticated ATS feed", symbol)
+        return "UNAVAILABLE"
 
     async def fetch_fomc_calendar(self) -> list[dict]:
-        """Fetch central bank policy events (Placeholder for OpenBB Eco module)."""
-        return [{"event": "Market Monitoring", "importance": "HIGH"}]
+        """Return no events when an authenticated economic calendar is unavailable."""
+        logger.debug("FOMC calendar unavailable: no calendar provider configured")
+        return []
 
     async def _run_news_loop(self) -> None:
         """Periodically fetch news headlines and update sentiment context and ChromaDB."""
