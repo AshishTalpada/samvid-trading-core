@@ -236,7 +236,6 @@ def run_walk_forward(
 def load_ohlcv_from_db(db_path: str, symbol: str) -> pl.DataFrame | None:
     """Load real OHLCV bars for *symbol* from a SQLite database."""
     import sqlite3
-
     from pathlib import Path
 
     if not Path(db_path).exists():

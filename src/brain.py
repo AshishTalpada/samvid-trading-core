@@ -2168,9 +2168,10 @@ class TradingBrain(BrokerReconciler, HealthChecker, DataProvider, AccountingMixi
 
                         # SENTIMENT OVERLAY: Veto or dampen confidence on extreme sentiment
                         try:
+                            import sqlite3
+
                             from sentiment_agent import aggregate_sentiment
                             from sentiment_vol import SentimentVolatilityIndex
-                            import sqlite3
                             db_path = getattr(self, "db_path", "data/trading.db")
                             news_headlines = []
                             try:

@@ -147,7 +147,7 @@ class BacktestValidator:
         Run the full WalkForwardEngine (QuantConsensus-based) on a symbol.
         Returns the aggregate gate report.  Useful for periodic health checks.
         """
-        from backtest_engine import WalkForwardEngine, aggregate_results
+        from backtest_engine import aggregate_results
 
         engine = WalkForwardEngine(
             db_path=self.db_path,
@@ -289,7 +289,6 @@ class BacktestValidator:
         df: pl.DataFrame,
     ) -> BacktestValidationResult:
         """Thorough validation using QuantConsensus walk-forward engine."""
-        from backtest_engine import WalkForwardEngine
 
         engine = WalkForwardEngine(
             db_path=self.db_path,
