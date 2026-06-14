@@ -30,6 +30,7 @@ class StealthSlicer:
 
     def _laplace_noise(self, scale: float) -> float:
         u = secrets.randbelow(10**9) / 10**9 - 0.5
+        u = max(-0.4999, min(0.4999, u))  # prevent log(0) at boundary
         return -scale * math.copysign(1, u) * math.log(1 - 2 * abs(u))
 
     def _poisson_delay(self, mean_secs: float) -> float:

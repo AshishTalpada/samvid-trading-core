@@ -16,7 +16,7 @@ class DynamicHedger:
     def _black_scholes_delta(self, S: float, K: float, T: float, r: float, sigma: float) -> float:
         from scipy.stats import norm
 
-        if T <= 0 or sigma <= 0:
+        if T <= 0 or sigma <= 0 or S <= 0 or K <= 0:
             return 0.0
         d1 = (math.log(S / K) + (r + 0.5 * sigma**2) * T) / (sigma * math.sqrt(T))
         return float(norm.cdf(d1))
