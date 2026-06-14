@@ -1942,6 +1942,22 @@ class TradingBrain(BrokerReconciler, HealthChecker, DataProvider, AccountingMixi
                 except Exception as dp_err:
                     logger.debug("Scan [%s]: Drawdown predictor error: %s", symbol, dp_err)
 
+                # VIX CIRCUIT BREAKER (rolling-window flash spike detector)
+                try:
+                    from vix_circuit_breaker import VIXCircuitBreaker
+                    if not hasattr(self, "_vix_breaker"):
+                        self._vix_breaker = VIXCircuitBreaker(spike_threshold=0.20, window_seconds=300)
+                    vix_value = await self._get_vix()
+                    if vix_value is not None and self._vix_breaker.process_vix_tick(vix_value):
+                        async with stats_lock:
+                            stats["gated"] += 1
+                        logger.critical(
+                            "Scan [%s]: VIX FLASH SPIKE detected — scanning suspended.", symbol
+                        )
+                        return None
+                except Exception as vix_err:
+                    logger.debug("Scan [%s]: VIX circuit breaker error: %s", symbol, vix_err)
+
                 last_vet = self._vetting_cooldowns.get(symbol)
                 if last_vet:
                     if last_vet.tzinfo is None:
@@ -2121,6 +2137,7 @@ class TradingBrain(BrokerReconciler, HealthChecker, DataProvider, AccountingMixi
                         # SENTIMENT OVERLAY: Veto or dampen confidence on extreme sentiment
                         try:
                             from sentiment_agent import aggregate_sentiment
+                            from sentiment_vol import SentimentVolatilityIndex
                             import sqlite3
                             db_path = getattr(self, "db_path", "data/trading.db")
                             news_headlines = []
@@ -2139,6 +2156,15 @@ class TradingBrain(BrokerReconciler, HealthChecker, DataProvider, AccountingMixi
                                 sentiment = aggregate_sentiment(news_headlines, asset_class="equities")
                                 mean_sentiment = sentiment.get("mean", 0.0)
                                 signal = sentiment.get("signal", "NEUTRAL")
+                                # Sentiment Volatility Index: track reversal risk
+                                if not hasattr(self, "_sentiment_vol_index"):
+                                    self._sentiment_vol_index = SentimentVolatilityIndex(lookback=60)
+                                self._sentiment_vol_index.update(mean_sentiment)
+                                svi_value = self._sentiment_vol_index.svi()
+                                if svi_value > 0.5:
+                                    logger.info(
+                                        f"Scan [{symbol}]: Sentiment reversal forming (SVI={svi_value:.2f})."
+                                    )
                                 if signal in ("BULLISH", "BEARISH") and abs(mean_sentiment) > 0.5:
                                     # Extreme sentiment: dampen confidence
                                     dampen_factor = max(0.5, 1.0 - abs(mean_sentiment) * 0.3)
