@@ -2078,6 +2078,21 @@ class TradingBrain(BrokerReconciler, HealthChecker, DataProvider, AccountingMixi
                         tr = df_pl.select([tr_expr])["tr"]
                         atr_val = float(tr.tail(20).mean()) if len(tr) >= 20 else 0.0
 
+                        # CHAOS AGENT: Check market randomness before pattern detection
+                        try:
+                            if self.chaos_agent:
+                                close_prices = df_pl.select(pl.col("close")).to_series().to_list()
+                                lle = self.chaos_agent.calculate_market_randomness(close_prices)
+                                if lle > 0.5:
+                                    logger.info(
+                                        "Scan [%s]: ChaosAgent detected high market randomness (LLE=%.3f)."
+                                        " Patterns may be less reliable.",
+                                        symbol,
+                                        lle,
+                                    )
+                        except Exception as chaos_err:
+                            logger.debug("Scan [%s]: ChaosAgent error: %s", symbol, chaos_err)
+
                         # Offload CPU-heavy pattern detection to a thread pool
                         # to avoid blocking the event loop
                         # Pass the Polars DataFrame as expected by agent_a

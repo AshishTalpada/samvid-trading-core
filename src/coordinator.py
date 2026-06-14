@@ -1259,6 +1259,19 @@ class TradingCoordinator:
                 # Final List Conversion (Guarantees no duplicates)
                 all_votes = list(vote_registry.values())
 
+                # AUDIT AGENT: Check for cognitive bias in the quorum
+                try:
+                    if self.brain.audit_agent and all_votes:
+                        audit_report = self.brain.audit_agent.full_audit(all_votes)
+                        if audit_report.get("issues"):
+                            logger.warning(
+                                "Coordinator [%s]: AuditAgent detected issues: %s",
+                                symbol,
+                                audit_report["issues"],
+                            )
+                except Exception as audit_err:
+                    logger.debug("Coordinator [%s]: AuditAgent error: %s", symbol, audit_err)
+
                 decision = await self.brain.decision_engine.evaluate(shared_context, all_votes)
                 # Implementation: decision_engine can return None on internal error; guard before .get() calls
                 if not decision or "decision" not in decision:
