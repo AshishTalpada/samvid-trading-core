@@ -9,9 +9,9 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from stress_veto import StressAnalysis, StressVeto, TradeRecord, get_stress_veto
-from sentiment_agent import aggregate_sentiment, score_text
 from drawdown_predictor import DrawdownPredictor
+from sentiment_agent import aggregate_sentiment, score_text
+from stress_veto import StressAnalysis, StressVeto, TradeRecord, get_stress_veto
 
 
 class TestStressVeto:
