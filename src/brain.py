@@ -2050,6 +2050,23 @@ class TradingBrain(BrokerReconciler, HealthChecker, DataProvider, AccountingMixi
                         except Exception:
                             current_scan_price = 0.0
 
+                        # CONTAGION SENTINEL: feed returns and check for systemic correlation spikes
+                        try:
+                            if self.contagion_sentinel and current_scan_price > 0:
+                                prev_close = float(df_pl.select(pl.col("close").tail(2).head(1)).item())
+                                if prev_close > 0:
+                                    ret = (current_scan_price - prev_close) / prev_close
+                                    self.contagion_sentinel.ingest(symbol, ret)
+                                    if self.contagion_sentinel.detect_contagion():
+                                        async with stats_lock:
+                                            stats["gated"] += 1
+                                        logger.critical(
+                                            "Scan [%s]: Contagion detected — scanning suspended.", symbol
+                                        )
+                                        return None
+                        except Exception as cs_err:
+                            logger.debug("Scan [%s]: Contagion sentinel error: %s", symbol, cs_err)
+
                         tr_expr = pl.max_horizontal(
                             [
                                 (pl.col("high") - pl.col("low")).abs(),
