@@ -2188,6 +2188,31 @@ class TradingBrain(BrokerReconciler, HealthChecker, DataProvider, AccountingMixi
                         except Exception as se:
                             logger.debug(f"Scan [{symbol}]: Sentiment overlay error: {se}")
 
+                        # MACRO NEWS OVERLAY: Detect hawkish/dovish Fed language in headlines
+                        try:
+                            from news_agent import MacroNewsAgent
+                            macro_agent = MacroNewsAgent()
+                            # Reuse the same news_headlines fetched above; if none, skip
+                            if news_headlines:
+                                macro_text = " ".join(news_headlines)
+                                macro_result = macro_agent.classify_fed_statement(macro_text)
+                                stance = macro_result.get("stance", "NEUTRAL")
+                                if stance == "HAWKISH":
+                                    # Hawkish Fed is generally bearish for equities
+                                    old_conf = float(best.confidence)
+                                    best.confidence = old_conf * 0.85
+                                    logger.info(
+                                        f"Scan [{symbol}]: Macro overlay HAWKISH dampened {best.name} confidence {old_conf:.1f}% -> {best.confidence:.1f}%"
+                                    )
+                                elif stance == "DOVISH":
+                                    # Dovish Fed is generally bullish for equities
+                                    # Already captured by sentiment overlay, but log for traceability
+                                    logger.info(
+                                        f"Scan [{symbol}]: Macro overlay DOVISH detected (score={macro_result.get('score', 0):.2f})"
+                                    )
+                        except Exception as ne:
+                            logger.debug(f"Scan [{symbol}]: Macro news overlay error: {ne}")
+
                         async with stats_lock:
                             stats["detected"] += 1
                             stats["approved"] += 1
