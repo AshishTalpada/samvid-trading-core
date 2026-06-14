@@ -506,7 +506,7 @@ class PatternDetector:
 
         # Consolidation (flag)
         flag_period = df.tail(10)
-        flag_range = (flag_period["high"].max() - flag_period["low"].min()) / pole_end
+        flag_range = (flag_period["high"].max() - flag_period["low"].min()) / max(abs(pole_end), 1e-10)
         if flag_range > 0.025:
             return None
 
@@ -872,6 +872,8 @@ class PatternDetector:
         today_open = df["open"].tail(1).item()
         current_price = df["close"].tail(1).item()
 
+        if prev_close <= 0:
+            return None
         gap_pct = abs(today_open - prev_close) / prev_close
 
         if gap_pct < 0.001:  # Require just 0.1%+ gap
@@ -1104,9 +1106,9 @@ class PatternDetector:
         c2 = data[15:30]
         c3 = data[30:40]
 
-        range_1 = (np.max(c1) - np.min(c1)) / np.max(c1)  # e.g. 10%
-        range_2 = (np.max(c2) - np.min(c2)) / np.max(c2)  # e.g. 5%
-        range_3 = (np.max(c3) - np.min(c3)) / np.max(c3)  # e.g. 2%
+        range_1 = (np.max(c1) - np.min(c1)) / max(np.max(c1), 1e-10)  # e.g. 10%
+        range_2 = (np.max(c2) - np.min(c2)) / max(np.max(c2), 1e-10)  # e.g. 5%
+        range_3 = (np.max(c3) - np.min(c3)) / max(np.max(c3), 1e-10)  # e.g. 2%
 
         # VCP requirement: range1 > range2 > range3 (Tightening)
         if not (range_1 > range_2 > range_3):
@@ -1357,6 +1359,8 @@ class PatternDetector:
         peak2 = np.max(highs[25:])
 
         # Peaks should be within 1% of each other
+        if peak1 <= 0:
+            return None
         if abs(peak1 - peak2) / peak1 < 0.01 and peak1 > trough * 1.05:
             current_price = df["close"].tail(1).item()
             confirmed = current_price < trough
@@ -1625,7 +1629,10 @@ class NeuralRegimeClassifier:
         if len(df) < 50:
             return "INDETERMINATE"
 
-        atr_pct = (df["high"].tail(20).max() - df["low"].tail(20).min()) / df["close"].tail(1).item()
+        close_price = df["close"].tail(1).item()
+        if close_price <= 0:
+            return "INDETERMINATE"
+        atr_pct = (df["high"].tail(20).max() - df["low"].tail(20).min()) / close_price
         vol_ratio = df["volume"].tail(1).item() / (df["volume"].tail(20).mean() + 1e-10)
 
         if atr_pct < 0.015:
