@@ -31,7 +31,7 @@ class MacroTopologyGraph:
         # Dijkstra-style or DFS search for max impact path
         best_impact = 0.0
 
-        def dfs(current: str, depth: int, current_impact: float):
+        def dfs(current: str, depth: int, current_impact: float, visited: set) -> None:
             nonlocal best_impact
             if current == target_asset:
                 best_impact = max(best_impact, current_impact)
@@ -40,9 +40,10 @@ class MacroTopologyGraph:
                 return
 
             for neighbor, weight in self.adjacency.get(current, {}).items():
-                dfs(neighbor, depth + 1, current_impact * weight)
+                if neighbor not in visited:
+                    dfs(neighbor, depth + 1, current_impact * weight, visited | {neighbor})
 
-        dfs(event_node, 0, 1.0)
+        dfs(event_node, 0, 1.0, {event_node})
 
         if best_impact > 0:
             logger.info(

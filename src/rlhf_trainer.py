@@ -42,7 +42,7 @@ class RLHFOnlineTrainer:
 
     def _update_scores(self, entry: dict) -> None:
         lr = 0.05
-        reward = entry["human_rating"]
+        reward = max(-1.0, min(1.0, float(entry["human_rating"])))
         for agent in entry.get("yes_agents", []):
             self._agent_scores[agent] = self._agent_scores.get(agent, 1.0) + lr * reward
         for agent in entry.get("no_agents", []):

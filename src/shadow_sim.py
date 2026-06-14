@@ -42,6 +42,8 @@ class GhostShadowSim:
             return
 
         trade = self.active_trades[symbol]
+        if trade.entry_price <= 0:
+            return
         if trade.side == "BUY":
             trade.pnl = (current_price - trade.entry_price) / trade.entry_price
         else:

@@ -26,8 +26,8 @@ class GNNSentimentAgent:
         Injects a sentiment shock at a source node and propagates it using Graph Convolution.
         Returns the updated sentiment scores for all nodes.
         """
-        if source_node >= self.num_nodes:
-            logger.error("Source node out of bounds")
+        if not (0 <= source_node < self.num_nodes):
+            logger.error("Source node %d out of bounds [0, %d)", source_node, self.num_nodes)
             return np.zeros(self.num_nodes)
 
         # Inject shock

@@ -216,7 +216,8 @@ class StressVeto:
             current_hour = datetime.now(ZoneInfo("America/New_York")).hour
 
         if not 0 <= current_hour <= 23:
-            raise ValueError("current_hour must be between 0 and 23")
+            logger.warning("[STRESS VETO] Invalid current_hour=%s, skipping hours check", current_hour)
+            return None, 0.0
         if current_hour < 6:
             return "UNUSUAL_HOURS", 0.5
 
@@ -261,8 +262,8 @@ class StressVeto:
         )
 
     def force_cooldown(self, minutes: int = 60):
-        """Manually trigger a cooldown period."""
-        self.last_veto_time = time.time() - (minutes * 60) + 1
+        """Manually trigger a cooldown period starting now."""
+        self.last_veto_time = time.time()
 
     def get_stats(self) -> dict[str, Any]:
         """Get stress monitoring statistics."""
