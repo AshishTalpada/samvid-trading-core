@@ -29,8 +29,10 @@ class UniversalSingularity:
 
     def ingest_price(self, price: float):
         if len(self.price_history) > 0:
-            ret = math.log(price / self.price_history[-1])
-            self.return_history.append(ret)
+            prev = self.price_history[-1]
+            if price > 0 and prev > 0:
+                ret = math.log(price / prev)
+                self.return_history.append(ret)
         self.price_history.append(price)
 
     def _calculate_shannon_entropy(self, bins: int = 20) -> float:

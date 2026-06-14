@@ -15,11 +15,13 @@ class OptionAgent:
         self.r = risk_free_rate
 
     def _d1(self, S: float, K: float, T: float, sigma: float) -> float:
+        if S <= 0 or K <= 0 or T <= 0 or sigma <= 0:
+            return 0.0
         return (math.log(S / K) + (self.r + sigma**2 / 2.0) * T) / (sigma * math.sqrt(T))
 
     def calculate_gamma(self, S: float, K: float, T: float, sigma: float) -> float:
         """Black-Scholes Gamma: The rate of change of Delta."""
-        if T <= 0 or sigma <= 0:
+        if S <= 0 or K <= 0 or T <= 0 or sigma <= 0:
             return 0.0
         d1 = self._d1(S, K, T, sigma)
         pdf_d1 = norm.pdf(d1)
