@@ -72,6 +72,21 @@ class TradingCoordinator:
             self._game_theory_sizer = GameTheoryPositionSizer()
         except Exception:
             self._game_theory_sizer = None
+        try:
+            from live_trainer import OnlineLiveTrainer
+            self._live_trainer = OnlineLiveTrainer(learning_rate=0.001)
+        except Exception:
+            self._live_trainer = None
+        try:
+            from rlhf_trainer import RLHFOnlineTrainer
+            self._rlhf_trainer = RLHFOnlineTrainer()
+        except Exception:
+            self._rlhf_trainer = None
+        try:
+            from cross_asset import CrossAssetLeadIndicator
+            self._cross_asset = CrossAssetLeadIndicator()
+        except Exception:
+            self._cross_asset = None
 
     def _estimate_entry_friction_per_share(
         self,
@@ -1697,6 +1712,18 @@ class TradingCoordinator:
                         logger.info(f"Coordinator [{proposal_id}]: Trade thesis generated at {thesis_path}")
                     except Exception as thesis_err:
                         logger.debug(f"Coordinator [{proposal_id}]: Thesis generation failed: {thesis_err}")
+
+                    # ONLINE LEARNING: update agent weights based on entry conviction
+                    try:
+                        if self._live_trainer and all_votes:
+                            _agent_convictions = {
+                                v.get("agent", "?"): float(v.get("confidence", 0.5))
+                                for v in all_votes if v.get("vote") == "YES"
+                            }
+                            if _agent_convictions:
+                                self._live_trainer.update_from_trade(0.0, _agent_convictions)
+                    except Exception as _lt_err:
+                        logger.debug(f"Coordinator [{proposal_id}]: LiveTrainer update failed: {_lt_err}")
 
                     return True
                 else:
