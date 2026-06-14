@@ -1384,7 +1384,7 @@ class DhatuOracle:
             if not df.empty and len(df) >= 2:
                 prev_close = float(df["Close"].iloc[-2])
                 current_close = float(df["Close"].iloc[-1])
-                pct_change = ((current_close - prev_close) / prev_close) * 100.0
+                pct_change = ((current_close - prev_close) / prev_close) * 100.0 if prev_close != 0 else 0.0
                 tag = ""
                 if pct_change > 0.5:
                     tag = f"{symbol}_UP"

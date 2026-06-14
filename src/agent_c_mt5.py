@@ -264,6 +264,8 @@ class FTMOComplianceLayer:
 
     def check_drawdown(self, peak: float, current: float) -> bool:
         """Check if current drawdown exceeds the permitted drawdown limit."""
+        if peak <= 0:
+            return True
         drawdown = (peak - current) / peak
         return drawdown <= self.DRAWDOWN_LIMIT
 
