@@ -1604,6 +1604,47 @@ class TradingCoordinator:
                     async with self.brain._state_lock:
                         self.brain.positions.append(pos)
                     await self.brain._log_trade_entry(pos)
+
+                    # AUTO THESIS GENERATION: document the trade rationale
+                    try:
+                        from reports.thesis_gen import AutoThesisGenerator
+                        thesis_gen = AutoThesisGenerator()
+                        vix_val = await self.brain._get_vix()
+                        macro_ctx = {
+                            "vix": f"{vix_val:.1f}" if vix_val else "Unknown",
+                            "rates": "Stable",
+                            "sector_momentum": getattr(self.brain, "current_regime", "Neutral"),
+                            "bias": getattr(self.brain, "current_regime", "Neutral"),
+                        }
+                        vote_map = {
+                            v.get("agent", "unknown"): f"{v.get('vote')} ({int(v.get('confidence', 0) * 100)}%)"
+                            for v in all_votes
+                        }
+                        agent_consensus = {
+                            "conviction_score": decision.get("confidence", 0.0),
+                            "votes": vote_map,
+                        }
+                        risk_metrics = {
+                            "entry_price": pattern.entry,
+                            "stop_loss": pattern.stop,
+                            "take_profit": pattern.target,
+                            "rr_ratio": getattr(pattern, "r_r_ratio", 0.0),
+                            "kelly_pct": 0.0,
+                        }
+                        thesis_path = thesis_gen.generate_thesis(
+                            trade_id=str(proposal_id),
+                            ticker=symbol,
+                            action="BUY" if is_long else "SELL",
+                            size=shares,
+                            macro_context=macro_ctx,
+                            agent_consensus=agent_consensus,
+                            risk_metrics=risk_metrics,
+                            order_book_state={},
+                        )
+                        logger.info(f"Coordinator [{proposal_id}]: Trade thesis generated at {thesis_path}")
+                    except Exception as thesis_err:
+                        logger.debug(f"Coordinator [{proposal_id}]: Thesis generation failed: {thesis_err}")
+
                     return True
                 else:
                     if task:
