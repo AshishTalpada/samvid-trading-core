@@ -13,6 +13,8 @@ class GameTheoryPositionSizer:
     def minimax_regret_size(
         self, expected_alpha_bps: float, impact_bps_per_unit: float, max_units: int
     ) -> int:
+        if max_units <= 0:
+            return 0
         best_size, min_max_regret = 1, float("inf")
         for size in range(1, max_units + 1):
             impact = size * impact_bps_per_unit

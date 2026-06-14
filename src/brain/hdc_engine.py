@@ -24,7 +24,8 @@ class HDCEngine:
         for key, val in features.items():
             if key not in self._memory:
                 self._memory[key] = self._rng.integers(0, 2, self.DIM, dtype=np.int32) * 2 - 1
-            level = max(0, min(9, int(val * 10)))
+            safe_val = val if (val == val and val != float("inf") and val != float("-inf")) else 0.0
+            level = max(0, min(9, int(safe_val * 10)))
             shifted = np.roll(self._memory[key], level)
             acc += shifted
         return (acc > 0).astype(np.uint8)

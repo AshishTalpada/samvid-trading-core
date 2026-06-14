@@ -29,8 +29,13 @@ class PredictionBuffer:
         with self._lock:
             if not self._buffer:
                 return None
-            best = max(self._buffer, key=lambda b: b.get("probability", 0.0))
-            self._buffer.remove(best)
+            # Find index of highest-probability branch; avoid O(n) dict equality in .remove()
+            best_idx = max(
+                range(len(self._buffer)),
+                key=lambda i: self._buffer[i].get("probability", 0.0),
+            )
+            best = self._buffer[best_idx]
+            del self._buffer[best_idx]
             logger.debug(
                 f"[PRED BUFFER] Popped best: {best.get('scenario', '?')} p={best.get('probability', 0):.2f}"
             )

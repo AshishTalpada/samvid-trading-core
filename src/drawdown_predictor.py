@@ -27,10 +27,12 @@ class DrawdownPredictor:
         Calculates the Expected Hitting Time (Fundamental Matrix) from current_state to target_state.
         Returns the expected number of trades/days required to escape the drawdown.
         """
+        n = self.transition_matrix.shape[0]
         if current_state == target_state:
             return 0.0
-
-        n = self.transition_matrix.shape[0]
+        if current_state < 0 or current_state >= n:
+            logger.error("[DRAWDOWN PREDICTOR] current_state %d out of range [0, %d)", current_state, n)
+            return -1.0
 
         # Remove the target state row and column to create matrix Q
         states_to_keep = [i for i in range(n) if i != target_state]

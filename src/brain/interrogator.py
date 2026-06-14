@@ -15,10 +15,12 @@ class SovereignInterrogator:
         decision_type = decision.get("decision", "UNKNOWN")
         confidence = decision.get("confidence", 0.0)
         reason = decision.get("reason", "No reason recorded.")
-        votes = decision.get("votes", [])
-        yes_agents = [v["agent"] for v in votes if v.get("vote") == "YES"]
-        no_agents = [v["agent"] for v in votes if v.get("vote") == "NO"]
-        abstain_agents = [v["agent"] for v in votes if v.get("vote") == "ABSTAIN"]
+        votes = decision.get("votes") or []
+        if not isinstance(votes, list):
+            votes = []
+        yes_agents = [v["agent"] for v in votes if isinstance(v, dict) and v.get("vote") == "YES"]
+        no_agents = [v["agent"] for v in votes if isinstance(v, dict) and v.get("vote") == "NO"]
+        abstain_agents = [v["agent"] for v in votes if isinstance(v, dict) and v.get("vote") == "ABSTAIN"]
         response = (
             f"Decision: {decision_type} (Confidence: {confidence:.0%})\n"
             f"Reason: {reason}\n"

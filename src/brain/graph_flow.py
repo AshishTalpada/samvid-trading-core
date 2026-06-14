@@ -22,7 +22,7 @@ class GATFlow:
             for t2 in tickers:
                 if t1 != t2:
                     # Simplified leader-follower: if t1 moves, does t2 follow?
-                    direction = 1.0 if (returns[t1] * returns[t2] > 0) else -0.5
+                    direction = 1.0 if (returns[t1] * returns[t2] >= 0) else -0.5
                     current = self.flow_matrix[t1].get(t2, 0.0)
                     # Exponential moving average of flow correlation
                     self.flow_matrix[t1][t2] = current * 0.9 + direction * 0.1

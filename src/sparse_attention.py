@@ -20,10 +20,15 @@ class SparseAttentionEngine:
     def sliding_window_attention(self, Q: np.ndarray, K: np.ndarray, V: np.ndarray) -> np.ndarray:
         n, d = Q.shape
         output = np.zeros_like(Q)
+        if d == 0 or n == 0:
+            return output
+        sqrt_d = float(np.sqrt(d)) or 1.0
         for i in range(n):
             start = max(0, i - self.window // 2)
             end = min(n, i + self.window // 2 + 1)
-            scores = Q[i] @ K[start:end].T / np.sqrt(d)
+            if start >= end:
+                continue
+            scores = Q[i] @ K[start:end].T / sqrt_d
             weights = np.exp(scores - scores.max())
             weights /= weights.sum() + 1e-9
             output[i] = weights @ V[start:end]

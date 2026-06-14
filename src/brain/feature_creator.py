@@ -37,7 +37,7 @@ class FeatureCreator:
                 (arr_p[-1] - np.min(arr_p[-14:]))
                 / (np.max(arr_p[-14:]) - np.min(arr_p[-14:]) + 1e-9)
             ),
-            "vol_momentum": float(arr_v[-1] / np.mean(arr_v[-5:]) if len(arr_v) >= 5 else 1.0),
+            "vol_momentum": float(arr_v[-1] / (np.mean(arr_v[-5:]) + 1e-9) if len(arr_v) >= 5 else 1.0),
             "price_acceleration": float(
                 (arr_p[-1] - 2 * arr_p[-2] + arr_p[-3]) / atr if len(arr_p) >= 3 else 0.0
             ),

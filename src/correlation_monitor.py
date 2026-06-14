@@ -39,7 +39,10 @@ class CorrelationBreakdownMonitor:
             return 0.0
         n = corr.shape[0]
         upper = [corr[i, j] for i in range(n) for j in range(i + 1, n)]
-        return float(np.mean(upper)) if upper else 0.0
+        if not upper:
+            return 0.0
+        result = float(np.nanmean(upper))
+        return result if np.isfinite(result) else 0.0
 
     def is_contagion_detected(self) -> bool:
         avg = self.avg_pairwise_correlation()
