@@ -230,3 +230,156 @@ class TestStressVetoCoordinatorWiring:
         # With only 2 losses, no stress detected yet
         assert analysis.stress_detected is False
         assert analysis.recommendation == "ALLOW"
+
+
+class TestChaosAgent:
+    """Unit tests for ChaosAgent market randomness detection."""
+
+    def test_lle_random_walk(self):
+        from chaos_agent import ChaosAgent
+        agent = ChaosAgent()
+        # Random walk prices should have low or zero LLE (insufficient structure)
+        prices = [100.0 + i for i in range(60)]
+        lle = agent.calculate_market_randomness(prices)
+        assert isinstance(lle, float)
+
+    def test_lle_short_prices_returns_zero(self):
+        from chaos_agent import ChaosAgent
+        agent = ChaosAgent()
+        lle = agent.calculate_market_randomness([100.0, 101.0])
+        assert lle == 0.0
+
+
+class TestAuditAgent:
+    """Unit tests for AuditAgent cognitive bias detection."""
+
+    def test_detect_fomo_bias(self):
+        from audit_agent import AuditAgent
+        agent = AuditAgent()
+        votes = {"a": "BUY", "b": "BUY", "c": "BUY", "d": "BUY", "e": "BUY", "f": "BUY", "g": "BUY"}
+        result = agent.audit(votes)
+        assert result.get("FOMO") is True
+
+    def test_detect_fear_bias(self):
+        from audit_agent import AuditAgent
+        agent = AuditAgent()
+        votes = {"a": "SELL", "b": "SELL", "c": "SELL", "d": "SELL", "e": "SELL", "f": "SELL", "g": "SELL"}
+        result = agent.audit(votes)
+        assert result.get("FEAR") is True
+
+    def test_no_bias_diverse_votes(self):
+        from audit_agent import AuditAgent
+        agent = AuditAgent()
+        votes = {"a": "BUY", "b": "SELL", "c": "HOLD", "d": "BUY", "e": "SELL"}
+        result = agent.audit(votes)
+        assert result == {}
+
+
+class TestContagionSentinel:
+    """Unit tests for ContagionSentinel cross-asset correlation detection."""
+
+    def test_no_contagion_with_few_symbols(self):
+        from contagion_sentinel import ContagionSentinel
+        sentinel = ContagionSentinel(window=5)
+        sentinel.ingest("AAPL", 0.01)
+        sentinel.ingest("GOOGL", -0.01)
+        assert sentinel.detect_contagion() is False
+
+    def test_contagion_spike_detected(self):
+        from contagion_sentinel import ContagionSentinel
+        sentinel = ContagionSentinel(window=5, correlation_spike_threshold=0.01)
+        # Highly correlated (but not identical) returns across symbols
+        for i in range(5):
+            sentinel.ingest("AAPL", 0.02 + i * 0.001)
+            sentinel.ingest("GOOGL", 0.019 + i * 0.001)
+            sentinel.ingest("MSFT", 0.021 + i * 0.001)
+        assert sentinel.detect_contagion(baseline_correlation=0.0) is True
+
+
+class TestContrarianAgent:
+    """Unit tests for ContrarianAgent crowd error detection."""
+
+    def test_extreme_bullishness_generates_sell(self):
+        from contrarian_agent import ContrarianAgent
+        agent = ContrarianAgent()
+        result = agent.evaluate_crowd_error(0.95, 0.05, 100, 0)
+        assert result["signal"] == "SELL"
+        assert result["confidence"] > 0.75
+
+    def test_extreme_bearishness_generates_buy(self):
+        from contrarian_agent import ContrarianAgent
+        agent = ContrarianAgent()
+        result = agent.evaluate_crowd_error(0.05, 0.95, 0, 100)
+        assert result["signal"] == "BUY"
+        assert result["confidence"] > 0.75
+
+    def test_neutral_crowd_is_neutral(self):
+        from contrarian_agent import ContrarianAgent
+        agent = ContrarianAgent()
+        result = agent.evaluate_crowd_error(0.5, 0.5, 10, 10)
+        assert result["signal"] == "NEUTRAL"
+
+
+class TestVIXCircuitBreaker:
+    """Unit tests for VIX flash spike detection."""
+
+    def test_no_spike_on_stable_vix(self):
+        from vix_circuit_breaker import VIXCircuitBreaker
+        breaker = VIXCircuitBreaker(spike_threshold=0.20)
+        assert breaker.process_vix_tick(20.0) is False
+        assert breaker.process_vix_tick(20.5) is False
+
+    def test_spike_detected_on_rapid_vix_rise(self):
+        from vix_circuit_breaker import VIXCircuitBreaker
+        breaker = VIXCircuitBreaker(spike_threshold=0.20, window_seconds=300)
+        breaker.process_vix_tick(20.0)
+        # 30% spike triggers
+        assert breaker.process_vix_tick(26.0) is True
+
+
+class TestSentimentVolatilityIndex:
+    """Unit tests for SentimentVolatilityIndex (SVI)."""
+
+    def test_svi_zero_without_history(self):
+        from sentiment_vol import SentimentVolatilityIndex
+        svi = SentimentVolatilityIndex(lookback=10)
+        assert svi.svi() == 0.0
+
+    def test_svi_positive_with_history(self):
+        from sentiment_vol import SentimentVolatilityIndex
+        svi = SentimentVolatilityIndex(lookback=10)
+        for score in [0.1, -0.1, 0.2, -0.2, 0.1, -0.1, 0.2, -0.2, 0.1, -0.1]:
+            svi.update(score)
+        assert svi.svi() > 0.0
+
+    def test_reversal_detection(self):
+        from sentiment_vol import SentimentVolatilityIndex
+        svi = SentimentVolatilityIndex(lookback=10)
+        for score in [0.8, -0.8, 0.8, -0.8, 0.8, -0.8, 0.8, -0.8, 0.8, -0.8]:
+            svi.update(score)
+        assert svi.is_reversal_forming(threshold=0.1) is True
+
+
+class TestMarketMakerSimulator:
+    """Unit tests for MarketMakerSimulator stop-hunt avoidance."""
+
+    def test_identifies_round_number_clusters(self):
+        from mm_simulator import MarketMakerSimulator
+        mm = MarketMakerSimulator()
+        prices = [100.0, 100.25, 100.5, 100.75, 101.0, 101.25]
+        clusters = mm.identify_stop_clusters(prices, round_factor=0.5)
+        assert 100.5 in clusters or 101.0 in clusters
+
+    def test_safe_stop_long_avoids_cluster(self):
+        from mm_simulator import MarketMakerSimulator
+        mm = MarketMakerSimulator()
+        prices = [100.0, 100.5, 101.0, 101.5, 102.0]
+        stop = mm.safe_stop_level(entry=101.0, side="long", prices=prices, buffer_pct=0.01)
+        assert stop < 101.0
+
+    def test_safe_stop_short_avoids_cluster(self):
+        from mm_simulator import MarketMakerSimulator
+        mm = MarketMakerSimulator()
+        prices = [100.0, 100.5, 101.0, 101.5, 102.0]
+        stop = mm.safe_stop_level(entry=101.0, side="short", prices=prices, buffer_pct=0.01)
+        assert stop > 101.0
