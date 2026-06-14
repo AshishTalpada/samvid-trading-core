@@ -235,8 +235,13 @@ def run_walk_forward(
     return bt.run(df)
 
 
-def load_ohlcv_from_db(db_path: str, symbol: str) -> pl.DataFrame | None:
-    """Load real OHLCV bars for *symbol* from a SQLite database."""
+def load_ohlcv_from_db(
+    db_path: str,
+    symbol: str,
+    timeframe: str | None = None,
+    max_bars: int = 5_000,
+) -> pl.DataFrame | None:
+    """Load one bounded, internally consistent OHLCV timeframe from SQLite."""
     import sqlite3
     from pathlib import Path
 
@@ -252,11 +257,32 @@ def load_ohlcv_from_db(db_path: str, symbol: str) -> pl.DataFrame | None:
         if not cursor.fetchone():
             logger.warning("Backtester: 'ohlcv' table missing in %s", db_path)
             return None
-        cursor.execute(
-            "SELECT timestamp, open, high, low, close, volume FROM ohlcv "
-            "WHERE symbol=? ORDER BY timestamp ASC",
-            (symbol,),
-        )
+        columns = {row[1] for row in cursor.execute("PRAGMA table_info(ohlcv)")}
+        selected_timeframe = timeframe
+        if "timeframe" in columns and selected_timeframe is None:
+            row = cursor.execute(
+                "SELECT timeframe FROM ohlcv WHERE symbol=? "
+                "GROUP BY timeframe ORDER BY COUNT(*) DESC LIMIT 1",
+                (symbol,),
+            ).fetchone()
+            selected_timeframe = row[0] if row else None
+
+        limit = max(1, int(max_bars))
+        if selected_timeframe is None:
+            cursor.execute(
+                "SELECT timestamp, open, high, low, close, volume FROM "
+                "(SELECT timestamp, open, high, low, close, volume FROM ohlcv "
+                "WHERE symbol=? ORDER BY timestamp DESC LIMIT ?) ORDER BY timestamp ASC",
+                (symbol, limit),
+            )
+        else:
+            cursor.execute(
+                "SELECT timestamp, open, high, low, close, volume FROM "
+                "(SELECT timestamp, open, high, low, close, volume FROM ohlcv "
+                "WHERE symbol=? AND timeframe=? ORDER BY timestamp DESC LIMIT ?) "
+                "ORDER BY timestamp ASC",
+                (symbol, selected_timeframe, limit),
+            )
         rows = cursor.fetchall()
         if not rows:
             logger.warning("Backtester: no OHLCV rows for %s", symbol)

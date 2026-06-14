@@ -194,6 +194,36 @@ class TestLoadOhlcvFromDb:
         finally:
             Path(db_path).unlink(missing_ok=True)
 
+    def test_selects_densest_timeframe_and_bounds_history(self):
+        with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as f:
+            db_path = f.name
+        try:
+            conn = sqlite3.connect(db_path)
+            conn.execute(
+                "CREATE TABLE ohlcv (timestamp TEXT, symbol TEXT, open REAL, high REAL, "
+                "low REAL, close REAL, volume INTEGER, timeframe TEXT)"
+            )
+            minute_rows = [
+                (f"2026-01-01T09:{30 + index:02d}:00", "SPY", 100, 101, 99, 100 + index, 1_000, "1m")
+                for index in range(10)
+            ]
+            hourly_rows = [
+                (f"1970-01-01T0{index}:00:00", "SPY", 9_999, 9_999, 9_999, 9_999, 1, "1h")
+                for index in range(3)
+            ]
+            conn.executemany("INSERT INTO ohlcv VALUES (?,?,?,?,?,?,?,?)", minute_rows + hourly_rows)
+            conn.commit()
+            conn.close()
+
+            df = load_ohlcv_from_db(db_path, "SPY", max_bars=4)
+
+            assert df is not None
+            assert len(df) == 4
+            assert 9_999 not in df["close"].to_list()
+            assert df["close"].to_list() == [106.0, 107.0, 108.0, 109.0]
+        finally:
+            Path(db_path).unlink(missing_ok=True)
+
 
 class TestRunWalkForward:
     def test_convenience_function(self):
