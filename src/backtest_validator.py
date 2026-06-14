@@ -19,6 +19,7 @@ import asyncio
 import json
 import logging
 import sqlite3
+import time
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Optional
@@ -39,6 +40,8 @@ DEFAULT_MIN_WIN_RATE = 0.45
 DEFAULT_MIN_EXPECTANCY_R = 0.15
 DEFAULT_MIN_SHARPE_PROXY = 0.3
 DEFAULT_MIN_TRADES = 10
+DEFAULT_CACHE_TTL_SECONDS = 15 * 60
+DEFAULT_MAX_HISTORY_BARS = 5_000
 
 
 @dataclass
@@ -93,6 +96,8 @@ class BacktestValidator:
         min_trades: int = DEFAULT_MIN_TRADES,
         window_size: int = 100,
         step_size: int = 20,
+        cache_ttl_seconds: float = DEFAULT_CACHE_TTL_SECONDS,
+        max_history_bars: int = DEFAULT_MAX_HISTORY_BARS,
     ):
         self.db_path = db_path
         self.min_profit_factor = min_profit_factor
@@ -102,6 +107,12 @@ class BacktestValidator:
         self.min_trades = min_trades
         self.window_size = window_size
         self.step_size = step_size
+        self.cache_ttl_seconds = max(0.0, float(cache_ttl_seconds))
+        self.max_history_bars = max(
+            window_size + step_size * 3,
+            int(max_history_bars),
+        )
+        self._cache: dict[tuple[str, str, bool], tuple[float, BacktestValidationResult]] = {}
         self._pattern_backtester = WalkForwardBacktester(
             window_size=window_size, step_size=step_size
         )
@@ -124,19 +135,27 @@ class BacktestValidator:
         (slower, more thorough) instead of the fast PatternDetector-only
         harness.
         """
+        pattern_name = getattr(pattern, "name", "UNKNOWN")
+        cache_key = (symbol.upper(), pattern_name, use_consensus)
         if df is None:
+            cached = self._cache.get(cache_key)
+            if cached and time.monotonic() - cached[0] <= self.cache_ttl_seconds:
+                return cached[1]
             df = await self._load_ohlcv(symbol)
         if df is None or len(df) < self.window_size + self.step_size * 3:
             return BacktestValidationResult(
                 passed=False,
                 symbol=symbol,
-                pattern_name=getattr(pattern, "name", "UNKNOWN"),
+                pattern_name=pattern_name,
                 blockers=["insufficient_historical_data"],
             )
 
         if use_consensus:
-            return await self._validate_with_consensus(symbol, pattern, df)
-        return await self._validate_with_pattern_detector(symbol, pattern, df)
+            result = await self._validate_with_consensus(symbol, pattern, df)
+        else:
+            result = await self._validate_with_pattern_detector(symbol, pattern, df)
+        self._cache[cache_key] = (time.monotonic(), result)
+        return result
 
     async def validate_symbol_overall(
         self,
@@ -235,11 +254,31 @@ class BacktestValidator:
                 )
                 if not cursor.fetchone():
                     return None
-                cursor.execute(
-                    "SELECT timestamp, open, high, low, close, volume FROM ohlcv "
-                    "WHERE symbol=? ORDER BY timestamp ASC",
-                    (symbol,),
-                )
+                columns = {row[1] for row in cursor.execute("PRAGMA table_info(ohlcv)")}
+                timeframe = None
+                if "timeframe" in columns:
+                    row = cursor.execute(
+                        "SELECT timeframe FROM ohlcv WHERE symbol=? "
+                        "GROUP BY timeframe ORDER BY COUNT(*) DESC LIMIT 1",
+                        (symbol,),
+                    ).fetchone()
+                    timeframe = row[0] if row else None
+                if timeframe is None:
+                    cursor.execute(
+                        "SELECT timestamp, open, high, low, close, volume FROM "
+                        "(SELECT timestamp, open, high, low, close, volume FROM ohlcv "
+                        "WHERE symbol=? ORDER BY timestamp DESC LIMIT ?) "
+                        "ORDER BY timestamp ASC",
+                        (symbol, self.max_history_bars),
+                    )
+                else:
+                    cursor.execute(
+                        "SELECT timestamp, open, high, low, close, volume FROM "
+                        "(SELECT timestamp, open, high, low, close, volume FROM ohlcv "
+                        "WHERE symbol=? AND timeframe=? ORDER BY timestamp DESC LIMIT ?) "
+                        "ORDER BY timestamp ASC",
+                        (symbol, timeframe, self.max_history_bars),
+                    )
                 rows = cursor.fetchall()
                 if not rows:
                     return None
@@ -265,20 +304,16 @@ class BacktestValidator:
         df: pl.DataFrame,
     ) -> BacktestValidationResult:
         """Fast validation using the PatternDetector backtester."""
-        result = self._pattern_backtester.run(df)
+        result = await asyncio.to_thread(self._pattern_backtester.run, df)
 
         # Override: only count trades for the specific pattern name
         pattern_name = getattr(pattern, "name", "UNKNOWN")
         pattern_trades = [
             t for t in result.get("all_trades", []) if t.get("pattern") == pattern_name
         ]
-        if pattern_trades:
-            result["pattern_specific"] = {
-                "total_trades": len(pattern_trades),
-                "win_rate": sum(1 for t in pattern_trades if t["outcome"] == "win")
-                / len(pattern_trades),
-                "avg_r": sum(t["r_multiple"] for t in pattern_trades) / len(pattern_trades),
-            }
+        from backtester import summarize_trades
+
+        result = summarize_trades(pattern_trades)
 
         return self._evaluate_thresholds(symbol, pattern_name, result)
 

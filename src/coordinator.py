@@ -1360,9 +1360,7 @@ class TradingCoordinator:
                             db_path = getattr(self.brain, "db_path", "data/trading.db")
                             self._backtest_validator = BacktestValidator(db_path=str(db_path))
                             validator = self._backtest_validator
-                        bt_result = asyncio.get_event_loop().run_until_complete(
-                            validator.validate_pattern(symbol, pattern)
-                        )
+                        bt_result = await validator.validate_pattern(symbol, pattern)
                         if not bt_result.passed:
                             blockers = ", ".join(bt_result.blockers)
                             if task:
@@ -1387,12 +1385,17 @@ class TradingCoordinator:
                             bt_result.win_rate * 100,
                         )
                     except Exception as bt_exc:
-                        logger.debug(
-                            "Coordinator [%s] backtest gate error for %s: %s",
+                        reason = f"validation_error: {type(bt_exc).__name__}: {bt_exc}"
+                        if task:
+                            task.set_phase("BACKTEST_VETO", reason)
+                            task.finalize("VETOED")
+                        logger.exception(
+                            "Coordinator [%s] BACKTEST_VETO: %s validation failed closed",
                             proposal_id,
                             symbol,
-                            bt_exc,
                         )
+                        LEDGER.record_veto(symbol=symbol, reason=f"BACKTEST_VETO: {reason}")
+                        return False
 
                 # PSYCHOLOGY SAFETY GATE (Stress Veto)
                 try:

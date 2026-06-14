@@ -19,6 +19,7 @@ from backtester import (
     run_walk_forward,
     simulate_trade,
     simulate_trade_with_sizing,
+    summarize_trades,
 )
 
 
@@ -129,6 +130,26 @@ class TestWalkForwardBacktester:
         result = bt.run(df)
         assert result["simulated_trades"] == 0
         assert result["win_rate"] == 0.0
+
+
+class TestSummarizeTrades:
+    def test_timeout_profit_is_counted_as_a_win(self):
+        result = summarize_trades(
+            [
+                {"outcome": "timeout", "r_multiple": 0.5, "pattern": "A"},
+                {"outcome": "loss", "r_multiple": -1.0, "pattern": "A"},
+            ]
+        )
+
+        assert result["win_rate"] == 0.5
+        assert result["expectancy"] == result["avg_r_multiple"] == -0.25
+
+    def test_drawdown_includes_initial_zero_equity(self):
+        result = summarize_trades(
+            [{"outcome": "loss", "r_multiple": -1.0, "pattern": "A"}]
+        )
+
+        assert result["max_drawdown_r"] == -1.0
 
 
 class TestLoadOhlcvFromDb:

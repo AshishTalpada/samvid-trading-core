@@ -32,6 +32,57 @@ logging.basicConfig(level=logging.WARNING, format="%(asctime)s [%(levelname)s] %
 logger = logging.getLogger(__name__)
 
 
+def summarize_trades(trades: list[dict], signal_count: int | None = None) -> dict:
+    """Produce internally consistent metrics for simulated R-multiple trades."""
+    valid = [trade for trade in trades if trade.get("outcome") != "invalid"]
+    total = len(valid)
+    if total == 0:
+        return {
+            "total_signals": 0 if signal_count is None else signal_count,
+            "simulated_trades": 0,
+            "win_rate": 0.0,
+            "avg_r_multiple": 0.0,
+            "expectancy": 0.0,
+            "sharpe_proxy": 0.0,
+            "profit_factor": 0.0,
+            "max_drawdown_r": 0.0,
+            "patterns_found": [],
+            "all_trades": [],
+        }
+
+    r_multiples = [float(trade["r_multiple"]) for trade in valid]
+    winners = [value for value in r_multiples if value > 0.0]
+    losers = [value for value in r_multiples if value < 0.0]
+    win_rate = len(winners) / total
+    avg_r = float(np.mean(r_multiples))
+    std_r = float(np.std(r_multiples, ddof=1)) if total > 1 else 0.0
+    sharpe_proxy = avg_r / std_r if std_r > 0.0 else 0.0
+    gross_win_r = sum(winners)
+    gross_loss_r = abs(sum(losers))
+    profit_factor = gross_win_r / gross_loss_r if gross_loss_r > 0.0 else 0.0
+    equity_curve = np.concatenate(([0.0], np.cumsum(r_multiples)))
+    running_peak = np.maximum.accumulate(equity_curve)
+    max_drawdown_r = float(np.min(equity_curve - running_peak))
+
+    pattern_counts: dict[str, int] = {}
+    for trade in valid:
+        name = str(trade.get("pattern", "UNKNOWN"))
+        pattern_counts[name] = pattern_counts.get(name, 0) + 1
+
+    return {
+        "total_signals": total if signal_count is None else signal_count,
+        "simulated_trades": total,
+        "win_rate": round(win_rate, 4),
+        "avg_r_multiple": round(avg_r, 4),
+        "expectancy": round(avg_r, 4),
+        "sharpe_proxy": round(sharpe_proxy, 4),
+        "profit_factor": round(profit_factor, 4),
+        "max_drawdown_r": round(max_drawdown_r, 4),
+        "patterns_found": sorted(pattern_counts.items(), key=lambda item: -item[1]),
+        "all_trades": valid,
+    }
+
+
 def generate_ohlcv(
     n_bars: int = 500,
     seed: int = 42,
@@ -169,56 +220,7 @@ class WalkForwardBacktester:
                 result["r_r_ratio"] = getattr(p, "r_r_ratio", 0.0)
                 all_trades.append(result)
 
-        if not all_trades:
-            return {
-                "total_signals": signal_count,
-                "simulated_trades": 0,
-                "win_rate": 0.0,
-                "avg_r_multiple": 0.0,
-                "expectancy": 0.0,
-                "sharpe_proxy": 0.0,
-                "profit_factor": 0.0,
-                "max_drawdown_r": 0.0,
-                "patterns_found": [],
-            }
-
-        wins = [t for t in all_trades if t["outcome"] == "win"]
-        losses = [t for t in all_trades if t["outcome"] == "loss"]
-        total = len(all_trades)
-        win_rate = len(wins) / total if total > 0 else 0.0
-        r_multiples = [t["r_multiple"] for t in all_trades]
-        avg_r = sum(r_multiples) / total if total else 0.0
-        expectancy = win_rate * (sum(t["r_multiple"] for t in wins) / max(len(wins), 1)) - \
-                     (1 - win_rate) * abs(sum(t["r_multiple"] for t in losses) / max(len(losses), 1))
-
-        std_r = float(np.std(r_multiples)) if len(r_multiples) > 1 else 1.0
-        sharpe_proxy = avg_r / std_r if std_r > 0 else 0.0
-
-        # Profit factor (gross win R / gross loss R) and peak-to-trough drawdown in R units,
-        # measured on the cumulative R equity curve so the synthetic harness reports the
-        # same risk metric (max drawdown) the live edge-validation engine does.
-        gross_win_r = sum(r for r in r_multiples if r > 0)
-        gross_loss_r = abs(sum(r for r in r_multiples if r < 0))
-        profit_factor = gross_win_r / gross_loss_r if gross_loss_r > 0 else 0.0
-        equity_curve = np.cumsum(r_multiples)
-        running_peak = np.maximum.accumulate(equity_curve)
-        max_drawdown_r = float(np.min(equity_curve - running_peak)) if len(equity_curve) else 0.0
-
-        pattern_counts: dict[str, int] = {}
-        for t in all_trades:
-            pattern_counts[t["pattern"]] = pattern_counts.get(t["pattern"], 0) + 1
-
-        return {
-            "total_signals": signal_count,
-            "simulated_trades": total,
-            "win_rate": round(win_rate, 4),
-            "avg_r_multiple": round(avg_r, 4),
-            "expectancy": round(expectancy, 4),
-            "sharpe_proxy": round(sharpe_proxy, 4),
-            "profit_factor": round(profit_factor, 4),
-            "max_drawdown_r": round(max_drawdown_r, 4),
-            "patterns_found": sorted(pattern_counts.items(), key=lambda x: -x[1]),
-        }
+        return summarize_trades(all_trades, signal_count=signal_count)
 
 
 def run_walk_forward(

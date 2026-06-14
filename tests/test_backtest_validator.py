@@ -7,6 +7,7 @@ from __future__ import annotations
 import sqlite3
 import tempfile
 from pathlib import Path
+from unittest.mock import AsyncMock, MagicMock
 
 import numpy as np
 import polars as pl
@@ -171,6 +172,44 @@ class TestBacktestValidator:
         result = validator._evaluate_thresholds("SPY", "BullFlag", stats)
         assert not result.passed
         assert len(result.blockers) >= 1
+
+    @pytest.mark.asyncio
+    async def test_validation_uses_only_requested_pattern(self, sample_ohlcv):
+        validator = BacktestValidator(db_path=":memory:", min_trades=2)
+        validator._pattern_backtester.run = MagicMock(
+            return_value={
+                "all_trades": [
+                    {"outcome": "win", "r_multiple": 2.0, "pattern": "Other"},
+                    {"outcome": "win", "r_multiple": 2.0, "pattern": "Other"},
+                    {"outcome": "loss", "r_multiple": -1.0, "pattern": "BullFlag"},
+                ]
+            }
+        )
+
+        result = await validator.validate_pattern("SPY", FakePattern(), df=sample_ohlcv)
+
+        assert result.passed is False
+        assert result.total_trades == 1
+        assert any("trades 1 < min 2" in blocker for blocker in result.blockers)
+
+    @pytest.mark.asyncio
+    async def test_cached_validation_avoids_reloading_history(self, sample_ohlcv):
+        validator = BacktestValidator(
+            db_path=":memory:",
+            min_trades=0,
+            min_profit_factor=0.0,
+            min_win_rate=0.0,
+            min_expectancy_r=-1.0,
+            min_sharpe_proxy=-1.0,
+        )
+        validator._load_ohlcv = AsyncMock(return_value=sample_ohlcv)
+        pattern = FakePattern()
+
+        first = await validator.validate_pattern("SPY", pattern)
+        second = await validator.validate_pattern("SPY", pattern)
+
+        assert second is first
+        assert validator._load_ohlcv.call_count == 1
 
 
 class TestBacktestValidationResult:
