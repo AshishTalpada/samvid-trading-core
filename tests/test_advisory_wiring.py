@@ -30,9 +30,19 @@ class TestStressVeto:
         veto = StressVeto()
         for i in range(3):
             veto.record_trade("AAPL", pnl=10.0, size=10.0, reason="win")
-        analysis = veto.analyze_stress()
+        analysis = veto.analyze_stress(current_hour=12)
         assert analysis.stress_detected is False
         assert analysis.recommendation == "ALLOW"
+
+    def test_unusual_hours_use_explicit_market_hour(self):
+        veto = StressVeto()
+        for _ in range(3):
+            veto.record_trade("AAPL", pnl=10.0, size=10.0, reason="win")
+
+        analysis = veto.analyze_stress(current_hour=2)
+
+        assert analysis.stress_detected is True
+        assert analysis.stress_type == "UNUSUAL_HOURS"
 
     def test_cooldown_active(self):
         veto = StressVeto()

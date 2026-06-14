@@ -7,7 +7,9 @@ import logging
 import time
 from collections import deque
 from dataclasses import dataclass
+from datetime import datetime
 from typing import Any, Optional
+from zoneinfo import ZoneInfo
 
 logger = logging.getLogger(__name__)
 
@@ -209,11 +211,13 @@ class StressVeto:
     def _check_hours_anomaly(
         self, trades: list[TradeRecord], current_hour: int | None = None
     ) -> tuple[Optional[str], float]:
-        """Check for trading at unusual hours (emotional state)."""
+        """Check unusual hours in the US equity market timezone, not host-local time."""
         if current_hour is None:
-            current_hour = time.localtime().tm_hour
+            current_hour = datetime.now(ZoneInfo("America/New_York")).hour
 
-        if current_hour < 6 or current_hour > 23:
+        if not 0 <= current_hour <= 23:
+            raise ValueError("current_hour must be between 0 and 23")
+        if current_hour < 6:
             return "UNUSUAL_HOURS", 0.5
 
         return None, 0.0
