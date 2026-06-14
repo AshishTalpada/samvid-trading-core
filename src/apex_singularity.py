@@ -22,8 +22,11 @@ class SovereignSingularity:
 
     def record_market_entropy(self, returns: list[float]) -> None:
         arr = np.array(returns)
-        probs, _ = np.histogram(arr, bins=20, density=True)
-        probs = probs[probs > 0]
+        counts, _ = np.histogram(arr, bins=20)
+        total = counts.sum()
+        if total == 0:
+            return
+        probs = counts[counts > 0] / total  # true probability mass, sums to 1
         entropy = float(-np.sum(probs * np.log(probs + 1e-9)))
         self._market_entropies.append(entropy)
 

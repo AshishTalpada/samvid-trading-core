@@ -353,6 +353,24 @@ class TradingBrain(BrokerReconciler, HealthChecker, DataProvider, AccountingMixi
         except Exception as _br_err:
             logger.warning(f"BayesianRegimeAgent init skipped: {_br_err}")
             self.bayesian_regime = None
+        try:
+            from alpha_watchdog import AlphaDecayWatchdog
+            self.alpha_watchdog = AlphaDecayWatchdog()
+        except Exception as _aw_err:
+            logger.warning(f"AlphaDecayWatchdog init skipped: {_aw_err}")
+            self.alpha_watchdog = None
+        try:
+            from bayesian_oracle import BayesianOracle
+            self.bayesian_oracle = BayesianOracle()
+        except Exception as _bo_err:
+            logger.warning(f"BayesianOracle init skipped: {_bo_err}")
+            self.bayesian_oracle = None
+        try:
+            from debate_engine import DebateEngine
+            self.debate_engine = DebateEngine(required_confidence=0.55)
+        except Exception as _de_err:
+            logger.warning(f"DebateEngine init skipped: {_de_err}")
+            self.debate_engine = None
 
         self.ibkr_conn = IBKRConnection(ibkr_client)
         self.ibkr_conn.brain = self
@@ -2164,6 +2182,23 @@ class TradingBrain(BrokerReconciler, HealthChecker, DataProvider, AccountingMixi
                                 logger.debug("Scan [%s]: BayesianRegime=%s", symbol, _bayes_regime)
                         except Exception as _br_err:
                             logger.debug("Scan [%s]: BayesianRegimeAgent error: %s", symbol, _br_err)
+
+                        # BAYESIAN ORACLE: richer 4-regime posterior with likelihood table
+                        try:
+                            if self.bayesian_oracle and len(close_prices) >= 22:
+                                _vol_data = df_pl.get_column("volume").to_numpy() if "volume" in df_pl.columns else np.ones(len(close_prices))
+                                _vix_for_oracle = locals().get("vix_value") or 15.0
+                                _oracle_state = self.bayesian_oracle.update(
+                                    np.array(close_prices, dtype=float),
+                                    _vol_data.astype(float),
+                                    float(_vix_for_oracle),
+                                )
+                                logger.debug(
+                                    "Scan [%s]: BayesianOracle=%s conf=%.1f%%",
+                                    symbol, _oracle_state.regime, _oracle_state.confidence * 100,
+                                )
+                        except Exception as _oracle_err:
+                            logger.debug("Scan [%s]: BayesianOracle error: %s", symbol, _oracle_err)
 
                         # CAPITAL FLOW AGENT: ingest ticker return for sector rotation tracking
                         try:
