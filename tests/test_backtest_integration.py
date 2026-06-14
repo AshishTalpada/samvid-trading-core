@@ -329,8 +329,11 @@ def test_loader_selects_densest_timeframe_and_excludes_junk(tmp_path):
     conn.commit()
     conn.close()
 
-    _opens, _highs, _lows, closes, timestamps = asyncio.run(load_ohlcv_from_db(str(db), "SPY"))
+    _opens, _highs, _lows, closes, volumes, timestamps = asyncio.run(
+        load_ohlcv_from_db(str(db), "SPY")
+    )
 
     assert len(closes) == 25, "loader must return only the densest (1m) timeframe"
+    assert len(volumes) == 25
     assert 9999.0 not in closes, "synthetic 1h junk must be excluded"
     assert all(not ts.startswith("1970") for ts in timestamps)

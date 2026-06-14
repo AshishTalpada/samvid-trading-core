@@ -8,6 +8,8 @@ def _stats(
     expectancy_net_usd: float = 0.25,
     sharpe_per_trade: float = 0.2,
     max_drawdown: float = -0.04,
+    total_trades: int = 200,
+    positive_window_rate: float = 0.6,
 ) -> dict:
     return {
         "p_value": p_value,
@@ -15,6 +17,8 @@ def _stats(
         "expectancy_net_usd": expectancy_net_usd,
         "sharpe_per_trade": sharpe_per_trade,
         "max_drawdown": max_drawdown,
+        "total_trades": total_trades,
+        "positive_window_rate": positive_window_rate,
     }
 
 

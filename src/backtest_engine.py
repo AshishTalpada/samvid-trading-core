@@ -20,6 +20,8 @@ _db_lock = asyncio.Lock()
 PHASE1_MIN_PROFIT_FACTOR = 1.30
 PHASE1_MAX_DRAWDOWN = 0.12
 PHASE1_MAX_P_VALUE = 0.05
+PHASE1_MIN_TRADES = 100
+PHASE1_MIN_POSITIVE_WINDOW_RATE = 0.50
 
 # Per-instrument one-way friction (slippage + half-spread) as a price fraction.
 # Values are drawn from public market microstructure for the most liquid names, NOT
@@ -49,6 +51,7 @@ class Trade:
     pnl_pct: float = 0.0
     pnl_usd: float = 0.0
     size_usd: float = 0.0
+    gross_pnl_pct: float = 0.0
 
     def __post_init__(self):
         from decimal import Decimal
@@ -58,11 +61,18 @@ class Trade:
         d_size = Decimal(str(self.size_usd))
         d_comm = Decimal(str(self.commission))
 
+        if self.side not in {"LONG", "SHORT"}:
+            raise ValueError(f"unsupported trade side: {self.side}")
+        if d_entry <= 0 or d_size <= 0:
+            raise ValueError("entry_price and size_usd must be positive")
+
         direction = Decimal("1") if self.side == "LONG" else Decimal("-1")
 
-        # Use a small epsilon for division to avoid ZeroDivisionError
-        self.pnl_pct = float(direction * (d_exit - d_entry) / (d_entry + Decimal("1e-12")))
-        self.pnl_usd = float((Decimal(str(self.pnl_pct)) * d_size) - d_comm)
+        gross_return = direction * (d_exit - d_entry) / d_entry
+        net_pnl = gross_return * d_size - d_comm
+        self.gross_pnl_pct = float(gross_return)
+        self.pnl_usd = float(net_pnl)
+        self.pnl_pct = float(net_pnl / d_size)
 
 
 @dataclass
@@ -71,6 +81,7 @@ class WalkForwardResult:
     window_start: int
     window_end: int
     trades: list[Trade] = field(default_factory=list)
+    initial_capital: float = 500.0
 
     @property
     def n_trades(self) -> int:
@@ -122,15 +133,17 @@ class WalkForwardResult:
     def max_drawdown(self) -> float:
         if not self.trades:
             return 0.0
-        equity = np.cumsum([t.pnl_usd for t in self.trades])
+        equity = self.initial_capital + np.concatenate(
+            ([0.0], np.cumsum([t.pnl_usd for t in self.trades]))
+        )
         peak = np.maximum.accumulate(equity)
-        dd = (equity - peak) / (np.abs(peak) + 1e-10)
+        dd = (equity - peak) / np.maximum(peak, 1e-10)
         return float(np.min(dd))
 
 
 async def load_ohlcv_from_db(
     db_path: str, symbol: str, timeframe: Optional[str] = None
-) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, list[str]]:
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, list[str]]:
     """
     Load OHLCV from SQLite.
     Returns (opens, highs, lows, closes, volumes, timestamps).
@@ -182,7 +195,8 @@ async def load_ohlcv_from_db(
             rows, selected_tf = await asyncio.to_thread(_load)
 
             if not rows:
-                return np.array([]), np.array([]), np.array([]), np.array([]), []
+                empty = np.array([])
+                return empty, empty, empty, empty, empty, []
             logger.info(
                 "Loaded %d %s bars for %s (timeframe=%s)",
                 len(rows),
@@ -195,10 +209,12 @@ async def load_ohlcv_from_db(
             highs = np.array([float(r[2]) for r in rows])
             lows = np.array([float(r[3]) for r in rows])
             closes = np.array([float(r[4]) for r in rows])
-            return opens, highs, lows, closes, timestamps
+            volumes = np.array([float(r[5]) for r in rows])
+            return opens, highs, lows, closes, volumes, timestamps
         except Exception as e:
             logger.error(f"DB load failed for {symbol}: {e}")
-            return np.array([]), np.array([]), np.array([]), np.array([]), []
+            empty = np.array([])
+            return empty, empty, empty, empty, empty, []
 
 
 class WalkForwardEngine:
@@ -248,7 +264,7 @@ class WalkForwardEngine:
 
     async def run(self, symbol: str) -> list[WalkForwardResult]:
         result_tuple = await load_ohlcv_from_db(self.db_path, symbol)
-        opens, highs, lows, closes, timestamps = result_tuple
+        opens, highs, lows, closes, volumes, timestamps = result_tuple
 
         if len(closes) < self.train_bars + self.test_bars:
             logger.warning(
@@ -264,9 +280,12 @@ class WalkForwardEngine:
             test_end = train_end + self.test_bars
 
             train_closes = closes[start:train_end]
+            train_volumes = volumes[start:train_end]
+            test_opens = opens[train_end:test_end]
             test_closes = closes[train_end:test_end]
             test_highs = highs[train_end:test_end]
             test_lows = lows[train_end:test_end]
+            test_volumes = volumes[train_end:test_end]
 
             # Fit models on training window
             self.consensus.fit(train_closes)
@@ -276,13 +295,18 @@ class WalkForwardEngine:
             avg_win = self.stop_loss_pct * 2.0
             avg_loss = self.stop_loss_pct
 
-            result = WalkForwardResult(symbol=symbol, window_start=train_end, window_end=test_end)
+            result = WalkForwardResult(
+                symbol=symbol,
+                window_start=train_end,
+                window_end=test_end,
+                initial_capital=self.capital,
+            )
             equity = self.capital
 
             i = 50  # minimum lookback before first signal
             while i < len(test_closes) - 1:
                 p_window = np.concatenate([train_closes[-100:], test_closes[:i]])
-                v_window = np.concatenate([train_closes[-100:], test_closes[:i]])
+                v_window = np.concatenate([train_volumes[-100:], test_volumes[:i]])
 
                 consensus = self.consensus.evaluate(
                     symbol,
@@ -302,8 +326,9 @@ class WalkForwardEngine:
                 side = "LONG" if phase == "BUY" else "SHORT"
                 direction = 1 if side == "LONG" else -1
 
-                # Entry at next bar Close (conservative proxy for Next Open)
-                entry_raw = float(test_closes[i + 1])
+                # The signal is known after bar i closes. The earliest executable
+                # non-lookahead fill is the next bar's open.
+                entry_raw = float(test_opens[i + 1])
                 friction = self._one_way_friction(symbol)
                 entry = entry_raw * (1 + friction) if side == "LONG" else entry_raw * (1 - friction)
 
@@ -383,7 +408,7 @@ def aggregate_results(results: list[WalkForwardResult]) -> dict:
         return {"error": "No results"}
 
     all_trades = [t for r in results for t in r.trades]
-    all_pnl_pct = np.array([t.pnl_pct for t in all_trades]) if all_trades else np.array([0.0])
+    all_pnl_pct = np.array([t.pnl_pct for t in all_trades], dtype=float)
 
     total_trades = len(all_trades)
     total_pnl_usd = sum(t.pnl_usd for t in all_trades)
@@ -406,8 +431,9 @@ def aggregate_results(results: list[WalkForwardResult]) -> dict:
 
     # 'sharpe' is annualized assuming ~1 trade/day; 'sharpe_per_trade' is the raw ratio,
     # which reviewers should rely on when the real trade cadence differs from daily.
-    sharpe = float(np.mean(all_pnl_pct) / (np.std(all_pnl_pct) + 1e-10) * np.sqrt(252))
-    sharpe_per_trade = float(np.mean(all_pnl_pct) / (np.std(all_pnl_pct) + 1e-10))
+    return_std = float(np.std(all_pnl_pct, ddof=1)) if total_trades > 1 else 0.0
+    sharpe_per_trade = float(np.mean(all_pnl_pct) / return_std) if return_std > 0 else 0.0
+    sharpe = sharpe_per_trade * np.sqrt(252)
 
     # t-statistic: is the mean return statistically different from 0?
     from scipy import stats as sp_stats
@@ -415,23 +441,28 @@ def aggregate_results(results: list[WalkForwardResult]) -> dict:
     t_stat, p_value = sp_stats.ttest_1samp(all_pnl_pct, 0) if len(all_pnl_pct) > 1 else (0.0, 1.0)
 
     # Max drawdown across all windows
-    equity_curve = np.cumsum([t.pnl_usd for t in all_trades])
+    initial_capital = results[0].initial_capital if results else 0.0
+    equity_curve = initial_capital + np.concatenate(
+        ([0.0], np.cumsum([t.pnl_usd for t in all_trades]))
+    )
     peak = np.maximum.accumulate(equity_curve)
     max_dd = (
-        float(np.min((equity_curve - peak) / (np.abs(peak) + 1e-10)))
+        float(np.min((equity_curve - peak) / np.maximum(peak, 1e-10)))
         if len(equity_curve) > 0
         else 0.0
     )
 
-    verdict = (
-        " NO EDGE"
-        if sharpe < 0.5
-        else " WEAK EDGE"
-        if sharpe < 1.0
-        else " DEPLOYABLE EDGE"
-        if sharpe < 1.5
-        else " STRONG EDGE"
-    )
+    positive_windows = sum(1 for result in results if result.total_pnl_usd > 0.0)
+    positive_window_rate = positive_windows / len(results) if results else 0.0
+
+    if total_trades < PHASE1_MIN_TRADES or total_pnl_usd <= 0 or p_value >= PHASE1_MAX_P_VALUE:
+        verdict = "NO VALIDATED EDGE"
+    elif profit_factor < PHASE1_MIN_PROFIT_FACTOR or positive_window_rate < 0.5:
+        verdict = "UNSTABLE EDGE"
+    elif sharpe < 1.5:
+        verdict = "CANDIDATE EDGE"
+    else:
+        verdict = "STRONG CANDIDATE EDGE"
 
     result = {
         "verdict": verdict,
@@ -449,6 +480,7 @@ def aggregate_results(results: list[WalkForwardResult]) -> dict:
         "total_pnl_usd": round(total_pnl_usd, 2),
         "max_drawdown": round(max_dd, 4),
         "n_windows": len(results),
+        "positive_window_rate": round(positive_window_rate, 4),
         "per_window_sharpe": [round(r.sharpe, 3) for r in results],
     }
 
@@ -461,6 +493,8 @@ def phase1_gate_report(
     min_profit_factor: float = PHASE1_MIN_PROFIT_FACTOR,
     max_drawdown: float = PHASE1_MAX_DRAWDOWN,
     max_p_value: float = PHASE1_MAX_P_VALUE,
+    min_trades: int = PHASE1_MIN_TRADES,
+    min_positive_window_rate: float = PHASE1_MIN_POSITIVE_WINDOW_RATE,
 ) -> dict:
     """Evaluate Phase 1 with objective promotion gates from the roadmap."""
     symbol_reports: dict[str, dict] = {}
@@ -472,6 +506,8 @@ def phase1_gate_report(
         p_value = float(stats.get("p_value", 1.0) or 1.0)
         sharpe_per_trade = float(stats.get("sharpe_per_trade", 0.0) or 0.0)
         max_dd = abs(float(stats.get("max_drawdown", 1.0) or 0.0))
+        total_trades = int(stats.get("total_trades", 0) or 0)
+        positive_window_rate = float(stats.get("positive_window_rate", 0.0) or 0.0)
 
         blockers = []
         if p_value >= max_p_value:
@@ -484,6 +520,13 @@ def phase1_gate_report(
             blockers.append(f"sharpe_per_trade {sharpe_per_trade:.4f} <= 0")
         if max_dd > max_drawdown:
             blockers.append(f"max_drawdown {max_dd:.4f} > {max_drawdown:.4f}")
+        if total_trades < min_trades:
+            blockers.append(f"total_trades {total_trades} < {min_trades}")
+        if positive_window_rate < min_positive_window_rate:
+            blockers.append(
+                "positive_window_rate "
+                f"{positive_window_rate:.2%} < {min_positive_window_rate:.2%}"
+            )
 
         symbol_reports[symbol] = {
             "passed": not blockers,
@@ -494,6 +537,8 @@ def phase1_gate_report(
                 "expectancy_net_usd": expectancy,
                 "sharpe_per_trade": sharpe_per_trade,
                 "max_drawdown": max_dd,
+                "total_trades": total_trades,
+                "positive_window_rate": positive_window_rate,
             },
         }
 
