@@ -2245,6 +2245,32 @@ class TradingBrain(BrokerReconciler, HealthChecker, DataProvider, AccountingMixi
                         except Exception as ne:
                             logger.debug(f"Scan [{symbol}]: Macro news overlay error: {ne}")
 
+                        # CONTRARIAN AGENT: Use sentiment as a proxy for crowd extremes
+                        try:
+                            if self.contrarian_agent and news_headlines:
+                                # Map mean_sentiment to synthetic retail/influencer ratios
+                                sentiment = mean_sentiment if 'mean_sentiment' in dir() else 0.0
+                                abs_sent = abs(sentiment)
+                                if abs_sent > 0.5:
+                                    long_ratio = 0.5 + (sentiment * 0.4)
+                                    short_ratio = 1.0 - long_ratio
+                                    bull_mentions = int(abs_sent * 10) if sentiment > 0 else 0
+                                    bear_mentions = int(abs_sent * 10) if sentiment < 0 else 0
+                                    contra = self.contrarian_agent.evaluate_crowd_error(
+                                        retail_long_ratio=max(0.0, min(1.0, long_ratio)),
+                                        retail_short_ratio=max(0.0, min(1.0, short_ratio)),
+                                        influencer_bull_mentions=bull_mentions,
+                                        influencer_bear_mentions=bear_mentions,
+                                    )
+                                    signal = contra.get("signal", "NEUTRAL")
+                                    if signal in ("BUY", "SELL"):
+                                        logger.info(
+                                            f"Scan [{symbol}]: Contrarian signal {signal} "
+                                            f"(crowd_score={contra.get('crowd_score', 0):.2f}, conf={contra.get('confidence', 0):.2f})"
+                                        )
+                        except Exception as ca_err:
+                            logger.debug(f"Scan [{symbol}]: Contrarian overlay error: {ca_err}")
+
                         async with stats_lock:
                             stats["detected"] += 1
                             stats["approved"] += 1
