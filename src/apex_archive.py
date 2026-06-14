@@ -31,6 +31,8 @@ class ApexArchive:
         return entry_hash
 
     def verify_chain(self) -> bool:
+        if not self._path.exists():
+            return True
         entries = [json.loads(l) for l in self._path.read_text().splitlines() if l.strip()]
         for i, entry in enumerate(entries[1:], 1):
             if entry["prev_hash"] != entries[i - 1]["hash"]:

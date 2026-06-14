@@ -37,7 +37,8 @@ class ContagionSentinel:
 
         n = corr_matrix.shape[0]
         upper_tri = [corr_matrix[i, j] for i in range(n) for j in range(i + 1, n)]
-        current_avg_corr = float(np.mean(upper_tri))
+        avg = float(np.nanmean(upper_tri)) if upper_tri else 0.0
+        current_avg_corr = avg if np.isfinite(avg) else 0.0
 
         spike = current_avg_corr - baseline_correlation
         if spike > self.threshold:
