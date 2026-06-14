@@ -3,7 +3,7 @@ title: "Samvid Trading Core"
 message: "If you use this software in your research, please cite it as below."
 type: software
 authors:
-  - given-names: Ashish
+  - given-names: Ashishkumar
     family-names: Talpada
     alias: AshishTalpada
 repository-code: "https://github.com/AshishTalpada/samvid-trading-core"
