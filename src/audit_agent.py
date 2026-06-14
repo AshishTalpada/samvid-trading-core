@@ -48,9 +48,14 @@ class AuditAgent:
         risk_score = 0.0
 
         votes = [o.get("vote", "ABSTAIN") for o in agent_outputs]
-        confidences = [
-            float(o.get("confidence", 0.0)) for o in agent_outputs if o.get("vote") != "ABSTAIN"
-        ]
+        confidences = []
+        for o in agent_outputs:
+            if o.get("vote") == "ABSTAIN":
+                continue
+            try:
+                confidences.append(float(o.get("confidence", 0.0)))
+            except (TypeError, ValueError):
+                confidences.append(0.0)
         _agent_ids = [o.get("agent", "UNKNOWN") for o in agent_outputs]
 
         vote_dist = Counter(votes)

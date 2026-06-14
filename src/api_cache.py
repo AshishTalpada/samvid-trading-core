@@ -31,7 +31,7 @@ class TTLCache:
 
     def __init__(self, default_ttl: float = 300.0, max_size: int = 1000) -> None:
         self._store: dict[str, tuple[Any, float]] = {}  # key -> (value, expires_at)
-        self._lock = asyncio.Lock()
+        self._lock: asyncio.Lock | None = None  # lazily initialized inside event loop
         self._default_ttl = default_ttl
         self._max_size = max_size
         self._hits = 0
@@ -39,6 +39,11 @@ class TTLCache:
         self._is_running = True
         self._cleanup_task = None
         self._last_prune = time.monotonic()
+
+    def _get_lock(self) -> asyncio.Lock:
+        if self._lock is None:
+            self._lock = asyncio.Lock()
+        return self._lock
 
     async def _cleanup_loop(self) -> None:
         """Background loop to periodically prune stale entries."""
@@ -55,7 +60,7 @@ class TTLCache:
         """Remove all expired entries from the cache. Returns count of pruned items."""
         now = time.monotonic()
         pruned = 0
-        async with self._lock:
+        async with self._get_lock():
             # We must convert keys to list to avoid 'size changed during iteration' error
             expired_keys = [k for k, v in self._store.items() if now > v[1]]
             for k in expired_keys:
@@ -78,7 +83,7 @@ class TTLCache:
     async def get(self, key: str) -> Any | None:
         """Return cached value if it exists and hasn't expired, else None."""
         await self._prune_if_due()
-        async with self._lock:
+        async with self._get_lock():
             entry = self._store.get(key)
             if entry is None:
                 self._misses += 1
@@ -95,7 +100,7 @@ class TTLCache:
         """Store a value with an optional per-key TTL override."""
         await self._prune_if_due()
         effective_ttl = ttl if ttl is not None else self._default_ttl
-        async with self._lock:
+        async with self._get_lock():
             # Evict oldest if at capacity
             if len(self._store) >= self._max_size:
                 self._evict_oldest()
@@ -130,12 +135,12 @@ class TTLCache:
 
     async def invalidate(self, key: str) -> None:
         """Remove a specific key from the cache."""
-        async with self._lock:
+        async with self._get_lock():
             self._store.pop(key, None)
 
     async def clear(self) -> None:
         """Flush the entire cache."""
-        async with self._lock:
+        async with self._get_lock():
             self._store.clear()
             self._hits = 0
             self._misses = 0
