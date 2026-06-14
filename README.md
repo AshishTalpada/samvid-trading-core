@@ -334,20 +334,6 @@ Full variable reference: see [`src/config.py`](src/config.py) and [`.env.example
 
 ---
 
-## 🤝 Contributing
-
-Contributions are welcome! Please read [`CONTRIBUTING.md`](CONTRIBUTING.md) first.
-
-1. Fork the repository
-2. Create a feature branch: `git checkout -b feat/your-feature`
-3. Make your changes and add tests
-4. Run the quality gate: `uv run ruff check src/ && uv run python -m pytest tests/ -q`
-5. Submit a pull request — use the [PR template](.github/PULL_REQUEST_TEMPLATE.md)
-
-See [`GOVERNANCE.md`](GOVERNANCE.md) for the project roadmap and decision-making process.
-
----
-
 ## 📈 Roadmap
 
 - [ ] Verified positive expectancy after costs across 90-day paper soak
