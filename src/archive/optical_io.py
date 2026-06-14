@@ -32,6 +32,9 @@ class OpticalArchiveIO:
     def verify_all(self) -> tuple[int, int]:
         import zlib
 
+        if not self._path.exists():
+            logger.debug("[OPTICAL IO] Archive file does not exist yet. Nothing to verify.")
+            return 0, 0
         ok, bad = 0, 0
         for line in self._path.read_text().splitlines():
             if ":" not in line:

@@ -16,6 +16,8 @@ class DNAArchiveIO:
     """
 
     def encode(self, data: bytes) -> str:
+        if not data:
+            return ""
         bits = bin(int(data.hex(), 16))[2:].zfill(len(data) * 8)
         pairs = [bits[i : i + 2] for i in range(0, len(bits), 2)]
         dna = "".join(BASE_MAP.get(p, "A") for p in pairs)

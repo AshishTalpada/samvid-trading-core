@@ -36,6 +36,9 @@ class MultiSigAuthorizer:
         if change_id not in self._pending:
             logger.error(f"[MULTISIG] Unknown change_id: {change_id}")
             return False
+        if signer_id not in self.signers:
+            logger.error(f"[MULTISIG] Unauthorized signer: {signer_id}")
+            return False
         entry = self._pending[change_id]
         if signer_id in entry["sigs"]:
             logger.warning(f"[MULTISIG] {signer_id} already signed.")

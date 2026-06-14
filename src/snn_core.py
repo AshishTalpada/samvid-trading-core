@@ -24,7 +24,9 @@ class SpikingNeuralCore:
         self.V_mem = np.full(n, self.V_reset)
 
     def step(self, I_ext: np.ndarray, dt: float = 0.1) -> np.ndarray:
-        exp_term = self.delta_T * np.exp((self.V_mem - self.theta_rh) / self.delta_T)
+        # Clip exponent to prevent overflow (EIF diverges when V >> theta_rh)
+        exp_arg = np.clip((self.V_mem - self.theta_rh) / self.delta_T, -50.0, 50.0)
+        exp_term = self.delta_T * np.exp(exp_arg)
         dV = dt / self.tau_m * (-self.V_mem + exp_term + I_ext)
         self.V_mem += dV
         spikes = self.V_mem >= self.V_thresh

@@ -104,6 +104,7 @@ class WisdomRepository:
 - If PnL > 0: What was the primary alpha-driver? Did it reach the first R-Multiple target cleanly?
 """
         try:
+            filename.parent.mkdir(parents=True, exist_ok=True)
             filename.write_text(content)
             logger.info(f" Wisdom: Post-Mortem synthesized for {pos.symbol} at {filename}")
         except Exception as e:

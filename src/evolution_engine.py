@@ -41,6 +41,10 @@ class EvolutionEngine:
         Runs Differential Evolution.
         Returns (best_params, best_score).
         """
+        if self.pop_size < 4:
+            logger.error("[EVOLUTION] pop_size must be >= 4 for DE mutation. Aborting.")
+            dummy = self.bounds[:, 0].copy()
+            return dummy, float(self.objective(dummy))
         pop = self._init_population()
         fitness = np.array([self.objective(ind) for ind in pop])
         best_idx = int(np.argmin(fitness))

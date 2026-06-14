@@ -15,7 +15,7 @@ class SharedEmbeddingEngine:
     """
 
     _instance: Optional["SharedEmbeddingEngine"] = None
-    _model: Optional[any] = None
+    _model: Optional[Any] = None
     _lock = threading.Lock()
     _fallback_logged = False
 

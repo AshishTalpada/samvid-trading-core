@@ -21,7 +21,7 @@ class FormalVerifier:
     def verify(self, hypothesis: str, evidence: list[str]) -> dict[str, Any]:
         score = self.complexity_score(evidence)
         contradiction = any(
-            e1.split()[0] == "NOT" and e1[4:] == e2
+            bool(e1.split()) and e1.split()[0] == "NOT" and e1[4:] == e2
             for i, e1 in enumerate(evidence)
             for e2 in evidence[i + 1 :]
         )
