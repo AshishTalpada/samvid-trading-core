@@ -714,6 +714,7 @@ class InformationDecayModel:
         # Calculate decay constant
         if age_hours > 1.0:
             effective_halflife = min(effective_halflife, 2.0)  # Force 2h max halflife for old news
+        effective_halflife = max(effective_halflife, 0.01)  # guard against zero
 
         decay_constant = math.log(2) / effective_halflife
 
@@ -737,9 +738,10 @@ class InformationDecayModel:
         if threshold <= self.MIN_DECAY_FACTOR:
             return float("inf")
 
-        effective_halflife = self.base_halflife
+        effective_halflife = max(self.base_halflife, 0.01)
         if high_entropy:
             effective_halflife /= self.HIGH_ENTROPY_DECAY_MULTIPLIER
+        effective_halflife = max(effective_halflife, 0.01)  # guard post-division
 
         decay_constant = math.log(2) / effective_halflife
 
