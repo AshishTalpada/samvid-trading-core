@@ -138,7 +138,9 @@ class SovereignBrain:
         }
 
     def _save_weights(self):
-        os.makedirs(os.path.dirname(self.weights_path), exist_ok=True)
+        _dir = os.path.dirname(self.weights_path)
+        if _dir:
+            os.makedirs(_dir, exist_ok=True)
         with open(self.weights_path, "w") as f:
             json.dump(self.weights, f, indent=4)
 

@@ -125,9 +125,9 @@ class SovereignLogicEngine:
         account_value = ctx.get("account_value", STARTING_CAPITAL_CAD)
 
         q = 1.0 - win_prob
-        kelly_f = (win_prob * rr - q) / rr
+        kelly_f = (win_prob * rr - q) / rr if rr > 0 else 0.0
         final_sizing = max(0, kelly_f * 0.2)
-        fee_drag = commission / account_value
+        fee_drag = commission / account_value if account_value > 0 else float("inf")
         if final_sizing < fee_drag:
             return {
                 "decision": "SKIP",
