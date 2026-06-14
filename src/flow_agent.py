@@ -36,8 +36,15 @@ class CapitalFlowAgent:
                 if n < 5:
                     flow[t1][t2] = 0.0
                     continue
-                corr = float(np.corrcoef(r1[-n:], r2[-n:])[0, 1])
-                lead_score = float(np.corrcoef(r1[-n:-1], r2[-(n - 1) :])[0, 1]) - corr
+                corr_mat = np.corrcoef(r1[-n:], r2[-n:])
+                corr = float(corr_mat[0, 1])
+                if not np.isfinite(corr):
+                    corr = 0.0
+                lag_mat = np.corrcoef(r1[-n:-1], r2[-(n - 1) :])
+                lag_corr = float(lag_mat[0, 1])
+                if not np.isfinite(lag_corr):
+                    lag_corr = 0.0
+                lead_score = lag_corr - corr
                 flow[t1][t2] = round(lead_score, 4)
         return flow
 

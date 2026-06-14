@@ -199,7 +199,7 @@ class TestEvolutionEngine:
         bounds = [(0.0, 1.0), (-1.0, 1.0)]
         eng = EvolutionEngine(lambda x: float(x[0]**2), bounds, population_size=8, max_generations=20)
         best_params, _ = eng.run()
-        for val, (lo, hi) in zip(best_params, bounds):
+        for val, (lo, hi) in zip(best_params, bounds, strict=False):
             assert lo <= val <= hi
 
     def test_single_dimension(self):
@@ -305,7 +305,9 @@ class TestCategoryTheoryVerifier:
 class TestCyberRiskAgent:
     def test_scan_returns_dict_on_error(self, monkeypatch):
         import asyncio
+
         import requests
+
         from cyber_agent import CyberRiskAgent
 
         def _fail(*a, **kw):
@@ -320,7 +322,9 @@ class TestCyberRiskAgent:
 
     def test_scan_with_mock_feed(self, monkeypatch):
         import asyncio
+
         import requests
+
         from cyber_agent import CyberRiskAgent
 
         def _mock_get(url, timeout=4):
@@ -432,7 +436,9 @@ class TestProductionResiliencyAgent:
 class TestPatentVelocityAgent:
     def test_get_count_zero_on_error(self, monkeypatch):
         import asyncio
+
         import requests
+
         from patent_agent import PatentVelocityAgent
 
         def _fail(*a, **kw):
@@ -445,7 +451,9 @@ class TestPatentVelocityAgent:
 
     def test_velocity_score_structure(self, monkeypatch):
         import asyncio
+
         import requests
+
         from patent_agent import PatentVelocityAgent
 
         call_n = [0]

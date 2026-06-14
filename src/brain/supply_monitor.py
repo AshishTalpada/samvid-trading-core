@@ -19,7 +19,7 @@ class SupplyMonitor:
         total_liabilities: float,
         revenue: float,
     ) -> float:
-        if total_assets == 0 or total_liabilities == 0:
+        if total_assets <= 0 or total_liabilities <= 0:
             return 0.0
         x1 = working_capital / total_assets
         x2 = retained_earnings / total_assets

@@ -53,9 +53,14 @@ async def stream_hn_stories(min_score: float = 0.3) -> AsyncGenerator[dict, None
 
     while True:
         try:
-            story_ids: list[int] = await asyncio.to_thread(
-                lambda: requests.get(f"{HN_API}/newstories.json", timeout=5).json()[:100]
+            raw = await asyncio.to_thread(
+                lambda: requests.get(f"{HN_API}/newstories.json", timeout=5).json()
             )
+            if not isinstance(raw, list):
+                logger.error("[HACKER FEED] Unexpected API response format: %s", type(raw))
+                await asyncio.sleep(60)
+                continue
+            story_ids: list[int] = raw[:100]
 
             for sid in story_ids:
                 if sid in seen:

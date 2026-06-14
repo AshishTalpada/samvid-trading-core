@@ -166,7 +166,7 @@ class TestQuantumInspiredOptimizer:
         bounds = [(-2.0, 2.0), (0.0, 3.0)]
         opt = QuantumInspiredOptimizer(lambda x: float(x[0]), bounds, n_steps=200)
         best_params, _ = opt.run()
-        for val, (lo, hi) in zip(best_params, bounds):
+        for val, (lo, hi) in zip(best_params, bounds, strict=False):
             assert lo <= val <= hi
 
     def test_tunnel_prob_positive(self):

@@ -362,7 +362,6 @@ class ConsecutiveLossTracker:
         )
 
 
-
 @dataclass
 class MorningBudget:
     """Daily risk budget set by Agent A at 8 AM ET."""

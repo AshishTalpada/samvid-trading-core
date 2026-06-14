@@ -34,10 +34,14 @@ class HolographicMemoryStore:
         self._memory += trace
 
     def retrieve(self, key: str) -> str:
+        if not self._register:
+            return ""
         k_vec = self._basis(key)
         probe = np.real(np.fft.ifft(np.fft.fft(self._memory) * np.conj(np.fft.fft(k_vec))))
         best_key, best_sim = "", -1.0
         for candidate, vec in self._register.items():
+            if candidate == key:
+                continue  # Skip the query key itself — we want the associated value
             sim = float(np.dot(probe, vec))
             if sim > best_sim:
                 best_sim, best_key = sim, candidate

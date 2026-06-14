@@ -86,6 +86,7 @@ class TestHackerFeedScorer:
 class TestGarbageCollectorTuner:
     def setup_method(self):
         import gc
+
         from gc_tuner import GarbageCollectorTuner
         self.gc_mod = gc
         self.tuner = GarbageCollectorTuner()

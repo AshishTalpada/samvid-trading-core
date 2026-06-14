@@ -24,9 +24,19 @@ class OceanFreightAgent:
             r = requests.get(
                 "https://fred.stlouisfed.org/graph/fredgraph.csv?id=BDIYINDEX", timeout=5
             )
-            lines = [ln for ln in r.text.strip().split("\n") if "," in ln]
-            last_val = float(lines[-1].split(",")[1])
-            return min(1.0, last_val / 5000.0)
+            data_lines = []
+            for ln in r.text.strip().split("\n"):
+                parts = ln.strip().split(",")
+                if len(parts) >= 2:
+                    try:
+                        float(parts[1])  # validate numeric value
+                        data_lines.append(parts)
+                    except ValueError:
+                        continue  # skip header rows like "DATE,BDIYINDEX"
+            if not data_lines:
+                return 0.5
+            last_val = float(data_lines[-1][1])
+            return min(1.0, max(0.0, last_val / 5000.0))
 
         try:
             return await asyncio.to_thread(_fetch)

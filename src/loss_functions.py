@@ -29,8 +29,13 @@ class EvolvingLossFunctions:
         ann_return = float(np.mean(arr) * 252)
         cumulative = np.cumprod(1 + arr)
         running_max = np.maximum.accumulate(cumulative)
-        max_dd = float(np.min((cumulative - running_max) / running_max))
-        return ann_return / abs(max_dd) if max_dd != 0 else 0.0
+        drawdowns = (cumulative - running_max) / (running_max + 1e-12)
+        max_dd = float(np.min(drawdowns))
+        # Guard: if drawdown is negligibly small, avoid inflated Calmar
+        abs_dd = abs(max_dd)
+        if abs_dd < 1e-6:
+            return 0.0
+        return ann_return / abs_dd
 
     def select_for_regime(self, regime: str) -> str:
         mapping = {"BULL": "sharpe", "BEAR": "sortino", "VOLATILE": "calmar", "CHOPPY": "sortino"}

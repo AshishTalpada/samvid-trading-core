@@ -24,8 +24,9 @@ class TestDatabaseSecurity:
     def setup_method(self):
         """Inject a fresh valid Fernet key into the Vault before each test."""
         from cryptography.fernet import Fernet
-        from vault import Vault
+
         from database_security import DatabaseSecurity
+        from vault import Vault
 
         # Reset any cached Fernet instance
         DatabaseSecurity._fernet = None
@@ -70,8 +71,9 @@ class TestDatabaseSecurity:
 
     def test_rotate_key_clears_cache(self):
         from cryptography.fernet import Fernet
-        from vault import Vault
+
         from database_security import DatabaseSecurity
+        from vault import Vault
 
         new_key = Fernet.generate_key().decode()
         DatabaseSecurity.rotate_key(new_key)

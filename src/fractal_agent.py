@@ -43,16 +43,24 @@ class FractalAgent:
                     Lk.append(Lmk)
 
             if Lk:
-                # Average length for this k
-                L.append(np.log(np.mean(Lk)))
+                mean_lk = float(np.mean(Lk))
+                if mean_lk <= 0:
+                    continue  # Guard: log(0) or log(negative) produces -inf / nan
+                L.append(np.log(mean_lk))
                 x.append(np.log(1.0 / k))
 
         if len(x) < 2:
             return 1.5
 
         # Fit a line: L = m*x + c, the slope 'm' is the fractal dimension
-        coeffs = np.polyfit(x, L, 1)
-        return float(coeffs[0])
+        x_arr, L_arr = np.array(x), np.array(L)
+        finite_mask = np.isfinite(x_arr) & np.isfinite(L_arr)
+        if finite_mask.sum() < 2:
+            return 1.5
+        coeffs = np.polyfit(x_arr[finite_mask], L_arr[finite_mask], 1)
+        fd = float(coeffs[0])
+        # Clamp to physically meaningful range [1.0, 2.0]
+        return float(np.clip(fd, 1.0, 2.0))
 
     def analyze_trend(self, data: list[float]) -> dict[str, Any]:
         fd = self.higuchi_fd(data)

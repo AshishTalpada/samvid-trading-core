@@ -37,7 +37,7 @@ class TestApexArchive:
     def test_chain_hashes_are_linked(self):
         import json
         h1 = self.archive.record({"x": 1})
-        h2 = self.archive.record({"x": 2})
+        self.archive.record({"x": 2})
         lines = Path(f"{self._tmpdir}/archive.jsonl").read_text().strip().splitlines()
         e2 = json.loads(lines[1])
         assert e2["prev_hash"] == h1
@@ -155,7 +155,9 @@ class TestCryptoBridgeAgent:
 
     def test_get_crypto_returns_on_error(self, monkeypatch):
         import asyncio
+
         import requests
+
         from crypto_bridge import CryptoBridgeAgent
         monkeypatch.setattr(requests, "get", lambda *a, **kw: (_ for _ in ()).throw(requests.ConnectionError()))
         agent = CryptoBridgeAgent()
@@ -164,7 +166,9 @@ class TestCryptoBridgeAgent:
 
     def test_get_crypto_returns_mocked(self, monkeypatch):
         import asyncio
+
         import requests
+
         from crypto_bridge import CryptoBridgeAgent
 
         def _mock_get(url, params=None, timeout=5):

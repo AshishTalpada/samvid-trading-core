@@ -75,7 +75,7 @@ class TestAlphaDiscoveryEngine:
             assert a["sharpe_oos"] > 0.4
 
     def test_rule_functions_directly(self):
-        from discovery_engine import _rule_momentum, _rule_rsi, _rule_bollinger, _rule_macd
+        from discovery_engine import _rule_bollinger, _rule_macd, _rule_momentum, _rule_rsi
         prices = np.array(_trending_prices(50))
         assert _rule_momentum(prices, period=10) in (-1.0, 0.0, 1.0)
         assert _rule_rsi(prices, period=14) in (-1.0, 0.0, 1.0)
@@ -83,7 +83,7 @@ class TestAlphaDiscoveryEngine:
         assert _rule_macd(prices, fast=12, slow=26) in (-1.0, 1.0)
 
     def test_mutation_stays_in_bounds(self):
-        from discovery_engine import _Alpha, _PARAM_SPACE
+        from discovery_engine import _PARAM_SPACE, _Alpha
         for _ in range(50):
             a = _Alpha.random()
             m = a.mutate()
@@ -312,9 +312,11 @@ class TestOptionAgent:
 # ── SECSemanticAgent (mocked HTTP) ────────────────────────────────────────────
 class TestSECSemanticAgent:
     def test_search_returns_list_on_error(self, monkeypatch):
-        from sec_agent import SECSemanticAgent
         import asyncio
+
         import requests
+
+        from sec_agent import SECSemanticAgent
 
         def _fail(*a, **kw):
             raise requests.ConnectionError("offline")
@@ -327,9 +329,11 @@ class TestSECSemanticAgent:
         assert result == []
 
     def test_red_flag_scan_returns_dict(self, monkeypatch):
-        from sec_agent import SECSemanticAgent
         import asyncio
+
         import requests
+
+        from sec_agent import SECSemanticAgent
 
         def _mock_get(url, timeout=8):
             class _R:
