@@ -52,6 +52,8 @@ class Trade:
     pnl_usd: float = 0.0
     size_usd: float = 0.0
     gross_pnl_pct: float = 0.0
+    signal_confidence: float = 0.0
+    regime: str = "UNKNOWN"
 
     def __post_init__(self):
         from decimal import Decimal
@@ -236,6 +238,10 @@ class WalkForwardEngine:
         spread_pct: float = 0.0010,  # 0.10% average bid/ask spread
         commission: float = 1.0,  # $1 per trade estimate
         instrument_friction: Optional[dict] = None,
+        min_signal_confidence: float = 0.0,
+        max_holding_bars: int = 60,
+        allowed_sides: Optional[set[str]] = None,
+        allowed_regimes: Optional[set[str]] = None,
     ):
         from quant_signals import QuantConsensus
 
@@ -248,6 +254,16 @@ class WalkForwardEngine:
         self.SLIPPAGE_PCT = slippage_pct
         self.SPREAD_PCT = spread_pct
         self.COMMISSION_USD = commission
+        self.min_signal_confidence = min(max(float(min_signal_confidence), 0.0), 1.0)
+        self.max_holding_bars = max(1, int(max_holding_bars))
+        self.allowed_sides = (
+            {side.upper() for side in allowed_sides} if allowed_sides is not None else None
+        )
+        self.allowed_regimes = (
+            {regime.upper() for regime in allowed_regimes}
+            if allowed_regimes is not None
+            else None
+        )
         self.instrument_friction = (
             INSTRUMENT_ONE_WAY_FRICTION if instrument_friction is None else instrument_friction
         )
@@ -319,11 +335,23 @@ class WalkForwardEngine:
                 )
 
                 phase = consensus["phase"]
-                if phase not in ("BUY", "SELL") or consensus["regime_veto"]:
+                confidence = float(consensus.get("confidence", 0.0) or 0.0)
+                if (
+                    phase not in ("BUY", "SELL")
+                    or consensus["regime_veto"]
+                    or confidence < self.min_signal_confidence
+                ):
                     i += 1
                     continue
 
                 side = "LONG" if phase == "BUY" else "SHORT"
+                regime = str(consensus.get("regime", "UNKNOWN")).upper()
+                if self.allowed_sides is not None and side not in self.allowed_sides:
+                    i += 1
+                    continue
+                if self.allowed_regimes is not None and regime not in self.allowed_regimes:
+                    i += 1
+                    continue
                 direction = 1 if side == "LONG" else -1
 
                 # The signal is known after bar i closes. The earliest executable
@@ -339,7 +367,10 @@ class WalkForwardEngine:
                 # Find exit — check intra-bar HIGH/LOW first (realistic stop/target triggering)
                 exit_price = None
                 exit_idx = i + 1
-                for j in range(i + 2, min(i + 61, len(test_closes))):
+                for j in range(
+                    i + 2,
+                    min(i + self.max_holding_bars + 1, len(test_closes)),
+                ):
                     bar_high = float(test_highs[j])
                     bar_low = float(test_lows[j])
                     friction = self._one_way_friction(symbol)
@@ -366,8 +397,8 @@ class WalkForwardEngine:
                             break
 
                 if exit_price is None:
-                    exit_price = float(test_closes[min(i + 60, len(test_closes) - 1)])
-                    exit_idx = min(i + 60, len(test_closes) - 1)
+                    exit_idx = min(i + self.max_holding_bars, len(test_closes) - 1)
+                    exit_price = float(test_closes[exit_idx])
 
                 trade = Trade(
                     symbol=symbol,
@@ -378,6 +409,8 @@ class WalkForwardEngine:
                     side=side,
                     size_usd=size_usd,
                     commission=self.COMMISSION_USD,
+                    signal_confidence=confidence,
+                    regime=regime,
                 )
                 result.trades.append(trade)
                 equity += trade.pnl_usd
@@ -455,6 +488,40 @@ def aggregate_results(results: list[WalkForwardResult]) -> dict:
     positive_windows = sum(1 for result in results if result.total_pnl_usd > 0.0)
     positive_window_rate = positive_windows / len(results) if results else 0.0
 
+    def _group_stats(trades: list[Trade]) -> dict:
+        if not trades:
+            return {"trades": 0, "win_rate": 0.0, "profit_factor": 0.0, "pnl_usd": 0.0}
+        wins = [trade.pnl_usd for trade in trades if trade.pnl_usd > 0.0]
+        losses = [trade.pnl_usd for trade in trades if trade.pnl_usd <= 0.0]
+        gross_loss = abs(sum(losses))
+        return {
+            "trades": len(trades),
+            "win_rate": round(len(wins) / len(trades), 4),
+            "profit_factor": round(sum(wins) / gross_loss, 3) if gross_loss else 0.0,
+            "pnl_usd": round(sum(trade.pnl_usd for trade in trades), 2),
+        }
+
+    by_side = {
+        side: _group_stats([trade for trade in all_trades if trade.side == side])
+        for side in ("LONG", "SHORT")
+    }
+    regimes = sorted({trade.regime for trade in all_trades})
+    by_regime = {
+        regime: _group_stats([trade for trade in all_trades if trade.regime == regime])
+        for regime in regimes
+    }
+    confidence_ranges = ((0.0, 0.55), (0.55, 0.65), (0.65, 0.75), (0.75, 1.01))
+    by_confidence = {
+        f"{low:.2f}-{min(high, 1.0):.2f}": _group_stats(
+            [
+                trade
+                for trade in all_trades
+                if low <= trade.signal_confidence < high
+            ]
+        )
+        for low, high in confidence_ranges
+    }
+
     if total_trades < PHASE1_MIN_TRADES or total_pnl_usd <= 0 or p_value >= PHASE1_MAX_P_VALUE:
         verdict = "NO VALIDATED EDGE"
     elif profit_factor < PHASE1_MIN_PROFIT_FACTOR or positive_window_rate < 0.5:
@@ -481,6 +548,9 @@ def aggregate_results(results: list[WalkForwardResult]) -> dict:
         "max_drawdown": round(max_dd, 4),
         "n_windows": len(results),
         "positive_window_rate": round(positive_window_rate, 4),
+        "by_side": by_side,
+        "by_regime": by_regime,
+        "by_confidence": by_confidence,
         "per_window_sharpe": [round(r.sharpe, 3) for r in results],
     }
 

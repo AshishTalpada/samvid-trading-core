@@ -1,4 +1,10 @@
-from backtest_engine import Trade, WalkForwardResult, aggregate_results, phase1_gate_report
+from backtest_engine import (
+    Trade,
+    WalkForwardEngine,
+    WalkForwardResult,
+    aggregate_results,
+    phase1_gate_report,
+)
 
 
 def test_trade_return_is_net_of_commission() -> None:
@@ -53,6 +59,8 @@ def test_aggregate_reports_window_stability_and_net_returns() -> None:
     assert stats["total_pnl_usd"] == 1.0
     assert stats["positive_window_rate"] == 0.5
     assert stats["max_drawdown"] == -0.0098
+    assert stats["by_side"]["LONG"]["trades"] == 2
+    assert stats["by_confidence"]["0.00-0.55"]["trades"] == 2
 
 
 def test_phase1_gate_rejects_thin_or_unstable_samples() -> None:
@@ -74,3 +82,18 @@ def test_phase1_gate_rejects_thin_or_unstable_samples() -> None:
     blockers = " ".join(report["symbol_reports"]["SPY"]["blockers"])
     assert "total_trades" in blockers
     assert "positive_window_rate" in blockers
+
+
+def test_engine_normalizes_optional_policy_filters() -> None:
+    engine = WalkForwardEngine(
+        db_path=":memory:",
+        allowed_sides={"long"},
+        allowed_regimes={"bull", "sideways"},
+        min_signal_confidence=2.0,
+        max_holding_bars=0,
+    )
+
+    assert engine.allowed_sides == {"LONG"}
+    assert engine.allowed_regimes == {"BULL", "SIDEWAYS"}
+    assert engine.min_signal_confidence == 1.0
+    assert engine.max_holding_bars == 1
