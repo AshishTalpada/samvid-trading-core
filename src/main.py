@@ -360,6 +360,13 @@ class TradingSystem:
         self.restorer = SessionRestorer()
         self._openbb_provider: Any = None
         self.native_slm: Any = None
+        try:
+            from ops.maintenance import PredictiveMaintenanceAgent
+
+            self.maintenance_agent: Any = PredictiveMaintenanceAgent(root_path=_root)
+        except Exception as exc:
+            logger.warning("Predictive maintenance initialization failed: %s", exc)
+            self.maintenance_agent = None
         self.telegram_remote = get_remote()  # Remote Command Hub
         self.is_running = False
         self._mt5_failure_count = 0  # Track sequential MT5 heartbeat failures
@@ -1008,6 +1015,7 @@ class TradingSystem:
         slm = getattr(self, "native_slm", None)
         tvq = getattr(self, "tv_quote_streamer", None)
         ibkr_hft = getattr(self, "hft_streamer", None)
+        maintenance = getattr(self, "maintenance_agent", None)
 
         openbb_status = "OFFLINE"
         openbb_detail = "not initialized"
@@ -1060,6 +1068,17 @@ class TradingSystem:
             max_age_sec=proof_max_age,
         )
 
+        maintenance_status = "OFFLINE"
+        maintenance_detail = "not initialized"
+        if maintenance:
+            try:
+                maintenance_report = maintenance.evaluate()
+                maintenance_status = str(maintenance_report["status"])
+                maintenance_detail = str(maintenance_report["detail"])
+            except Exception as exc:
+                maintenance_status = "DEGRADED"
+                maintenance_detail = f"telemetry error: {type(exc).__name__}"
+
         components = [
             ComponentHealth("ibkr_execution", ibkr_status, critical=self.requires_ibkr_connection),
             ComponentHealth("mt5", mt5_status, critical=False),
@@ -1068,6 +1087,12 @@ class TradingSystem:
             data_plane,
             ComponentHealth("native_slm", slm_status, slm_detail, critical=False),
             ComponentHealth("tv_quotes", tv_status, tv_detail, critical=False),
+            ComponentHealth(
+                "host_resources",
+                maintenance_status,
+                maintenance_detail,
+                critical=maintenance is not None,
+            ),
         ]
         return build_health_snapshot(
             components,
