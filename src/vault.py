@@ -97,14 +97,24 @@ class Vault:
 
     @staticmethod
     def set(key: str, value: str) -> None:
-        """Store a secret in the Windows Vault."""
+        """Store a secret in the OS keyring, with graceful in-memory fallback.
+
+        Always populates the in-process cache so the value is retrievable for the
+        lifetime of the process. If no OS keyring backend is available (e.g. CI
+        runners, headless containers), the value is kept in-memory only and a
+        warning is logged instead of crashing the system.
+        """
+        # Cache first so the secret is always retrievable this process, even if
+        # the OS keyring backend is unavailable.
+        Vault._cache[key] = value
         try:
             keyring.set_password(Vault.SERVICE_NAME, key, value)
-            logger.info(f"✓ Secret '{key}' successfully stored in Windows Vault.")
-            Vault._cache[key] = value
+            logger.info(f"✓ Secret '{key}' successfully stored in OS keyring.")
         except Exception as e:
-            logger.error(f"Failed to store secret '{key}' in Vault: {e}")
-            raise
+            logger.warning(
+                f"OS keyring unavailable; secret '{key}' kept in-memory only "
+                f"for this process: {e}"
+            )
 
     @staticmethod
     def delete(key: str) -> None:

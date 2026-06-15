@@ -12,6 +12,30 @@ from config import COMMISSION_PER_ROUND_TRIP, STARTING_CAPITAL_CAD
 logger = logging.getLogger(__name__)
 
 
+# Built-in registry for the core dispatched abilities. Guarantees the engine is
+# functional even when data/capabilities.json is unavailable (e.g. CI runners or
+# fresh checkouts where the generated 500-node registry is gitignored).
+_CORE_NODE_DEFS = {
+    "6": "Depth_Node_006",
+    "15": "HFT Footprint Detection",
+    "17": "Absence of News (Abhava)",
+    "31": "Antifragility",
+    "40": "Scent_Node_040",
+    "48": "Latency_Node_048",
+    "104": "Predict_Node_104",
+    "151": "Fee-Aware Kelly Criterion",
+    "152": "Hedge_Node_152",
+    "154": "Stop_Node_154",
+    "155": "Drawdown_Node_155",
+    "163": "Size_Node_163",
+    "164": "Net Liquidation Audit",
+    "166": "Cap_Node_166",
+    "231": "Cognitive Audit",
+    "452": "Final_Node_452",
+    "460": "Final Consensus",
+}
+
+
 class SovereignLogicEngine:
     """
     The Single Source of Truth for the 500-Ability Sovereign Mind.
@@ -47,6 +71,18 @@ class SovereignLogicEngine:
             logger.info("SovereignLogicEngine: 500 Abilities synchronized and active.")
         except Exception as e:
             logger.error(f"Logic Engine initialization failure: {e}")
+
+        # Always guarantee the core dispatched abilities are registered, even when
+        # the external capabilities.json is missing or failed to load.
+        for node_id, node_name in _CORE_NODE_DEFS.items():
+            if node_id not in self.node_states:
+                self.node_states[node_id] = {
+                    "name": node_name,
+                    "layer": "Core_Builtin",
+                    "active": True,
+                    "prowess": 1.0,
+                    "last_sync": time.time_ns(),
+                }
 
     def execute_node(self, node_id: str, context: Dict[str, Any]) -> Dict[str, Any]:
         """

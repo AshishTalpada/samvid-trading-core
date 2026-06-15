@@ -234,6 +234,13 @@ class TestLiquidNeuralCore:
 # ── SovereignLogicEngine (key dispatches) ────────────────────────────────────
 class TestSovereignLogicEngine:
     def setup_method(self):
+        # Set a consistent capital baseline for drawdown tests
+        import os
+        import sys
+        os.environ["TOTAL_CAPITAL"] = "100000.0"
+        # Reload config to pick up the new env value
+        if "config" in sys.modules:
+            del sys.modules["config"]
         from logic_engine import SovereignLogicEngine
         self.eng = SovereignLogicEngine()
 
