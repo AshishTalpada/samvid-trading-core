@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import os
 from typing import Dict, List
 
 import requests
@@ -51,16 +52,23 @@ class MacroNewsAgent:
         }
 
     async def fetch_fred_release_schedule(self) -> List[Dict]:
+        api_key = os.getenv("FRED_API_KEY", "").strip()
+        if not api_key:
+            logger.debug("[NEWS AGENT] FRED_API_KEY not configured; skipping release schedule fetch.")
+            return []
+
         def _fetch():
             r = requests.get(
-                "https://api.stlouisfed.org/fred/releases/dates?api_key=invalid_key&file_type=json",
+                "https://api.stlouisfed.org/fred/releases/dates",
+                params={"api_key": api_key, "file_type": "json"},
                 timeout=4,
             )
             return r.json().get("release_dates", [])[:10]  # type: ignore
 
         try:
             return await asyncio.to_thread(_fetch)
-        except Exception:
+        except Exception as exc:
+            logger.debug("[NEWS AGENT] FRED release schedule fetch failed: %s", exc)
             return []
 
     def rate_move_probability(
