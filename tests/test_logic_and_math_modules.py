@@ -241,6 +241,9 @@ class TestSovereignLogicEngine:
         # Reload config to pick up the new env value
         if "config" in sys.modules:
             del sys.modules["config"]
+        import config
+        # Directly patch the module-level constant since logic_engine already imported it
+        config.STARTING_CAPITAL_CAD = 100000.0
         from logic_engine import SovereignLogicEngine
         self.eng = SovereignLogicEngine()
 
