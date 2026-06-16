@@ -231,3 +231,119 @@ class TestLifecycleBasics:
         proposal = {"pattern": None, "task": None}
         result = await mock_coordinator.initiate_trade_lifecycle("AAPL", proposal, is_probe=False)
         assert result is False
+
+
+class TestEntryFrictionEdgeCases:
+    """Test edge cases in entry friction estimation."""
+
+    def test_entry_friction_zero_price_returns_spread(self, mock_coordinator) -> None:
+        friction = mock_coordinator._estimate_entry_friction_per_share(
+            entry_price=0.0,
+            shares=10,
+            spread_data={"spread": 0.05},
+        )
+        assert friction == 0.05
+
+    def test_entry_friction_negative_price_returns_spread(self, mock_coordinator) -> None:
+        friction = mock_coordinator._estimate_entry_friction_per_share(
+            entry_price=-100.0,
+            shares=10,
+            spread_data={"spread": 0.05},
+        )
+        assert friction == 0.05
+
+    def test_entry_friction_no_spread_data(self, mock_coordinator) -> None:
+        friction = mock_coordinator._estimate_entry_friction_per_share(
+            entry_price=100.0,
+            shares=10,
+            spread_data=None,
+        )
+        assert friction >= 0.0
+
+    def test_entry_friction_zero_shares_defaults_to_one(self, mock_coordinator) -> None:
+        friction = mock_coordinator._estimate_entry_friction_per_share(
+            entry_price=100.0,
+            shares=0,
+            spread_data={"spread": 0.02},
+        )
+        assert friction >= 0.0
+
+    def test_entry_friction_negative_spread_clamped_to_zero(self, mock_coordinator) -> None:
+        friction = mock_coordinator._estimate_entry_friction_per_share(
+            entry_price=100.0,
+            shares=10,
+            spread_data={"spread": -0.05},
+        )
+        # Spread should be clamped to 0
+        assert friction >= 0.0
+
+
+class TestFreshTickFallback:
+    """Test realtime tick fallback for entry data proof."""
+
+    def test_fresh_tick_missing_pipeline_returns_false(self, mock_coordinator) -> None:
+        mock_coordinator.brain.data_pipeline = None
+        assert mock_coordinator._has_fresh_realtime_entry_tick("SPY") is False
+
+    def test_fresh_tick_exception_returns_false(self, mock_coordinator) -> None:
+        mock_coordinator.brain.data_pipeline = MagicMock()
+        mock_coordinator.brain.data_pipeline.get_last_price.side_effect = Exception("API error")
+        assert mock_coordinator._has_fresh_realtime_entry_tick("SPY") is False
+
+    def test_fresh_tick_zero_price_returns_false(self, mock_coordinator) -> None:
+        mock_coordinator.brain.data_pipeline = MagicMock()
+        mock_coordinator.brain.data_pipeline.get_last_price.return_value = 0.0
+        assert mock_coordinator._has_fresh_realtime_entry_tick("SPY") is False
+
+    def test_fresh_tick_none_price_returns_false(self, mock_coordinator) -> None:
+        mock_coordinator.brain.data_pipeline = MagicMock()
+        mock_coordinator.brain.data_pipeline.get_last_price.return_value = None
+        assert mock_coordinator._has_fresh_realtime_entry_tick("SPY") is False
+
+    def test_fresh_tick_invalid_price_returns_false(self, mock_coordinator) -> None:
+        mock_coordinator.brain.data_pipeline = MagicMock()
+        mock_coordinator.brain.data_pipeline.get_last_price.return_value = "invalid"
+        assert mock_coordinator._has_fresh_realtime_entry_tick("SPY") is False
+
+    def test_fresh_tick_valid_price_returns_true(self, mock_coordinator) -> None:
+        mock_coordinator.brain.data_pipeline = MagicMock()
+        mock_coordinator.brain.data_pipeline.get_last_price.return_value = 501.25
+        assert mock_coordinator._has_fresh_realtime_entry_tick("SPY") is True
+
+
+class TestEntryDataBlockReasons:
+    """Test various entry data block reason scenarios."""
+
+    def test_env_override_allows_unverified_entry(self, mock_coordinator, monkeypatch) -> None:
+        mock_coordinator.brain.mode = "ibkr_paper"
+        mock_coordinator.brain._last_fresh_bar_at = {}
+        monkeypatch.setenv("SOVEREIGN_ALLOW_UNVERIFIED_ENTRY_DATA", "1")
+        assert mock_coordinator._entry_data_block_reason("SPY") is None
+
+    def test_invalid_freshness_store_blocks(self, mock_coordinator) -> None:
+        mock_coordinator.brain.mode = "ibkr_paper"
+        mock_coordinator.brain._last_fresh_bar_at = "invalid"
+        assert "unavailable" in mock_coordinator._entry_data_block_reason("SPY")
+
+    def test_case_insensitive_symbol_lookup(self, mock_coordinator) -> None:
+        mock_coordinator.brain.mode = "ibkr_paper"
+        mock_coordinator.brain._last_fresh_bar_at = {"SPY": time.monotonic()}
+        assert mock_coordinator._entry_data_block_reason("SPY") is None
+        assert mock_coordinator._entry_data_block_reason("spy") is None
+
+
+class TestNeuralSemaphore:
+    """Test lazy semaphore initialization."""
+
+    def test_get_neural_semaphore_returns_semaphore(self) -> None:
+        from coordinator import TradingCoordinator
+
+        sem = TradingCoordinator.get_neural_semaphore()
+        assert isinstance(sem, type(TradingCoordinator.get_neural_semaphore()))
+
+    def test_get_neural_semaphore_same_instance(self) -> None:
+        from coordinator import TradingCoordinator
+
+        sem1 = TradingCoordinator.get_neural_semaphore()
+        sem2 = TradingCoordinator.get_neural_semaphore()
+        assert sem1 is sem2

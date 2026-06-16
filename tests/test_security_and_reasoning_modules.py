@@ -82,6 +82,230 @@ class TestDatabaseSecurity:
         assert Vault.get("DB_ENCRYPTION_KEY") == new_key
 
 
+# ── Vault Tests ───────────────────────────────────────────────────────────────
+class TestVault:
+    def setup_method(self):
+        """Clear cache before each test."""
+        from vault import Vault
+
+        Vault.clear_cache()
+
+    def test_is_sensitive_detects_known_keys(self):
+        from vault import Vault
+
+        assert Vault._is_sensitive("ANTHROPIC_API_KEY") is True
+        assert Vault._is_sensitive("OPENAI_API_KEY") is True
+        assert Vault._is_sensitive("TELEGRAM_BOT_TOKEN") is True
+
+    def test_is_sensitive_detects_pattern_keys(self):
+        from vault import Vault
+
+        assert Vault._is_sensitive("SOME_API_KEY") is True
+        assert Vault._is_sensitive("DB_PASSWORD") is True
+        assert Vault._is_sensitive("AUTH_TOKEN") is True
+        assert Vault._is_sensitive("SECRET_KEY") is True
+
+    def test_is_sensitive_allows_non_sensitive(self):
+        from vault import Vault
+
+        assert Vault._is_sensitive("LOG_LEVEL") is False
+        assert Vault._is_sensitive("PORT") is False
+        assert Vault._is_sensitive("DEBUG") is False
+
+    def test_get_returns_cached_value(self):
+        from vault import Vault
+
+        Vault._cache["TEST_KEY"] = "cached_value"
+        assert Vault.get("TEST_KEY") == "cached_value"
+
+    def test_get_falls_to_env_for_non_sensitive(self):
+        from vault import Vault
+
+        import os
+
+        os.environ["NON_SENSITIVE_VAR"] = "env_value"
+        assert Vault.get("NON_SENSITIVE_VAR") == "env_value"
+        del os.environ["NON_SENSITIVE_VAR"]
+
+    def test_get_returns_default_when_missing(self):
+        from vault import Vault
+
+        assert Vault.get("MISSING_KEY", default="default_val") == "default_val"
+
+    def test_set_populates_cache(self):
+        from vault import Vault
+
+        Vault.set("CACHE_TEST", "value123")
+        assert Vault._cache["CACHE_TEST"] == "value123"
+
+    def test_set_graceful_on_keyring_failure(self):
+        from vault import Vault
+
+        # Mock keyring to raise exception
+        import keyring
+
+        original_set = keyring.set_password
+
+        def mock_set_error(*args, **kwargs):
+            raise Exception("Keyring unavailable")
+
+        keyring.set_password = mock_set_error
+
+        Vault.set("FAIL_TEST", "value")  # Should not crash, just log warning
+
+        # Should still be in cache
+        assert Vault._cache["FAIL_TEST"] == "value"
+
+        keyring.set_password = original_set
+
+    def test_delete_removes_from_cache(self):
+        from vault import Vault
+
+        Vault._cache["DELETE_TEST"] = "value"
+        Vault.delete("DELETE_TEST")
+        assert "DELETE_TEST" not in Vault._cache
+
+    def test_clear_cache_empties_all(self):
+        from vault import Vault
+
+        Vault._cache["KEY1"] = "val1"
+        Vault._cache["KEY2"] = "val2"
+        Vault.clear_cache()
+        assert len(Vault._cache) == 0
+
+    def test_get_all_redactable_filters_short_values(self):
+        from vault import Vault
+
+        # Set actual sensitive keys in Vault
+        Vault.set("OPENAI_API_KEY", "ab")  # Too short, should be filtered
+        Vault.set("ANTHROPIC_API_KEY", "valid_secret_key_12345")
+
+        values = Vault.get_all_redactable_values()
+        assert "ab" not in values
+        assert "valid_secret_key_12345" in values
+
+
+# ── RiskInvariants Tests ───────────────────────────────────────────────────────────
+class TestRiskInvariants:
+    def setup_method(self):
+        from risk_invariants import RiskInvariants
+
+        self.ri = RiskInvariants
+
+    def test_order_throttler_allows_within_limit(self):
+        from risk_invariants import OrderThrottler
+
+        ot = OrderThrottler(max_orders=3, per_seconds=60)
+        assert ot.can_submit() is True
+        assert ot.can_submit() is True
+        assert ot.can_submit() is True
+        assert ot.can_submit() is False  # 4th submission throttled
+
+    def test_order_throttler_resets_after_window(self):
+        from risk_invariants import OrderThrottler
+        from datetime import datetime, timedelta, timezone
+        from collections import deque
+
+        ot = OrderThrottler(max_orders=2, per_seconds=1)
+        assert ot.can_submit() is True
+        assert ot.can_submit() is True
+        assert ot.can_submit() is False
+
+        # Manually set old timestamps to simulate window expiry
+        ot._timestamps = deque([datetime.now(timezone.utc) - timedelta(seconds=2)])
+        assert ot.can_submit() is True  # Should allow after window expiry
+
+    def test_order_throttler_reset_clears_state(self):
+        from risk_invariants import OrderThrottler
+
+        ot = OrderThrottler(max_orders=1, per_seconds=60)
+        ot.can_submit()
+        assert ot.can_submit() is False
+        ot.reset()
+        assert ot.can_submit() is True
+
+    def test_verify_config_detects_missing_constant(self):
+        import config
+
+        original_val = getattr(config, "SYSTEM_MAX_RISK", None)
+        if hasattr(config, "SYSTEM_MAX_RISK"):
+            delattr(config, "SYSTEM_MAX_RISK")
+
+        result = self.ri.verify_config()
+        assert result is False  # Should detect missing constant
+
+        if original_val is not None:
+            config.SYSTEM_MAX_RISK = original_val
+
+    def test_verify_config_detects_out_of_bounds(self):
+        import config
+
+        original_val = getattr(config, "SYSTEM_MAX_RISK", 0.01)
+        config.SYSTEM_MAX_RISK = 0.5  # Way above max of 0.05
+
+        result = self.ri.verify_config()
+        assert result is False
+
+        config.SYSTEM_MAX_RISK = original_val
+
+    def test_is_mutation_safe_accepts_valid_value(self):
+        assert self.ri.is_mutation_safe("SYSTEM_MAX_RISK", 0.01) is True
+        assert self.ri.is_mutation_safe("RISK_PER_TRADE_PCT", 0.005) is True
+
+    def test_is_mutation_safe_rejects_invalid_value(self):
+        assert self.ri.is_mutation_safe("SYSTEM_MAX_RISK", 0.1) is False  # Above max
+        assert self.ri.is_mutation_safe("RISK_PER_TRADE_PCT", 0.0001) is False  # Below min
+
+    def test_is_mutation_safe_rejects_unknown_key(self):
+        assert self.ri.is_mutation_safe("UNKNOWN_KEY", 0.01) is False
+
+    def test_audit_trade_parameters_rejects_non_numeric(self):
+        assert self.ri.audit_trade_parameters("invalid", 10000) is False
+        assert self.ri.audit_trade_parameters(100, "invalid") is False
+
+    def test_audit_trade_parameters_rejects_non_finite(self):
+        import math
+
+        assert self.ri.audit_trade_parameters(float("inf"), 10000) is False
+        assert self.ri.audit_trade_parameters(100, float("nan")) is False
+
+    def test_audit_trade_parameters_rejects_negative_balance(self):
+        assert self.ri.audit_trade_parameters(100, -1000) is False
+        assert self.ri.audit_trade_parameters(-100, 1000) is False
+
+    def test_audit_trade_parameters_rejects_excessive_risk(self):
+        assert self.ri.audit_trade_parameters(400, 10000) is False  # 4% > 3% hard limit
+
+    def test_audit_trade_parameters_accepts_valid(self):
+        assert self.ri.audit_trade_parameters(100, 10000) is True  # 1% risk
+        assert self.ri.audit_trade_parameters(200, 10000) is True  # 2% risk
+
+    def test_check_notional_rejects_non_numeric(self):
+        assert self.ri.check_notional("AAPL", "invalid", 150) is False
+        assert self.ri.check_notional("AAPL", 100, "invalid") is False
+
+    def test_check_notional_rejects_invalid_economics(self):
+        import math
+
+        assert self.ri.check_notional("AAPL", 0, 150) is False
+        assert self.ri.check_notional("AAPL", 100, 0) is False
+        assert self.ri.check_notional("AAPL", float("inf"), 150) is False
+
+    def test_check_notional_enforces_cap(self):
+        # SPY cap is $200,000
+        assert self.ri.check_notional("SPY", 1000, 150) is True  # $150,000
+        assert self.ri.check_notional("SPY", 2000, 150) is False  # $300,000 > cap
+
+    def test_check_notional_uses_default_for_unknown(self):
+        # DEFAULT cap is $40,000
+        assert self.ri.check_notional("UNKNOWN", 200, 150) is True  # $30,000
+        assert self.ri.check_notional("UNKNOWN", 500, 150) is False  # $75,000 > cap
+
+    def test_check_notional_case_insensitive(self):
+        assert self.ri.check_notional("spy", 1000, 150) is True
+        assert self.ri.check_notional("Spy", 1000, 150) is True
+
+
 # ── LLMCircuitBreaker ─────────────────────────────────────────────────────────
 class TestLLMCircuitBreaker:
     def setup_method(self):
