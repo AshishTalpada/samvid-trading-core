@@ -519,8 +519,8 @@ class QuestDBAdapter:
                         continue
 
                     try:
-                        cursor.execute(f"ALTER TABLE ohlcv DROP PARTITION '{stale_date}';")
-                        cursor.execute(f"ALTER TABLE ticks DROP PARTITION '{stale_date}';")
+                        cursor.execute("ALTER TABLE ohlcv DROP PARTITION ?;", (stale_date,))
+                        cursor.execute("ALTER TABLE ticks DROP PARTITION ?;", (stale_date,))
                         conn.commit()
                         logger.debug(f"QuestDB: Pruned historical partition {stale_date}")
                     except Exception:

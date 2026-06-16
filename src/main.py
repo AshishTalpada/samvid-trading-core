@@ -151,8 +151,19 @@ file_handler = RotatingFileHandler(
 )
 file_handler.setFormatter(formatter)
 
+class _FlushingStreamHandler(logging.StreamHandler):
+    """Always flush stdout after emit so Windows terminals stay responsive."""
+
+    def emit(self, record):
+        super().emit(record)
+        try:
+            self.flush()
+        except Exception:
+            pass
+
+
 # Stream handler (Terminal)
-stream_handler = logging.StreamHandler(sys.stdout)
+stream_handler = _FlushingStreamHandler(sys.stdout)
 stream_handler.setFormatter(formatter)
 
 root_logger.addHandler(file_handler)

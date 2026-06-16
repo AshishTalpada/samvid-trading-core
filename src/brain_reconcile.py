@@ -438,14 +438,14 @@ class BrokerReconciler:
             self._reconcile_open_trade_rows("ibkr", ibkr_reality, ibkr_polled, now_ts)
             self._reconcile_open_trade_rows("mt5", mt5_reality, mt5_polled, now_ts)
 
-            # Adoption Protocol
-            all_managed = {(p.symbol, p.account_type) for p in self.positions}
-            for symbol, qty in ibkr_reality.items():
-                if abs(qty) >= 0.1 and (symbol, "ibkr") not in all_managed:
-                    await self._adopt_orphan(symbol, qty, "ibkr")
-            for symbol, qty in mt5_reality.items():
-                if abs(qty) >= 0.01 and (symbol, "mt5") not in all_managed:
-                    await self._adopt_orphan(symbol, qty, "mt5")
+            # Adoption Protocol DISABLED to prevent phantom broker positions from blocking new trades.
+            # all_managed = {(p.symbol, p.account_type) for p in self.positions}
+            # for symbol, qty in ibkr_reality.items():
+            #     if abs(qty) >= 0.1 and (symbol, "ibkr") not in all_managed:
+            #         await self._adopt_orphan(symbol, qty, "ibkr")
+            # for symbol, qty in mt5_reality.items():
+            #     if abs(qty) >= 0.01 and (symbol, "mt5") not in all_managed:
+            #         await self._adopt_orphan(symbol, qty, "mt5")
 
         except Exception as e:
             logger.error("Sovereign Reconciliation Failed: %s", e, exc_info=True)

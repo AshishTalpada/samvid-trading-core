@@ -2,7 +2,7 @@ import hashlib
 import hmac
 import logging
 
-from cryptography.fernet import Fernet
+from cryptography.fernet import Fernet, InvalidToken
 
 from vault import Vault
 
@@ -63,24 +63,28 @@ class DatabaseSecurity:
         if not encrypted_data:
             return ""
 
+        if ":" not in encrypted_data:
+            # Fallback for legacy non-HMAC data to prevent system crash
+            return cls._get_fernet().decrypt(encrypted_data.encode()).decode()
+
+        provided_hmac, actual_data = encrypted_data.split(":", 1)
+        actual_data_bytes = actual_data.encode()
+
+        # Verify Integrity BEFORE Decryption
+        expected_hmac = cls._generate_hmac(actual_data_bytes)
+        if not hmac.compare_digest(provided_hmac, expected_hmac):
+            logger.critical("SECURITY ALERT: Database Integrity Violation! HMAC mismatch.")
+            raise RuntimeError("Database integrity compromised: HMAC verification failed.")
+
         try:
-            if ":" not in encrypted_data:
-                # Fallback for legacy non-HMAC data to prevent system crash
-                return cls._get_fernet().decrypt(encrypted_data.encode()).decode()
-
-            provided_hmac, actual_data = encrypted_data.split(":", 1)
-            actual_data_bytes = actual_data.encode()
-
-            # Verify Integrity BEFORE Decryption
-            expected_hmac = cls._generate_hmac(actual_data_bytes)
-            if not hmac.compare_digest(provided_hmac, expected_hmac):
-                logger.critical(" SECURITY ALERT: Database Integrity Violation! HMAC mismatch.")
-                raise RuntimeError("Database integrity compromised: HMAC verification failed.")
-
             return cls._get_fernet().decrypt(actual_data_bytes).decode()
+        except InvalidToken as e:
+            # Wrong key / legacy data — callers handle this gracefully (return 0.0).
+            logger.debug("DatabaseSecurity: InvalidToken (wrong key / legacy data). Raising.")
+            raise RuntimeError(f"Could not decrypt sensitive value: {e}") from e
         except Exception as e:
-            logger.critical(f"DECRYPTION CRITICAL FAILURE: {e}")
-            raise RuntimeError(f"Could not decrypt sensitive value: {e}")
+            logger.warning("DatabaseSecurity: Decryption failed unexpectedly: %s", e)
+            raise RuntimeError(f"Could not decrypt sensitive value: {e}") from e
 
     @classmethod
     def encrypt_float(cls, val: float) -> str:
