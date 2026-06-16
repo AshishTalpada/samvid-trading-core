@@ -121,8 +121,6 @@ class TestVault:
     def test_get_falls_to_env_for_non_sensitive(self):
         from vault import Vault
 
-        import os
-
         os.environ["NON_SENSITIVE_VAR"] = "env_value"
         assert Vault.get("NON_SENSITIVE_VAR") == "env_value"
         del os.environ["NON_SENSITIVE_VAR"]
@@ -139,11 +137,11 @@ class TestVault:
         assert Vault._cache["CACHE_TEST"] == "value123"
 
     def test_set_graceful_on_keyring_failure(self):
+        import keyring
+
         from vault import Vault
 
         # Mock keyring to raise exception
-        import keyring
-
         original_set = keyring.set_password
 
         def mock_set_error(*args, **kwargs):
@@ -202,9 +200,10 @@ class TestRiskInvariants:
         assert ot.can_submit() is False  # 4th submission throttled
 
     def test_order_throttler_resets_after_window(self):
-        from risk_invariants import OrderThrottler
-        from datetime import datetime, timedelta, timezone
         from collections import deque
+        from datetime import datetime, timedelta, timezone
+
+        from risk_invariants import OrderThrottler
 
         ot = OrderThrottler(max_orders=2, per_seconds=1)
         assert ot.can_submit() is True
