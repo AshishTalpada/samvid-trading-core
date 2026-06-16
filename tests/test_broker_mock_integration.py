@@ -467,7 +467,8 @@ async def test_reconcile_adopts_orphan_broker_position(paper_brain):
     await paper_brain._reconcile_broker_positions()
 
     symbols = [p.symbol for p in paper_brain.positions]
-    assert "MSFT" in symbols
+    # Adoption Protocol is DISABLED to prevent phantom positions from blocking trades
+    assert "MSFT" not in symbols
 
 
 @pytest.mark.asyncio
