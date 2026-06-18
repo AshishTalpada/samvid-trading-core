@@ -148,7 +148,7 @@ class BrokerReconciler:
                             ),
                         )
                         orphaned += 1
-                        logger.error(
+                        logger.warning(
                             "Invalid OPEN trade row id=%s rejected during restore: %s",
                             tid,
                             invalid_reason,
