@@ -69,7 +69,7 @@ class HealthChecker:
                 p for p in self.positions if p.symbol not in pruned_symbols
             ]
 
-        # 2. Broker connectivity sanity (paper mode always passes)
+        # 2. Broker connectivity sanity (pure simulation passes; IBKR paper still needs TWS/Gateway)
         if self.mode == "paper":
             broker_ok = True
         elif self.active_broker == "IBKR":

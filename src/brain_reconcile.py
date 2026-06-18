@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import re
 import time
 from datetime import datetime, timedelta, timezone
 from typing import TYPE_CHECKING
@@ -17,6 +18,15 @@ if TYPE_CHECKING:
     pass
 
 logger = logging.getLogger(__name__)
+
+_RESTORABLE_SYMBOL_RE = re.compile(r"^[A-Z][A-Z0-9.\-=]{0,14}$")
+_RESTORABLE_DIRECTIONS = {"LONG", "SHORT"}
+_MISPLACED_FIELD_TOKENS = {
+    "BUY",
+    "SELL",
+    "LONG",
+    "SHORT",
+}
 
 
 def _safe_entry_time(entry_time_value: datetime | str | int | float | None) -> datetime:
@@ -55,6 +65,19 @@ def _safe_entry_time(entry_time_value: datetime | str | int | float | None) -> d
         entry_time_value,
     )
     return datetime(1970, 1, 1, tzinfo=timezone.utc)
+
+
+def _validate_open_trade_row(symbol: object, direction: object) -> tuple[bool, str]:
+    """Reject malformed OPEN rows before they become phantom positions."""
+    symbol_s = str(symbol or "").strip().upper()
+    direction_s = str(direction or "").strip().upper()
+    if not symbol_s or not _RESTORABLE_SYMBOL_RE.fullmatch(symbol_s):
+        return False, f"invalid instrument={symbol!r}"
+    if symbol_s in _MISPLACED_FIELD_TOKENS:
+        return False, f"suspected shifted trade columns instrument={symbol_s!r}"
+    if direction_s not in _RESTORABLE_DIRECTIONS:
+        return False, f"invalid direction={direction!r}"
+    return True, "ok"
 
 
 class BrokerReconciler:
@@ -114,6 +137,23 @@ class BrokerReconciler:
                         entry_time = datetime.now(timezone.utc)
 
                     age_hours = (datetime.now(timezone.utc) - entry_time).total_seconds() / 3600
+                    valid_row, invalid_reason = _validate_open_trade_row(symbol, direction_col)
+                    if not valid_row:
+                        cursor.execute(
+                            "UPDATE trades SET outcome = 'DATA_INVALID', notes = ? WHERE id = ?",
+                            (
+                                f"Invalid OPEN row on restore: {invalid_reason}; "
+                                "excluded from position state",
+                                tid,
+                            ),
+                        )
+                        orphaned += 1
+                        logger.error(
+                            "Invalid OPEN trade row id=%s rejected during restore: %s",
+                            tid,
+                            invalid_reason,
+                        )
+                        continue
 
                     if age_hours > 720 or (symbol, broker) in seen_symbols:
                         cursor.execute(
@@ -157,7 +197,7 @@ class BrokerReconciler:
                         take_profit=float(target) if target else entry_f * 1.02,
                         target_exit_time=datetime.now(timezone.utc) + timedelta(days=5),
                         trade_id=f"RESTORED-{tid}",
-                        account_type=broker or "ibkr",
+                        account_type=str(broker or "ibkr").lower(),
                         account_id=acc_id or "UNKNOWN",
                         catalyst_score=70.0,
                         dhatu_state="Restored",
@@ -466,7 +506,7 @@ class BrokerReconciler:
             cursor = self.db_conn.cursor()
             cursor.execute(
                 "SELECT id, timestamp, instrument, entry_price, shares, direction FROM trades "
-                "WHERE broker = ? AND outcome = 'OPEN'",
+                "WHERE LOWER(COALESCE(broker, '')) = LOWER(?) AND outcome = 'OPEN'",
                 (broker,),
             )
             # stale_trades: list of (trade_id, instrument, entry_price, shares, direction)

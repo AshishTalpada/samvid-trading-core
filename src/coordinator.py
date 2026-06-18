@@ -321,7 +321,7 @@ class TradingCoordinator:
                         "Coordinator [%s] DAILY_LOSS_HARD_BLOCK: daily PnL %.2f = %.1f%% >= %.0f%% limit. No new entries.",
                         symbol, daily_pnl_now, abs(daily_pnl_now) / account_val * 100, FTMO_DAILY_LIMIT * 100,
                     )
-                    LEDGER.record_veto(symbol=symbol, reason=f"DAILY_LOSS_LIMIT: {daily_pnl_now:.2f}")
+                    LEDGER.record_veto(symbol=symbol, reason=f"DAILY_LOSS_LIMIT: {daily_pnl_now:.2f}", triggered_by="coordinator")
                     self._finalize_open_task(task, "DAILY_LOSS_BLOCK", f"daily PnL {daily_pnl_now:.2f}")
                     return False
             except Exception as _dlb_err:
@@ -358,7 +358,7 @@ class TradingCoordinator:
                 is_prop = active_broker in ("mt5", "prop")
                 if is_prop:
                     logger.warning(f"Coordinator [{symbol}]  BEST_DAY_RULE VETO (prop): {bdr_reason}")
-                    LEDGER.record_veto(symbol=symbol, reason=f"BEST_DAY_RULE: {bdr_reason}")
+                    LEDGER.record_veto(symbol=symbol, reason=f"BEST_DAY_RULE: {bdr_reason}", triggered_by="coordinator")
                     self._finalize_open_task(task, "BEST_DAY_RULE", bdr_reason)
                     return False
                 else:
@@ -1413,7 +1413,7 @@ class TradingCoordinator:
                         symbol,
                         data_block_reason,
                     )
-                    LEDGER.record_veto(symbol=symbol, reason=f"ENTRY_DATA_VETO: {data_block_reason}")
+                    LEDGER.record_veto(symbol=symbol, reason=f"ENTRY_DATA_VETO: {data_block_reason}", triggered_by="coordinator")
                     return False
 
                 # BACKTEST VALIDATION GATE (Phase 1 Edge Check)
@@ -1440,6 +1440,7 @@ class TradingCoordinator:
                             LEDGER.record_veto(
                                 symbol=symbol,
                                 reason=f"BACKTEST_VETO: {blockers}",
+                                triggered_by="coordinator",
                             )
                             return False
                         logger.info(
@@ -1459,7 +1460,7 @@ class TradingCoordinator:
                             proposal_id,
                             symbol,
                         )
-                        LEDGER.record_veto(symbol=symbol, reason=f"BACKTEST_VETO: {reason}")
+                        LEDGER.record_veto(symbol=symbol, reason=f"BACKTEST_VETO: {reason}", triggered_by="coordinator")
                         return False
 
                 # PSYCHOLOGY SAFETY GATE (Stress Veto)
@@ -1482,6 +1483,7 @@ class TradingCoordinator:
                         LEDGER.record_veto(
                             symbol=symbol,
                             reason=f"STRESS_VETO: {analysis.stress_type} — {analysis.reason}",
+                            triggered_by="coordinator",
                         )
                         return False
                     if analysis.stress_detected:

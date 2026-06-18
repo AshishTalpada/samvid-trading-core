@@ -432,6 +432,44 @@ async def test_restore_positions_assigns_db_id_for_exit_reconciliation(paper_bra
     assert pos.db_id == 123
 
 
+@pytest.mark.asyncio
+async def test_restore_positions_rejects_malformed_open_trade_row(paper_brain):
+    """Malformed legacy OPEN rows must not become phantom positions."""
+    paper_brain.positions = []
+
+    malformed_row = (
+        42920,
+        datetime.now(timezone.utc).isoformat(),
+        "LONG",      # shifted direction value, not a valid instrument here
+        140.0,
+        138.0,
+        145.0,
+        15,
+        2.0,
+        "TRENDING",
+        "RTH",
+        "IBKR",
+        "UNKNOWN",
+        "ibkr_paper",
+        "VCP",       # shifted pattern value, not a valid direction
+    )
+
+    mock_cursor = MagicMock()
+    mock_cursor.fetchall.return_value = [malformed_row]
+    paper_brain.db_conn = MagicMock()
+    paper_brain.db_conn.cursor.return_value = mock_cursor
+
+    await paper_brain._restore_positions_from_db()
+
+    assert paper_brain.positions == []
+    update_calls = [
+        call.args for call in mock_cursor.execute.call_args_list
+        if call.args and "DATA_INVALID" in str(call.args[0])
+    ]
+    assert update_calls
+    paper_brain.db_conn.commit.assert_called_once()
+
+
 # ===========================================================================
 # Reconciliation: orphan adoption
 # ===========================================================================
