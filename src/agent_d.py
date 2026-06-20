@@ -2059,13 +2059,23 @@ class LiveLearningEngine:
         """
         Provides Agent D's vote based on historical performance data.
         """
-        win_rate = self.get_win_rate(pattern_name, regime, session)
-        n_trades = self._n_trades
+        normalized_regime = self._matrix._normalize_regime(regime)
+        matrix_key = f"{pattern_name}|{normalized_regime}|{session}"
+        per_pattern_data = self._matrix.matrix.get(matrix_key)
+        if per_pattern_data is None and session != "RTH":
+            per_pattern_data = self._matrix.matrix.get(
+                f"{pattern_name}|{normalized_regime}|RTH"
+            )
+
+        if per_pattern_data is not None and self._matrix.gate.can_adapt(per_pattern_data.n_trades):
+            win_rate = per_pattern_data.win_rate
+            n_trades = per_pattern_data.n_trades
+        else:
+            win_rate = 0.50
+            n_trades = 0
+
         rating = self._gate.rate_data(n_trades)
 
-        # M-04 Law of Large Numbers Consensus
-        # We only VETO if we have MODERATE data (n=100) and the WR is < 45%
-        # Or if we have STRONG data (n=200) and it's < 50%
         vote = "YES"
         reason = f"Historical WR: {win_rate:.1%} (n={n_trades}, {rating})"
 
