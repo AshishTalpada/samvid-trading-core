@@ -414,8 +414,8 @@ class TradingCoordinator:
                 _risk_pct = (dollar_risk / balance_usd) if (balance_usd > 0) else 0.05
 
                 # Friction veto: block trades where net RR (after spread + commission) is too low.
-                # Standard institutional threshold is 1.3. Small accounts (<$2k) get 1.0
-                # since fixed commissions compress ratio on small size.
+                # Adjusted threshold: 1.0 for small accounts, 1.1 for standard accounts (was 1.3)
+                # The previous 1.3 threshold was too strict and blocked all valid trades in current market conditions.
                 if is_small_account:
                     threshold = 1.0
                     if task:
@@ -423,7 +423,7 @@ class TradingCoordinator:
                             f"RR_RELAX: Small account detected. Threshold relaxed to {threshold:.2f} (Risk: ${dollar_risk:.2f} USD)."
                         )
                 else:
-                    threshold = 1.3
+                    threshold = 1.1
 
                 if real_rr < threshold and not is_probe:
                     if task:
