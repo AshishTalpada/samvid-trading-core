@@ -146,8 +146,8 @@ log_file.parent.mkdir(parents=True, exist_ok=True)
 file_handler = RotatingFileHandler(
     str(log_file),
     encoding="utf-8",
-    maxBytes=15 * 1024 * 1024,  # Expanded to 15MB
-    backupCount=7,
+    maxBytes=5 * 1024 * 1024,  # 5MB per file to cap disk usage
+    backupCount=5,
 )
 file_handler.setFormatter(formatter)
 
