@@ -1814,6 +1814,14 @@ class LiveLearningEngine:
             "hold_hours": float(payload.get("hold_hours", 0.0)),
         }
 
+        # Validate: skip garbage/orphan patterns so the learning matrix stays clean.
+        pattern_name = trade.get("pattern", "UNKNOWN") or "UNKNOWN"
+        if pattern_name in ("UNKNOWN", "Unknown", "", "STRESS_PATTERN") or "ADOPTED" in pattern_name:
+            _lld_logger.debug(
+                "Agent D: skipping garbage/orphan pattern '%s' for learning", pattern_name
+            )
+            return
+
         # Persist first (safety)
         await _asyncio.to_thread(self._persist_trade, trade)
 

@@ -14,7 +14,9 @@ import logging
 import os
 import time
 from datetime import datetime, timezone
+from datetime import time as dt_time
 from typing import Any
+from zoneinfo import ZoneInfo
 
 from brain_fsm import TradingState
 from brain_reconcile import _safe_entry_time
@@ -190,6 +192,24 @@ class PositionMonitor:
     async def _state_positioned(self) -> None:
         """Monitor active positions using 7-Level Exit Intelligence Engine."""
         self._sanitize_positions()  # Ensure memory is objects, not dicts
+
+        # END-OF-DAY FLATTEN: close all positions before 15:55 ET to avoid overnight risk.
+        now_et = datetime.now(ZoneInfo("America/New_York"))
+        if now_et.weekday() < 5 and dt_time(15, 55) <= now_et.time() < dt_time(16, 0):
+            if self.positions and not getattr(self, "_eod_flatten_done", False):
+                logger.warning(
+                    f"EOD FLATTEN: market close approaching at {now_et.time()}. "
+                    f"Flattening {len(self.positions)} open position(s)."
+                )
+                for pos in list(self.positions):
+                    if pos.meta.get("exit_triggered"):
+                        continue
+                    pos.meta["exit_triggered"] = True
+                    await self._process_exit(pos, "EOD_FLATTEN", getattr(pos, "current_price", pos.entry_price))
+                self._eod_flatten_done = True
+                return
+        else:
+            self._eod_flatten_done = False
 
         logger.debug(f"MONITORING {len(self.positions)} active positions")
 
@@ -859,9 +879,9 @@ class PositionMonitor:
             # Use entry_direction_sign (captured before async ops) to avoid sign flip
             # from IBKR callbacks modifying pos.qty during execution.
             r_multiple = (
-                ((exit_price - pos.entry_price) / abs(pos.entry_price - pos.stop_loss))
+                ((exit_price - pos.entry_price) / abs(pos.entry_price - pos.initial_stop))
                 * entry_direction_sign
-                if abs(pos.entry_price - pos.stop_loss) > 0
+                if abs(pos.entry_price - pos.initial_stop) > 0
                 else 0
             )
             raw_r_multiple = r_multiple

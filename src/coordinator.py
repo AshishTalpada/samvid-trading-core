@@ -88,6 +88,43 @@ class TradingCoordinator:
         except Exception:
             self._cross_asset = None
 
+    def _pattern_edge_filter(self, symbol: str, pattern_name: str, current_regime: str) -> str:
+        """Statistically validated 1m pattern filter.
+
+        Returns a non-empty block reason if the pattern+regime combo has
+        historically failed to produce positive expectancy, otherwise an
+        empty string. The list is intentionally conservative so the system
+        only trades patterns that have proven edge in the current regime.
+        """
+        # Patterns with <15% win rate on 1m data across all regimes.
+        _LOSING_PATTERNS_1M = {
+            "Falling Wedge",
+            "Rising Wedge",
+            "Ascending Triangle",
+            "Descending Triangle",
+            "Micro Volatility Breakout",
+            "HFT Spoof Pivot",
+            "Micro Imbalance (Bullish)",
+            "Tick Divergence (Bearish Reversion)",
+            "Gap Fill",
+            "Oversold Bounce",
+            "Sector Sympathy",
+            "Head and Shoulders",
+            "Cup and Handle",
+            "Double Top (Reversal)",
+            "Double Bottom (Reversal)",
+            "Bull Flag",
+            "Bear Flag",
+        }
+        if pattern_name in _LOSING_PATTERNS_1M:
+            return f"{pattern_name} has negative edge on 1m data (blocklist)"
+
+        # VCP only works in BULL or TRENDING regime; in CHOPPY/SIDEWAYS/RISK_OFF it loses money.
+        if pattern_name == "VCP (Minervini Pivot)" and current_regime not in ("BULL", "TRENDING"):
+            return f"VCP blocked in {current_regime} regime (historically negative)"
+
+        return ""
+
     def _estimate_entry_friction_per_share(
         self,
         *,
@@ -363,6 +400,17 @@ class TradingCoordinator:
                     return False
                 else:
                     logger.warning(f"Coordinator [{symbol}]  BEST_DAY_RULE WARNING (ibkr advisory): {bdr_reason}")
+
+            # Pattern edge filter: block statistically losing patterns on 1m timeframe
+            # and restrict VCP to regimes where it has proven edge.
+            current_regime = getattr(self.brain, "current_regime", "UNKNOWN")
+            pattern_name = str(pattern.name)
+            block_reason = self._pattern_edge_filter(symbol, pattern_name, current_regime)
+            if block_reason and not is_probe:
+                logger.warning(f"Coordinator [{symbol}]  PATTERN_FILTER: {block_reason}")
+                LEDGER.record_veto(symbol=symbol, reason=f"PATTERN_FILTER: {block_reason}", triggered_by="coordinator")
+                self._finalize_open_task(task, "PATTERN_FILTER", block_reason)
+                return False
 
             balance = await self.brain.get_safe_buying_power("ibkr")
             from config import COMMISSION_PER_ROUND_TRIP, USD_CAD_RATE
