@@ -1059,6 +1059,7 @@ class PositionMonitor:
                         "regime": self.current_regime,
                         "r_multiple": r_multiple,
                         "shares_remaining": getattr(pos, "shares_remaining", 0.0),
+                        "audit_id": pos.meta.get("governance_audit_id"),
                     },
                 )
 

@@ -241,7 +241,7 @@ class LiveAdaptiveEngine:
         if bus is None:
             return
         try:
-            await bus.subscribe("trade.exit", self._on_trade_exit)
+            bus.on("trade.exit", self._on_trade_exit)
             logger.info("AdaptiveEngine subscribed to trade.exit")
         except Exception as exc:
             logger.warning("AdaptiveEngine failed to subscribe to trade.exit: %s", exc)

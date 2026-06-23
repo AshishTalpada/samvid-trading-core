@@ -13,6 +13,7 @@ import asyncio
 import polars as pl
 from adaptive_learning import LiveAdaptiveEngine
 from confluence_engine import ConfluenceEngine
+from neural_governance import AgentVote, NeuralGovernanceEngine
 from market_microstructure import MarketMicrostructure
 from strategy_router import RegimeStrategyRouter, TimeframeAwareDetector
 from trade_interrogator import TradeInterrogator
@@ -138,6 +139,20 @@ async def main() -> None:
     assert adjusted > 70.0
     print(f"[OK] LiveAdaptiveEngine: learned VCP bullish edge, boosted confidence to {adjusted:.1f}")
 
+    # 4c. Neural Governance
+    governance = NeuralGovernanceEngine(threshold=0.60)
+    votes = [
+        AgentVote("confluence", "APPROVE", confidence=0.95, weight=1.0),
+        AgentVote("interrogator", "APPROVE", confidence=0.85, weight=1.0),
+        AgentVote("adaptive", "APPROVE", confidence=0.80, weight=1.0),
+    ]
+    gov_result = governance.decide("AAPL", votes, context={"pattern": "VCP"})
+    assert gov_result.approved, f"unanimous approval should pass: {gov_result}"
+    assert gov_result.score >= 0.60
+    audit_stats = governance.audit.stats()
+    assert audit_stats["total"] == 1
+    print(f"[OK] NeuralGovernanceEngine: consensus approved with score {gov_result.score}")
+
     # 5. Brain wiring check
     from brain import TradingBrain
 
@@ -148,11 +163,13 @@ async def main() -> None:
     assert hasattr(brain, "timeframe_detector")
     assert hasattr(brain, "confluence_engine")
     assert hasattr(brain, "adaptive_engine")
+    assert hasattr(brain, "governance_engine")
     assert brain.regime_router is not None
     assert brain.timeframe_detector is not None
     assert brain.confluence_engine is not None
     assert brain.adaptive_engine is not None
-    print("[OK] TradingBrain: microstructure, interrogator, router, detector, confluence, adaptive all wired")
+    assert brain.governance_engine is not None
+    print("[OK] TradingBrain: microstructure, interrogator, router, detector, confluence, adaptive, governance all wired")
 
     # 6. Coordinator wiring check
     from coordinator import TradingCoordinator
@@ -165,7 +182,8 @@ async def main() -> None:
     assert coord.trade_interrogator.microstructure is brain.microstructure
     assert coord.confluence_engine is brain.confluence_engine
     assert coord.adaptive_engine is brain.adaptive_engine
-    print("[OK] TradingCoordinator: shares router, interrogator, microstructure, confluence, and adaptive engine with brain")
+    assert coord.governance_engine is brain.governance_engine
+    print("[OK] TradingCoordinator: shares router, interrogator, microstructure, confluence, adaptive, and governance engine with brain")
 
     print("=" * 60)
     print("ALL INTEGRATION CHECKS PASSED")

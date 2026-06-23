@@ -90,6 +90,7 @@ from mind_observer import MindObserver
 from mind_prompts import MindPrompts
 from mind_system import MindSystem
 from mind_ultrathink import MindUltrathink
+from neural_governance import AgentVote, NeuralGovernanceEngine
 from pandas_safety import safe_polars_from_pandas
 from quant_signals import QuantConsensus
 from questdb_adapter import QuestDBAdapter
@@ -419,6 +420,9 @@ class TradingBrain(BrokerReconciler, HealthChecker, DataProvider, AccountingMixi
         # 5. Live Adaptive Engine — real-time pattern feedback loop.
         self.adaptive_engine = LiveAdaptiveEngine()
 
+        # 6. Neural Governance Engine — cross-agent consensus and audit.
+        self.governance_engine = NeuralGovernanceEngine()
+
         self._qdb_circuit_broken = False
         self._qdb_last_failure_time = 0.0
         self._qdb_failure_count = 0
@@ -603,6 +607,9 @@ class TradingBrain(BrokerReconciler, HealthChecker, DataProvider, AccountingMixi
         if self.bus:
             self._background_tasks.add(
                 asyncio.create_task(self.adaptive_engine.run_async(self.bus))
+            )
+            self._background_tasks.add(
+                asyncio.create_task(self.governance_engine.run_async(self.bus))
             )
 
         self._thaw_task = None
@@ -2396,6 +2403,71 @@ class TradingBrain(BrokerReconciler, HealthChecker, DataProvider, AccountingMixi
                                     "confluence_score": confluence.score,
                                     "confluence_timeframes": confluence.checked_timeframes,
                                     "confluence_alignment": confluence.alignment,
+                                },
+                            )
+                            return None
+
+                        # NEURAL GOVERNANCE: cross-agent consensus before execution.
+                        votes = [
+                            AgentVote(
+                                agent="pattern_detector",
+                                decision="APPROVE",
+                                confidence=float(best.confidence) / 100.0,
+                                reason=f"detected {best.name} on {primary_tf}",
+                                weight=1.0,
+                            ),
+                            AgentVote(
+                                agent="confluence",
+                                decision="APPROVE" if confluence.passed else "VETO",
+                                confidence=confluence.score,
+                                reason=confluence.reasons[0] if confluence.reasons else "",
+                                weight=1.0,
+                            ),
+                            AgentVote(
+                                agent="regime_router",
+                                decision="APPROVE",
+                                confidence=0.8,
+                                reason=f"regime={self.current_regime}",
+                                weight=1.0,
+                            ),
+                        ]
+                        governance_context = {
+                            "pattern": best.name,
+                            "category": getattr(best, "category", "UNKNOWN"),
+                            "timeframe": primary_tf,
+                            "direction": direction,
+                            "regime": self.current_regime,
+                            "confluence_score": confluence.score,
+                        }
+                        governance = self.governance_engine.decide(
+                            symbol, votes, context=governance_context
+                        )
+                        best.governance_score = governance.score  # type: ignore[attr-defined]
+                        best.governance_audit_id = governance.audit_id  # type: ignore[attr-defined]
+                        if not governance.approved:
+                            async with stats_lock:
+                                stats["detected"] += 1
+                                stats["rejected"] += 1
+                                stats["governance_blocked"] = stats.get("governance_blocked", 0) + 1
+                            self._log_scan_veto(
+                                symbol,
+                                f"{best.name}",
+                                f"GOVERNANCE_VETO: {governance.reasons[0] if governance.reasons else 'low consensus'}",
+                                confidence=float(best.confidence),
+                            )
+                            await self._publish_market_observation(
+                                symbol,
+                                "PATTERN_GOVERNANCE_BLOCKED",
+                                best.name,
+                                confidence=float(best.confidence),
+                                price=current_scan_price,
+                                reason=f"Governance score {governance.score:.2f} < {governance.threshold}",
+                                metadata={
+                                    "category": getattr(best, "category", "UNKNOWN"),
+                                    "governance_score": governance.score,
+                                    "governance_threshold": governance.threshold,
+                                    "governance_conflicts": governance.conflicts,
+                                    "governance_audit_id": governance.audit_id,
                                 },
                             )
                             return None

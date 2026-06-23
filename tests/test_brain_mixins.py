@@ -21,6 +21,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from adaptive_learning import LiveAdaptiveEngine
+from neural_governance import NeuralGovernanceEngine
 import pytz
 
 sys.path.insert(0, "src")
@@ -150,6 +151,7 @@ def health_obj():
             self.last_tick_prices: dict = {}
             self._last_execution_status_notice = 0.0
             self.adaptive_engine = LiveAdaptiveEngine()
+            self.governance_engine = NeuralGovernanceEngine()
 
         def _broker_is_connected(self, conn):
             return True

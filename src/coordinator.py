@@ -23,6 +23,7 @@ from backtest_validator import BacktestValidator
 from confluence_engine import ConfluenceEngine
 from decision_ledger import LEDGER
 from execution.slippage import SlippageModel
+from neural_governance import AgentVote, NeuralGovernanceEngine
 from strategy_router import RegimeStrategyRouter
 from telegram_alerts import send_telegram_alert
 from trade_interrogator import TradeInterrogator
@@ -59,6 +60,7 @@ class TradingCoordinator:
         self.regime_router = getattr(brain, "regime_router", RegimeStrategyRouter())
         self.confluence_engine = getattr(brain, "confluence_engine", ConfluenceEngine())
         self.adaptive_engine = getattr(brain, "adaptive_engine", LiveAdaptiveEngine())
+        self.governance_engine = getattr(brain, "governance_engine", NeuralGovernanceEngine())
         self.trade_interrogator = getattr(
             brain,
             "trade_interrogator",
@@ -318,6 +320,7 @@ class TradingCoordinator:
         """Starts the multi-phase vetting quorum for a trade proposal."""
         symbol = symbol.upper()
         task = proposal.get("task")
+        governance_audit_id: str | None = None
 
         if self.brain.bus:
             await self.brain.bus.publish(
@@ -398,21 +401,22 @@ class TradingCoordinator:
                 self._finalize_open_task(task, "PATTERN_FILTER", block_reason)
                 return False
 
+            confluence_result = None
             # Multi-timeframe confluence safety net: higher timeframes must agree.
             if not is_probe:
                 try:
                     primary_tf = getattr(pattern, "timeframe", "1m")
                     direction = "LONG" if getattr(pattern, "entry", 0) >= getattr(pattern, "stop", 0) else "SHORT"
                     confluence_threshold = self.adaptive_engine.adjust_confluence_threshold()
-                    confluence = await self.confluence_engine.evaluate(
+                    confluence_result = await self.confluence_engine.evaluate(
                         symbol,
                         direction,
                         primary_tf,
                         self.brain._fetch_ohlcv,
                         min_score=confluence_threshold,
                     )
-                    if not confluence.passed:
-                        reason = f"CONFLUENCE: {confluence.reasons[0] if confluence.reasons else f'score {confluence.score:.2f}'}"
+                    if not confluence_result.passed:
+                        reason = f"CONFLUENCE: {confluence_result.reasons[0] if confluence_result.reasons else f'score {confluence_result.score:.2f}'}"
                         logger.warning(f"Coordinator [{symbol}] {reason}")
                         LEDGER.record_veto(symbol=symbol, reason=reason, triggered_by="coordinator")
                         self._finalize_open_task(task, "CONFLUENCE_VETO", reason)
@@ -703,6 +707,7 @@ class TradingCoordinator:
                             "session": proposal.get("session", "RTH"),
                         }
                         adaptive_min_score = self.adaptive_engine.adjust_interrogator_min_score()
+                        interrogation = None
                         interrogation = await asyncio.wait_for(
                             asyncio.to_thread(
                                 self.trade_interrogator.interrogate,
@@ -753,6 +758,51 @@ class TradingCoordinator:
                             symbol,
                             _interr_err,
                         )
+
+                    # Neural governance cross-agent consensus.
+                    if not is_probe and interrogation is not None and confluence_result is not None:
+                        votes = [
+                            AgentVote(
+                                agent="confluence",
+                                decision="APPROVE" if confluence_result.passed else "VETO",
+                                confidence=confluence_result.score,
+                                reason=confluence_result.reasons[0] if confluence_result.reasons else "",
+                                weight=1.0,
+                            ),
+                            AgentVote(
+                                agent="trade_interrogator",
+                                decision="APPROVE" if interrogation.passed else "VETO",
+                                confidence=interrogation.score,
+                                reason=interrogation.reasons[0] if interrogation.reasons else "",
+                                weight=1.0,
+                            ),
+                            AgentVote(
+                                agent="adaptive_engine",
+                                decision="APPROVE",
+                                confidence=self.adaptive_engine.adjust_pattern_confidence(
+                                    pattern_name, 70.0
+                                )
+                                / 100.0,
+                                reason="adaptive confidence",
+                                weight=1.0,
+                            ),
+                        ]
+                        gov_context = {
+                            "pattern": pattern_name,
+                            "regime": current_regime,
+                            "direction": direction,
+                        }
+                        gov = self.governance_engine.decide(symbol, votes, context=gov_context)
+                        if not gov.approved:
+                            reason = gov.reasons[0] if gov.reasons else f"score {gov.score:.2f}"
+                            logger.warning("Coordinator [%s] GOVERNANCE_VETO: %s", symbol, reason)
+                            LEDGER.record_veto(
+                                symbol=symbol, reason=f"GOVERNANCE: {reason}", triggered_by="coordinator"
+                            )
+                            self._finalize_open_task(task, "GOVERNANCE_VETO", reason)
+                            return False
+                        # Attach audit id to the proposal for trade.exit learning.
+                        governance_audit_id = gov.audit_id  # noqa: F841
 
                 # Sizing Calculation for Context
                 # For probes: skip the sizer entirely — it will return 0 shares with no live data.
@@ -1812,6 +1862,7 @@ class TradingCoordinator:
                             "intended_entry_price": pattern.entry,
                             "estimated_entry_commission": estimated_entry_commission,
                             "estimated_entry_slippage": estimated_entry_slippage,
+                            "governance_audit_id": governance_audit_id,  # noqa: F821
                         }
                     )
                     async with self.brain._state_lock:

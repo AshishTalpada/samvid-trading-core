@@ -116,6 +116,11 @@ class HealthChecker:
             if state.last_update <= 0:
                 checks.append("Adaptive learning engine has not initialized state")
 
+        # 7. Neural governance engine present and wired
+        governance_engine = getattr(self, "governance_engine", None)
+        if governance_engine is None:
+            checks.append("Neural governance engine not wired")
+
         if checks:
             return False, "; ".join(checks)
         return True, "ALL_CLEAR"
