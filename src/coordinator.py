@@ -55,8 +55,10 @@ class TradingCoordinator:
         self._semaphore: asyncio.Semaphore | None = None  # Lazy-init to bind to running loop
         self.slippage_model = SlippageModel()
         self.regime_router = getattr(brain, "regime_router", RegimeStrategyRouter())
-        self.trade_interrogator = TradeInterrogator(
-            microstructure=getattr(brain, "microstructure", None),
+        self.trade_interrogator = getattr(
+            brain,
+            "trade_interrogator",
+            TradeInterrogator(microstructure=getattr(brain, "microstructure", None)),
         )
         try:
             from cognitive_diversity import CognitiveDiversityEnforcer

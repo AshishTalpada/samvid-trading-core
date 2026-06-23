@@ -41,7 +41,9 @@ class TradeInterrogator:
         max_vwap_deviation: float = 0.01,
         min_rr: float = 1.1,
     ):
-        self.microstructure = microstructure or get_global_microstructure()
+        self.microstructure = (
+            microstructure if microstructure is not None else get_global_microstructure()
+        )
         self.min_score = min_score
         self.min_liquid_spread_pct = min_liquid_spread_pct
         self.max_vwap_deviation = max_vwap_deviation
