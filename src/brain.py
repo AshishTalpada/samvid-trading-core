@@ -75,6 +75,7 @@ from config import (
 from exit_intelligence import ExitIntelligence
 from intelligence_bus import SharedIntelligenceBus
 from llm_circuit_breaker import HEAVY_BREAKER, LIGHT_BREAKER  # noqa: F401
+from market_microstructure import MarketMicrostructure
 from memdir import MemoryManager
 from mind_architect import MindArchitect
 from mind_bridge import MindBridge
@@ -95,6 +96,7 @@ from sovereign_decision_engine import SovereignDecisionEngine
 from sovereign_task import TaskManager
 from swarm_predictor import SwarmPredictor
 from system_types import Position
+from trade_interrogator import TradeInterrogator
 from vault import Vault
 from wisdom import SkillTreeManager, WisdomRepository
 from workload_manager import WorkloadManager
@@ -228,6 +230,11 @@ class TradingBrain(BrokerReconciler, HealthChecker, DataProvider, AccountingMixi
         self._last_tick_price: dict[str, float] = {}  # Internal shadow for snapshotting
         self._last_tick_time: dict[str, datetime] = {}
         self.new_tick_event = asyncio.Event()
+
+        # Live market microstructure: hawk-eye view of ticks, spread, VWAP, order flow.
+        self.microstructure = MarketMicrostructure()
+        self.trade_interrogator = TradeInterrogator(microstructure=self.microstructure)
+
         # SPY Momentum Buffer (stores last 200 prices for zero-latency regime detection)
 
         from collections import deque
@@ -1514,7 +1521,22 @@ class TradingBrain(BrokerReconciler, HealthChecker, DataProvider, AccountingMixi
     # HIGH-SPEED REACTOR — processes 10ms ticker data
 
     async def get_current_spread(self, symbol: str) -> dict[str, float]:
-        """Returns the last known bid, ask, and spread for a symbol."""
+        """Returns the last known bid, ask, and spread for a symbol.
+
+        Prefer the live microstructure processor if it has data; fall back to
+        the raw tick caches.
+        """
+        micro = getattr(self, "microstructure", None)
+        if micro is not None:
+            snap = micro.get_snapshot(symbol)
+            if snap.bid > 0 and snap.ask > 0:
+                return {
+                    "bid": snap.bid,
+                    "ask": snap.ask,
+                    "spread": snap.spread,
+                    "mid": snap.mid,
+                }
+
         bid = self.last_tick_bids.get(symbol, self.last_tick_prices.get(symbol, 0.0))
         ask = self.last_tick_asks.get(symbol, self.last_tick_prices.get(symbol, 0.0))
 
@@ -1523,6 +1545,13 @@ class TradingBrain(BrokerReconciler, HealthChecker, DataProvider, AccountingMixi
             return {"bid": 0.0, "ask": 0.0, "spread": 0.0, "mid": 0.0}
 
         return {"bid": bid, "ask": ask, "spread": abs(ask - bid), "mid": (ask + bid) / 2.0}
+
+    async def get_microstructure_summary(self, symbol: str) -> dict[str, Any]:
+        """Return hawk-eye microstructure signals for a symbol."""
+        micro = getattr(self, "microstructure", None)
+        if micro is None:
+            return {}
+        return micro.summary(symbol)
 
     async def on_tick(self, data: dict[str, Any]) -> None:
         """
@@ -1540,6 +1569,10 @@ class TradingBrain(BrokerReconciler, HealthChecker, DataProvider, AccountingMixi
         self.last_tick_asks[symbol] = float(data.get("ask", price))
         if getattr(self, "data_pipeline", None) is not None:
             self.data_pipeline.record_realtime_tick(data)
+
+        # 2. Update hawk-eye microstructure signals (spread, VWAP, order flow, tape speed).
+        if getattr(self, "microstructure", None) is not None:
+            self.microstructure.on_tick(data)
 
         if symbol == "SPY":
             self.spy_buffer.append(float(price))

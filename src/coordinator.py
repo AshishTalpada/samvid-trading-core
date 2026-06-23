@@ -22,6 +22,7 @@ from backtest_validator import BacktestValidator
 from decision_ledger import LEDGER
 from execution.slippage import SlippageModel
 from telegram_alerts import send_telegram_alert
+from trade_interrogator import TradeInterrogator
 
 logger = logging.getLogger(__name__)
 
@@ -52,6 +53,9 @@ class TradingCoordinator:
         self.exoskeleton = ApexExoskeleton(brain)
         self._semaphore: asyncio.Semaphore | None = None  # Lazy-init to bind to running loop
         self.slippage_model = SlippageModel()
+        self.trade_interrogator = TradeInterrogator(
+            microstructure=getattr(brain, "microstructure", None),
+        )
         try:
             from cognitive_diversity import CognitiveDiversityEnforcer
             self._diversity_enforcer = CognitiveDiversityEnforcer()
@@ -637,6 +641,7 @@ class TradingCoordinator:
                 spread_data = await self.brain.get_current_spread(symbol) or {}
 
                 # Early Agent D veto gate — avoid sizing cost for statistically doomed trades
+                agent_d_early: dict[str, Any] | None = None
                 if not is_probe:
                     try:
                         agent_d_early = await asyncio.wait_for(
@@ -658,6 +663,90 @@ class TradingCoordinator:
                     except (asyncio.TimeoutError, Exception) as _early_d_err:
                         logger.debug("Agent D early veto check failed/timed out: %s", _early_d_err)
                         # Non-fatal — fall through to normal path
+
+                # Hawk-eye Trade Interrogator: self-questioning before execution.
+                # Enforces present-market liquidity, order flow, and conviction checks.
+                if not is_probe:
+                    try:
+                        pattern_stats = (
+                            {
+                                "win_rate": float(agent_d_early.get("confidence", 0.5)),
+                                "sample_size": int(
+                                    getattr(
+                                        self.brain.live_learner._matrix,
+                                        "_sample_counts",
+                                        {},
+                                    ).get(
+                                        (str(pattern.name), str(self.brain.current_regime)),
+                                        0,
+                                    )
+                                ),
+                            }
+                            if agent_d_early
+                            else {}
+                        )
+                        direction = (
+                            "LONG"
+                            if getattr(proposal, "direction", 0) > 0
+                            or str(getattr(proposal, "direction", "")).upper() == "LONG"
+                            else "SHORT"
+                        )
+                        proposal_payload = {
+                            "direction": direction,
+                            "entry_price": float(pattern.entry),
+                            "stop_price": float(pattern.stop),
+                            "target_price": float(pattern.target),
+                            "session": proposal.get("session", "RTH"),
+                        }
+                        interrogation = await asyncio.wait_for(
+                            asyncio.to_thread(
+                                self.trade_interrogator.interrogate,
+                                symbol,
+                                pattern,
+                                proposal_payload,
+                                current_regime=str(self.brain.current_regime),
+                                pattern_stats=pattern_stats,
+                            ),
+                            timeout=3.0,
+                        )
+                        if not interrogation.passed:
+                            reason = " | ".join(interrogation.reasons)
+                            logger.warning(
+                                "Coordinator [%s] INTERROGATOR_VETO: %s",
+                                symbol,
+                                reason,
+                            )
+                            LEDGER.record_veto(
+                                symbol=symbol,
+                                reason=f"INTERROGATOR: {reason}",
+                                triggered_by="coordinator",
+                            )
+                            if self.brain.bus:
+                                await self.brain.bus.publish(
+                                    "consensus.update",
+                                    {
+                                        "symbol": symbol,
+                                        "phase": "INTERROGATOR_VETO",
+                                        "decision": "REJECT",
+                                        "reason": reason,
+                                        "score": round(interrogation.score, 2),
+                                        "votes": [],
+                                        "timestamp": time.time() * 1000,
+                                    },
+                                )
+                            self._finalize_open_task(task, "INTERROGATOR_VETO", reason)
+                            return False
+                        logger.info(
+                            "Coordinator [%s] INTERROGATOR_PASS: score=%.2f",
+                            symbol,
+                            interrogation.score,
+                        )
+                    except (asyncio.TimeoutError, Exception) as _interr_err:
+                        logger.warning(
+                            "Coordinator [%s] Interrogator failed (non-fatal): %s",
+                            symbol,
+                            _interr_err,
+                        )
 
                 # Sizing Calculation for Context
                 # For probes: skip the sizer entirely — it will return 0 shares with no live data.
