@@ -107,6 +107,15 @@ class HealthChecker:
                 if cursor is not None:
                     cursor.close()
 
+        # 6. Adaptive learning engine present and wired
+        adaptive_engine = getattr(self, "adaptive_engine", None)
+        if adaptive_engine is None:
+            checks.append("Adaptive learning engine not wired")
+        else:
+            state = adaptive_engine.current_state()
+            if state.last_update <= 0:
+                checks.append("Adaptive learning engine has not initialized state")
+
         if checks:
             return False, "; ".join(checks)
         return True, "ALL_CLEAR"

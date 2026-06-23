@@ -57,6 +57,7 @@ class TradeInterrogator:
         *,
         current_regime: str = "UNKNOWN",
         pattern_stats: dict[str, Any] | None = None,
+        min_score: float | None = None,
     ) -> InterrogationResult:
         """Score a trade proposal by answering the hawk-eye checklist.
 
@@ -178,14 +179,15 @@ class TradeInterrogator:
                 )
             )
         ]
-        passed = not hard_veto_reasons and final_score >= self.min_score
+        threshold = min_score if min_score is not None else self.min_score
+        passed = not hard_veto_reasons and final_score >= threshold
 
         if hard_veto_reasons:
             reasons.insert(0, f"Hard veto: {' | '.join(hard_veto_reasons)}")
         elif not passed:
             reasons.insert(
                 0,
-                f"Interrogator score {final_score:.2f} < threshold {self.min_score}",
+                f"Interrogator score {final_score:.2f} < threshold {threshold}",
             )
         else:
             reasons.append(f"Interrogator score {final_score:.2f} passed")

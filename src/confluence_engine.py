@@ -62,6 +62,7 @@ class ConfluenceEngine:
         direction: str,
         primary_timeframe: str,
         fetch_ohlcv: Any,
+        min_score: float | None = None,
     ) -> ConfluenceResult:
         """Evaluate confluence for a symbol/direction.
 
@@ -154,16 +155,17 @@ class ConfluenceEngine:
             raw_alignment = 0.0
 
         score = 0.6 * agreement + 0.4 * raw_alignment
-        passed = score >= self.min_score and len(checked) >= self.min_timeframes
+        threshold = min_score if min_score is not None else self.min_score
+        passed = score >= threshold and len(checked) >= self.min_timeframes
 
         if len(checked) < self.min_timeframes:
             reasons.append(
                 f"Only {len(checked)} timeframe(s) available; need {self.min_timeframes}"
             )
         if not passed and not any(r.startswith("Higher") or r.startswith("Only") for r in reasons):
-            reasons.append(f"Confluence score {score:.2f} < minimum {self.min_score}")
+            reasons.append(f"Confluence score {score:.2f} < minimum {threshold}")
         if passed:
-            reasons.append(f"Confluence score {score:.2f} >= {self.min_score}")
+            reasons.append(f"Confluence score {score:.2f} >= {threshold}")
 
         return ConfluenceResult(
             score=round(score, 3),

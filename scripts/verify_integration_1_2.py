@@ -11,6 +11,7 @@ Verifies that:
 import asyncio
 
 import polars as pl
+from adaptive_learning import LiveAdaptiveEngine
 from confluence_engine import ConfluenceEngine
 from market_microstructure import MarketMicrostructure
 from strategy_router import RegimeStrategyRouter, TimeframeAwareDetector
@@ -125,6 +126,18 @@ async def main() -> None:
     assert conf_result.passed, f"bullish confluence for LONG should pass: {conf_result}"
     print(f"[OK] ConfluenceEngine: LONG alignment passed with score {conf_result.score}")
 
+    # 4b. Adaptive Learning
+    adaptive = LiveAdaptiveEngine()
+    for _ in range(5):
+        adaptive.ingest_trade_exit(
+            {"symbol": "AAPL", "pattern": "VCP", "pnl": 100.0, "r_multiple": 2.0, "regime": "BULL"}
+        )
+    state = adaptive.recompute(force=True)
+    assert state.pattern_confidence_mods.get("VCP", 0.0) > 0
+    adjusted = adaptive.adjust_pattern_confidence("VCP", 70.0)
+    assert adjusted > 70.0
+    print(f"[OK] LiveAdaptiveEngine: learned VCP bullish edge, boosted confidence to {adjusted:.1f}")
+
     # 5. Brain wiring check
     from brain import TradingBrain
 
@@ -134,10 +147,12 @@ async def main() -> None:
     assert hasattr(brain, "regime_router")
     assert hasattr(brain, "timeframe_detector")
     assert hasattr(brain, "confluence_engine")
+    assert hasattr(brain, "adaptive_engine")
     assert brain.regime_router is not None
     assert brain.timeframe_detector is not None
     assert brain.confluence_engine is not None
-    print("[OK] TradingBrain: microstructure, interrogator, router, detector, confluence all wired")
+    assert brain.adaptive_engine is not None
+    print("[OK] TradingBrain: microstructure, interrogator, router, detector, confluence, adaptive all wired")
 
     # 6. Coordinator wiring check
     from coordinator import TradingCoordinator
@@ -149,7 +164,8 @@ async def main() -> None:
     assert coord.trade_interrogator is brain.trade_interrogator
     assert coord.trade_interrogator.microstructure is brain.microstructure
     assert coord.confluence_engine is brain.confluence_engine
-    print("[OK] TradingCoordinator: shares router, interrogator, microstructure, and confluence engine with brain")
+    assert coord.adaptive_engine is brain.adaptive_engine
+    print("[OK] TradingCoordinator: shares router, interrogator, microstructure, confluence, and adaptive engine with brain")
 
     print("=" * 60)
     print("ALL INTEGRATION CHECKS PASSED")

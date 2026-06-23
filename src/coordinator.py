@@ -17,6 +17,7 @@ if TYPE_CHECKING:
     from brain import TradingBrain
     from mind_bridge import MindBridge
 
+from adaptive_learning import LiveAdaptiveEngine
 from agent_a import agent_a_validate_trade
 from backtest_validator import BacktestValidator
 from confluence_engine import ConfluenceEngine
@@ -57,6 +58,7 @@ class TradingCoordinator:
         self.slippage_model = SlippageModel()
         self.regime_router = getattr(brain, "regime_router", RegimeStrategyRouter())
         self.confluence_engine = getattr(brain, "confluence_engine", ConfluenceEngine())
+        self.adaptive_engine = getattr(brain, "adaptive_engine", LiveAdaptiveEngine())
         self.trade_interrogator = getattr(
             brain,
             "trade_interrogator",
@@ -401,11 +403,13 @@ class TradingCoordinator:
                 try:
                     primary_tf = getattr(pattern, "timeframe", "1m")
                     direction = "LONG" if getattr(pattern, "entry", 0) >= getattr(pattern, "stop", 0) else "SHORT"
+                    confluence_threshold = self.adaptive_engine.adjust_confluence_threshold()
                     confluence = await self.confluence_engine.evaluate(
                         symbol,
                         direction,
                         primary_tf,
                         self.brain._fetch_ohlcv,
+                        min_score=confluence_threshold,
                     )
                     if not confluence.passed:
                         reason = f"CONFLUENCE: {confluence.reasons[0] if confluence.reasons else f'score {confluence.score:.2f}'}"
@@ -698,6 +702,7 @@ class TradingCoordinator:
                             "target_price": float(pattern.target),
                             "session": proposal.get("session", "RTH"),
                         }
+                        adaptive_min_score = self.adaptive_engine.adjust_interrogator_min_score()
                         interrogation = await asyncio.wait_for(
                             asyncio.to_thread(
                                 self.trade_interrogator.interrogate,
@@ -706,6 +711,7 @@ class TradingCoordinator:
                                 proposal_payload,
                                 current_regime=str(self.brain.current_regime),
                                 pattern_stats=pattern_stats,
+                                min_score=adaptive_min_score,
                             ),
                             timeout=3.0,
                         )

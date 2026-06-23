@@ -28,6 +28,7 @@ import polars as pl
 
 logger = logging.getLogger(__name__)
 
+from adaptive_learning import LiveAdaptiveEngine
 from agent_a import (
     ContinuousBudgetMonitor,
     EscapeVelocityClassifier,
@@ -415,6 +416,9 @@ class TradingBrain(BrokerReconciler, HealthChecker, DataProvider, AccountingMixi
             db_path=_db_path, bus=bus, evolution_engine=self.recursive_evolution, dms=self.dms
         )
 
+        # 5. Live Adaptive Engine — real-time pattern feedback loop.
+        self.adaptive_engine = LiveAdaptiveEngine()
+
         self._qdb_circuit_broken = False
         self._qdb_last_failure_time = 0.0
         self._qdb_failure_count = 0
@@ -594,6 +598,12 @@ class TradingBrain(BrokerReconciler, HealthChecker, DataProvider, AccountingMixi
         # Background task registry — prevents 'Task was destroyed but it is pending!' errors
         # by maintaining strong references to fire-and-forget asyncio tasks.
         self._background_tasks: set[asyncio.Task] = set()
+
+        # Subscribe the adaptive engine to trade.exit events now that the registry exists.
+        if self.bus:
+            self._background_tasks.add(
+                asyncio.create_task(self.adaptive_engine.run_async(self.bus))
+            )
 
         self._thaw_task = None
 
@@ -2272,9 +2282,18 @@ class TradingBrain(BrokerReconciler, HealthChecker, DataProvider, AccountingMixi
                             regime=self.current_regime,
                             fetch_ohlcv=_fetch_for_detector,
                         )
-                        for p in patterns:
-                            if p:
-                                p.atr = atr_val
+
+                        # Live adaptive learning: adjust pattern confidence based on
+                        # recent real-time outcomes for this pattern / regime.
+                        if patterns:
+                            self.adaptive_engine.recompute()
+                            for p in patterns:
+                                if p:
+                                    p.atr = atr_val
+                                    p.adaptive_confidence = self.adaptive_engine.adjust_pattern_confidence(
+                                        p.name, p.confidence
+                                    )
+                                    p.confidence = p.adaptive_confidence
 
                         found = [p for p in patterns if p and p.confidence >= 60.0]
 
@@ -2344,11 +2363,13 @@ class TradingBrain(BrokerReconciler, HealthChecker, DataProvider, AccountingMixi
                         # MULTI-TIMEFRAME CONFLUENCE: require higher timeframes to agree.
                         primary_tf = getattr(best, "timeframe", "1m")
                         direction = "LONG" if getattr(best, "entry", 0) >= getattr(best, "stop", 0) else "SHORT"
+                        confluence_threshold = self.adaptive_engine.adjust_confluence_threshold()
                         confluence = await self.confluence_engine.evaluate(
                             symbol,
                             direction,
                             primary_tf,
                             self._fetch_ohlcv,
+                            min_score=confluence_threshold,
                         )
                         best.confluence_score = confluence.score  # type: ignore[attr-defined]
                         best.confluence_timeframes = confluence.checked_timeframes  # type: ignore[attr-defined]
