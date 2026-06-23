@@ -19,6 +19,7 @@ if TYPE_CHECKING:
 
 from agent_a import agent_a_validate_trade
 from backtest_validator import BacktestValidator
+from confluence_engine import ConfluenceEngine
 from decision_ledger import LEDGER
 from execution.slippage import SlippageModel
 from strategy_router import RegimeStrategyRouter
@@ -55,6 +56,7 @@ class TradingCoordinator:
         self._semaphore: asyncio.Semaphore | None = None  # Lazy-init to bind to running loop
         self.slippage_model = SlippageModel()
         self.regime_router = getattr(brain, "regime_router", RegimeStrategyRouter())
+        self.confluence_engine = getattr(brain, "confluence_engine", ConfluenceEngine())
         self.trade_interrogator = getattr(
             brain,
             "trade_interrogator",
@@ -393,6 +395,26 @@ class TradingCoordinator:
                 LEDGER.record_veto(symbol=symbol, reason=f"PATTERN_FILTER: {block_reason}", triggered_by="coordinator")
                 self._finalize_open_task(task, "PATTERN_FILTER", block_reason)
                 return False
+
+            # Multi-timeframe confluence safety net: higher timeframes must agree.
+            if not is_probe:
+                try:
+                    primary_tf = getattr(pattern, "timeframe", "1m")
+                    direction = "LONG" if getattr(pattern, "entry", 0) >= getattr(pattern, "stop", 0) else "SHORT"
+                    confluence = await self.confluence_engine.evaluate(
+                        symbol,
+                        direction,
+                        primary_tf,
+                        self.brain._fetch_ohlcv,
+                    )
+                    if not confluence.passed:
+                        reason = f"CONFLUENCE: {confluence.reasons[0] if confluence.reasons else f'score {confluence.score:.2f}'}"
+                        logger.warning(f"Coordinator [{symbol}] {reason}")
+                        LEDGER.record_veto(symbol=symbol, reason=reason, triggered_by="coordinator")
+                        self._finalize_open_task(task, "CONFLUENCE_VETO", reason)
+                        return False
+                except Exception as _conf_err:
+                    logger.debug("Coordinator [%s] confluence check failed (non-fatal): %s", symbol, _conf_err)
 
             balance = await self.brain.get_safe_buying_power("ibkr")
             from config import COMMISSION_PER_ROUND_TRIP, USD_CAD_RATE

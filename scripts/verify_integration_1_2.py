@@ -1,14 +1,17 @@
-"""Integration smoke test for Implementation 1 + 2.
+"""Integration smoke test for Implementation 1 + 2 + 3.
 
 Verifies that:
 - market microstructure ingests ticks and produces signals
 - trade interrogator uses microstructure to veto bad trades
 - regime strategy router routes patterns to correct timeframes
-- brain has all three components wired
-- coordinator uses the same regime router as the brain
+- multi-timeframe confluence engine checks higher timeframe alignment
+- brain has all components wired
+- coordinator uses the same regime router and confluence engine as the brain
 """
 import asyncio
 
+import polars as pl
+from confluence_engine import ConfluenceEngine
 from market_microstructure import MarketMicrostructure
 from strategy_router import RegimeStrategyRouter, TimeframeAwareDetector
 from trade_interrogator import TradeInterrogator
@@ -101,6 +104,27 @@ async def main() -> None:
     # the detector runs across allowed timeframes without errors.
     print(f"[OK] TimeframeAwareDetector: ran across allowed timeframes (found {len(results)} patterns)")
 
+    # 4. Confluence Engine
+    confluence = ConfluenceEngine(min_score=0.70)
+
+    async def conf_fetch(sym, tf):
+        n = 60
+        up = [100.0 + i * 0.05 for i in range(n)]
+        return pl.DataFrame(
+            {
+                "timestamp": list(range(n)),
+                "open": up,
+                "high": [p + 0.05 for p in up],
+                "low": [p - 0.05 for p in up],
+                "close": up,
+                "volume": [1000.0] * n,
+            }
+        )
+
+    conf_result = await confluence.evaluate("AAPL", "LONG", "5m", conf_fetch)
+    assert conf_result.passed, f"bullish confluence for LONG should pass: {conf_result}"
+    print(f"[OK] ConfluenceEngine: LONG alignment passed with score {conf_result.score}")
+
     # 5. Brain wiring check
     from brain import TradingBrain
 
@@ -109,9 +133,11 @@ async def main() -> None:
     assert hasattr(brain, "trade_interrogator")
     assert hasattr(brain, "regime_router")
     assert hasattr(brain, "timeframe_detector")
+    assert hasattr(brain, "confluence_engine")
     assert brain.regime_router is not None
     assert brain.timeframe_detector is not None
-    print("[OK] TradingBrain: microstructure, interrogator, router, detector all wired")
+    assert brain.confluence_engine is not None
+    print("[OK] TradingBrain: microstructure, interrogator, router, detector, confluence all wired")
 
     # 6. Coordinator wiring check
     from coordinator import TradingCoordinator
@@ -122,7 +148,8 @@ async def main() -> None:
     assert coord.regime_router is brain.regime_router
     assert coord.trade_interrogator is brain.trade_interrogator
     assert coord.trade_interrogator.microstructure is brain.microstructure
-    print("[OK] TradingCoordinator: shares router, interrogator, and microstructure with brain")
+    assert coord.confluence_engine is brain.confluence_engine
+    print("[OK] TradingCoordinator: shares router, interrogator, microstructure, and confluence engine with brain")
 
     print("=" * 60)
     print("ALL INTEGRATION CHECKS PASSED")

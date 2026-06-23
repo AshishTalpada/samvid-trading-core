@@ -72,6 +72,7 @@ from config import (
     QUESTDB_ENABLED,
     STARTING_CAPITAL_CAD,
 )
+from confluence_engine import ConfluenceEngine
 from exit_intelligence import ExitIntelligence
 from intelligence_bus import SharedIntelligenceBus
 from llm_circuit_breaker import HEAVY_BREAKER, LIGHT_BREAKER  # noqa: F401
@@ -299,6 +300,7 @@ class TradingBrain(BrokerReconciler, HealthChecker, DataProvider, AccountingMixi
             pattern_detector=self.pattern_detector,
             router=self.regime_router,
         )
+        self.confluence_engine = ConfluenceEngine(min_score=0.70)
         self.entropy_calc = SignalEntropyCalculator()
         self.escape_classifier = EscapeVelocityClassifier()
         self.mtf_aligner = MultiTimeframeAligner()
@@ -2336,6 +2338,44 @@ class TradingBrain(BrokerReconciler, HealthChecker, DataProvider, AccountingMixi
                             logger.debug(
                                 f"Scan [{symbol}]: {best.name} ({best.category}) skipped"
                                 f" — CHOPPY regime blocks HFT/SCALP patterns."
+                            )
+                            return None
+
+                        # MULTI-TIMEFRAME CONFLUENCE: require higher timeframes to agree.
+                        primary_tf = getattr(best, "timeframe", "1m")
+                        direction = "LONG" if getattr(best, "entry", 0) >= getattr(best, "stop", 0) else "SHORT"
+                        confluence = await self.confluence_engine.evaluate(
+                            symbol,
+                            direction,
+                            primary_tf,
+                            self._fetch_ohlcv,
+                        )
+                        best.confluence_score = confluence.score  # type: ignore[attr-defined]
+                        best.confluence_timeframes = confluence.checked_timeframes  # type: ignore[attr-defined]
+                        if not confluence.passed:
+                            async with stats_lock:
+                                stats["detected"] += 1
+                                stats["rejected"] += 1
+                                stats["confluence_blocked"] = stats.get("confluence_blocked", 0) + 1
+                            self._log_scan_veto(
+                                symbol,
+                                f"{best.name}",
+                                f"CONFLUENCE_VETO: {confluence.reasons[0] if confluence.reasons else 'low alignment'}",
+                                confidence=float(best.confidence),
+                            )
+                            await self._publish_market_observation(
+                                symbol,
+                                "PATTERN_CONFLUENCE_BLOCKED",
+                                best.name,
+                                confidence=float(best.confidence),
+                                price=current_scan_price,
+                                reason=f"Confluence score {confluence.score:.2f} on {primary_tf}",
+                                metadata={
+                                    "category": getattr(best, "category", "UNKNOWN"),
+                                    "confluence_score": confluence.score,
+                                    "confluence_timeframes": confluence.checked_timeframes,
+                                    "confluence_alignment": confluence.alignment,
+                                },
                             )
                             return None
 
