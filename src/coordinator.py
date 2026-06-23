@@ -21,6 +21,7 @@ from agent_a import agent_a_validate_trade
 from backtest_validator import BacktestValidator
 from decision_ledger import LEDGER
 from execution.slippage import SlippageModel
+from strategy_router import RegimeStrategyRouter
 from telegram_alerts import send_telegram_alert
 from trade_interrogator import TradeInterrogator
 
@@ -53,6 +54,7 @@ class TradingCoordinator:
         self.exoskeleton = ApexExoskeleton(brain)
         self._semaphore: asyncio.Semaphore | None = None  # Lazy-init to bind to running loop
         self.slippage_model = SlippageModel()
+        self.regime_router = getattr(brain, "regime_router", RegimeStrategyRouter())
         self.trade_interrogator = TradeInterrogator(
             microstructure=getattr(brain, "microstructure", None),
         )
@@ -93,40 +95,14 @@ class TradingCoordinator:
             self._cross_asset = None
 
     def _pattern_edge_filter(self, symbol: str, pattern_name: str, current_regime: str) -> str:
-        """Statistically validated 1m pattern filter.
+        """Regime and timeframe-aware pattern filter.
 
-        Returns a non-empty block reason if the pattern+regime combo has
-        historically failed to produce positive expectancy, otherwise an
-        empty string. The list is intentionally conservative so the system
-        only trades patterns that have proven edge in the current regime.
+        Uses the RegimeStrategyRouter to decide whether the pattern is allowed
+        in the current regime and on the correct timeframe.
         """
-        # Patterns with <15% win rate on 1m data across all regimes.
-        _LOSING_PATTERNS_1M = {
-            "Falling Wedge",
-            "Rising Wedge",
-            "Ascending Triangle",
-            "Descending Triangle",
-            "Micro Volatility Breakout",
-            "HFT Spoof Pivot",
-            "Micro Imbalance (Bullish)",
-            "Tick Divergence (Bearish Reversion)",
-            "Gap Fill",
-            "Oversold Bounce",
-            "Sector Sympathy",
-            "Head and Shoulders",
-            "Cup and Handle",
-            "Double Top (Reversal)",
-            "Double Bottom (Reversal)",
-            "Bull Flag",
-            "Bear Flag",
-        }
-        if pattern_name in _LOSING_PATTERNS_1M:
-            return f"{pattern_name} has negative edge on 1m data (blocklist)"
-
-        # VCP only works in BULL or TRENDING regime; in CHOPPY/SIDEWAYS/RISK_OFF it loses money.
-        if pattern_name == "VCP (Minervini Pivot)" and current_regime not in ("BULL", "TRENDING"):
-            return f"VCP blocked in {current_regime} regime (historically negative)"
-
+        route = self.regime_router.route(pattern_name, current_regime)
+        if not route.allowed:
+            return route.reason
         return ""
 
     def _estimate_entry_friction_per_share(

@@ -94,6 +94,7 @@ from questdb_adapter import QuestDBAdapter
 from session_restorer import SessionRestorer
 from sovereign_decision_engine import SovereignDecisionEngine
 from sovereign_task import TaskManager
+from strategy_router import RegimeStrategyRouter, TimeframeAwareDetector
 from swarm_predictor import SwarmPredictor
 from system_types import Position
 from trade_interrogator import TradeInterrogator
@@ -293,6 +294,11 @@ class TradingBrain(BrokerReconciler, HealthChecker, DataProvider, AccountingMixi
 
         self.budget_monitor = ContinuousBudgetMonitor()
         self.pattern_detector = PatternDetector()
+        self.regime_router = RegimeStrategyRouter()
+        self.timeframe_detector = TimeframeAwareDetector(
+            pattern_detector=self.pattern_detector,
+            router=self.regime_router,
+        )
         self.entropy_calc = SignalEntropyCalculator()
         self.escape_classifier = EscapeVelocityClassifier()
         self.mtf_aligner = MultiTimeframeAligner()
@@ -410,8 +416,8 @@ class TradingBrain(BrokerReconciler, HealthChecker, DataProvider, AccountingMixi
         self._qdb_circuit_broken = False
         self._qdb_last_failure_time = 0.0
         self._qdb_failure_count = 0
-        self._hot_cache: dict[str, pd.DataFrame] = {}  # symbol -> OHLCV df
-        self._hot_cache_time: dict[str, float] = {}  # symbol -> monotonic ts
+        self._hot_cache: dict[tuple[str, str], pd.DataFrame] = {}  # (symbol, timeframe) -> OHLCV df
+        self._hot_cache_time: dict[tuple[str, str], float] = {}  # (symbol, timeframe) -> monotonic ts
         self._last_fresh_bar_at: dict[str, float] = {}  # symbol -> freshness proof monotonic ts
 
         self.exit_engine = ExitIntelligence({"belief_threshold": 0.35})
@@ -2253,10 +2259,17 @@ class TradingBrain(BrokerReconciler, HealthChecker, DataProvider, AccountingMixi
                         except Exception as _disc_err:
                             logger.debug("Scan [%s]: AlphaDiscovery error: %s", symbol, _disc_err)
 
-                        # Offload CPU-heavy pattern detection to a thread pool
-                        # to avoid blocking the event loop
-                        # Pass the Polars DataFrame as expected by agent_a
-                        patterns = await asyncio.to_thread(self.pattern_detector.detect_all, df_pl)
+                        # Regime-aware, timeframe-aware pattern detection.
+                        # Each pattern runs on its designed timeframe; only patterns
+                        # permitted for the current regime are evaluated.
+                        async def _fetch_for_detector(sym: str, tf: str) -> Any:
+                            return await self._fetch_ohlcv(sym, tf)
+
+                        patterns = await self.timeframe_detector.detect_for_regime(
+                            symbol=symbol,
+                            regime=self.current_regime,
+                            fetch_ohlcv=_fetch_for_detector,
+                        )
                         for p in patterns:
                             if p:
                                 p.atr = atr_val

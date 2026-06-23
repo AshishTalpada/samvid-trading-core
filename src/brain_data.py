@@ -84,9 +84,14 @@ class DataProvider:
     # ------------------------------------------------------------------
     # OHLCV fetch (SQLite + QuestDB with circuit-breaker fallback)
     # ------------------------------------------------------------------
-    async def _fetch_ohlcv(self, symbol: str) -> pl.DataFrame | pd.DataFrame | str | None:
+    async def _fetch_ohlcv(
+        self, symbol: str, timeframe: str = "1m"
+    ) -> pl.DataFrame | pd.DataFrame | str | None:
         """
         Fetch OHLCV data for a symbol from the projection database.
+        Args:
+            symbol: ticker symbol
+            timeframe: bar timeframe (1m, 5m, 15m, etc.)
         Returns:
             - pd.DataFrame  -> usable rows found
             - "STALE"        -> rows exist but are too old for the current session
@@ -96,10 +101,14 @@ class DataProvider:
             if not self.db_conn and not os.path.exists(self.db_path):
                 return None
 
+            cache_key = (symbol, timeframe)
             # Hot cache: skip repeated DB hits within 5 s
             now_mono = time.monotonic()
-            if symbol in self._hot_cache and (now_mono - self._hot_cache_time.get(symbol, 0)) < 5.0:
-                return self._hot_cache[symbol]
+            if (
+                cache_key in self._hot_cache
+                and (now_mono - self._hot_cache_time.get(cache_key, 0)) < 5.0
+            ):
+                return self._hot_cache[cache_key]
 
             df_qdb = None
 
@@ -111,7 +120,7 @@ class DataProvider:
                     from config import QUESTDB_CONNECT_TIMEOUT_SEC
 
                     df_qdb = await asyncio.wait_for(
-                        self.qdb.fetch_ohlcv_pandas(symbol, timeframe="1m", limit=200),
+                        self.qdb.fetch_ohlcv_pandas(symbol, timeframe=timeframe, limit=200),
                         timeout=QUESTDB_CONNECT_TIMEOUT_SEC,
                     )
                     self._qdb_failure_count = 0
@@ -161,7 +170,7 @@ class DataProvider:
                     logger.debug("QuestDB returned empty for %s, falling back to SQLite", symbol)
                 query = (
                     "SELECT timestamp, open, high, low, close, volume "
-                    "FROM ohlcv WHERE symbol=? AND timeframe='1m' "
+                    "FROM ohlcv WHERE symbol=? AND timeframe=? "
                     "ORDER BY timestamp DESC LIMIT 200"
                 )
                 try:
@@ -172,7 +181,7 @@ class DataProvider:
 
                         with closing(sqlite3.connect(self.db_path, timeout=60.0)) as conn:
                             conn.execute("PRAGMA query_only = ON")
-                            return pd.read_sql_query(query, conn, params=[symbol])
+                            return pd.read_sql_query(query, conn, params=[symbol, timeframe])
 
                     df = await asyncio.wait_for(
                         asyncio.to_thread(_read_sqlite_ohlcv),
@@ -257,8 +266,8 @@ class DataProvider:
                 logger.debug("Staleness check skipped for %s after hours: %s", symbol, e)
 
             final_df = safe_polars_from_pandas(df_frame)
-            self._hot_cache[symbol] = final_df
-            self._hot_cache_time[symbol] = time.monotonic()
+            self._hot_cache[cache_key] = final_df
+            self._hot_cache_time[cache_key] = time.monotonic()
 
             # Limit cache size to prevent unbounded memory growth.
             _max_cache_symbols = int(os.getenv("SOVEREIGN_OHLCV_CACHE_LIMIT", "10"))
@@ -266,9 +275,9 @@ class DataProvider:
                 _oldest = sorted(
                     self._hot_cache_time.items(), key=lambda kv: kv[1]
                 )[: len(self._hot_cache) - _max_cache_symbols]
-                for _sym, _ in _oldest:
-                    self._hot_cache.pop(_sym, None)
-                    self._hot_cache_time.pop(_sym, None)
+                for _key, _ in _oldest:
+                    self._hot_cache.pop(_key, None)
+                    self._hot_cache_time.pop(_key, None)
             freshness_proofs = getattr(self, "_last_fresh_bar_at", None)
             if freshness_proofs is None:
                 freshness_proofs = {}
