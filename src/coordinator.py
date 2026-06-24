@@ -24,6 +24,7 @@ from confluence_engine import ConfluenceEngine
 from decision_ledger import LEDGER
 from execution.slippage import SlippageModel
 from neural_governance import AgentVote, NeuralGovernanceEngine
+from risk.regime_stops import RegimeAdaptiveStops
 from strategy_router import RegimeStrategyRouter
 from telegram_alerts import send_telegram_alert
 from trade_interrogator import TradeInterrogator
@@ -33,6 +34,21 @@ logger = logging.getLogger(__name__)
 CONCURRENCY_LIMIT = 3
 # NOTE: asyncio.Semaphore is created lazily inside the class to avoid
 # attaching to the wrong event loop when imported at module level.
+
+# Long-only breakout patterns that have shown catastrophic negative edge in
+# choppy / sideways / unknown regimes. Blocking them directionally reduces the
+# system's severe long bias on range-bound days.
+CHOPPY_LONG_BLOCKLIST: set[str] = {
+    "Rising Wedge",
+    "Ascending Triangle",
+    "VCP (Minervini Pivot)",
+    "Bull Flag",
+    "Cup and Handle",
+    "Double Bottom (Reversal)",
+    "Falling Wedge",
+    "Sector Sympathy",
+    "Proto-Squeeze",
+}
 
 
 class TradingCoordinator:
@@ -57,6 +73,7 @@ class TradingCoordinator:
         self.exoskeleton = ApexExoskeleton(brain)
         self._semaphore: asyncio.Semaphore | None = None  # Lazy-init to bind to running loop
         self.slippage_model = SlippageModel()
+        self._stop_adjuster = RegimeAdaptiveStops()
         self.regime_router = getattr(brain, "regime_router", RegimeStrategyRouter())
         self.confluence_engine = getattr(brain, "confluence_engine", ConfluenceEngine())
         self.adaptive_engine = getattr(brain, "adaptive_engine", LiveAdaptiveEngine())
@@ -314,6 +331,115 @@ class TradingCoordinator:
             if cursor is not None:
                 cursor.close()
 
+    def _apply_adaptive_stops(
+        self, symbol: str, pattern: Any, ohlcv: Any, regime: str
+    ) -> None:
+        """
+        Widen pattern stops to avoid noise-induced stop-outs.
+
+        Uses ATR-based regime-appropriate distance and a minimum percentage floor.
+        Only modifies the pattern in place when the current stop is too tight.
+        """
+        try:
+            if pattern is None or ohlcv is None:
+                return
+
+            # Extract high/low/close lists (pandas or polars).
+            highs: list[float] = []
+            lows: list[float] = []
+            closes: list[float] = []
+            if hasattr(ohlcv, "__getitem__") and not isinstance(ohlcv, str):
+                try:
+                    h = ohlcv["high"]
+                    l = ohlcv["low"]
+                    c = ohlcv["close"]
+                    if hasattr(h, "tolist"):
+                        highs = h.tolist()
+                        lows = l.tolist()
+                        closes = c.tolist()
+                    elif hasattr(h, "to_list"):
+                        highs = h.to_list()
+                        lows = l.to_list()
+                        closes = c.to_list()
+                except Exception:
+                    return
+            if len(highs) < 20 or len(closes) < 20:
+                return
+
+            atr = self._stop_adjuster.compute_atr(highs, lows, closes)
+            if atr <= 0:
+                return
+
+            entry = float(pattern.entry)
+            is_long = float(pattern.target) > entry
+            # Minimum percentage floor: 0.5% for HFT, 1.0% for everything else.
+            min_pct = 0.005 if str(getattr(pattern, "category", "")).upper() == "HFT" else 0.01
+            min_dist = max(
+                self._stop_adjuster.stop_distance(regime, atr),
+                entry * min_pct,
+            )
+
+            current_dist = abs(float(pattern.stop) - entry)
+            if current_dist < min_dist:
+                new_stop = entry - min_dist if is_long else entry + min_dist
+                old_stop = float(pattern.stop)
+                pattern.stop = new_stop
+                new_risk = abs(new_stop - entry)
+                reward = abs(float(pattern.target) - entry)
+                if new_risk > 0 and reward > 0:
+                    pattern.r_r_ratio = min(reward / new_risk, 5.0)
+                logger.info(
+                    "Coordinator [%s] STOP_ADJUST: %s %s stop widened %.2f -> %.2f "
+                    "(entry=%.2f, ATR=%.4f, min_dist=%.2f, regime=%s)",
+                    symbol,
+                    pattern.name,
+                    "LONG" if is_long else "SHORT",
+                    old_stop,
+                    new_stop,
+                    entry,
+                    atr,
+                    min_dist,
+                    regime,
+                )
+        except Exception as exc:
+            logger.warning("Coordinator [%s] adaptive stop adjustment failed (non-fatal): %s", symbol, exc)
+
+    def _apply_directional_regime_guard(
+        self, symbol: str, pattern: Any, current_regime: str
+    ) -> str | None:
+        """
+        Return a block reason if the proposal should be blocked due to long-bias
+        in a choppy / sideways / unknown regime. Only affects the configured
+        blocklist of long breakout patterns with proven negative edge.
+        """
+        try:
+            pattern_name = str(getattr(pattern, "name", ""))
+            direction = (
+                "LONG"
+                if getattr(pattern, "entry", 0.0) >= getattr(pattern, "stop", 0.0)
+                else "SHORT"
+            )
+            if (
+                direction == "LONG"
+                and current_regime in ("CHOPPY", "SIDEWAYS", "UNKNOWN")
+                and pattern_name in CHOPPY_LONG_BLOCKLIST
+            ):
+                block_reason = (
+                    f"LONG {pattern_name} blocked in {current_regime} regime "
+                    "(historical negative edge)"
+                )
+                logger.warning("Coordinator [%s] DIRECTIONAL_REGIME_VETO: %s", symbol, block_reason)
+                LEDGER.record_veto(
+                    symbol=symbol,
+                    reason=f"DIRECTIONAL_REGIME_VETO: {block_reason}",
+                    triggered_by="coordinator",
+                )
+                return block_reason
+            return None
+        except Exception as exc:
+            logger.warning("Coordinator [%s] directional regime guard failed (non-fatal): %s", symbol, exc)
+            return None
+
     async def initiate_trade_lifecycle(
         self, symbol: str, proposal: dict[str, Any], is_probe: bool = False
     ) -> bool | None:
@@ -394,6 +520,11 @@ class TradingCoordinator:
             # and restrict VCP to regimes where it has proven edge.
             current_regime = getattr(self.brain, "current_regime", "UNKNOWN")
             pattern_name = str(pattern.name)
+            direction = (
+                "LONG"
+                if getattr(pattern, "entry", 0.0) >= getattr(pattern, "stop", 0.0)
+                else "SHORT"
+            )
             block_reason = self._pattern_edge_filter(symbol, pattern_name, current_regime)
             if block_reason and not is_probe:
                 logger.warning(f"Coordinator [{symbol}]  PATTERN_FILTER: {block_reason}")
@@ -401,12 +532,24 @@ class TradingCoordinator:
                 self._finalize_open_task(task, "PATTERN_FILTER", block_reason)
                 return False
 
+            # Directional regime guard: long-only breakout patterns have historically
+            # lost catastrophically in choppy / sideways / unknown regimes. Block them
+            # directionally to reduce the system's severe long bias on range-bound days.
+            if not is_probe:
+                directional_reason = self._apply_directional_regime_guard(
+                    symbol, pattern, current_regime
+                )
+                if directional_reason:
+                    self._finalize_open_task(
+                        task, "DIRECTIONAL_REGIME_VETO", directional_reason
+                    )
+                    return False
+
             confluence_result = None
             # Multi-timeframe confluence safety net: higher timeframes must agree.
             if not is_probe:
                 try:
                     primary_tf = getattr(pattern, "timeframe", "1m")
-                    direction = "LONG" if getattr(pattern, "entry", 0) >= getattr(pattern, "stop", 0) else "SHORT"
                     confluence_threshold = self.adaptive_engine.adjust_confluence_threshold()
                     confluence_result = await self.confluence_engine.evaluate(
                         symbol,
@@ -643,6 +786,10 @@ class TradingCoordinator:
                         f"Coordinator [{proposal_id}]  DATA VETO: Insufficient OHLCV for {symbol}."
                     )
                     return False
+
+                # Apply volatility-based stop widening to prevent noise stop-outs.
+                current_regime = getattr(self.brain, "current_regime", "UNKNOWN")
+                self._apply_adaptive_stops(symbol, pattern, ohlcv_1m, current_regime)
 
                 # Fetch spread for sizing. get_current_spread() can return None, so
                 # fail closed to an empty dict before the sizer subscripts it below.
