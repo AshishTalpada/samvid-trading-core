@@ -15,6 +15,8 @@ for Interactive Brokers &amp; MetaTrader 5</strong></p>
 [![MT5](https://img.shields.io/badge/MetaTrader5-FTMO%20Ready-blue)](https://www.metatrader5.com/)
 [![Telegram Alerts](https://img.shields.io/badge/Telegram-Live%20Alerts-2CA5E0?logo=telegram)](https://telegram.org/)
 [![QuestDB](https://img.shields.io/badge/QuestDB-Time%20Series-FF6B35)](https://questdb.io/)
+[![Stars](https://img.shields.io/github/stars/AshishTalpada/samvid-trading-core?style=social)](https://github.com/AshishTalpada/samvid-trading-core/stargazers)
+[![Forks](https://img.shields.io/github/forks/AshishTalpada/samvid-trading-core?style=social)](https://github.com/AshishTalpada/samvid-trading-core/fork)
 
 <p>
 <a href="#-quick-start">Quick Start</a> •
@@ -33,6 +35,14 @@ for Interactive Brokers &amp; MetaTrader 5</strong></p>
 > **Samvid Trading Core** is a backend-first, consensus-driven algorithmic trading engine. It combines 11 specialized AI agents, an async pub/sub intelligence bus, multi-broker execution (IBKR + MT5), real-time data pipelines, institutional-grade risk management, and Telegram operator alerts — all in a single open-source Python + Rust stack.
 
 > ⚠️ **Disclaimer**: This is trading research and engineering software, not financial advice. Paper trading mode (`TRADING_MODE=ibkr_paper`) is the default. Live trading requires independent validation, broker permissions, and capital-risk controls you are solely responsible for.
+
+---
+
+<div align="center">
+
+### ⭐ If Samvid saves you time or teaches you something, please [star the repo](https://github.com/AshishTalpada/samvid-trading-core/stargazers) — it helps other traders and developers find it.
+
+</div>
 
 ---
 
@@ -361,6 +371,12 @@ If Samvid Trading Core is useful to you, please consider:
 - 🐛 **Reporting bugs** via [GitHub Issues](https://github.com/AshishTalpada/samvid-trading-core/issues)
 - 💡 **Suggesting features** or submitting PRs
 - 📣 **Sharing it** with your quant/trading developer community
+
+**One-click share** (copy and post on X/Twitter, LinkedIn, or Discord):
+
+> Just discovered Samvid Trading Core — an open-source, multi-agent AI algorithmic trading engine with IBKR + MT5 paper trading, risk management, and Telegram alerts. Built in Python + Rust. Check it out: https://github.com/AshishTalpada/samvid-trading-core
+
+**Sponsor the author** to support ongoing development — add your sponsor link or Buy Me A Coffee URL here.
 
 ---
 
