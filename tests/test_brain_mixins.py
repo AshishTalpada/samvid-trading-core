@@ -19,12 +19,11 @@ from datetime import datetime, timedelta, timezone
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-
-from adaptive_learning import LiveAdaptiveEngine
-from neural_governance import NeuralGovernanceEngine
 import pytz
 
 sys.path.insert(0, "src")
+
+from adaptive_learning import LiveAdaptiveEngine
 
 # ── Pure state-primitive imports (no heavy broker deps) ──────────────────────
 from brain_fsm import TradingState
@@ -35,6 +34,7 @@ from brain_state import (
     MorningBudget,
     TokenBucketRateLimiter,
 )
+from neural_governance import NeuralGovernanceEngine
 from system_types import Position
 
 # ============================================================================

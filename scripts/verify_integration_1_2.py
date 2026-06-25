@@ -10,11 +10,13 @@ Verifies that:
 """
 import asyncio
 
+import numpy as np
 import polars as pl
+
 from adaptive_learning import LiveAdaptiveEngine
 from confluence_engine import ConfluenceEngine
-from neural_governance import AgentVote, NeuralGovernanceEngine
 from market_microstructure import MarketMicrostructure
+from neural_governance import AgentVote, NeuralGovernanceEngine
 from strategy_router import RegimeStrategyRouter, TimeframeAwareDetector
 from trade_interrogator import TradeInterrogator
 
@@ -69,11 +71,12 @@ async def main() -> None:
     router = RegimeStrategyRouter()
     vcp_route = router.route("VCP (Minervini Pivot)", "BULL")
     assert vcp_route.allowed and vcp_route.timeframe == "15m"
-    assert not router.route("VCP (Minervini Pivot)", "CHOPPY").allowed
+    # Testing mode: all patterns are allowed in all regimes, 1m blocklist removed.
+    assert router.route("VCP (Minervini Pivot)", "CHOPPY").allowed
     bull_flag_route = router.route("Bull Flag", "BULL")
     assert bull_flag_route.allowed and bull_flag_route.timeframe == "5m"
     assert not router.route("Bull Flag", "BULL").timeframe == "1m"  # never 1m
-    assert not router.route("HFT Spoof Pivot", "CHOPPY").allowed  # 1m blocklist
+    assert router.route("HFT Spoof Pivot", "CHOPPY").allowed  # 1m blocklist removed
     assert router.route("Deep Tape Absorption", "BULL").allowed
     print("[OK] RegimeStrategyRouter: regime + timeframe + blocklist routing")
 
@@ -84,9 +87,6 @@ async def main() -> None:
 
     async def fake_fetch(symbol: str, tf: str):
         # Provide a minimal Polars-compatible frame for VCP (needs 50 rows)
-        import polars as pl
-        import numpy as np
-
         n = 60 if tf == "15m" else 60
         base = 100.0 if tf == "15m" else 150.0
         prices = base + np.cumsum(np.random.randn(n) * 0.05)

@@ -51,12 +51,12 @@ class TestRegimeStrategyRouter:
         assert route.allowed
         assert route.timeframe == "15m"
 
-    def test_route_blocks_blocklisted_1m(self):
+    def test_route_allows_blocklisted_1m_patterns_during_testing(self):
         router = RegimeStrategyRouter()
-        # Micro Imbalance is allowed in CHOPPY but blocklisted on 1m.
+        # 1m blocklist removed during testing; Micro Imbalance is allowed.
         route = router.route("Micro Imbalance (Bullish)", "CHOPPY")
-        assert not route.allowed
-        assert "blocklisted" in route.reason
+        assert route.allowed
+        assert route.timeframe == "1m"
 
     def test_allowed_patterns_bull(self):
         router = RegimeStrategyRouter()
@@ -65,9 +65,9 @@ class TestRegimeStrategyRouter:
         assert "Bull Flag" in allowed
         assert "Deep Tape Absorption" in allowed
 
-    def test_allowed_patterns_risk_off_empty(self):
+    def test_allowed_patterns_risk_off_all_patterns(self):
         router = RegimeStrategyRouter()
-        assert router.allowed_patterns("RISK_OFF") == []
+        assert set(router.allowed_patterns("RISK_OFF")) == set(PATTERN_TIMEFRAMES)
 
     def test_patterns_for_timeframe(self):
         router = RegimeStrategyRouter()
@@ -92,14 +92,15 @@ class TestTimeframeAwareDetector:
         assert "Bull Flag" in names
 
     @pytest.mark.asyncio
-    async def test_no_results_for_risk_off(self):
+    async def test_detects_patterns_in_risk_off(self):
         detector = TimeframeAwareDetector(MockDetector())
 
         async def fetch(sym, tf):
             return ["VCP_BULL_TAPE"] * 50
 
         results = await detector.detect_for_regime("AAPL", "RISK_OFF", fetch)
-        assert results == []
+        names = {r.name for r in results}
+        assert "VCP (Minervini Pivot)" in names
 
     @pytest.mark.asyncio
     async def test_filters_by_timeframe(self):

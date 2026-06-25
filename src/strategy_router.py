@@ -51,63 +51,26 @@ PATTERN_TIMEFRAMES: dict[str, str] = {
 }
 
 
-# All patterns the system knows. Allowing them in every regime (except panic /
-# risk-off) lets the system generate opportunities instead of sitting idle.
+# All patterns the system knows. Every regime is allowed to trade every pattern.
+# The user has given full authority to remove idle rules and test aggressively.
 _ALL_PATTERNS: set[str] = set(PATTERN_TIMEFRAMES)
 
 # Map regimes to the pattern categories allowed.
 REGIME_ALLOWED_PATTERNS: dict[str, set[str]] = {
-    "BULL": {
-        "VCP (Minervini Pivot)",
-        "Bull Flag",
-        "Deep Tape Absorption",
-        "Tick Tape Absorption",
-        "Institutional Wall",
-        "Institutional Accumulation",
-        "Proto-Squeeze",
-        "HFT Liquidity Sink",
-        "Micro Volatility Breakout",
-    },
-    "TRENDING": {
-        "Bull Flag",
-        "Bear Flag",
-        "Deep Tape Absorption",
-        "Tick Tape Absorption",
-        "Institutional Wall",
-        "HFT Liquidity Sink",
-        "Micro Volatility Breakout",
-    },
-    # Trade in every regime. The 1m blocklist and coordinator-level guards still
-    # protect against catastrophically unsuitable patterns/timeframes.
+    "BULL": _ALL_PATTERNS,
+    "TRENDING": _ALL_PATTERNS,
     "CHOPPY": _ALL_PATTERNS,
     "SIDEWAYS": _ALL_PATTERNS,
     "UNKNOWN": _ALL_PATTERNS,
     "BEAR": _ALL_PATTERNS,
-    "RISK_OFF": set(),  # No new entries in risk-off.
-    "PANIC": set(),
+    "RISK_OFF": _ALL_PATTERNS,
+    "PANIC": _ALL_PATTERNS,
 }
 
 
-# Hard blocklist for patterns that have proven negative edge on 1m data.
-# Even if a regime allows them, they will not run on 1m.
-BLOCKLIST_1M: set[str] = {
-    "Falling Wedge",
-    "Rising Wedge",
-    "Ascending Triangle",
-    "Descending Triangle",
-    "Head and Shoulders",
-    "Cup and Handle",
-    "Double Top (Reversal)",
-    "Double Bottom (Reversal)",
-    "Bull Flag",
-    "Bear Flag",
-    "Oversold Bounce",
-    "Gap Fill",
-    "Sector Sympathy",
-    "HFT Spoof Pivot",
-    "Micro Imbalance (Bullish)",
-    "Tick Divergence (Bearish Reversion)",
-}
+# 1m blocklist removed during testing. Every pattern can run on its designed
+# timeframe (usually 1m) so the system never sits idle because of timeframe rules.
+BLOCKLIST_1M: set[str] = set()
 
 
 @dataclass

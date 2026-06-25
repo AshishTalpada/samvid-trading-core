@@ -2300,7 +2300,7 @@ class TradingBrain(BrokerReconciler, HealthChecker, DataProvider, AccountingMixi
                                     )
                                     p.confidence = p.adaptive_confidence
 
-                        found = [p for p in patterns if p and p.confidence >= 60.0]
+                        found = [p for p in patterns if p and p.confidence >= 40.0]
 
                         if not found:
                             all_found = [p for p in patterns if p]
