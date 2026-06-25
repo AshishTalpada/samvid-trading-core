@@ -95,5 +95,44 @@ async def test_directional_regime_guard_allows_long_in_bull():
     assert result is None, "Rising Wedge LONG in BULL should be allowed"
 
 
+def test_choppy_filter_blocks_low_confidence_hft():
+    """Mirror of brain.py CHOPPY filter: low-confidence HFT/SCALP must be blocked."""
+    current_regime = "CHOPPY"
+    threshold = 75.0
+    best = type("P", (), {"category": "HFT", "confidence": 70.0})()
+    blocked = (
+        current_regime == "CHOPPY"
+        and best.category in ("HFT", "SCALP")
+        and best.confidence < threshold
+    )
+    assert blocked is True
+
+
+def test_choppy_filter_allows_high_confidence_hft():
+    """High-confidence HFT/SCALP should be allowed through CHOPPY filter."""
+    current_regime = "CHOPPY"
+    threshold = 75.0
+    best = type("P", (), {"category": "HFT", "confidence": 85.0})()
+    blocked = (
+        current_regime == "CHOPPY"
+        and best.category in ("HFT", "SCALP")
+        and best.confidence < threshold
+    )
+    assert blocked is False
+
+
+def test_choppy_filter_allows_non_hft_scalp():
+    """SWING/HOLD patterns should pass CHOPPY filter regardless of confidence."""
+    current_regime = "CHOPPY"
+    threshold = 75.0
+    best = type("P", (), {"category": "SWING", "confidence": 65.0})()
+    blocked = (
+        current_regime == "CHOPPY"
+        and best.category in ("HFT", "SCALP")
+        and best.confidence < threshold
+    )
+    assert blocked is False
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

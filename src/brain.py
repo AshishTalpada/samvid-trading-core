@@ -2213,23 +2213,21 @@ class TradingBrain(BrokerReconciler, HealthChecker, DataProvider, AccountingMixi
                         except Exception as chaos_err:
                             logger.debug("Scan [%s]: ChaosAgent error: %s", symbol, chaos_err)
 
-                        # FRACTAL AGENT: Trend quality gate — skip choppy markets
-                        _fractal_skip = False
+                        # FRACTAL AGENT: Trend quality gate — warn on choppy markets
+                        # but do NOT hard-skip. The RegimeStrategyRouter and CHOPPY
+                        # filter below are the authoritative gates; this avoids the
+                        # system sitting idle all day when the market is range-bound.
                         try:
                             if self.fractal_agent:
                                 _fa_result = self.fractal_agent.analyze_trend(close_prices)
                                 _fd = _fa_result.get("fractal_dimension", 1.5)
                                 if _fa_result.get("market_state") == "CHOPPY_MEAN_REVERTING":
                                     logger.info(
-                                        "Scan [%s]: FractalAgent choppy market (FD=%.2f). Skipping patterns.",
+                                        "Scan [%s]: FractalAgent choppy market (FD=%.2f). Continuing to regime router.",
                                         symbol, _fd,
                                     )
-                                    _fractal_skip = True
                         except Exception as _fractal_err:
                             logger.debug("Scan [%s]: FractalAgent error: %s", symbol, _fractal_err)
-
-                        if _fractal_skip:
-                            return None
 
                         # BAYESIAN REGIME AGENT: secondary regime confirmation
                         try:
@@ -2333,12 +2331,17 @@ class TradingBrain(BrokerReconciler, HealthChecker, DataProvider, AccountingMixi
 
                         best = max(found, key=lambda x: x.confidence)
 
-                        # CHOPPY regime filter: block short-duration patterns that
-                        # require directional momentum (HFT and SCALP categories).
-                        # In CHOPPY/sideways markets these generate most HEARTBEAT_VETOs
-                        # and adversarial belief collapses. SWING and HOLD patterns are
-                        # fine because they use wider stops and longer time horizons.
-                        if self.current_regime == "CHOPPY" and getattr(best, "category", "SCALP") in ("HFT", "SCALP"):
+                        # CHOPPY regime filter: HFT/SCALP patterns require directional
+                        # momentum and are usually unreliable in choppy markets. However,
+                        # high-confidence mean-reversion / microstructure setups (>= 75)
+                        # are the system's designed edge in range-bound conditions. Block
+                        # only low-confidence ones so the system does not sit idle all day.
+                        _choppy_conf_threshold = 75.0
+                        if (
+                            self.current_regime == "CHOPPY"
+                            and getattr(best, "category", "SCALP") in ("HFT", "SCALP")
+                            and float(getattr(best, "confidence", 0.0)) < _choppy_conf_threshold
+                        ):
                             async with stats_lock:
                                 stats["detected"] += 1
                                 stats["rejected"] += 1
@@ -2346,7 +2349,7 @@ class TradingBrain(BrokerReconciler, HealthChecker, DataProvider, AccountingMixi
                             self._log_scan_veto(
                                 symbol,
                                 f"{best.name} ({best.category})",
-                                "CHOPPY regime blocks HFT/SCALP patterns",
+                                f"CHOPPY regime blocks low-confidence HFT/SCALP (<{_choppy_conf_threshold})",
                                 confidence=float(best.confidence),
                             )
                             await self._publish_market_observation(
@@ -2355,7 +2358,7 @@ class TradingBrain(BrokerReconciler, HealthChecker, DataProvider, AccountingMixi
                                 best.name,
                                 confidence=float(best.confidence),
                                 price=current_scan_price,
-                                reason="CHOPPY regime blocks HFT/SCALP patterns",
+                                reason=f"CHOPPY regime blocks low-confidence HFT/SCALP (<{_choppy_conf_threshold})",
                                 metadata={
                                     "category": getattr(best, "category", "UNKNOWN"),
                                     "rr": getattr(best, "r_r_ratio", None),
@@ -2363,7 +2366,7 @@ class TradingBrain(BrokerReconciler, HealthChecker, DataProvider, AccountingMixi
                             )
                             logger.debug(
                                 f"Scan [{symbol}]: {best.name} ({best.category}) skipped"
-                                f" — CHOPPY regime blocks HFT/SCALP patterns."
+                                f" — CHOPPY regime blocks low-confidence HFT/SCALP."
                             )
                             return None
 
