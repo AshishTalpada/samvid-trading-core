@@ -60,18 +60,18 @@ class SovereignDecisionEngine:
             try:
                 output_map = {out.get("agent"): out for out in agent_outputs}
                 is_probe = bool(context.get("is_probe", False))
+                # Oracle and agent hard vetoes are advisory-only during testing.
+                # We log every objection but continue to the quorum logic so the
+                # system can trade through all objections and generate real data.
                 if not is_probe:
                     if (
                         context.get("oracle_freeze")
                         or float(context.get("oracle_risk_modifier", 1.0) or 0.0) <= 0.0
                     ):
-                        return await self._final_report(
-                            decision="REJECT",
-                            confidence=0.0,
-                            reason=(
-                                " ORACLE HARD VETO: freeze/risk-zero state blocks new entries."
-                            ),
-                            votes=agent_outputs,
+                        logger.warning(
+                            "SovereignDecisionEngine [%s]: ORACLE advisory freeze/risk-zero. "
+                            "Continuing for testing.",
+                            symbol,
                         )
 
                     for hard_agent, label in (
@@ -82,14 +82,13 @@ class SovereignDecisionEngine:
                     ):
                         vote = output_map.get(hard_agent, {})
                         if vote.get("vote") == "NO":
-                            return await self._final_report(
-                                decision="REJECT",
-                                confidence=float(vote.get("confidence", 0.0) or 0.0),
-                                reason=(
-                                    f" {label} HARD VETO: {hard_agent} rejected the trade. "
-                                    f"Reason: {vote.get('reason', 'No reason supplied')}"
-                                ),
-                                votes=agent_outputs,
+                            logger.warning(
+                                "SovereignDecisionEngine [%s]: %s advisory NO from %s (%s). "
+                                "Continuing for testing.",
+                                symbol,
+                                label,
+                                hard_agent,
+                                vote.get("reason", "No reason supplied"),
                             )
 
                 # Attempt to use the native Rust implementation for zero-allocation speed

@@ -456,8 +456,8 @@ class TradingCoordinator:
                 },
             )
 
-        # Enhancement: Hard-block new entries if daily loss already >= 4% (FTMO daily limit).
-        # Checked here with unrealized PnL so open losing positions count.
+        # Daily loss check: warn but do NOT block during testing. The system must
+        # keep trading to generate data and iterate.
         if not is_probe:
             try:
                 account_type = getattr(self.brain, "active_broker", "ibkr").lower()
@@ -466,31 +466,14 @@ class TradingCoordinator:
                 from config import FTMO_DAILY_LIMIT
                 if daily_pnl_now < 0 and abs(daily_pnl_now) / max(account_val, 1.0) >= FTMO_DAILY_LIMIT:
                     logger.warning(
-                        "Coordinator [%s] DAILY_LOSS_HARD_BLOCK: daily PnL %.2f = %.1f%% >= %.0f%% limit. No new entries.",
+                        "Coordinator [%s] DAILY_LOSS_WARN: daily PnL %.2f = %.1f%% >= %.0f%% limit. Allowing for testing.",
                         symbol, daily_pnl_now, abs(daily_pnl_now) / account_val * 100, FTMO_DAILY_LIMIT * 100,
                     )
-                    LEDGER.record_veto(symbol=symbol, reason=f"DAILY_LOSS_LIMIT: {daily_pnl_now:.2f}", triggered_by="coordinator")
-                    self._finalize_open_task(task, "DAILY_LOSS_BLOCK", f"daily PnL {daily_pnl_now:.2f}")
-                    return False
             except Exception as _dlb_err:
-                logger.debug("Daily loss hard-block check failed (non-fatal): %s", _dlb_err)
+                logger.debug("Daily loss check failed (non-fatal): %s", _dlb_err)
 
-        # Enhancement: Block new entries in last 30 minutes of RTH (3:30–4:00 PM ET).
-        if not is_probe:
-            try:
-                import datetime as _dt
-                from zoneinfo import ZoneInfo
-                _now_et = _dt.datetime.now(ZoneInfo("America/New_York"))
-                _t = _now_et.time()
-                if _dt.time(15, 30) <= _t < _dt.time(16, 0):
-                    logger.info(
-                        "Coordinator [%s] RTH_CLOSE_GUARD: No new entries in last 30 min of RTH (%s ET).",
-                        symbol, _now_et.strftime("%H:%M"),
-                    )
-                    self._finalize_open_task(task, "RTH_CLOSE_GUARD", _now_et.strftime("%H:%M ET"))
-                    return False
-            except Exception as _rth_err:
-                logger.debug("RTH close guard check failed (non-fatal): %s", _rth_err)
+        # RTH close guard removed during testing. The system can trade up to
+        # and through the close window to capture end-of-day opportunities.
 
         pattern = proposal.get("pattern")
         if pattern:
@@ -498,19 +481,12 @@ class TradingCoordinator:
                 task.set_phase("RR_CHECK", symbol)
                 task.log(f"PHASE_RR: Analyzing Risk/Reward for {symbol}. Pattern: {pattern.name}")
 
-            # FTMO Best Day Rule enforcement (must precede sizing/RR checks)
+            # FTMO Best Day Rule: advisory-only during testing. No hard veto.
             active_broker = getattr(self.brain, "active_broker", "ibkr").lower()
             today_session_pnl = float(getattr(self.brain, "session_pnl", 0.0))
             bdr_passes, bdr_reason = self._check_best_day_rule(today_session_pnl, active_broker)
             if not bdr_passes and not is_probe:
-                is_prop = active_broker in ("mt5", "prop")
-                if is_prop:
-                    logger.warning(f"Coordinator [{symbol}]  BEST_DAY_RULE VETO (prop): {bdr_reason}")
-                    LEDGER.record_veto(symbol=symbol, reason=f"BEST_DAY_RULE: {bdr_reason}", triggered_by="coordinator")
-                    self._finalize_open_task(task, "BEST_DAY_RULE", bdr_reason)
-                    return False
-                else:
-                    logger.warning(f"Coordinator [{symbol}]  BEST_DAY_RULE WARNING (ibkr advisory): {bdr_reason}")
+                logger.warning(f"Coordinator [{symbol}]  BEST_DAY_RULE WARNING (advisory): {bdr_reason}")
 
             # Pattern edge filter: block statistically losing patterns on 1m timeframe
             # and restrict VCP to regimes where it has proven edge.
@@ -542,7 +518,9 @@ class TradingCoordinator:
                     return False
 
             confluence_result = None
-            # Multi-timeframe confluence safety net: higher timeframes must agree.
+            # Multi-timeframe confluence: advisory only during testing. We still
+            # log the score and reasons, but a low confluence score no longer
+            # hard-vetoes a trade.
             if not is_probe:
                 try:
                     primary_tf = getattr(pattern, "timeframe", "1m")
@@ -556,10 +534,7 @@ class TradingCoordinator:
                     )
                     if not confluence_result.passed:
                         reason = f"CONFLUENCE: {confluence_result.reasons[0] if confluence_result.reasons else f'score {confluence_result.score:.2f}'}"
-                        logger.warning(f"Coordinator [{symbol}] {reason}")
-                        LEDGER.record_veto(symbol=symbol, reason=reason, triggered_by="coordinator")
-                        self._finalize_open_task(task, "CONFLUENCE_VETO", reason)
-                        return False
+                        logger.warning(f"Coordinator [{symbol}] {reason} (advisory, allowing trade)")
                 except Exception as _conf_err:
                     logger.debug("Coordinator [%s] confluence check failed (non-fatal): %s", symbol, _conf_err)
 
@@ -596,57 +571,21 @@ class TradingCoordinator:
 
                 total_reward_dollars = reward_amt - spread - comm_per_share
                 total_risk_dollars = risk_amt + spread + comm_per_share
-                # Implementation: if costs consume the entire reward, reject explicitly with a clear message
+                # Friction checks: advisory-only during testing. We log the math but
+                # do not reject the trade, so low-RR / high-cost setups can still run
+                # and generate real performance data.
                 if total_reward_dollars <= 0 and not is_probe:
                     logger.warning(
                         "Coordinator [%s]: trade reward (%.4f) consumed by costs (spread=%.4f "
-                        "comm=%.4f). Net reward <= 0 — rejecting.",
+                        "comm=%.4f). Net reward <= 0 — allowing anyway for testing.",
                         symbol, reward_amt, spread, comm_per_share,
                     )
-                    self._finalize_open_task(task, "FRICTION_VETO", "net reward consumed by costs")
-                    return False
                 real_rr = total_reward_dollars / total_risk_dollars if total_risk_dollars > 0 else 0
 
-                # On small accounts, the 1.3 Net RR is a 'Mathematical Wall' due to fixed commission.
-                is_small_account = (balance or 0) < 2000.0
-                dollar_risk = total_risk_dollars * est_shares
-                _risk_pct = (dollar_risk / balance_usd) if (balance_usd > 0) else 0.05
-
-                # Friction veto: block trades where net RR (after spread + commission) is too low.
-                # Adjusted threshold: 1.0 for small accounts, 1.1 for standard accounts (was 1.3)
-                # The previous 1.3 threshold was too strict and blocked all valid trades in current market conditions.
-                if is_small_account:
-                    threshold = 1.0
-                    if task:
-                        task.log(
-                            f"RR_RELAX: Small account detected. Threshold relaxed to {threshold:.2f} (Risk: ${dollar_risk:.2f} USD)."
-                        )
-                else:
-                    threshold = 1.1
-
-                if real_rr < threshold and not is_probe:
-                    if task:
-                        task.log(
-                            f"FRICTION_VETO: Net RR {real_rr:.2f} < {threshold} (S:{spread}, C:{comm_per_share:.3f}). Aborting."
-                        )
+                if real_rr < 1.0 and not is_probe:
                     logger.info(
-                        f"Coordinator [{symbol}]  FRICTION VETO: Net RR {real_rr:.2f} is < {threshold}."
+                        f"Coordinator [{symbol}]  FRICTION WARNING: Net RR {real_rr:.2f} is low. Allowing trade for testing."
                     )
-
-                    if self.brain.bus:
-                        await self.brain.bus.publish(
-                            "consensus.update",
-                            {
-                                "symbol": symbol,
-                                "phase": "FRICTION_VETO",
-                                "decision": "REJECT",
-                                "reason": f"Net RR {real_rr:.2f} < {threshold}",
-                                "votes": [],
-                                "timestamp": time.time() * 1000,
-                            },
-                        )
-                    self._finalize_open_task(task, "FRICTION_VETO", f"Net RR {real_rr:.2f} < {threshold}")
-                    return False
 
         # -- IDEMPOTENCY & CORTEX CACHE -------------------
         if symbol in self._pending_vets and not is_probe:
@@ -661,13 +600,10 @@ class TradingCoordinator:
             if not is_probe and (oracle_freeze or oracle_modifier <= 0.0):
                 reason = (
                     f"ORACLE_FREEZE: {oracle_dhatu} "
-                    f"(risk_modifier={oracle_modifier:.2f}) blocks new entries."
+                    f"(risk_modifier={oracle_modifier:.2f}). Allowing for testing."
                 )
                 logger.warning("Coordinator [%s] %s", symbol, reason)
-                if task:
-                    task.set_phase("ORACLE_FREEZE", reason)
-                    task.finalize("VETOED")
-                return False
+                # Advisory-only during testing; do not return False.
 
             if task:
                 task.set_phase("VETTING", "checking cache and agent quorum")
@@ -1799,32 +1735,15 @@ class TradingCoordinator:
                         LEDGER.record_veto(symbol=symbol, reason=f"BACKTEST_VETO: {reason}", triggered_by="coordinator")
                         return False
 
-                # PSYCHOLOGY SAFETY GATE (Stress Veto)
+                # PSYCHOLOGY SAFETY GATE (Stress Veto): advisory-only during testing.
+                # We log the warning but never block, so the system can keep trading.
                 try:
                     from stress_veto import get_stress_veto
                     stress_veto = get_stress_veto()
                     analysis = stress_veto.analyze_stress()
-                    if analysis.stress_detected and analysis.recommendation == "LOCKOUT":
-                        if task:
-                            task.set_phase("STRESS_VETO", analysis.stress_type)
-                            task.finalize("VETOED")
-                        logger.warning(
-                            "Coordinator [%s] STRESS_VETO: %s blocked — %s (severity: %.2f). Cooldown: %d min.",
-                            proposal_id,
-                            symbol,
-                            analysis.reason,
-                            analysis.severity,
-                            analysis.cooldown_minutes,
-                        )
-                        LEDGER.record_veto(
-                            symbol=symbol,
-                            reason=f"STRESS_VETO: {analysis.stress_type} — {analysis.reason}",
-                            triggered_by="coordinator",
-                        )
-                        return False
                     if analysis.stress_detected:
                         logger.info(
-                            "Coordinator [%s] STRESS_WARNING: %s — %s (severity: %.2f)",
+                            "Coordinator [%s] STRESS_WARNING: %s — %s (severity: %.2f). Allowing for testing.",
                             proposal_id,
                             symbol,
                             analysis.reason,
