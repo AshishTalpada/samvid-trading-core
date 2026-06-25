@@ -408,9 +408,10 @@ class TradingCoordinator:
         self, symbol: str, pattern: Any, current_regime: str
     ) -> str | None:
         """
-        Return a block reason if the proposal should be blocked due to long-bias
-        in a choppy / sideways / unknown regime. Only affects the configured
-        blocklist of long breakout patterns with proven negative edge.
+        Previously vetoed long breakouts in choppy/sideways/unknown regimes.
+        Now the system is configured to trade in every market condition, so this
+        guard logs a warning but does NOT block. The regime router and confluence
+        engine remain the primary filters.
         """
         try:
             pattern_name = str(getattr(pattern, "name", ""))
@@ -425,16 +426,11 @@ class TradingCoordinator:
                 and pattern_name in CHOPPY_LONG_BLOCKLIST
             ):
                 block_reason = (
-                    f"LONG {pattern_name} blocked in {current_regime} regime "
-                    "(historical negative edge)"
+                    f"LONG {pattern_name} in {current_regime} regime historically "
+                    "had negative edge; allowing with warning"
                 )
-                logger.warning("Coordinator [%s] DIRECTIONAL_REGIME_VETO: %s", symbol, block_reason)
-                LEDGER.record_veto(
-                    symbol=symbol,
-                    reason=f"DIRECTIONAL_REGIME_VETO: {block_reason}",
-                    triggered_by="coordinator",
-                )
-                return block_reason
+                logger.warning("Coordinator [%s] DIRECTIONAL_REGIME_WARN: %s", symbol, block_reason)
+                # No veto — let the trade proceed.
             return None
         except Exception as exc:
             logger.warning("Coordinator [%s] directional regime guard failed (non-fatal): %s", symbol, exc)

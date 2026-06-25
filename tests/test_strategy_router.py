@@ -43,11 +43,13 @@ class TestRegimeStrategyRouter:
         assert route.allowed
         assert route.timeframe == "15m"
 
-    def test_route_blocks_vcp_in_choppy(self):
+    def test_route_allows_vcp_in_choppy(self):
+        # The system now trades in every regime (except panic/risk-off), so VCP
+        # is allowed in CHOPPY and runs on its native 15m timeframe.
         router = RegimeStrategyRouter()
         route = router.route("VCP (Minervini Pivot)", "CHOPPY")
-        assert not route.allowed
-        assert "not allowed" in route.reason
+        assert route.allowed
+        assert route.timeframe == "15m"
 
     def test_route_blocks_blocklisted_1m(self):
         router = RegimeStrategyRouter()

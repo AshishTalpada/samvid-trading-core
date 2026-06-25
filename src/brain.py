@@ -2331,44 +2331,10 @@ class TradingBrain(BrokerReconciler, HealthChecker, DataProvider, AccountingMixi
 
                         best = max(found, key=lambda x: x.confidence)
 
-                        # CHOPPY regime filter: HFT/SCALP patterns require directional
-                        # momentum and are usually unreliable in choppy markets. However,
-                        # high-confidence mean-reversion / microstructure setups (>= 75)
-                        # are the system's designed edge in range-bound conditions. Block
-                        # only low-confidence ones so the system does not sit idle all day.
-                        _choppy_conf_threshold = 75.0
-                        if (
-                            self.current_regime == "CHOPPY"
-                            and getattr(best, "category", "SCALP") in ("HFT", "SCALP")
-                            and float(getattr(best, "confidence", 0.0)) < _choppy_conf_threshold
-                        ):
-                            async with stats_lock:
-                                stats["detected"] += 1
-                                stats["rejected"] += 1
-                                stats["regime_blocked"] += 1
-                            self._log_scan_veto(
-                                symbol,
-                                f"{best.name} ({best.category})",
-                                f"CHOPPY regime blocks low-confidence HFT/SCALP (<{_choppy_conf_threshold})",
-                                confidence=float(best.confidence),
-                            )
-                            await self._publish_market_observation(
-                                symbol,
-                                "PATTERN_REGIME_BLOCKED",
-                                best.name,
-                                confidence=float(best.confidence),
-                                price=current_scan_price,
-                                reason=f"CHOPPY regime blocks low-confidence HFT/SCALP (<{_choppy_conf_threshold})",
-                                metadata={
-                                    "category": getattr(best, "category", "UNKNOWN"),
-                                    "rr": getattr(best, "r_r_ratio", None),
-                                },
-                            )
-                            logger.debug(
-                                f"Scan [{symbol}]: {best.name} ({best.category}) skipped"
-                                f" — CHOPPY regime blocks low-confidence HFT/SCALP."
-                            )
-                            return None
+                        # CHOPPY regime handling: the system must trade in every regime,
+                        # not just trend. The RegimeStrategyRouter already selects the
+                        # right patterns/timeframes; the FractalAgent hard skip was also
+                        # removed. No additional category block is applied here.
 
                         # MULTI-TIMEFRAME CONFLUENCE: require higher timeframes to agree.
                         primary_tf = getattr(best, "timeframe", "1m")

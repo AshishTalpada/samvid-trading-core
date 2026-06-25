@@ -51,6 +51,10 @@ PATTERN_TIMEFRAMES: dict[str, str] = {
 }
 
 
+# All patterns the system knows. Allowing them in every regime (except panic /
+# risk-off) lets the system generate opportunities instead of sitting idle.
+_ALL_PATTERNS: set[str] = set(PATTERN_TIMEFRAMES)
+
 # Map regimes to the pattern categories allowed.
 REGIME_ALLOWED_PATTERNS: dict[str, set[str]] = {
     "BULL": {
@@ -73,26 +77,14 @@ REGIME_ALLOWED_PATTERNS: dict[str, set[str]] = {
         "HFT Liquidity Sink",
         "Micro Volatility Breakout",
     },
-    "CHOPPY": {
-        "Tick Tape Absorption",
-        "HFT Spoof Pivot",
-        "Deep Tape Absorption",
-        "Orderbook Imbalance",
-        "Micro Imbalance (Bullish)",
-        "Tick Divergence (Bearish Reversion)",
-    },
-    "SIDEWAYS": {
-        "Tick Tape Absorption",
-        "HFT Spoof Pivot",
-        "Orderbook Imbalance",
-        "Micro Imbalance (Bullish)",
-        "Tick Divergence (Bearish Reversion)",
-        "Oversold Bounce",
-        "Gap Fill",
-    },
+    # Trade in every regime. The 1m blocklist and coordinator-level guards still
+    # protect against catastrophically unsuitable patterns/timeframes.
+    "CHOPPY": _ALL_PATTERNS,
+    "SIDEWAYS": _ALL_PATTERNS,
+    "UNKNOWN": _ALL_PATTERNS,
+    "BEAR": _ALL_PATTERNS,
     "RISK_OFF": set(),  # No new entries in risk-off.
     "PANIC": set(),
-    "UNKNOWN": set(),
 }
 
 
