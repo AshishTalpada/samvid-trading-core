@@ -2,7 +2,7 @@
 
 <h1>⚡ Samvid Trading Core</h1>
 
-<p><strong>Open-source, production-grade AI multi-agent algorithmic trading system<br>
+<p><strong>Open-source, experimental AI multi-agent algorithmic trading system<br>
 for Interactive Brokers &amp; MetaTrader 5</strong></p>
 
 [![Main Build](https://github.com/AshishTalpada/samvid-trading-core/actions/workflows/main.yml/badge.svg)](https://github.com/AshishTalpada/samvid-trading-core/actions/workflows/main.yml)

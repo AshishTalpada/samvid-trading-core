@@ -1,5 +1,5 @@
 """
-Backtest Validator — Production-grade pre-trade historical edge validation.
+Backtest Validator — Pre-trade historical edge validation.
 
 Wires together backtest_engine.py, backtester.py, position_sizer.py, and
 quant_signals.py into a single callable gate that the coordinator can use

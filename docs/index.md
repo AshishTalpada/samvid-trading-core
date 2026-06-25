@@ -1,6 +1,6 @@
 # Samvid Trading Core
 
-**Open-source, production-grade AI multi-agent algorithmic trading system for Interactive Brokers (IBKR) & MetaTrader 5 (MT5).**
+**Open-source, experimental AI multi-agent algorithmic trading system for Interactive Brokers (IBKR) & MetaTrader 5 (MT5).**
 
 Samvid Trading Core is a backend-first, consensus-driven algorithmic trading engine that combines 11 specialized AI agents, an async pub/sub intelligence bus, multi-broker execution (IBKR + MT5), real-time data pipelines, institutional-grade risk management, and Telegram operator alerts — all in a single open-source Python + Rust stack.
 

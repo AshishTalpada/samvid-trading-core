@@ -7,7 +7,7 @@ Copy and paste the markdown below into your personal GitHub Profile README (e.g.
 ```markdown
 ## ⚡ Highlighted Project: Samvid Trading Core
 
-I designed and built **[Samvid Trading Core](https://github.com/AshishTalpada/samvid-trading-core)**, a production-grade, consensus-driven AI algorithmic trading system supporting both **Interactive Brokers (IBKR)** and **MetaTrader 5 (MT5)**.
+I designed and built **[Samvid Trading Core](https://github.com/AshishTalpada/samvid-trading-core)**, an experimental, consensus-driven AI algorithmic trading system supporting both **Interactive Brokers (IBKR)** and **MetaTrader 5 (MT5)**.
 
 <div align="center">
   <a href="https://github.com/AshishTalpada/samvid-trading-core">
