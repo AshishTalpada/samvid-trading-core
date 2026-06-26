@@ -48,6 +48,9 @@ PATTERN_TIMEFRAMES: dict[str, str] = {
     "Oversold Bounce": "15m",
     "Gap Fill": "15m",
     "Sector Sympathy": "15m",
+    "Evolved Alpha": "15m",
+    "Evolved Momentum": "15m",
+    "Evolved Mean Reversion": "15m",
 }
 
 

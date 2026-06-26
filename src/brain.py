@@ -92,6 +92,7 @@ from mind_system import MindSystem
 from mind_ultrathink import MindUltrathink
 from neural_governance import AgentVote, NeuralGovernanceEngine
 from pandas_safety import safe_polars_from_pandas
+from pattern_evolution import EvolvedPatternDetector, attach_evolved_detector
 from quant_signals import QuantConsensus
 from questdb_adapter import QuestDBAdapter
 from session_restorer import SessionRestorer
@@ -297,6 +298,8 @@ class TradingBrain(BrokerReconciler, HealthChecker, DataProvider, AccountingMixi
 
         self.budget_monitor = ContinuousBudgetMonitor()
         self.pattern_detector = PatternDetector()
+        self.evolved_pattern_detector = EvolvedPatternDetector()
+        attach_evolved_detector(self.pattern_detector, self.evolved_pattern_detector)
         self.regime_router = RegimeStrategyRouter()
         self.timeframe_detector = TimeframeAwareDetector(
             pattern_detector=self.pattern_detector,

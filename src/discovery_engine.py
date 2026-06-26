@@ -68,12 +68,53 @@ def _ema(prices: np.ndarray, period: int) -> float:
     return ema
 
 
+def _rule_higher_highs(prices: np.ndarray, period: int = 10) -> float:
+    """Higher highs / lower lows trend primitive."""
+    if len(prices) < period + 2:
+        return 0.0
+    recent_highs = prices[-period:]
+    older_high = float(np.max(prices[-(period * 2):-period]))
+    if np.max(recent_highs) > older_high:
+        return 1.0
+    if np.min(recent_highs) < older_high:
+        return -1.0
+    return 0.0
+
+
+def _rule_breakout(prices: np.ndarray, period: int = 20) -> float:
+    """Breakout above recent high / breakdown below recent low."""
+    if len(prices) < period + 1:
+        return 0.0
+    window = prices[-(period + 1):-1]
+    if prices[-1] > float(np.max(window)):
+        return 1.0
+    if prices[-1] < float(np.min(window)):
+        return -1.0
+    return 0.0
+
+
+def _rule_volatility_squeeze(prices: np.ndarray, period: int = 20, threshold: float = 0.5) -> float:
+    """Volatility compression primitive: low std followed by expansion."""
+    if len(prices) < period + 5:
+        return 0.0
+    old_std = float(np.std(prices[-(period + 5):-5]))
+    new_std = float(np.std(prices[-5:]))
+    if old_std == 0:
+        return 0.0
+    if new_std / old_std > threshold:
+        return 1.0 if prices[-1] > prices[-6] else -1.0
+    return 0.0
+
+
 # Parameter space for genetic mutation
 _RULE_REGISTRY: List[Tuple[str, Callable]] = [
     ("momentum", _rule_momentum),
     ("rsi", _rule_rsi),
     ("bollinger", _rule_bollinger),
     ("macd", _rule_macd),
+    ("higher_highs", _rule_higher_highs),
+    ("breakout", _rule_breakout),
+    ("volatility_squeeze", _rule_volatility_squeeze),
 ]
 
 _PARAM_SPACE = {
@@ -81,6 +122,9 @@ _PARAM_SPACE = {
     "rsi": {"period": (7, 28), "buy_thresh": (20.0, 45.0), "sell_thresh": (55.0, 80.0)},
     "bollinger": {"period": (10, 40), "k": (1.0, 3.0)},
     "macd": {"fast": (5, 20), "slow": (15, 40)},
+    "higher_highs": {"period": (5, 30)},
+    "breakout": {"period": (10, 60)},
+    "volatility_squeeze": {"period": (10, 40), "threshold": (0.3, 1.5)},
 }
 
 
