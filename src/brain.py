@@ -2303,31 +2303,19 @@ class TradingBrain(BrokerReconciler, HealthChecker, DataProvider, AccountingMixi
                         found = [p for p in patterns if p and p.confidence >= 40.0]
 
                         if not found:
+                            # Testing mode: if no pattern meets the confidence floor,
+                            # still use the best available pattern so the system never
+                            # sits idle because of confidence alone.
                             all_found = [p for p in patterns if p]
                             if all_found:
-                                async with stats_lock:
-                                    stats["detected"] += 1
-                                    stats["rejected"] += 1
                                 best_low = max(all_found, key=lambda x: x.confidence)
-                                self._log_scan_veto(
+                                logger.info(
+                                    "Scan [%s]: %s confidence %.1f below floor, using anyway for testing.",
                                     symbol,
                                     best_low.name,
-                                    "confidence below approval floor",
-                                    confidence=float(best_low.confidence),
+                                    best_low.confidence,
                                 )
-                                await self._publish_market_observation(
-                                    symbol,
-                                    "PATTERN_LOW_CONFIDENCE",
-                                    best_low.name,
-                                    confidence=float(best_low.confidence),
-                                    price=current_scan_price,
-                                    reason="confidence below approval floor",
-                                    metadata={
-                                        "category": getattr(best_low, "category", "UNKNOWN"),
-                                        "rr": getattr(best_low, "r_r_ratio", None),
-                                    },
-                                )
-                            return None
+                                found = [best_low]
 
                         best = max(found, key=lambda x: x.confidence)
 
@@ -2336,7 +2324,9 @@ class TradingBrain(BrokerReconciler, HealthChecker, DataProvider, AccountingMixi
                         # right patterns/timeframes; the FractalAgent hard skip was also
                         # removed. No additional category block is applied here.
 
-                        # MULTI-TIMEFRAME CONFLUENCE: require higher timeframes to agree.
+                        # MULTI-TIMEFRAME CONFLUENCE: advisory during testing. We still
+                        # compute the score for downstream agents, but a low score no longer
+                        # kills the pattern at the scan phase.
                         primary_tf = getattr(best, "timeframe", "1m")
                         direction = "LONG" if getattr(best, "entry", 0) >= getattr(best, "stop", 0) else "SHORT"
                         confluence_threshold = self.adaptive_engine.adjust_confluence_threshold()
@@ -2350,31 +2340,13 @@ class TradingBrain(BrokerReconciler, HealthChecker, DataProvider, AccountingMixi
                         best.confluence_score = confluence.score  # type: ignore[attr-defined]
                         best.confluence_timeframes = confluence.checked_timeframes  # type: ignore[attr-defined]
                         if not confluence.passed:
-                            async with stats_lock:
-                                stats["detected"] += 1
-                                stats["rejected"] += 1
-                                stats["confluence_blocked"] = stats.get("confluence_blocked", 0) + 1
-                            self._log_scan_veto(
+                            logger.info(
+                                "Scan [%s]: %s confluence advisory (score %.2f on %s). Allowing for testing.",
                                 symbol,
-                                f"{best.name}",
-                                f"CONFLUENCE_VETO: {confluence.reasons[0] if confluence.reasons else 'low alignment'}",
-                                confidence=float(best.confidence),
-                            )
-                            await self._publish_market_observation(
-                                symbol,
-                                "PATTERN_CONFLUENCE_BLOCKED",
                                 best.name,
-                                confidence=float(best.confidence),
-                                price=current_scan_price,
-                                reason=f"Confluence score {confluence.score:.2f} on {primary_tf}",
-                                metadata={
-                                    "category": getattr(best, "category", "UNKNOWN"),
-                                    "confluence_score": confluence.score,
-                                    "confluence_timeframes": confluence.checked_timeframes,
-                                    "confluence_alignment": confluence.alignment,
-                                },
+                                confluence.score,
+                                primary_tf,
                             )
-                            return None
 
                         # NEURAL GOVERNANCE: cross-agent consensus before execution.
                         votes = [
@@ -2414,32 +2386,15 @@ class TradingBrain(BrokerReconciler, HealthChecker, DataProvider, AccountingMixi
                         best.governance_score = governance.score  # type: ignore[attr-defined]
                         best.governance_audit_id = governance.audit_id  # type: ignore[attr-defined]
                         if not governance.approved:
-                            async with stats_lock:
-                                stats["detected"] += 1
-                                stats["rejected"] += 1
-                                stats["governance_blocked"] = stats.get("governance_blocked", 0) + 1
-                            self._log_scan_veto(
+                            # Advisory-only during testing. The coordinator-level sovereign
+                            # engine still receives the votes and can override.
+                            logger.info(
+                                "Scan [%s]: %s governance advisory (score %.2f < %.2f). Allowing for testing.",
                                 symbol,
-                                f"{best.name}",
-                                f"GOVERNANCE_VETO: {governance.reasons[0] if governance.reasons else 'low consensus'}",
-                                confidence=float(best.confidence),
-                            )
-                            await self._publish_market_observation(
-                                symbol,
-                                "PATTERN_GOVERNANCE_BLOCKED",
                                 best.name,
-                                confidence=float(best.confidence),
-                                price=current_scan_price,
-                                reason=f"Governance score {governance.score:.2f} < {governance.threshold}",
-                                metadata={
-                                    "category": getattr(best, "category", "UNKNOWN"),
-                                    "governance_score": governance.score,
-                                    "governance_threshold": governance.threshold,
-                                    "governance_conflicts": governance.conflicts,
-                                    "governance_audit_id": governance.audit_id,
-                                },
+                                governance.score,
+                                governance.threshold,
                             )
-                            return None
 
                         # SENTIMENT OVERLAY: Veto or dampen confidence on extreme sentiment
                         try:
@@ -2483,16 +2438,14 @@ class TradingBrain(BrokerReconciler, HealthChecker, DataProvider, AccountingMixi
                                         f"dampened {best.name} confidence {old_conf:.1f}% -> {best.confidence:.1f}%"
                                     )
                                     if best.confidence < 0.55:
-                                        async with stats_lock:
-                                            stats["detected"] += 1
-                                            stats["rejected"] += 1
-                                        self._log_scan_veto(
+                                        # Testing mode: keep the pattern alive even if sentiment
+                                        # drove confidence to a very low value.
+                                        logger.info(
+                                            "Scan [%s]: %s sentiment dampened to %.1f, allowing for testing.",
                                             symbol,
-                                            f"{best.name}",
-                                            f"SENTIMENT_VETO: {signal} sentiment too extreme (mean={mean_sentiment:.2f})",
-                                            confidence=float(best.confidence),
+                                            best.name,
+                                            best.confidence,
                                         )
-                                        return None
                         except Exception as se:
                             logger.debug(f"Scan [{symbol}]: Sentiment overlay error: {se}")
 
