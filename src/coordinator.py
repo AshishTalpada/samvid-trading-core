@@ -443,6 +443,8 @@ class TradingCoordinator:
         symbol = symbol.upper()
         task = proposal.get("task")
         governance_audit_id: str | None = None
+        interrogation: Any | None = None
+        confluence_result: Any | None = None
 
         if self.brain.bus:
             await self.brain.bus.publish(
